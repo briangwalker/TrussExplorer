@@ -1,0 +1,7 @@
+node_modules/
+*.png
+*.pdf
+__pycache__/
+tests/private/
+tests/shots/
+index.html.tmp

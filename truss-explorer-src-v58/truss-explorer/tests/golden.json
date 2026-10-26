@@ -1,0 +1,111 @@
+{
+ "t29/legacy": {
+  "cap": 17.8096,
+  "D": 0.1477
+ },
+ "t29/frames every station D": {
+  "stable": true,
+  "cap": 17.7792,
+  "D": 0.1572,
+  "sway": 0.0134,
+  "wood": 4827.6901,
+  "frames": "DDDDEEE"
+ },
+ "t29/frames X, lateral X": {
+  "stable": true,
+  "cap": 22.5887,
+  "D": 0.1311,
+  "sway": 0.0064,
+  "wood": 6188.4058,
+  "frames": "XXXXXXX"
+ },
+ "t29/K frames, alt lateral": {
+  "stable": true,
+  "cap": 18.273,
+  "D": 0.1581,
+  "sway": 0.0341,
+  "wood": 4777.9043,
+  "frames": "KNNNNNK"
+ },
+ "t29/no frames": {
+  "stable": false
+ },
+ "t29/end frames only": {
+  "stable": false
+ },
+ "tfeet/arch on corner, rollers": {
+  "cap": 10.4371,
+  "D": 0.2361,
+  "sup": "pin(0.00,12.26) roll(0.00,12.26) roll(0.00,0.00) roll(0.00,0.00)",
+  "slips": 0,
+  "released": ""
+ },
+ "tfeet/arch on corner, ends bear on edge": {
+  "cap": 10.4371,
+  "D": 0.1422,
+  "sup": "corner(18.69,12.26) corner(-18.69,12.26) roll(0.00,0.00) roll(0.00,0.00)",
+  "slips": 0,
+  "released": ""
+ },
+ "tfeet/arch Δh -15 into the face": {
+  "cap": 7.6143,
+  "D": 0.384,
+  "sup": "pin(0.00,12.26) roll(0.00,12.26) roll(0.00,0.00) roll(0.00,0.00)",
+  "slips": 0,
+  "released": ""
+ },
+ "tfeet/arch Δh 0, bottom Δp -15": {
+  "cap": 14.844,
+  "D": 0.0834,
+  "sup": "pin(0.00,5.44) corner(0.00,5.44) roll(0.00,0.00) roll(0.00,0.00) face(17.05,6.82) face(-17.05,6.82)",
+  "slips": 0,
+  "released": "slip,slip"
+ },
+ "tfeet/both ends in face": {
+  "cap": 15.6282,
+  "D": 0.0887,
+  "sup": "pin(0.00,7.93) corner(0.00,7.93) roll(0.00,0.00) roll(0.00,0.00) face(10.83,4.33) face(-10.83,4.33)",
+  "slips": 0,
+  "released": "slip,slip"
+ },
+ "tfeet/both in face, μ 1.0": {
+  "cap": 15.6282,
+  "D": 0.0834,
+  "sup": "pin(0.00,1.43) corner(0.00,1.43) roll(0.00,0.00) roll(0.00,0.00) face(10.83,10.83) face(-10.83,10.83)",
+  "slips": 0,
+  "released": "slip,slip"
+ },
+ "tfeet/grid, flat, truss ends": {
+  "cap": 19.5229,
+  "D": 0.1555,
+  "sup": "pin(-0.00,12.26) roll(0.00,12.26)",
+  "slips": 0,
+  "released": ""
+ },
+ "tfeet/parabola bottom -20": {
+  "cap": 15.3851,
+  "D": 0.1221,
+  "sup": "pin(-0.00,12.26) roll(0.00,12.26) roll(0.00,0.00) roll(0.00,0.00)",
+  "slips": 0,
+  "released": ""
+ },
+ "t46": {
+  "lifted2D": "B0,B6",
+  "lifted3D": "13,7,21,27",
+  "cap2D": 17.9611,
+  "cap3D": 17.9611
+ },
+ "t47/{\"family\":\"warren\",\"panels\":6,\"bottom\":\"parabola\",\"curve\":20}": {
+  "lifted2D": "B8,B0",
+  "S": "B8f,B0f,B0b,B8b",
+  "framesX": "unstable"
+ },
+ "t47/{\"family\":\"warren\",\"panels\":6,\"bottom\":\"parabola\",\"curve\":20,\"sideAngle\":60}": {
+  "lifted2D": "B8,B0",
+  "S": "B8f,B0f,B0b,B8b",
+  "framesX": "unstable"
+ },
+ "t47/{\"family\":\"grid\",\"panels\":6,\"diagLeft\":[\"P\",\"P\",\"P\"],\"vertLeft\":[false,false,false],\"edgeVert\":false,\"deskVert\":false,\"bottom\":\"parabola\",\"curve\":20}": {
+  "stable2D": false
+ }
+}

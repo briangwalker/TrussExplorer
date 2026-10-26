@@ -4020,8 +4020,13 @@ function sampleIdx(total, n, Dm) {   // n distinct design numbers out of total
   const b = Math.floor(Math.random() * total);
   return walkFn(total, m, b);
 }
-// (m * i + b) mod total without losing digits: m * i can pass 2^53 when the design space is in the billions
+// (m * i + b) mod total without losing digits: m * i can pass 2^53 when the design space is in the billions.
+// Splitting i into 16-bit halves is exact only while m * 65536 < 2^53, i.e. total <= 2^37 (about 137 billion).
+// Past that, mulmodX doubles-and-adds with every step kept below total (<= 2^53), so nothing is ever rounded (TE-063).
+const WALK_SPLIT_MAX = 2 ** 37;
 function mulmod(m, i, total) { const hi = Math.floor(i / 65536), lo = i % 65536; return ((m * hi) % total * 65536 + m * lo) % total; }
+function addmod(x, y, T) { return x >= T - y ? x - (T - y) : x + y; }   // (x + y) mod T for x, y < T, never above T
+function mulmodX(m, i, T) { let r = 0, a = m % T, k = i; while (k > 0) { if (k % 2 === 1) r = addmod(r, a, T); a = addmod(a, a, T); k = Math.floor(k / 2); } return r; }
 // the same scrambled walk with exact BigInt maths, for spaces past 2^53 designs (plain numbers there are all even,
 // so the old "find an odd step" loop never ended and froze the page)
 function bigStep(T) {
@@ -4031,7 +4036,12 @@ function bigStep(T) {
   return [m, T * r() / 1000000000n];
 }
 function walkBig(T, m, b) { const f = i => (m * BigInt(i) + b) % T; f.m = m; f.b = b; f.T = T; return f; }
-function walkFn(total, m, b) { const f = i => (mulmod(m, i, total) + b) % total; f.m = m; f.b = b; return f; }   // a scrambled walk that visits each design at most once
+// a scrambled walk that visits each design at most once. legacy = the v58 walk, kept only so a checkpoint
+// saved by v58 resumes on the walk it started (it is biased past 2^37 designs; see TE-063).
+function walkFn(total, m, b, legacy) {
+  const f = legacy || total <= WALK_SPLIT_MAX ? (i => (mulmod(m, i, total) + b) % total) : (i => addmod(mulmodX(m, i, total), b, total));
+  f.m = m; f.b = b; f.wv = 2; return f;
+}
 // automatic checks on one solved design: overall equilibrium, equilibrium at every joint, and mirror symmetry
 function auditDesign(t2, r2) {
   const P = r2.Ptruss || 1, nd = t2.nodes.length, rs = new Float64Array(2 * nd);
@@ -4188,7 +4198,7 @@ function runFull(ck) {
   // The best-trade lines of the whole run are the best of every batch's, so they stay exact.
   const BATCH = window.__batch || 2000000, RUN_MAX = 100000000;
   big.hrs = ck ? (ck.hrs || 0) : S.bigHours; big.timeUp = false;
-  const Dm = P.Dm, n = ck ? ck.n : (big.hrs > 0 ? plannedN(P, P.msPer) : Math.min(P.total, S.bigCap, RUN_MAX)), pick = ck ? (ck.m != null ? (typeof ck.m === 'bigint' ? walkBig(ck.T, ck.m, ck.b) : walkFn(ck.total, ck.m, ck.b)) : null) : sampleIdx(P.total, n, Dm);
+  const Dm = P.Dm, n = ck ? ck.n : (big.hrs > 0 ? plannedN(P, P.msPer) : Math.min(P.total, S.bigCap, RUN_MAX)), pick = ck ? (ck.m != null ? (typeof ck.m === 'bigint' ? walkBig(ck.T, ck.m, ck.b) : walkFn(ck.total, ck.m, ck.b, !ck.wv)) : null) : sampleIdx(P.total, n, Dm);
   if (!ck && !(big.hrs > 0) && Math.min(P.total, S.bigCap) > RUN_MAX) toast(`One run is limited to ${RUN_MAX.toLocaleString()} designs, so this run samples ${RUN_MAX.toLocaleString()} of them.`);
   big.running = true; big.cancel = false; sweepBusy = true; setBigButtons();
   const sig = P.sig, B = Math.min(n, BATCH);
@@ -4232,7 +4242,7 @@ function runFull(ck) {
   let lastCk = performance.now();
   const checkpoint = (i, ms) => {
     lastCk = performance.now(); const L = i - bStart;
-    idbPut('ckpt', { ver: APP_VER, when: new Date().toISOString(), sig, total: P.total, n, m: pick ? pick.m : null, b: pick ? pick.b : null, T: pick && pick.T ? pick.T : null, kpos: !oldIds, hrs: big.hrs, k: i, bStart, ms: msBefore + ms, ctx: sweepCtx,
+    idbPut('ckpt', { ver: APP_VER, wv: 2, when: new Date().toISOString(), sig, total: P.total, n, m: pick ? pick.m : null, b: pick ? pick.b : null, T: pick && pick.T ? pick.T : null, kpos: !oldIds, hrs: big.hrs, k: i, bStart, ms: msBefore + ms, ctx: sweepCtx,
       idxA: idxA.slice(0, L), woodA: woodA.slice(0, L), capA: capA.slice(0, L), combA: combA.slice(0, L), flag: flag.slice(0, L), kept: [...kept.values()], sample, seen, unstable, passN, why, top, pre, screened }).catch(() => {});
   };
   const nb = Math.ceil(n / B);
@@ -4376,7 +4386,8 @@ const GLABEL = { ...Object.fromEntries(CHOICES.map(ch => ['c_' + ch.key, k => k 
   topEnd: v => `Δh ${v} mm`, botEnd: v => `Δp ${v} mm`, claw: v => v === 'on' ? 'claws' : 'no claws', brace: v => v === 'on' ? 'edge braces' : 'no braces',
   loadShape: v => LOAD_SHAPES[v] || v, loadX: v => v == null || v === 'null' ? 'spread / mid-span' : `load at ${v} mm`, bookKg: v => v == null || v === 'null' ? 'books as set' : `books ${v} kg`,
 };
-const okRow = r => r.envOK && r.edgeOK !== false;
+// a design that slips off the table is not a usable result (TE-066); older rows without slipOK count as not slipping
+const okRow = r => r.envOK && r.edgeOK !== false && r.slipOK !== false;
 // frontier candidates also pass the deflection check (capacity itself is strength only)
 const frontOK = r => okRow(r) && (!(r.D > 0) || !sweepCtx || r.D <= sweepCtx.defl);
 function gcolor(i) { return cssv('--g' + ((i % 8) + 1)); }
@@ -5828,7 +5839,8 @@ function queueSweepSave() {
     $('bigMsg').innerHTML = `A large search stopped at ${ck.k.toLocaleString()} of ${ck.n.toLocaleString()} designs (${new Date(ck.when).toLocaleString()}). <button type="button" class="btn acc sm" id="ckResume">Resume it</button> <button type="button" class="btn ghost sm" id="ckDrop">Discard</button>`;
     $('ckResume').addEventListener('click', () => {
       if (sweepSig() !== ck.sig || sweepDims().total !== ck.total) { $('bigMsg').textContent = 'The inputs or sweep ranges have changed since that search, so resuming would mix two different searches. Set them back, or start a new search.'; return; }
-      if (ck.ver !== APP_VER) toast('That search was started in an older version; the rest will use the new solver.');
+      if (!ck.wv && ck.total > WALK_SPLIT_MAX && typeof ck.m === 'number') toast(`That search started before v59. For spaces past 137 billion designs its sampler favoured some designs and repeated others, so it carries on the same way. For a fair sample, start a new search.`, true);
+      else if (ck.ver !== APP_VER) toast('That search was started in an older version; the rest will use the new solver.');
       $('s-sweep') && ($('s-sweep').open = true);
       runFull(ck);
     });
