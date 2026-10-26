@@ -2,7 +2,9 @@
 
 A single-page web app for designing balsa truss bridges for SE 310 Project I (UIUC, Fall 2026): hold two textbooks with a factor of safety of 2 using as little wood as possible. It solves 2D and 3D pin-jointed trusses, sweeps millions of designs, charts wood against capacity, and prints build documents.
 
-Version: v58 (2026-10-25). Live copy: the claude.ai artifact "SE 310 Truss Explorer" (GitHub Pages link to come).
+Version: v58 (2026-10-25). Live copy: the claude.ai artifact "SE 310 Truss Explorer"; coming soon at briangwalker.com/truss-explorer/.
+
+The app lives in `truss-explorer-src-v58/truss-explorer/`; the paths below are relative to that folder.
 
 ## Build
     python3 build.py      # writes index.html from src/
@@ -14,6 +16,8 @@ Open index.html in a browser. Everything runs in the page; saved bridges stay in
 - src/export.js, src/template.js: export to the course FEA script format
 - src/builddoc.js: build documents
 - src/app.js, src/ui.html: the interface
-- tests/: node tests, Playwright UI tests, cmp.py (compares with the course script). Paths inside the tests still point at the original build folder; set D at the top of each.
+- tests/: everything runs with `bash tests/run_all.sh`: solver checks, a comparison with the course script, and browser tests (see tests/README.md).
 
-Full project documentation lives in the "[13] Truss Explorer" Google Drive folder (Standing Instructions, Technical Handoff, Tickets).
+## Contributing
+
+Work is tracked in [Issues](https://github.com/briangwalker/TrussExplorer/issues). Labels give the type, priority (`P1`–`P3`), status and the role that acts next (`role: dev-lead`, `role: ui`, ...). New here? Try a `good first issue`. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to claim an issue, branch, run the tests and open a pull request.
