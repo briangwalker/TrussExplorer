@@ -1,8 +1,48 @@
-{"themes":[
- {"id":"wireframe","name":"Wireframe","note":"the default; built into shell.css"},
- {"id":"og","name":"OG (v61)","note":"the v60/v61 look, warts and all; unlocked after the first finished sweep or 20 minutes (#162)"},
- {"id":"blueprint","name":"Blueprint (sample)","css":"blueprint.css"},
- {"id":"notebook-calc","name":"Notebook + Calculator","css":"notebook-calc.css"},
- {"id":"notebook-calc-gen","name":"Notebook + Calculator (generated wood)","css":"notebook-calc.css"},
- {"id":"notebook-calc-calc","name":"Notebook + Calculator (calculator windows)","css":"notebook-calc.css"}
-]}
+{
+ "format": "truss-explorer-theme-index",
+ "version": 1,
+ "themes": [
+  {
+   "format": "truss-explorer-theme",
+   "version": 1,
+   "id": "wireframe",
+   "name": "Wireframe",
+   "note": "the default; built into shell.css"
+  },
+  {
+   "format": "truss-explorer-theme",
+   "version": 1,
+   "id": "og",
+   "name": "OG (v61)",
+   "note": "the v60/v61 look, warts and all; unlocked after the first finished sweep or 20 minutes (#162)"
+  },
+  {
+   "format": "truss-explorer-theme",
+   "version": 1,
+   "id": "blueprint",
+   "name": "Blueprint (sample)",
+   "css": "blueprint.css"
+  },
+  {
+   "format": "truss-explorer-theme",
+   "version": 1,
+   "id": "notebook-calc",
+   "name": "Notebook + Calculator",
+   "css": "notebook-calc.css"
+  },
+  {
+   "format": "truss-explorer-theme",
+   "version": 1,
+   "id": "notebook-calc-gen",
+   "name": "Notebook + Calculator (generated wood)",
+   "css": "notebook-calc.css"
+  },
+  {
+   "format": "truss-explorer-theme",
+   "version": 1,
+   "id": "notebook-calc-calc",
+   "name": "Notebook + Calculator (calculator windows)",
+   "css": "notebook-calc.css"
+  }
+ ]
+}

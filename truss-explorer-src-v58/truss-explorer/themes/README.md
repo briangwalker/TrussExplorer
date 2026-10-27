@@ -7,6 +7,9 @@ results, toast, badge, count-badge, table, chart-dot, progress). Picked controls
 
 Meaning colours never change: C red, T blue, 0 grey, fails magenta with ✕, passes green.
 
+`index.json` has `"format": "truss-explorer-theme-index", "version": 1`, and each theme entry `"format": "truss-explorer-theme", "version": 1`
+(spec: docs/formats.md, #149). `build.py` refuses any other format or version.
+
 `build.py` inlines every CSS file listed in `index.json` into index.html, so the page stays one file.
 Only the active theme's CSS is put on the page.
 

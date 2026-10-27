@@ -1,7 +1,10 @@
 // balsaPixel 1.0 shell (Full-Screen UI Spec): the theme setup (#108) and step 1, the windows and the top bar.
-// build.py drops this block into app.js just before window.__dbg, so it shares app.js's scope (S, res, setFs, ...).
+// Its own <script> after app.js. It reaches the app only through window.TrussApp (state, res, rows, fsEl, hooks, save, toast, escH, topOn, redraw).
 // ?layout=classic keeps the v61 page (the UI tests that predate the shell use it).
-{
+(function () {
+'use strict';
+const A = window.TrussApp; if (!A) return;
+const S = A.state, $ = id => document.getElementById(id), { save, toast, escH } = A;
 const SH_CLASSIC = /(^|[?&])layout=classic(&|$)/.test(location.search.slice(1)) || S.layout === 'classic';
 window.SHELL_ON = !SH_CLASSIC;
 if (!SH_CLASSIC) {
@@ -51,7 +54,7 @@ if (!SH_CLASSIC) {
 
   const place = () => S.shell.place;
   const sw = (which, d) => `<span class="swb">${SWP[which + (d === '3d' || d === 'c3' ? '3' : '2')]}<button type="button" style="left:0" data-sw="${which}:2" aria-label="${which === 't' ? 'Truss' : 'Analysis'} in 2D" aria-pressed="${!(d === '3d' || d === 'c3')}" title="${which === 't' ? 'Truss' : 'Analysis'} in 2D"></button><button type="button" style="right:0" data-sw="${which}:3" aria-label="${which === 't' ? 'Truss' : 'Analysis'} in 3D" aria-pressed="${d === '3d' || d === 'c3'}" title="${which === 't' ? 'Truss' : 'Analysis'} in 3D"></button></span>`;
-  function passCount() { try { let n = 0; for (const r of sweepAll) if (r.passes) n++; return n; } catch (e) { return 0; } }
+  function passCount() { try { let n = 0; for (const r of A.rows) if (r.passes) n++; return n; } catch (e) { return 0; } }
   function paintNav() {
     const P = place(), st = S.shell.bar, words = st === 'W', tOn = P === 'truss';
     nav.hidden = st === 'T'; barTab.hidden = st !== 'T';
@@ -83,7 +86,7 @@ if (!SH_CLASSIC) {
 
   // ---------- results card (top centre) ----------
   function paintCard() {
-    if (!res) return;
+    const res = A.res; if (!res) return;
     const need = (S.load.mBook1 + S.load.mBook2) * S.mat.FS, s = res.stable;
     const tag = S.anaMode === '3d' ? ' <span class="badge">3D</span>' : '';
     card.innerHTML = s
@@ -92,8 +95,9 @@ if (!SH_CLASSIC) {
     tagAll(); layoutSoon();
   }
   card.addEventListener('click', () => { setState('results', S.shell.w[place()].results === 'W' ? 'T' : 'W'); });
-  const _renderKey = renderKey; renderKey = function () { _renderKey(); paintCard(); };
-  const _renderSweep = renderSweep; renderSweep = function () { const r = _renderSweep.apply(this, arguments); paintNav(); return r; };
+  const H = A.hooks, keyCore = H.renderKey, sweepCore = H.renderSweep, fsCore = H.setFs;
+  H.renderKey = () => { keyCore(); paintCard(); };
+  H.renderSweep = () => { const r = sweepCore(); paintNav(); return r; };
 
   // ---------- windows: W (words and icons) → I (icons) → T (an edge tab) ----------
   const WIN = {
@@ -242,18 +246,17 @@ if (!SH_CLASSIC) {
   }
   let layT = 0, redT = 0;
   function layoutSoon() { cancelAnimationFrame(layT); layT = requestAnimationFrame(layout); }
-  function redrawSoon() { clearTimeout(redT); redT = setTimeout(() => { try { renderDrawing(); } catch (e) {} try { drawTrackers(); } catch (e) {} try { if (topOn()) render3D(); } catch (e) {} try { paintResOverlay(); } catch (e) {} }, 200); }
+  function redrawSoon() { clearTimeout(redT); redT = setTimeout(() => A.redraw(), 200); }
   window.addEventListener('resize', layoutSoon);
   if (window.ResizeObserver) { const ro = new ResizeObserver(layoutSoon); [wins.view, wins.sweep, card, nav].forEach(x => ro.observe(x)); }
 
   // ---------- places ----------
-  const _setFs = setFs;
-  setFs = function (key) { restore(); _setFs(key); if (key) fill(); };
+  H.setFs = key => { restore(); fsCore(key); if (key) fill(); };
   function go(p, fromBack) {
     if (!PLACES.includes(p)) return;
     const want = p === 'truss' ? '#sideSheet' : '#trackBody';
     if (p !== place()) { if (!fromBack) { S.shell.hist.push(place()); S.shell.hist = S.shell.hist.slice(-20); } S.shell.place = p; save(); }
-    if (fsEl !== want) setFs(want);
+    if (A.fsEl !== want) H.setFs(want);
     paintNav(); paintWins();
   }
 
@@ -335,4 +338,4 @@ if (!SH_CLASSIC) {
   setTimeout(() => { paintCard(); paintNav(); lastFree = ''; layout(); }, 60);
   window.__shell = { go, setState, applyTheme, layout, get state() { return S.shell; } };
 }
-}
+})();

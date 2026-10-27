@@ -2,6 +2,8 @@
 'use strict';
 const C = TrussCore, X = TrussExport;
 const $ = id => document.getElementById(id);
+// The calls another layer may wrap (balsaPixel's window layout does). Code here calls setFs, renderKey and renderSweep, which go through these.
+const HOOKS = { setFs: k => setFsCore(k), renderKey: () => renderKeyCore(), renderSweep: () => renderSweepCore() };
 // ---------- left panel: three groups. 1 bridge shape, 2 desks and supports, 3 loads and checks (with the pass/fail rules called out)
 (function regroup() {
   const inn = id => $(id).querySelector('.in');
@@ -855,7 +857,8 @@ function woodTotalText() {
 
 // ---------- stats
 // the four project measurements, at the top of the page, so everyone reads the same numbers
-function renderKey() {
+function renderKey() { return HOOKS.renderKey(); }
+function renderKeyCore() {
   const bk = S.load.mBook1 + S.load.mBook2, need = bk * S.mat.FS;
   const ok = (c, txt) => `<b class="${c ? 'ok' : 'bad'}">${txt}</b>`;
   const s = res.stable;
@@ -2097,7 +2100,8 @@ function loadParams(r) {
   $('bestN').addEventListener('change', () => { S.bestN = +$('bestN').value; save(); renderSweep(); });
   $('bestN').addEventListener('click', ev => ev.stopPropagation());
 })();
-function renderSweep() {
+function renderSweep() { return HOOKS.renderSweep(); }
+function renderSweepCore() {
   const tb = $('sweepTbl');
   const none = sweepAll.length > 0 && !sweepAll.some(r => r.passes);
   $('nonePass').hidden = !none;
@@ -3564,7 +3568,8 @@ const FS_CFG = {
 };
 var fsEl = null, fsMoved = [], fsCompactWas = null;
 function fsMove(node, into) { if (!node) return; const ph = document.createComment('fs'); node.parentNode.insertBefore(ph, node); into.appendChild(node); fsMoved.push([node, ph]); }
-function setFs(key) {
+function setFs(key) { return HOOKS.setFs(key); }
+function setFsCore(key) {
   setTimeout(() => { try { paintResOverlay(); if (topOn()) draw3D(); } catch (e) {} }, 80);
   // put everything back first
   fsMoved.reverse().forEach(([n, ph]) => { ph.parentNode.insertBefore(n, ph); ph.remove(); }); fsMoved = [];
@@ -3731,6 +3736,12 @@ function paintSame() {
   b.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); S.hideSame = !S.hideSame; paintSame(); save(); });
 });
 paintSame();
-/*SHELL*/
+// ---------- the one door other layers use (balsaPixel's src/shell.js; the first draft of the UI module boundary, #109) ----------
+window.TrussApp = Object.freeze({
+  get state() { return S; }, get res() { return res; }, get rows() { return sweepAll; }, get fsEl() { return fsEl; }, release: APP_RELEASE,
+  hooks: HOOKS,   // setFs(key), renderKey(), renderSweep(): replace one to run code around the original
+  save, toast, escH, topOn,
+  redraw() { try { renderDrawing(); } catch (e) {} try { drawTrackers(); } catch (e) {} try { if (topOn()) render3D(); } catch (e) {} try { paintResOverlay(); } catch (e) {} },
+});
 window.__dbg = { get S() { return S; }, drawTrackers: () => drawTrackers(), get rows() { return sweepAll; }, get res() { return res; }, load: p => loadParams(p), get ctx() { return sweepCtx; } };
 })();
