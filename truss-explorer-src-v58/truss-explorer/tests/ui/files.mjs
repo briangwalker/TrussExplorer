@@ -112,6 +112,20 @@ try {
     check('#156: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
   }
+  // ---------- every export says which release, model and rules made it, with the same bridge code
+  {
+    const p = await openPage(b, srv.url); await waitRows(p);
+    const grab = async (what, sel) => { const dl = p.waitForEvent('download'); await p.click('#dockBtn'); await p.click(`#dockMenu [data-click="${what}"]`);
+      if (sel) { await p.waitForSelector(sel); await p.click(sel === '#docModal:not([hidden])' ? '#docGo' : sel); }
+      await p.waitForSelector('#saveModal:not([hidden])'); await p.uncheck('#saveAsDesign'); await p.click('#saveGo'); const f = path.join(tmp, 'x-' + what); await (await dl).saveAs(f);
+      await p.evaluate(() => document.querySelectorAll('.modal').forEach(m => { m.hidden = true; })); await p.waitForTimeout(300); return fs.readFileSync(f, 'latin1'); };
+    const bridge = JSON.parse(await grab('saveBridge')), code = bridge.bridgeCode;
+    const outs = { csv: await grab('dlCsv'), py: await grab('dlPy'), lp: await grab('dlLp'), docs: await grab('openDocs', '#docModal:not([hidden])'), sweep: await grab('saveSweepFile') };
+    check('exports: the bridge file has a release, model and bridge code', /^v\d+/.test(bridge.release) && bridge.model && /^[0-9a-f]{8}$/.test(code), JSON.stringify({ r: bridge.release, m: bridge.model, code }));
+    for (const [k, txt] of Object.entries(outs)) check(`exports: ${k} carries the release and the same bridge code`, txt.includes(bridge.release) && txt.includes(code), txt.slice(0, 120).replace(/\s+/g, ' '));
+    check('exports: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
 } finally {
   await b.close(); srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
 }

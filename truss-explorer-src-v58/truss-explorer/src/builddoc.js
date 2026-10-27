@@ -604,17 +604,17 @@ function documentHTML(tr, res, meta, plan, opt) {
   }
   const total = sheets.length + tpls.length;
   // every printed page carries its number (#157): the sheets in their title blocks, the templates in their header
-  const tplPages = tpls.map((h, i) => `<section class="sheet tpl"><p class="pgno">${esc(meta.name)} · page ${sheets.length + i + 1} of ${total} · template T${i + 1} of ${tpls.length}</p>${h}</section>`).join('');
+  const tplPages = tpls.map((h, i) => `<section class="sheet tpl"><p class="pgno">${esc(meta.name)} · page ${sheets.length + i + 1} of ${total} · template T${i + 1} of ${tpls.length}${meta.info ? ` · ${esc(meta.info)}` : ""}</p>${h}</section>`).join('');
   const html = sheets.map((s, i) => `<section class="sheet ${s.cls || ''}"><div class="frame"><div class="zones top"><span>4</span><span>3</span><span>2</span><span>1</span></div><div class="zones bot"><span>4</span><span>3</span><span>2</span><span>1</span></div><div class="content">${s.body}</div>
     <table class="title"><tr><td colspan="2" class="big">${esc(meta.name)}</td><td>SHEET ${i + 1} OF ${total}</td></tr>
     <tr><td>SE 310 Project I · balsa truss bridge</td><td>${esc(s.title)}</td><td>${today}</td></tr>
-    <tr><td>Balsa ${b} × ${meta.h || b} mm</td><td>mm · angles from a square cut</td><td>${colourMode === 'part' ? 'colour = part' : 'black and white'}${dash ? ' · line pattern = part' : ''}</td></tr></table></div></section>`).join('');
+    <tr><td>Balsa ${b} × ${meta.h || b} mm</td><td>mm · angles from a square cut</td><td>${colourMode === 'part' ? 'colour = part' : 'black and white'}${dash ? ' · line pattern = part' : ''}</td></tr>${meta.info ? `<tr><td colspan="3" class="info">SE 310 Truss Explorer ${esc(meta.info)}</td></tr>` : ''}</table></div></section>`).join('');
   const css = `@page{size:letter landscape;margin:8mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;background:#ddd}
     .sheet{width:263mm;height:199mm;margin:8mm auto;background:#fffdf5;padding:3mm;overflow:hidden;page-break-after:always;break-after:page;box-shadow:0 2px 10px rgba(0,0,0,.2)}
     .frame{border:.5mm solid #111;height:100%;position:relative;padding:6mm 5mm 22mm}
     .content{height:100%;overflow:hidden}
     .zones{position:absolute;left:0;right:0;display:flex;justify-content:space-around;font-size:8pt;color:#555}.zones.top{top:.5mm}.zones.bot{bottom:.5mm}
-    .title{position:absolute;right:3mm;bottom:3mm;border-collapse:collapse;font-size:8pt;width:150mm;background:#fffdf5}.title td{border:.3mm solid #111;padding:1mm 2mm}.title .big{font-size:12pt;font-weight:bold}
+    .title{position:absolute;right:3mm;bottom:3mm;border-collapse:collapse;font-size:8pt;width:150mm;background:#fffdf5}.title td{border:.3mm solid #111;padding:1mm 2mm}.title .big{font-size:12pt;font-weight:bold}.title .info{font-size:6.5pt;color:#333}
     .parts{float:right;border-collapse:collapse;font-size:7.5pt;margin:0 0 3mm 4mm;background:#fffdf5}.parts th,.parts td{border:.25mm solid #111;padding:.6mm 1.6mm;text-align:center}.parts tr:first-child th{background:#eee}
     .view{width:100%;height:112mm;display:block;clear:both}.asmnote{margin:0 0 2mm}.note{font-size:8pt;color:#333}
     h2{font-size:11pt;margin:0 0 2mm}.two{display:grid;grid-template-columns:1.35fr 1fr;gap:6mm}

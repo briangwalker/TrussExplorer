@@ -35,10 +35,10 @@ const $ = id => document.getElementById(id);
   moveAll(inn('loadGrp'), S3);
   ['g-design', 'g-geom', 'supGrp', 'diagGrp', 'vertGrp', 'stickGrp', 'loadGrp'].forEach(id => $(id).remove());
 })();
-const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBook2: 1.0, g: 9.81, nTruss: 2 }, opts: { deflLimit: 2.0, width: 60, crossTies: true, minOverlap: 5, envMeasure: 'centre', tieJoint: 'ontop' } };
+const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBook2: 1.0, g: 9.81, nTruss: 2 }, opts: { deflLimit: 2.0, width: 60, crossTies: true, minOverlap: 5, tieJoint: 'ontop' } };
 // NEVER rename this key: everyone's saved work lives under it. When the saved format changes, convert old data on load instead.
 const KEY = 'se310-truss-v5';
-const APP_VER = 34;   // bumped whenever the solver or the saved data changes
+const APP_VER = 35;   // bumped whenever the solver or the saved data changes
 const APP_RELEASE = 'v61';   // the release name, written into every file the app saves
 
 const DEFAULT = {
@@ -74,9 +74,9 @@ let S = JSON.parse(JSON.stringify(DEFAULT));
 var FIRST_VISIT = true;
 try { const saved = cleanData(JSON.parse(localStorage.getItem(KEY) || 'null')); if (saved && saved.panels) { S = Object.assign(S, saved); FIRST_VISIT = false; } } catch (e) {}
 if (!S.migOv5) { if (S.opts && +S.opts.minOverlap === 20) S.opts.minOverlap = 5; S.migOv5 = true; }
-// v60 (#133): the envelope can be checked on the built bridge's outer faces (default: centrelines, as before, until the
-// course confirms how it measures), and how the ties are joined belongs to the bridge
-S.opts = Object.assign({ envMeasure: 'centre', tieJoint: (S.doc && S.doc.tieJoint) || 'ontop' }, S.opts || {});
+// v61: the envelope is checked on the built bridge's outer faces (#133), and how the ties are joined belongs to the bridge
+S.opts = Object.assign({ tieJoint: (S.doc && S.doc.tieJoint) || 'ontop' }, S.opts || {});
+delete S.opts.envMeasure;   // v61: the envelope is always measured on the outer faces
 // the options every 2D analysis gets: the bridge's own, plus the tilt (3D only) and whether ties sit on the top chords
 function anaOpts(extra) {
   const o = Object.assign({}, S.opts, extra || {});
@@ -231,7 +231,7 @@ function guardNum(id, lo, hi, cur, apply, what, unit) {
 const WIDTH_LIM = [20, 120];   // the model's range for the bridge width; the course rule (50-75 mm) is checked as a pass/fail rule
 $('width').addEventListener('change', () => guardNum('width', WIDTH_LIM[0], WIDTH_LIM[1], S.opts.width, v => { S.opts.width = v; setVal('width3d', v); update(); }, 'Bridge width'));
 ['deflLimit', 'minOverlap'].forEach(id => $(id).addEventListener('change', () => guardNum(id, 0, id === 'deflLimit' ? 50 : 200, S.opts[id], v => { S.opts[id] = v; update(); }, id === 'deflLimit' ? 'The deflection limit' : 'The minimum overlap')));
-$('envMeasure').addEventListener('change', () => { S.opts.envMeasure = $('envMeasure').value; update(); checkStale(); });
+
 $('crossTies').addEventListener('change', () => { S.opts.crossTies = $('crossTies').checked; update(); });
 $('resetMat').addEventListener('click', () => { S.mat = Object.assign({}, COURSE.mat); S.load = Object.assign({}, COURSE.load); S.opts = Object.assign({}, COURSE.opts); update(); });
 ['showIds', 'showElems', 'showDef'].forEach(id => $(id).addEventListener('change', () => { S[id] = $(id).checked; renderDrawing(); if (typeof draw3D === 'function') { draw3D(); draw3Views(); } save(); }));
@@ -382,7 +382,7 @@ function paintInputs() {
   setVal('mBook1', S.load.mBook1); setVal('mBook2', S.load.mBook2); setVal('nTruss', S.load.nTruss);
   setVal('FS', S.mat.FS); setVal('E', S.mat.E); setVal('rho', Math.round(S.mat.rho * 1e9)); setVal('sigT', S.mat.sigT); setVal('sigC', S.mat.sigC);
   setVal('bS', S.mat.b); setVal('hS', S.mat.h); setVal('width', S.opts.width); setVal('deflLimit', S.opts.deflLimit);
-  $('crossTies').checked = !!S.opts.crossTies; $('envMeasure').value = S.opts.envMeasure === 'outer' ? 'outer' : 'centre';
+  $('crossTies').checked = !!S.opts.crossTies;
   $('resOnDraw').checked = !!S.resOnDraw; $('showForces').checked = !!S.showForces; paintStatsBox();
   $('showDims').checked = S.showDims !== false; $('showGhosts').checked = S.showGhosts !== false; $('edgeBear').checked = !!S.edgeBear;
   $('topEndR').min = $('botEndR').min = -Math.min(+S.tableThick || 0, 30);
@@ -933,8 +933,7 @@ function renderStats() {
   if (!res.deflOK) li.push(['bad', `Mid-span deflection ${res.midDefl.toFixed(3)} mm is over the ${S.opts.deflLimit} mm limit.`]);
   res.envelope.forEach(e => li.push(['bad', e]));
   if (res.size) { const o = res.size.outer, c = res.size.centre, f = v => (Math.round(v * 10) / 10).toFixed(1);
-    if (res.size.measure === 'centre' && res.size.warn.length) li.push(['warn', `Passes on centrelines, but the built bridge is bigger: ${res.size.warn.join(', ')}. If the limits are measured on the outside, this fails. Set "Measure the envelope on" in Project limits.`]);
-    li.push(['info', `Built size, outside faces${res.size.measure === 'outer' ? ' (what the limits check)' : ' (the limits check centrelines)'}: width ${f(o.width)} mm (${f(c.width)} centre to centre) · height ${f(o.height)} mm above the deck${res.size.tiesOnTop ? ', ties on top' : ''} (${f(c.height)}) · ${f(o.depth)} mm below (${f(c.depth)}) · length ${f(o.length)} mm (${f(c.length)}).`]); }
+    li.push(['info', `Built size, outside faces (what the limits check): width ${f(o.width)} mm (${f(c.width)} centre to centre) · height ${f(o.height)} mm above the deck${res.size.tiesOnTop ? ', ties on top' : ''} (${f(c.height)}) · ${f(o.depth)} mm below (${f(c.depth)}) · length ${f(o.length)} mm (${f(c.length)}).`]); }
   if (Math.abs(res.dmax - res.midDefl) > 1e-4 && res.dnode !== res.midNode) li.push(['info', `Largest vertical movement anywhere is ${res.dmax.toFixed(3)} mm at joint ${res.dnode}.`]);
   msgs.innerHTML = li.map(([c, s]) => `<li class="${c}">${s}</li>`).join('');
 }
@@ -999,11 +998,11 @@ function setSticks(k, fn) {
 }
 $('resetSticks').addEventListener('click', () => { S.sticks = {}; update(); });
 function csvOf(rows) { return rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(',')).join('\n'); }
-function csvText() { return csvOf(rowsForCsv()); }
+function csvText() { return infoLines().map(l => '# ' + l).join('\n') + '\n' + csvOf(rowsForCsv()); }
 
 // ---------- export
 function fileBase() { return (S.name || 'design').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'design'; }
-function pyText() { return X.exportPy(PROF_TEMPLATE, S.name || 'Design', design(), tr, res, Object.assign({}, C.DEFAULT_MAT, S.mat), S.load, S.opts); }
+function pyText() { return infoLines().map(l => '# ' + l).join('\n') + '\n' + X.exportPy(PROF_TEMPLATE, S.name || 'Design', design(), tr, res, Object.assign({}, C.DEFAULT_MAT, S.mat), S.load, S.opts); }
 function renderExport() { $('pyOut').value = pyText(); $('dlPy').disabled = !res.stable; }
 function toast(msg, err) { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); clearTimeout(toast._t); toast._t = setTimeout(() => { t.textContent = ''; }, Math.max(4000, String(msg).length * 70)); }
 async function copy(text, okMsg, fallbackEl) {
@@ -1156,6 +1155,7 @@ function lpFiles() {
   const readme = `SE 310 Truss Explorer - LP data for "${S.name}"
 ${summaryOf({ family: S.family, pattern: S.pattern, panels: S.panels, height: S.height, overall: tr.overall, ratio: S.ratio, sideAngle: S.sideAngle, curve: tr.info.curve, bottom: tr.info.shape, supportOffset: tr.info.supportOffset })}
 Exported ${new Date().toISOString().slice(0, 10)}. Units: mm, N. One side truss (the loads are this truss's share).
+${infoLines().join('\n')}
 
 FILES
 nodes.csv
@@ -1271,15 +1271,26 @@ $('docGo').addEventListener('click', () => {
   const meta = { name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 240, kerf: +S.doc.kerf,
     ties: S.opts.crossTies ? { count: tr.deckNodes.length, len: +S.opts.width || 60 } : null, d3: doc3D(),
     massNote: `bridge mass ${res.massTotal.toFixed(1)} g`, capNote: `${res.capKg.toFixed(1)} kg of books (needs ${((S.load.mBook1 + S.load.mBook2) * S.mat.FS).toFixed(1)} kg)`,
-    scaleNote: 'Templates: 1:1' };
+    scaleNote: 'Templates: 1:1', info: (() => { const fi = fileInfo(); return `${fi.release} · ${fi.model} · bridge code ${fi.bridgeCode} · FS ${fi.rules.FS}, books ${fi.rules.bookKg} kg, envelope on outer faces`; })() };
   const html = BuildDoc.documentHTML(tr, res, meta, plan, { steps: S.doc.steps, templates: S.doc.tpl, colour: S.doc.colour, dash: S.doc.dash });
   saveFile(fileBase() + '_build_documents.html', html);
 });
 // ---------- bridge and sweep files, to share with partners (and, later, to publish)
 const FILE_VER = 2;   // 2 (v61): the analysis model, 3D setup and build-document settings travel with the bridge; every file says which release made it
+// a short code for the bridge (FNV-1a of its settings): the same in its file, its CSVs, its .py and on its printed
+// documents, so a printout can be matched to the file it came from
+function fingerprint(o) { const s = JSON.stringify(o); let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); }
+// the same facts as lines of text, for CSVs, the .py, the LP README and the build documents (over: { model, rules } of a sweep)
+function infoLines(over) {
+  const fi = fileInfo(over && over.model), r = Object.assign({}, fi.rules, over && over.rules);
+  return [`SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`, `Design: ${S.name || 'Design'} · ${fi.model} analysis · saved ${fi.savedAt}`,
+    `Rules: FS ${r.FS}, books ${r.bookKg} kg, deflection <= ${r.deflLimit} mm, overlap >= ${r.minOverlap} mm, width ${r.width} mm, envelope on outer faces`, `Bridge code: ${fi.bridgeCode}`];
+}
+// the rules a sweep's results were judged by (they can differ from the inputs on screen)
+function sweepInfo() { const c = sweepCtx || {}; return { model: /3D/.test(String(c.sheet && c.sheet.analysis)) ? '3D' : '2D', rules: Object.assign({}, c.FS != null ? { FS: +c.FS } : {}, c.bookKg != null ? { bookKg: +(+c.bookKg).toFixed(3) } : {}, c.defl != null ? { deflLimit: +c.defl } : {}, c.minOv != null ? { minOverlap: +c.minOv } : {}) }; }
 // what every saved file says about how its numbers were made
 function fileInfo(model) {
-  return { app: 'SE 310 Truss Explorer', release: APP_RELEASE, solver: APP_VER, savedAt: stamp(), model: model || (S.anaMode === '3d' ? '3D' : '2D'),
+  return { app: 'SE 310 Truss Explorer', release: APP_RELEASE, solver: APP_VER, savedAt: stamp(), model: model || (S.anaMode === '3d' ? '3D' : '2D'), bridgeCode: fingerprint(bridgeState()),
     rules: { FS: +S.mat.FS, bookKg: +(S.load.mBook1 + S.load.mBook2).toFixed(3), deflLimit: +S.opts.deflLimit, minOverlap: +S.opts.minOverlap, width: +S.opts.width, envelope: 'outer faces' } };
 }
 // settings that belong to this browser's screen, not to the bridge
@@ -2296,7 +2307,7 @@ $('tradeCsv').addEventListener('click', () => {
   const outc = ['wood', 'mass', 'D', 'util', 'capKg', 'passes', 'edgeOK', 'envOK', 'refined'];
   const all = cols.concat(extra, outc);
   const esc = v => v == null ? '' : (typeof v === 'number' ? (Number.isFinite(v) ? +v.toPrecision(8) : '') : String(v).replace(/[",\n]/g, ' '));
-  const csv = [all.join(',')].concat(sweepAll.map(r => all.map(k => esc(r[k])).join(','))).join('\n');
+  const csv = infoLines(sweepInfo()).map(l => '# ' + l).concat([all.join(',')], sweepAll.map(r => all.map(k => esc(r[k])).join(','))).join('\n');
   saveFile(fileBase() + '_tradeoff.csv', csv);
 });
 function drawTrade() {
@@ -3148,7 +3159,8 @@ function sheetHTML(sh) {
 }
 function sheetCSV(sh) {
   const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-  const head = [['Run', sh.kind], ['When', sh.when], ['Analysis', sh.analysis], ['Designs tested', sh.tested], ['Designs in the ranges', sh.total], ['Sampled', sh.sampled ? 'yes' : 'no'], ['FS', sh.FS], ['Books (kg)', sh.bookKg], ['Deflection limit (mm)', sh.defl], ['Min overlap (mm)', sh.minOv], ['Fixed inputs', sh.fixed], []];
+  const fi = fileInfo(sweepInfo().model);
+  const head = [['Made with', `SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`], ['Bridge code', fi.bridgeCode], ['Run', sh.kind], ['When', sh.when], ['Analysis', sh.analysis], ['Designs tested', sh.tested], ['Designs in the ranges', sh.total], ['Sampled', sh.sampled ? 'yes' : 'no'], ['FS', sh.FS], ['Books (kg)', sh.bookKg], ['Deflection limit (mm)', sh.defl], ['Min overlap (mm)', sh.minOv], ['Fixed inputs', sh.fixed], []];
   const tbl = [['Swept input', 'From', 'To', 'Step set', 'Values', 'Choices', 'Step reached (about)']].concat(sh.rows.map(r => r.list ? [r.name, '', '', '', r.count, r.list.join(' / '), r.eff || 'all'] : [r.name, r.from, r.to, r.step, r.count, '', r.eff != null ? r.eff : r.step]));
   return head.concat(tbl).map(row => row.map(q).join(',')).join('\n');
 }
