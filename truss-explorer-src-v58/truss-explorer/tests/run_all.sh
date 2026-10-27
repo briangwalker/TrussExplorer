@@ -45,6 +45,9 @@ node "$here/ui/smoke.mjs" 2>&1 | grep -Ev '^ok |saved summary'; mark ${PIPESTATU
 step "browser: saving, every view and full-screen mode"
 node "$here/ui/saving.mjs" 2>&1 | grep -Ev '^ok '; mark ${PIPESTATUS[0]} "UI saving"
 
+step "browser: opening files"
+node "$here/ui/files.mjs" 2>&1 | grep -Ev '^ok '; mark ${PIPESTATUS[0]} "UI files"
+
 step "browser: v51-v58 regressions $slow"
 node "$here/ui/regressions.mjs" $slow 2>&1 | grep -Ev '^ok |^-- |^$'; mark ${PIPESTATUS[0]} "UI regressions"
 
