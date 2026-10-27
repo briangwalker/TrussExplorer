@@ -11,7 +11,6 @@ if (!SH_CLASSIC) {
   // ---------- built-in themes (build.py fills THEME_PACK from themes/index.json) ----------
   const THEME_PACK = /*THEMES*/{ files: {}, list: [] };
   const THEME_LIST = [{ id: 'wireframe', name: 'Wireframe' }, { id: 'og', name: 'OG (v61)' }].concat(THEME_PACK.list.filter(t => t.css && THEME_PACK.files[t.css]));
-  const LOCAL_KEY = 'te-theme-local';
   const PLACES = ['truss', 'analysis'], STATES = ['W', 'I', 'T'];
   const DEF = { place: 'truss', bar: 'W', hist: [], theme: 'wireframe',
     w: { truss: { inputs: 'W', view: 'W', drawing: 'I', sweep: 'T', results: 'T' }, analysis: { inputs: 'T', view: 'W', drawing: 'W', sweep: 'T', results: 'T' } } };
@@ -264,50 +263,27 @@ if (!SH_CLASSIC) {
   const look = el('details', 'dsec'); look.id = 'lookSec';
   look.innerHTML = `<summary class="dlab">Look and controls</summary>
     <span class="dlab" style="margin-top:6px">Theme</span>
-    <div class="themerow"><select id="themeSel" aria-label="Theme"></select><button type="button" class="btn ghost sm" id="themeLoad" title="Use a theme file (.css) made with the theme contract">Load .css…</button></div>
-    <input type="file" id="themeFile" accept=".css,text/css" hidden>
+    <div class="themerow"><select id="themeSel" aria-label="Theme"></select></div>
     <span class="dnote" id="themeNote"></span>
     <label class="tsw"><input type="checkbox" id="swClassic"><span class="track"></span>Use the v61 page layout (reloads)</label>`;
   const kb = [...dockMenu.querySelectorAll('details.dsec')].find(d => /Keybinding|Mouse and keys/.test(d.querySelector('summary').textContent));
   if (kb) { kb.querySelector('summary').textContent = 'Mouse and keys'; look.appendChild(kb); kb.classList.add('sub'); }
   dockMenu.insertBefore(look, dockMenu.firstChild);
-  const readLocal = () => { try { return localStorage.getItem(LOCAL_KEY) || ''; } catch (e) { return ''; } };
-  let sessionLocal = '';
+  // Only built-in themes for now: a theme people load or share will be data (tokens and images) checked by formats.js,
+  // never raw CSS (White Hat, board TE-B-014; #197).
   function paintThemeSel() {
-    const loc = sessionLocal || readLocal();
-    $('themeSel').innerHTML = THEME_LIST.map(t => `<option value="${escH(t.id)}">${escH(t.name)}</option>`).join('') + (loc ? '<option value="local">Your file</option>' : '');
+    $('themeSel').innerHTML = THEME_LIST.map(t => `<option value="${escH(t.id)}">${escH(t.name)}</option>`).join('');
     $('themeSel').value = stage.dataset.theme;
     $('themeNote').textContent = 'Themes change the look only. The meaning colours on the drawing (C red, T blue, zero grey, fails, passes) never change.';
   }
-  // a theme file may use the Google Fonts it names and its own data: images; anything else that would reach the network is dropped
-  function cleanCss(t) {
-    t = String(t).slice(0, 4e6);
-    t = t.replace(/@import\s+(?:url\(\s*)?["']?([^"')\s;]+)["']?\s*\)?[^;]*;/gi, (m, href) => /^https:\/\/fonts\.googleapis\.com\//i.test(href) ? m : '');
-    t = t.replace(/url\(\s*(["']?)\s*([^)"']*)\1\s*\)/gi, (m, q, u) => (/^data:image\/|^data:font\/|^data:application\/font/i.test(u) || /^https:\/\/fonts\.(gstatic|googleapis)\.com\//i.test(u) || /^#/.test(u)) ? m : 'none');
-    return t.replace(/expression\s*\(|javascript:|-moz-binding|behavior\s*:/gi, '');
-  }
   function applyTheme(id) {
     let css = '';
-    if (id === 'local') { css = sessionLocal || readLocal(); if (!css) id = 'wireframe'; }
-    else if (id !== 'wireframe' && id !== 'og') { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
+    if (id !== 'wireframe' && id !== 'og') { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
     themeStyle.textContent = css; stage.dataset.theme = id; S.shell.theme = id; save();
     if ($('themeSel')) $('themeSel').value = id;
     tagAll(); lastFree = ''; layoutSoon();
   }
   $('themeSel').addEventListener('change', ev => applyTheme(ev.target.value));
-  $('themeLoad').addEventListener('click', () => $('themeFile').click());
-  $('themeFile').addEventListener('change', ev => {
-    const f = ev.target.files && ev.target.files[0]; ev.target.value = ''; if (!f) return;
-    if (f.size > 4e6) { toast('That theme file is over 4 MB, so it was not loaded.', true); return; }
-    const rd = new FileReader();
-    rd.onload = () => {
-      const css = cleanCss(rd.result); sessionLocal = css;
-      let kept = true; try { localStorage.setItem(LOCAL_KEY, css); } catch (e) { kept = false; }
-      paintThemeSel(); applyTheme('local');
-      toast(`Theme loaded from ${f.name}.${kept ? '' : ' It is too big to keep in this browser, so it lasts until you reload.'} A file made for the Click-Through answers to the id "local".`);
-    };
-    rd.readAsText(f);
-  });
   $('swClassic').addEventListener('change', ev => { if (ev.target.checked) { S.layout = 'classic'; save(); location.reload(); } });
 
   // ---------- the contract: data-slot / data-part, and the class names themes style ----------

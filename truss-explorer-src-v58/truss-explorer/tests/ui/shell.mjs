@@ -106,13 +106,10 @@ try {
   check('Notebook + Calculator turns the top bar to balsa', /photo-balsa|data:image/.test(await p.evaluate(() => getComputedStyle(document.querySelector('#shellNav .nb')).backgroundImage)));
   await p.selectOption('#themeSel', 'og'); await p.waitForTimeout(200);
   check('OG keeps the v61 buttons', await p.evaluate(() => { const b = document.querySelector('#dockMenu .btn.acc'); const s = getComputedStyle(b); return s.borderRadius === '4px'; }));
-  // a local theme file: Google Fonts and data: images stay, other addresses are dropped
-  const f = path.join(SHOTS, 'local-theme.css');
-  fs.writeFileSync(f, '@import url("https://evil.example/x.css");\n@import url("https://fonts.googleapis.com/css2?family=Kalam");\n#stage[data-theme="local"]{--te-strong:#0a7}\n#stage[data-theme="local"] .nav{background-image:url(https://evil.example/p.png), url("data:image/png;base64,AAAA")}');
-  await p.setInputFiles('#themeFile', f); await p.waitForTimeout(400);
-  const css = await p.evaluate(() => document.getElementById('themeCss').textContent);
-  check('Load .css: the file becomes the "local" theme', await p.evaluate(() => document.getElementById('stage').dataset.theme === 'local') && /--te-strong:#0a7/.test(css));
-  check('Load .css: other sites are dropped, Google Fonts and data: images kept', !/evil\.example/.test(css) && /fonts\.googleapis\.com/.test(css) && /data:image\/png/.test(css));
+  // only built-in themes until the shared theme format exists (#197): no way to load raw CSS
+  check('no raw CSS loading (built-in themes only)', await p.evaluate(() => !document.querySelector('#stage input[type="file"][accept*="css"]') && ![...document.querySelectorAll('#themeSel option')].some(o => o.value === 'local')));
+  await p.evaluate(() => { try { localStorage.setItem('te-theme-local', '#stage{--te-strong:red}'); } catch (e) {} __shell.applyTheme('local'); });
+  check('an unknown theme id falls back to Wireframe', await p.evaluate(() => document.getElementById('stage').dataset.theme === 'wireframe' && document.getElementById('themeCss').textContent === ''));
   await p.selectOption('#themeSel', 'wireframe');
   await p.keyboard.press('Escape'); await p.waitForTimeout(150);
 
