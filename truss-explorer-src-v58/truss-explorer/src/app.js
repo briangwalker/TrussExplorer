@@ -218,7 +218,19 @@ const MATKEYS = { E: 'E', rho: 'rho', sigT: 'sigT', sigC: 'sigC', bS: 'b', hS: '
 Object.entries(MATKEYS).forEach(([id, k]) => $(id).addEventListener('change', () => {
   const v = +$(id).value; if (!(v > 0)) return; S.mat[k] = id === 'rho' ? v * 1e-9 : v; update(); }));
 ['mBook1', 'mBook2', 'nTruss'].forEach(id => $(id).addEventListener('change', () => { const v = +$(id).value; if (!(v >= 0)) return; S.load[id] = id === 'nTruss' ? Math.max(1, Math.round(v)) : v; update(); }));
-['width', 'deflLimit', 'minOverlap'].forEach(id => $(id).addEventListener('change', () => { const v = +$(id).value; if (!(v >= 0)) return; S.opts[id] = v; update(); }));
+// a number box never says one thing while the app uses another (#156): a value outside what the model can handle is
+// refused, the box goes back to the value in use, and a short message says why. Course rules (the 50-75 mm width, say)
+// are not limits here: they run, and the design fails visibly.
+function guardNum(id, lo, hi, cur, apply, what, unit) {
+  const el = $(id), raw = String(el.value).trim(), v = +raw, u = unit == null ? ' mm' : unit;
+  const back = msg => { el.value = cur; toast(msg, true); };
+  if (raw === '' || !Number.isFinite(v)) return back(`${what} needs a number; kept ${cur}${u}.`);
+  if (v < lo || v > hi) return back(`${what} must be ${lo} to ${hi}${u}; kept ${cur}${u}.`);
+  apply(v);
+}
+const WIDTH_LIM = [20, 120];   // the model's range for the bridge width; the course rule (50-75 mm) is checked as a pass/fail rule
+$('width').addEventListener('change', () => guardNum('width', WIDTH_LIM[0], WIDTH_LIM[1], S.opts.width, v => { S.opts.width = v; setVal('width3d', v); update(); }, 'Bridge width'));
+['deflLimit', 'minOverlap'].forEach(id => $(id).addEventListener('change', () => guardNum(id, 0, id === 'deflLimit' ? 50 : 200, S.opts[id], v => { S.opts[id] = v; update(); }, id === 'deflLimit' ? 'The deflection limit' : 'The minimum overlap')));
 $('envMeasure').addEventListener('change', () => { S.opts.envMeasure = $('envMeasure').value; update(); checkStale(); });
 $('crossTies').addEventListener('change', () => { S.opts.crossTies = $('crossTies').checked; update(); });
 $('resetMat').addEventListener('click', () => { S.mat = Object.assign({}, COURSE.mat); S.load = Object.assign({}, COURSE.load); S.opts = Object.assign({}, COURSE.opts); update(); });
@@ -1211,7 +1223,10 @@ function renderDocDialog() {
   $('docTieBox').hidden = !d3; document.querySelectorAll('input[name="tiejoint"]').forEach(r => { r.checked = r.value === (S.opts.tieJoint || 'ontop'); });
   const spl = (plan.splices || []).length;
   $('docSum').textContent = `${plan.pieces.length} pieces per truss in ${plan.items.length} different cuts · ${total.toFixed(0)} mm of stick for ${nT} trusses` + (cx ? ` + ${cx.parts.length} ties and braces between them (${cx.items.length} different cuts, ${cx.parts.reduce((s, q) => s + q.long, 0).toFixed(0)} mm).` : S.anaMode === '3d' ? ' (the 3D model is unstable, so its ties and bracing are left out).' : ' (before cross-ties).')
-    + (spl ? ` ${spl} chord splice${spl > 1 ? 's' : ''}: a piece is longer than one ${+S.doc.stock || 240} mm stick.` : '');
+    + (spl ? ` ${spl} chord splice${spl > 1 ? 's' : ''}: a piece is longer than one ${+S.doc.stock || 240} mm stick.` : '')
+    + (plan.pieces.some(q => q.long > (+S.doc.stock || 240) + 1e-9) ? ` ${plan.pieces.filter(q => q.long > (+S.doc.stock || 240) + 1e-9).length} piece${plan.pieces.filter(q => q.long > (+S.doc.stock || 240) + 1e-9).length > 1 ? 's are' : ' is'} longer than one ${+S.doc.stock || 240} mm stick and can't be spliced (a single member that long): use longer sticks.` : '')
+    + ((plan.bad || []).length ? ` ${plan.bad.length} piece${plan.bad.length > 1 ? 's' : ''} can't be cut as set: change the joints marked below.` : '')
+    + ((plan.short || []).length ? ` ${plan.short.length} member${plan.short.length > 1 ? 's are' : ' is'} under ${(6 * b).toFixed(0)} mm (6 stick widths): the pin-jointed results are less reliable there.` : '');
   const sw = no => S.doc.colour ? `<span style="display:inline-block;width:10px;height:10px;margin-right:4px;background:${BuildDoc.colOf(no)}"></span>` : '';
   $('docItems').innerHTML = '<thead><tr><th>Item</th><th class="l">Part</th><th>Qty</th><th>Long point</th><th>Short point</th><th class="l">End cuts</th></tr></thead><tbody>' +
     plan.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${BuildDoc.TL[it.type] || it.type}</td><td>${it.pieces.length * nT * it.n}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('')
@@ -1222,7 +1237,7 @@ function renderDocDialog() {
       const two = j.members.length === 2;
       const opts = ['<option value="">none</option>'].concat(j.members.map(k => `<option value="${k}" ${j.through === k ? 'selected' : ''}>${name(k)}</option>`)).join('');
       const ends = ['flush', 'square'].concat(two ? ['mitre'] : []).map(s => `<option value="${s}" ${j.end === s ? 'selected' : ''}>${s === 'flush' ? 'flush to it' : s === 'square' ? 'square (90°)' : 'mitre'}</option>`).join('');
-      return `<tr${S.doc.over[j.n] ? ' style="background:var(--accent-soft)"' : ''}><td>${j.n}</td><td class="l"><select data-j="${j.n}" data-f="through">${opts}</select></td><td class="l"><select data-j="${j.n}" data-f="end">${ends}</select></td><td>${j.end === 'mitre' ? `<input type="number" min="5" max="95" step="5" value="${j.split}" data-j="${j.n}" data-f="split" style="width:60px">` : '—'}</td></tr>`;
+      return `<tr${S.doc.over[j.n] ? ' style="background:var(--accent-soft)"' : ''}><td>${j.n}</td><td class="l"><select data-j="${j.n}" data-f="through">${opts}</select></td><td class="l"><select data-j="${j.n}" data-f="end">${ends}</select>${j.notes && j.notes.length ? `<div class="hint" style="margin:2px 0 0">Changed automatically: ${escH(j.notes.join('; '))}</div>` : ''}</td><td>${j.end === 'mitre' ? `<input type="number" min="5" max="95" step="5" value="${j.split}" data-j="${j.n}" data-f="split" style="width:60px">` : '—'}</td></tr>`;
     }).join('') + '</tbody>';
 }
 $('openDocs').addEventListener('click', () => { if (!res.stable) { toast('Make the design stable first: the build documents need a working bridge.', true); return; } renderDocDialog(); $('docModal').hidden = false; });
@@ -1238,7 +1253,8 @@ $('docNo').addEventListener('click', () => { $('docModal').hidden = true; });
 $('docModal').addEventListener('keydown', ev => { if (ev.key === 'Escape') $('docModal').hidden = true; });
 document.querySelectorAll('input[name="jstyle"]').forEach(r => r.addEventListener('change', () => { S.doc.style = r.value; save(); renderDocDialog(); }));
 document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.opts.tieJoint = r.value; update(); renderDocDialog(); }));
-[['docStock', 'stock'], ['docKerf', 'kerf']].forEach(([id, k]) => $(id).addEventListener('change', () => { const v = +$(id).value; if (v >= 0) { S.doc[k] = v; save(); renderDocDialog(); } }));
+$('docStock').addEventListener('change', () => guardNum('docStock', 50, 2000, S.doc.stock, v => { S.doc.stock = v; save(); renderDocDialog(); }, 'Stock stick length'));
+$('docKerf').addEventListener('change', () => guardNum('docKerf', 0, 10, S.doc.kerf, v => { S.doc.kerf = v; save(); renderDocDialog(); }, 'Saw kerf'));
 [['docSteps', 'steps'], ['docTpl', 'tpl'], ['docColour', 'colour'], ['docDash', 'dash']].forEach(([id, k]) => $(id).addEventListener('change', () => { S.doc[k] = $(id).checked; save(); renderDocDialog(); }));
 $('docResetJ').addEventListener('click', () => { S.doc.over = {}; save(); renderDocDialog(); });
 $('docJoints').addEventListener('change', ev => {
@@ -1312,8 +1328,11 @@ $('filePick').addEventListener('change', async () => {
   const f = $('filePick').files[0]; if (!f) return;
   let doc; try { doc = cleanData(JSON.parse(await f.text())); } catch (e) { toast('That file is not a bridge or sweep file (it is not valid JSON).', true); return; }
   if (!doc || typeof doc !== 'object') { toast('That file is not a bridge or sweep file.', true); return; }
-  if (pickFor === 'bridge' || doc.format === 'se310-truss-bridge') {
-    if (doc.format !== 'se310-truss-bridge' || !doc.bridge) { toast('That is not a bridge file.', true); return; }
+  // either Open button takes either kind of file, and says which it was (#158)
+  if (doc.format !== 'se310-truss-bridge' && doc.format !== 'se310-truss-sweep') { toast(`That is not a bridge or sweep file from the Truss Explorer.`, true); return; }
+  const other = pickFor === 'bridge' && doc.format === 'se310-truss-sweep' ? 'That was a sweep file, so it opened as a sweep. ' : pickFor === 'sweep' && doc.format === 'se310-truss-bridge' ? 'That was a bridge file, so it opened as a bridge. ' : '';
+  if (doc.format === 'se310-truss-bridge') {
+    if (!doc.bridge || typeof doc.bridge !== 'object') { toast('That bridge file has no bridge in it.', true); return; }
     applyBridge(doc.bridge);
     let note = '';
     if (!doc.bridge.anaMode) {
@@ -1326,11 +1345,11 @@ $('filePick').addEventListener('change', async () => {
       }
     }
     if (doc.version > FILE_VER) note += ' It was made by a newer release of the Explorer, so some settings may be ignored.';
-    $('fileMsg').textContent = `Opened "${doc.name}" (saved ${new Date(doc.savedAt).toLocaleString()}${doc.release ? ` with ${doc.release}` : ''}).${note}`; toast('Bridge loaded.' + note, !!note);
+    $('fileMsg').textContent = `Opened "${doc.name}" (saved ${new Date(doc.savedAt).toLocaleString()}${doc.release ? ` with ${doc.release}` : ''}).${note}`; toast(other + 'Bridge loaded.' + note, !!note);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
-  if (doc.format !== 'se310-truss-sweep' || !Array.isArray(doc.rows)) { toast('That is not a sweep file.', true); return; }
+  if (!Array.isArray(doc.rows)) { toast('That sweep file has no results in it.', true); return; }
   // every result row needs its numbers: rows with a missing or non-numeric one are left out, and said so
   const nIn = doc.rows.length; doc.rows = cleanRows(doc.rows);
   if (!doc.rows.length) { toast('That sweep file has no usable results.', true); return; }
@@ -1343,6 +1362,7 @@ $('filePick').addEventListener('change', async () => {
   $('sweepFileBox').innerHTML = `These results come from a sweep file. The inputs on the left are still your own. <button type="button" class="btn ghost sm" id="useSweepSetup">Also load its bridge and sweep settings</button>`;
   $('useSweepSetup').addEventListener('click', () => { const d = pendingSweep; if (!d) return; applyBridge(Object.assign({}, d.bridge, d.settings ? { swOn: d.settings.swOn, swVals: d.settings.swVals, swSel: d.settings.swSel, focus: d.settings.focus } : {})); lastSig = sweepSig(); checkStale(); $('sweepFileBox').hidden = true; toast('Bridge and sweep settings loaded.'); });
   renderSweep(); drawTrackers(); paintBigMode(); checkStale();
+  if (other) toast(other + `${doc.rows.length.toLocaleString()} designs loaded.`);
 });
 // ---------- the floating View switch and menu, and simple bridges to start again from
 function closeDock() { $('dockMenu').hidden = true; $('dockBtn').setAttribute('aria-expanded', 'false'); }
@@ -2610,10 +2630,10 @@ function paint3Show() {
   $('d3Plan').parentElement.hidden = !pl; $('d3Sec').parentElement.hidden = !se;
   $('d3Views').hidden = !pl && !se;
 }
-$('width3d').addEventListener('change', () => { const v = +$('width3d').value; if (v > 0 && isFinite(v)) { S.opts.width = v; setVal('width', v); update(); } });
+$('width3d').addEventListener('change', () => guardNum('width3d', WIDTH_LIM[0], WIDTH_LIM[1], S.opts.width, v => { S.opts.width = v; setVal('width', v); update(); }, 'Bridge width'));
 $('d3ShowPlan').addEventListener('change', () => { S.d3.showPlan = $('d3ShowPlan').checked; save(); paint3Show(); });
 $('d3ShowSec').addEventListener('change', () => { S.d3.showSec = $('d3ShowSec').checked; save(); paint3Show(); });
-$('tilt3d').addEventListener('change', () => { const v = +$('tilt3d').value; if (isFinite(v) && Math.abs(v) <= 30) { S.d3.tilt = v; save(); d3Changed(); } });
+$('tilt3d').addEventListener('change', () => guardNum('tilt3d', -30, 30, +S.d3.tilt || 0, v => { S.d3.tilt = v; save(); d3Changed(); }, 'Tilt', '°'));
 [['botTies3d', 'botTies', 'checked']].forEach(([id, k, prop]) => $(id).addEventListener('change', () => { S.d3[k] = $(id)[prop]; save(); d3Changed(); }));
 $('reset3d').addEventListener('click', () => { v3.yaw = -0.55; v3.pitch = 0.42; v3.zoom = 1; v3.px = 0; v3.py = 0; render3D(); });
 let m3 = null, r3 = null;

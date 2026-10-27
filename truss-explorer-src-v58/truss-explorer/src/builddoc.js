@@ -55,7 +55,8 @@ function cutPlan(tr, b, cfg) {
     if (partner) { parent[find(partner.k)] = find(t.k); cont[j.n] = new Set([t.k, partner.k]); }
   });
   // end cut of member k at joint n: returns the cut-line distances (along the member, from the joint centre) for its two edges
-  const ends = {};
+  const ends = {}, notes = {};
+  const note = (n, s) => { (notes[n] = notes[n] || []); if (!notes[n].includes(s)) notes[n].push(s); };
   tr.elems.forEach((e, k) => {
     [e.i, e.j].forEach(n => {
       const j = byNode[n], p = j.p, me = j.m.find(q => q.k === k), u = me.dir, nrm = perp(u);
@@ -64,6 +65,14 @@ function cutPlan(tr, b, cfg) {
       const edge = (o, q, c) => meet(add(p, mul(nrm, o)), u, q, c);
       const others = j.m.filter(q => q.k !== k);
       if (!others.length) { ends[key] = { kind: 'free', eA: 0, eB: 0, ang: 0 }; return; }
+      // a chord meeting the next chord piece at a shallow bend (a curved chord): mitre the two on the bisector, so
+      // neither gets a sliver end; the chord is in compression and bears end grain on end grain (#155, Physics)
+      const kink = !over[n] && isChord(tr.elems[k]) ? others.find(q => tr.elems[q.k].type === tr.elems[k].type && dot(u, q.dir) < -Math.cos(30 * D2R) && dot(u, q.dir) > -Math.cos(0.5 * D2R)) : null;
+      if (kink) {
+        const phi = Math.acos(Math.max(-1, Math.min(1, dot(u, kink.dir)))), sgn = crs(u, kink.dir) >= 0 ? 1 : -1, c = rot(u, sgn * phi / 2);
+        ends[key] = { kind: 'mitre', eA: edge(b / 2, p, c), eB: edge(-b / 2, p, c), ang: 90 - phi / 2 * R2D, share: 50, auto: true };
+        note(n, `chords mitred on the bisector (${(180 - phi * R2D).toFixed(0)}° bend)`); return;
+      }
       if (r.through === k || (r.through != null && cont[n] && cont[n].has(r.through) && false)) {
         // this member is the one on top / running through, and it ends here: square, reaching past the joint to cover the others
         ends[key] = { kind: 'end', eA: -b / 2, eB: -b / 2, ang: 0 }; return;
@@ -88,7 +97,8 @@ function cutPlan(tr, b, cfg) {
       const theta = Math.acos(Math.min(1, Math.abs(dot(u, tl))));
       if (theta < 2 * D2R) { ends[key] = { kind: 'free', eA: 0, eB: 0, ang: 0 }; return; }
       const eA = edge(b / 2, face, tl), eB = edge(-b / 2, face, tl);
-      if (r.end === 'square') { const e2 = Math.max(eA, eB); ends[key] = { kind: 'square', eA: e2, eB: e2, ang: 0, against: t.k }; }
+      // a member meeting the chord at under 20°: a flush cut would leave a long thin feather, so butt it square (#155)
+      if (r.end === 'square' || (!over[n] && theta < 20 * D2R)) { const e2 = Math.max(eA, eB); ends[key] = { kind: 'square', eA: e2, eB: e2, ang: 0, against: t.k }; if (r.end !== 'square') note(n, `member ${k} butted square (meets at ${(theta * R2D).toFixed(0)}°)`); }
       else ends[key] = { kind: 'flush', eA, eB, ang: 90 - theta * R2D, against: t.k };
     });
   });
@@ -146,7 +156,9 @@ function cutPlan(tr, b, cfg) {
   const keyOf = q => [q.type, (Math.round(q.long * 2) / 2).toFixed(1), (Math.round(q.short * 2) / 2).toFixed(1), [Math.round(q.cut0.ang), Math.round(q.cut1.ang)].sort((a, b2) => a - b2).join('/'), q.n].join('|');
   const items = [];
   pieces.forEach(q => { const key = keyOf(q); let it = items.find(i => i.key === key); if (!it) { it = { key, no: items.length + 1, type: q.type, long: q.long, short: q.short, cuts: [q.cut0, q.cut1], n: q.n, pieces: [] }; items.push(it); } it.pieces.push(q); q.item = it.no; });
-  return { joints: J.map(j => Object.assign({ n: j.n, members: j.m.map(q => q.k) }, rule(j.n))), ends, pieces, items, splices };
+  // pieces too short to cut, or short enough that the pin-jointed model gets doubtful (L < 6 stick widths, Physics #155)
+  const bad = pieces.filter(q => !(q.short > 0.05) || !(q.long > 0.05)), short = pieces.filter(q => q.L < 6 * b);
+  return { joints: J.map(j => Object.assign({ n: j.n, members: j.m.map(q => q.k), notes: notes[j.n] || [] }, rule(j.n))), ends, pieces, items, splices, bad, short };
 }
 const SPLICE = { kind: 'splice', eA: 0, eB: 0, ang: 0 };
 
@@ -295,7 +307,7 @@ function distinctFrames(m3, cx) {
 const TL = { top: 'Top chord', bot: 'Bottom chord', end: 'End post', vert: 'Vertical', diag: 'Diagonal', brace: 'Edge brace', claw: 'Claw hook' };
 const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const cutTxt = c => c.kind === 'through' ? 'runs through' : c.kind === 'end' ? 'square, runs past' : c.kind === 'free' ? 'square' : c.kind === 'square' ? 'square (90°)' : c.kind === 'splice' ? 'square, splice at a joint' : c.kind === 'lap' ? 'square, laps the chord' : `${Math.round(c.ang)}° ${c.kind === 'mitre' ? 'mitre' : c.kind === 'bevel' ? 'bevel' : 'flush'}`;
+const cutTxt = c => c.auto && c.kind === 'mitre' ? `${Math.round(c.ang)}° mitre (bend)` : c.kind === 'through' ? 'runs through' : c.kind === 'end' ? 'square, runs past' : c.kind === 'free' ? 'square' : c.kind === 'square' ? 'square (90°)' : c.kind === 'splice' ? 'square, splice at a joint' : c.kind === 'lap' ? 'square, laps the chord' : `${Math.round(c.ang)}° ${c.kind === 'mitre' ? 'mitre' : c.kind === 'bevel' ? 'bevel' : 'flush'}`;
 
 // one colour and one line pattern per item, so a part can be told apart on screen and in black-and-white print
 const PALETTE = ['#1f77b4', '#d62728', '#2ca02c', '#9467bd', '#ff7f0e', '#17becf', '#8c564b', '#e377c2', '#0b6e4f', '#bcbd22', '#393b79', '#ad494a'];
@@ -461,7 +473,7 @@ function documentHTML(tr, res, meta, plan, opt) {
   const partsHead = `<tr><th colspan="6">PARTS LIST · ${nT} TRUSSES</th></tr><tr><th>ITEM</th><th>QTY</th><th>LENGTH</th><th>SHORT PT</th><th>END CUTS</th><th>DESCRIPTION</th></tr>`;
   const ownParts = partsArr.length > 10;   // too many rows to sit beside the drawing
   sheet('Assembly drawing', `${ownParts ? `<p class="note asmnote"><b>Parts list: next sheet${partsArr.length > 30 ? 's' : ''}.</b></p>` : `<table class="parts">${partsHead}${partsArr.join('')}</table>`}
-    <p class="note asmnote">Side view of one truss, mm. Each part is dimensioned once (long point); identical parts carry the same item balloon. Build ${nT} identical trusses${cx ? (cx.sameTrusses ? ' (checked: the front and back trusses of the 3D model are identical)' : ' — <b>the front and back trusses differ: see the 3D sheets</b>') : ''}.${cx && cx.tilt ? ` In the 3D bridge each truss leans ${f1(cx.tilt)}° inward about its bottom chord; build it flat, exactly as drawn.` : ''}${spliceNote}${marks.length ? ` <b>Desk edge</b> (green marks): line these up with the desk edges${(+tr.design.supportOffset || 0) ? `; the support joints sit ${f1(+tr.design.supportOffset)} mm onto the desks` : ''}.` : ''}${stopItem ? ` <b>Edge stops</b>: ${stops.length * nT} sticks of ${STOP_LEN} mm glued under the corner joints, hanging down the table's face so the edge can push the bridge inward (${f1(stopItem.pieces.length * STOP_LEN)} mm of stick, not counted in the app's wood).` : ''}
+    <p class="note asmnote">Side view of one truss, mm. Each part is dimensioned once (long point); identical parts carry the same item balloon. Build ${nT} identical trusses${cx ? (cx.sameTrusses ? ' (checked: the front and back trusses of the 3D model are identical)' : ' — <b>the front and back trusses differ: see the 3D sheets</b>') : ''}.${cx && cx.tilt ? ` In the 3D bridge each truss leans ${f1(cx.tilt)}° inward about its bottom chord; build it flat, exactly as drawn.` : ''}${spliceNote}${(plan.bad || []).length ? ` <b style="color:#c0392b">${plan.bad.length} piece${plan.bad.length > 1 ? 's' : ''} can't be cut as set (no length left between the end cuts): change the joints marked in the joints table.</b>` : ''}${(plan.short || []).length ? ` <b>Short members</b>: ${plan.short.length} piece${plan.short.length > 1 ? 's are' : ' is'} under ${f1(6 * b)} mm (6 stick widths); members this short behave like a solid web, so the results are less reliable.` : ''}${marks.length ? ` <b>Desk edge</b> (green marks): line these up with the desk edges${(+tr.design.supportOffset || 0) ? `; the support joints sit ${f1(+tr.design.supportOffset)} mm onto the desks` : ''}.` : ''}${stopItem ? ` <b>Edge stops</b>: ${stops.length * nT} sticks of ${STOP_LEN} mm glued under the corner joints, hanging down the table's face so the edge can push the bridge inward (${f1(stopItem.pieces.length * STOP_LEN)} mm of stick, not counted in the app's wood).` : ''}
     ${cx ? `Centre-to-centre wood ${f1(cc2 + ccX)} mm (side trusses ${f1(cc2)} + 3D parts ${f1(ccX)}; the app's "Wood in the 3D model" is ${f1(d3.r3.wood)} mm) · cut length ${f1(totalLen)} mm with joint allowances` : `Stick total ${f1(totalLen)} mm`} · ${meta.massNote || ''} · capacity ${meta.capNote || ''}.</p>
     <svg class="view" style="height:${ownParts ? 120 : Math.max(70, 112 - Math.max(0, partsArr.length - 7) * 5)}mm" viewBox="${v.box.join(' ')}">${v.svg}${spliceMarks(v.Y)}${markSVG(tr, marks, stops, v.Y, b, stopItem && colourMode === 'part' ? colOf(stopItem.no) : '#fff')}</svg>`);
   if (ownParts) { const ch = chunk(partsArr, 30); ch.forEach((rows, i) => sheet(cont('Parts list', i, ch.length), `<table class="parts xparts">${partsHead}${rows.join('')}</table>`)); }
@@ -495,7 +507,7 @@ function documentHTML(tr, res, meta, plan, opt) {
     const segs = B.cuts.map(c => { const r = `<rect x="${x}" y="0" width="${c.len}" height="8" fill="${c.item === 'T' ? '#ddd' : colourMode === 'part' ? colOf(c.item) : '#fff'}" fill-opacity=".55" stroke="#333" stroke-width=".4"/><text x="${x + c.len / 2}" y="5.6" font-size="4.2" text-anchor="middle" font-family="Arial">${c.item}</text>`; x += c.len + kerf; return r; }).join('');
     return `<div class="bar"><span>Stick ${i + 1}${B.over ? ' (too long!)' : ''}</span><svg viewBox="-1 -1 ${stock + 2} 10" preserveAspectRatio="none">${segs}<rect x="0" y="0" width="${stock}" height="8" fill="none" stroke="#999" stroke-width=".3"/></svg></div>`; });
   const cutArr = allItems.map(it => `<tr><td>${swatch(it.no)}${it.no}</td><td>${lab(it)}</td><td>${qty(it)}</td><td><b>${f1(it.long)}</b></td><td>${f1(it.short)}</td><td>${cutTxt(it.cuts[0])}</td><td>${cutTxt(it.cuts[1])}</td></tr>`);
-  const jArr = plan.joints.map(j => `<tr><td>${j.n}</td><td>${j.members.join(', ')}</td><td>${j.through == null ? '—' : j.through}</td><td>${j.end}${j.end === 'mitre' ? ' ' + j.split + '/' + (100 - j.split) : ''}</td></tr>`);
+  const jArr = plan.joints.map(j => `<tr><td>${j.n}</td><td>${j.members.join(', ')}</td><td>${j.through == null ? '—' : j.through}</td><td>${j.end}${j.end === 'mitre' ? ' ' + j.split + '/' + (100 - j.split) : ''}${j.notes && j.notes.length ? `<br><i style="font-size:6pt">${j.notes.join('; ')}</i>` : ''}</td></tr>`);
   // joint advice for the 3D parts (Physics, #116): pick each joint from its force
   let xJoints = '', xjRows = [], xjNote = '';
   const xjHead = '<tr><th>Item</th><th>Part</th><th>Joint</th><th>Largest force</th></tr>';
@@ -518,7 +530,7 @@ function documentHTML(tr, res, meta, plan, opt) {
     const cc = chunk(cutArr, 24); cc.forEach((rows, i) => sheet(cont('Cut list', i, cc.length), `<h2>${cont('Cut list', i, cc.length)}</h2><table class="grid">${cutHead}${rows.join('')}</table>${i === cc.length - 1 ? cutNote : ''}`));
     const bc = chunk(barArr, 24); bc.forEach((rows, i) => sheet(cont('Cutting plan', i, bc.length), `<h2>${cont('Cutting plan', i, bc.length)}</h2>${i === 0 ? planNote : ''}${rows.join('')}`));
   }
-  const jc = chunk(jArr, 30);
+  const jc = chunk(jArr, 22);   // joint rows can carry a note (#155), so fewer to a sheet
   const xjOwn = xjRows.length > 12;   // a long 3D joints table gets its own sheets
   jc.forEach((rows, i) => sheet(cont('Joints', i, jc.length), `<div class="two"><div><h2>${cont('Joints', i, jc.length)}</h2><table class="grid small">${jHead}${rows.join('')}</table></div><div>${i === 0 && !xjOwn ? xJoints : ''}</div></div>`));
   if (xjOwn) { const xc = chunk(xjRows, 22); xc.forEach((rows, i) => sheet(cont('3D joints', i, xc.length), `<h2>${cont('3D joints', i, xc.length)}</h2><table class="grid">${xjHead}${rows.join('')}</table>${i === xc.length - 1 ? xjNote : ''}`)); }
