@@ -200,27 +200,25 @@ test('build documents: 240 mm stock splices the chords at zero-force joints over
 });
 
 // ---------- envelope on the outer faces (#133)
-test('envelope: outer faces are one stick bigger; checked only when asked, warned otherwise', () => {
+test('envelope: checked on the outer faces, one stick bigger than the centrelines (#133)', () => {
   const at = (o, s) => { const st = Object.assign({}, DEFAULT, s || {}); const tr = C.buildTruss(design(st)); return C.analyze(tr, st.mat, st.load, Object.assign({}, st.opts, o)); };
   const b = C.DEFAULT_MAT.b;
   // width: W + b outside; W = 75 fails (78.2), W = 71 passes (74.2)
-  const w75 = at({ width: 75, envMeasure: 'outer' }), w71 = at({ width: 71, envMeasure: 'outer' });
+  const w75 = at({ width: 75 }), w71 = at({ width: 71 });
   assert.ok(Math.abs(w75.size.outer.width - (75 + b)) < 1e-9);
   assert.ok(w75.envelope.some(e => /width is 78\.2/i.test(e)), 'W 75 fails outside');
   assert.ok(!w71.envelope.some(e => /width/i.test(e)), 'W 71 passes outside');
-  // height: centreline 99 + b/2 + one tie on top = 103.8 fails; without ties on top, 100.6 still fails
-  const h99 = at({ envMeasure: 'outer', tiesOnTop: true }, { height: 99 });
+  // height: centreline 99 + b/2 + one tie on top = 103.8 fails
+  const h99 = at({ tiesOnTop: true }, { height: 99 });
   assert.ok(Math.abs(h99.size.outer.height - (99 + b / 2 + b)) < 1e-9 && h99.envelope.some(e => /103\.8/.test(e)));
-  // default (centrelines): the v59 checks, results unchanged, and a warning lists what would fail outside
-  const def = at({}), old = at({ envMeasure: 'centre' });
-  assert.equal(def.size.measure, 'centre');
-  assert.deepEqual(def.envelope, old.envelope);
-  assert.ok(def.size.warn.some(s => /length 303\.2/.test(s)), 'warns that 300 mm between end joints is 303.2 outside');
+  // 300 mm between end joints is 303.2 outside: that fails (Brian: no building near the line); 290 passes
+  assert.ok(at({}).envelope.some(e => /303\.2/.test(e)) && !at({}).passes);
+  assert.ok(!at({}, { deskMode: 'length', overlap: 45 }).envelope.some(e => /length/i.test(e)), 'a 290 mm bridge passes');
   // tilt: the outside width grows at the bottom, the height drops
-  const t10 = at({ envMeasure: 'outer', tilt: 10 });
-  assert.ok(t10.size.outer.width > 60 + b && t10.size.outer.height < at({ envMeasure: 'outer' }).size.outer.height);
+  const t10 = at({ tilt: 10 });
+  assert.ok(t10.size.outer.width > 60 + b && t10.size.outer.height < at({}).size.outer.height);
   // member forces never change
-  w75.members.forEach((m, k) => assert.equal(m.F, at({ width: 75 }).members[k].F));
+  w75.members.forEach((m, k) => assert.equal(m.F, at({ width: 60 }).members[k].F));
 });
 
 // ---------- imperfection loads in 3D (#117)
