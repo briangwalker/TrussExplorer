@@ -988,8 +988,65 @@ function zip(files) {
   e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cSize, true); e.setUint32(16, off, true);
   return new Blob([...parts, ...central, new Uint8Array(e.buffer)]);
 }
+// Pop-ups live inside the Sweep section in the markup; move them to the page itself so they show even when that
+// section is folded, in the Inputs-only view and over full screen (#98)
+document.querySelectorAll('.modal').forEach(m => document.body.appendChild(m));
+// Saving (#105, #97). On claude.ai the page asks the host for its 'downloads' capability; anywhere else
+// (briangwalker.com, a local copy) it uses an ordinary browser download. A failed request is never remembered,
+// so the next save asks again, and a save that may have failed offers to copy the contents instead.
+const onClaude = () => !!(window.claude && window.claude.use);
 let downloadsP = null;
-function getDownloads() { if (!downloadsP) downloadsP = (window.claude && window.claude.use) ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null); return downloadsP; }
+function getDownloads() {
+  if (!onClaude()) return Promise.resolve(null);
+  if (!downloadsP) downloadsP = window.claude.use('downloads').then(dl => { if (!dl) throw new Error('no downloads'); return dl; }).catch(() => { downloadsP = null; return null; });
+  return downloadsP;
+}
+function browserDownload(filename, data) {
+  try {
+    const type = /\.(json)$/i.test(filename) ? 'application/json' : /\.csv$/i.test(filename) ? 'text/csv' : /\.html$/i.test(filename) ? 'text/html' : /\.zip$/i.test(filename) ? 'application/zip' : 'text/plain';
+    const blob = data instanceof Blob ? data : new Blob([data], { type });
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return true;
+  } catch (e) { return false; }
+}
+// the save may not have worked: say so plainly and offer what does work here
+function saveFallback(filename, data) {
+  const text = typeof data === 'string';
+  $('saveFbText').textContent = text
+    ? `This view may have blocked the download of ${filename}. If no file appeared, copy the contents and paste them into a new text file named ${filename}, or try again.`
+    : `This view may have blocked the download of ${filename}. If no file appeared, try again in a moment.`;
+  $('saveFbCopy').hidden = !text; $('saveFbArea').hidden = true; $('saveFbArea').value = '';
+  $('saveFbModal').hidden = false;
+  const close = () => { $('saveFbModal').hidden = true; $('saveFbArea').value = ''; };
+  $('saveFbClose').onclick = close;
+  $('saveFbRetry').onclick = () => { close(); saveNamed(filename, data); };
+  $('saveFbCopy').onclick = async () => {
+    try { await navigator.clipboard.writeText(data); toast(`Copied. Paste it into a new file named ${filename}.`); close(); }
+    catch (e) { const a = $('saveFbArea'); a.hidden = false; a.value = data; a.focus(); a.select(); toast('Copy was blocked here. The text is selected; press Ctrl+C or Cmd+C.', true); }
+  };
+  $('saveFbModal').onkeydown = ev => { if (ev.key === 'Escape') close(); };
+  setTimeout(() => ($('saveFbCopy').hidden ? $('saveFbRetry') : $('saveFbCopy')).focus(), 30);
+}
+async function saveNamed(filename, data) {
+  if (onClaude()) {
+    const dl = await getDownloads();
+    if (dl) {
+      try { await dl.save({ filename, data }); toast('Saved ' + filename + '.'); return; }
+      catch (e) {
+        if (e && e.code === 'declined') { toast('Download cancelled.', true); return; }
+        if (e && e.code === 'rate_limited') { toast('A save prompt is already open.', true); return; }
+        downloadsP = null;   // ask the host again next time
+      }
+    }
+    browserDownload(filename, data);   // may or may not be allowed inside claude.ai, so offer the fallback too
+    saveFallback(filename, data);
+    return;
+  }
+  if (browserDownload(filename, data)) toast('Saved ' + filename + ' to your downloads.');
+  else saveFallback(filename, data);
+}
 // every export asks for its file name first (Enter saves, Esc cancels); the name can also become the design's name
 function askFileName(filename) {
   return new Promise(resolve => {
@@ -1009,11 +1066,7 @@ function askFileName(filename) {
 }
 async function saveFile(filename, data) {
   const nm = await askFileName(filename); if (!nm) { toast('Not saved.'); return; }
-  filename = nm;
-  const dl = await getDownloads();
-  if (!dl) { toast('Downloads are not available in this view. Use the copy button instead.', true); return; }
-  try { await dl.save({ filename, data }); toast('Saved ' + filename + '.'); }
-  catch (e) { if (e && e.code === 'declined') toast('Download cancelled.', true); else if (e && e.code === 'rate_limited') toast('A save prompt is already open.', true); else toast('This view could not save the file. Use the copy button instead.', true); }
+  return saveNamed(nm, data);
 }
 $('dlPy').addEventListener('click', () => { const b = fileBase(); saveFile(b + '_TrussFEA.zip', zip([{ name: b + '_TrussFEA_Bridge_SE310.py', text: pyText() }])); });
 $('dlCsv').addEventListener('click', () => saveFile(fileBase() + '_members.csv', csvText()));
@@ -2043,13 +2096,13 @@ function renderSaved() {
 }
 $('saveSweep').addEventListener('click', () => {
   if (!sweepAll.length) { $('saveMsg').textContent = 'Run a sweep first.'; return; }
-  const name = ($('saveName').value || `FS ${sweepCtx.FS} · ${sweepCtx.bookKg.toFixed(1)} kg`).slice(0, 40);
+  const name = ($('cmpName').value || `FS ${sweepCtx.FS} · ${sweepCtx.bookKg.toFixed(1)} kg`).slice(0, 40);
   const trade = frontier(sweepAll).map(r => ({ wood: r.wood, capKg: r.capKg, label: summaryOf(r) }));
   const cf = frontier(sweepAll, combined).map(r => ({ wood: r.wood, cf: combined(r), label: summaryOf(r) }));
   saved.push({ name, FS: sweepCtx.FS, bookKg: sweepCtx.bookKg, trade, cf, show: true });
   if (saved.length > 12) saved.shift();
   $('saveMsg').textContent = persistSaved() ? `Saved "${name}" in this browser.` : `Saved "${name}" for this visit only (this browser blocks storage).`;
-  $('saveName').value = ''; renderSaved(); drawTrackers();
+  $('cmpName').value = ''; renderSaved(); drawTrackers();
 });
 $('groupBy').value = S.groupBy || 'none';
 $('groupBy').addEventListener('change', () => { S.groupBy = $('groupBy').value; save(); drawTrackers(); });

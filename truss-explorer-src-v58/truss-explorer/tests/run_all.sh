@@ -42,6 +42,9 @@ python3 "$here/cmp.py" > /tmp/te-cmp.out 2>&1; r=$?; grep -E 'WORST|PASS|FAIL|KN
 step "browser: smoke"
 node "$here/ui/smoke.mjs" 2>&1 | grep -Ev '^ok |saved summary'; mark ${PIPESTATUS[0]} "UI smoke"
 
+step "browser: saving, every view and full-screen mode"
+node "$here/ui/saving.mjs" 2>&1 | grep -Ev '^ok '; mark ${PIPESTATUS[0]} "UI saving"
+
 step "browser: v51-v58 regressions $slow"
 node "$here/ui/regressions.mjs" $slow 2>&1 | grep -Ev '^ok |^-- |^$'; mark ${PIPESTATUS[0]} "UI regressions"
 

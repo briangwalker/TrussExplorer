@@ -183,7 +183,7 @@ body.compact .swblock{margin:0 0 4px;padding:2px 0 4px 6px}body.compact .seg but
 body.compact .two{gap:4px 10px}
 .staleMsg{border:1px solid var(--warn,#c80);background:color-mix(in srgb,var(--warn,#c80) 12%,transparent);padding:8px 10px;border-radius:6px;font-size:13px}
 .staleMsg[hidden]{display:none}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}.modal[hidden]{display:none}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:90;padding:16px}.modal[hidden]{display:none}
 .modalcard{background:var(--sheet,#fff);color:var(--ink);max-width:540px;width:100%;padding:18px 20px;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.3);font-size:14px;line-height:1.5}
 .bigbox{border:1px solid var(--line,#ddd);border-radius:8px;padding:10px 12px;font-size:13px}.bigbox[hidden]{display:none}.bigbox table{border-collapse:collapse;width:100%}.bigbox td{padding:4px 6px;border-top:1px solid var(--line,#ddd);vertical-align:top;white-space:normal;overflow-wrap:anywhere}.bigbox table{table-layout:fixed}.bigbox td:first-child{width:46%;text-align:left}.bigbox{overflow-wrap:anywhere;min-width:0;max-width:100%;box-sizing:border-box}body.showdata .ndata{display:none}
 .pilotBanner{border:1px solid var(--accent,#b07a2a);background:color-mix(in srgb,var(--accent,#b07a2a) 12%,transparent);padding:8px 10px;border-radius:6px;font-size:13px}.pilotBanner[hidden]{display:none}
@@ -846,6 +846,11 @@ body.hidesame table .samecol { display: none; }
             <label class="savename"><span>File name</span><span class="saverow"><input type="text" id="saveName" spellcheck="false"><b id="saveExt"></b></span></label>
             <label class="check" style="margin-top:8px"><input type="checkbox" id="saveAsDesign"> Also use this as the design name</label>
             <div class="btns" style="margin-top:12px"><button type="button" class="btn acc" id="saveGo">Save</button><button type="button" class="btn ghost" id="saveNo">Cancel</button><span class="note">Enter saves · Esc cancels</span></div></div></div>
+          <div id="saveFbModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="saveFbH"><div class="modalcard" style="max-width:520px">
+            <h3 id="saveFbH" style="margin-top:0">No download?</h3>
+            <p id="saveFbText"></p>
+            <textarea id="saveFbArea" class="code" readonly hidden style="min-height:140px"></textarea>
+            <div class="btns" style="margin-top:12px"><button type="button" class="btn acc" id="saveFbCopy">Copy contents</button><button type="button" class="btn ghost" id="saveFbRetry">Try again</button><button type="button" class="btn ghost" id="saveFbClose">Close</button></div></div></div>
           <div id="fixModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="fixH"><div class="modalcard" style="max-width:720px;max-height:92vh;overflow:auto">
             <h3 id="fixH" style="margin-top:0">Closest stable bridge</h3><p class="note" id="fixMsg" style="margin:0 0 8px"></p>
             <div class="tablewrap"><table id="fixTbl"></table></div>
@@ -888,7 +893,7 @@ body.hidesame table .samecol { display: none; }
                 <option value="height">height</option><option value="panels">panels</option><option value="pattern">pattern</option>
                 <option value="supportOffset">support distance</option><option value="sideAngle">side angle</option><option value="ratio">taper</option><option value="topEnd">arch end height Δh</option><option value="botEnd">bottom end height Δp</option><option value="claw">claws</option><option value="brace">edge braces</option><option value="loadShape">load shape</option><option value="loadX">load position</option><option value="bookKg">book mass</option><option value="c_deskEnds">foot style</option><option value="c_supportMode">supports</option><option value="c_topShape">top chord shape</option><option value="c_bottom">bottom chord shape</option><option value="c_edgeBear">ends bear on the edge</option><option value="brace3">bracing set (3D)</option><option value="tilt3">3D tilt</option><option value="width3">3D width</option><option value="ties3">bottom ties (3D)</option>
               </select></label>
-            <input type="text" id="saveName" placeholder="Name this sweep, e.g. FS 2" style="max-width:220px">
+            <input type="text" id="cmpName" placeholder="Name this sweep, e.g. FS 2" style="max-width:220px">
             <button type="button" class="btn ghost sm" id="saveSweep">Save sweep to compare</button>
             <span class="note" id="saveMsg"></span>
           </div>
