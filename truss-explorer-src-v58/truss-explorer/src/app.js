@@ -1149,14 +1149,19 @@ dual values mean) is the part to do yourself.
   ];
 }
 // ---------- build documents: joint styles, cut list, drawing, steps, templates
-S.doc = Object.assign({ style: 'through', over: {}, stock: 914, kerf: 1, steps: true, tpl: true, colour: true, dash: false }, S.doc || {});
+S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false, tieJoint: 'ontop' }, S.doc || {});
+// the kit's sticks are 240 mm (#116): move the old 914 mm default over once; a length set on purpose stays
+if (!S.doc.stock240) { if (+S.doc.stock === 914) S.doc.stock = 240; S.doc.stock240 = true; }
+// the 3D model and results the documents describe, when the 3D analysis is on
+function doc3D() { return S.anaMode === '3d' && res && res.mode3 && res.mode3.m3 && res.mode3.r3 && res.mode3.r3.stable ? { m3: res.mode3.m3, r3: res.mode3.r3, tieJoint: S.doc.tieJoint } : null; }
 function docPlan() {
   const b = +S.mat.b || 3.18;
   // keep only overrides that still match this design's joints
   const J = BuildDoc.jointsOf(tr), ok = {};
   Object.keys(S.doc.over).forEach(n => { const j = J.find(q => q.n === +n); if (!j) return; const o = S.doc.over[n]; if (o.through != null && !j.m.some(q => q.k === o.through)) return; ok[n] = o; });
   S.doc.over = ok;
-  return BuildDoc.cutPlan(tr, b, { style: S.doc.style, over: S.doc.over });
+  // pieces longer than one stock stick are spliced where the chord force is lowest (the worst of the two trusses in 3D)
+  return BuildDoc.cutPlan(tr, b, { style: S.doc.style, over: S.doc.over, stock: +S.doc.stock || 240, force: k => res && res.members && res.members[k] ? res.members[k].F : 0 });
 }
 function renderDocDialog() {
   const plan = docPlan(), b = +S.mat.b || 3.18;
@@ -1167,9 +1172,15 @@ function renderDocDialog() {
   const lbl = tr.nodes.map((p, n) => `<text x="${p[0] + 2}" y="${v.Y(p[1]) - 2}" font-size="5" fill="#b0601a" font-family="Arial" font-weight="bold">${n}</text>`).join('');
   $('docView').setAttribute('viewBox', v.box.join(' ')); $('docView').innerHTML = v.svg + lbl;
   const nT = +S.load.nTruss || 2, total = plan.pieces.reduce((s, q) => s + q.long * q.n, 0) * nT;
-  $('docSum').textContent = `${plan.pieces.length} pieces per truss in ${plan.items.length} different cuts · ${total.toFixed(0)} mm of stick for ${nT} trusses (before cross-ties).`;
+  const d3 = doc3D(), cx = d3 ? BuildDoc.crossPlan(d3.m3, d3.r3, b, { tieJoint: S.doc.tieJoint, startNo: plan.items.length + 1 }) : null;
+  $('docTieBox').hidden = !d3; document.querySelectorAll('input[name="tiejoint"]').forEach(r => { r.checked = r.value === (S.doc.tieJoint || 'ontop'); });
+  const spl = (plan.splices || []).length;
+  $('docSum').textContent = `${plan.pieces.length} pieces per truss in ${plan.items.length} different cuts · ${total.toFixed(0)} mm of stick for ${nT} trusses` + (cx ? ` + ${cx.parts.length} ties and braces between them (${cx.items.length} different cuts, ${cx.parts.reduce((s, q) => s + q.long, 0).toFixed(0)} mm).` : S.anaMode === '3d' ? ' (the 3D model is unstable, so its ties and bracing are left out).' : ' (before cross-ties).')
+    + (spl ? ` ${spl} chord splice${spl > 1 ? 's' : ''}: a piece is longer than one ${+S.doc.stock || 240} mm stick.` : '');
+  const sw = no => S.doc.colour ? `<span style="display:inline-block;width:10px;height:10px;margin-right:4px;background:${BuildDoc.colOf(no)}"></span>` : '';
   $('docItems').innerHTML = '<thead><tr><th>Item</th><th class="l">Part</th><th>Qty</th><th>Long point</th><th>Short point</th><th class="l">End cuts</th></tr></thead><tbody>' +
-    plan.items.map(it => `<tr><td>${S.doc.colour ? `<span style="display:inline-block;width:10px;height:10px;margin-right:4px;background:${BuildDoc.colOf(it.no)}"></span>` : ''}${it.no}</td><td class="l">${BuildDoc.TL[it.type] || it.type}</td><td>${it.pieces.length * nT * it.n}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('') + '</tbody>';
+    plan.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${BuildDoc.TL[it.type] || it.type}</td><td>${it.pieces.length * nT * it.n}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('')
+    + (cx ? cx.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${it.label}</td><td>${it.pieces.length}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('') : '') + '</tbody>';
   const name = k => `${k} ${(BuildDoc.TL[tr.elems[k].type] || '').toLowerCase()}`;
   $('docJoints').innerHTML = '<thead><tr><th>Joint</th><th class="l">On top / runs through</th><th class="l">Other ends</th><th>Mitre %</th></tr></thead><tbody>' +
     plan.joints.map(j => {
@@ -1191,6 +1202,7 @@ showExport(S.expTab || 'bridge');
 $('docNo').addEventListener('click', () => { $('docModal').hidden = true; });
 $('docModal').addEventListener('keydown', ev => { if (ev.key === 'Escape') $('docModal').hidden = true; });
 document.querySelectorAll('input[name="jstyle"]').forEach(r => r.addEventListener('change', () => { S.doc.style = r.value; save(); renderDocDialog(); }));
+document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.doc.tieJoint = r.value; save(); renderDocDialog(); }));
 [['docStock', 'stock'], ['docKerf', 'kerf']].forEach(([id, k]) => $(id).addEventListener('change', () => { const v = +$(id).value; if (v >= 0) { S.doc[k] = v; save(); renderDocDialog(); } }));
 [['docSteps', 'steps'], ['docTpl', 'tpl'], ['docColour', 'colour'], ['docDash', 'dash']].forEach(([id, k]) => $(id).addEventListener('change', () => { S.doc[k] = $(id).checked; save(); renderDocDialog(); }));
 $('docResetJ').addEventListener('click', () => { S.doc.over = {}; save(); renderDocDialog(); });
@@ -1205,8 +1217,8 @@ $('docJoints').addEventListener('change', ev => {
 });
 $('docGo').addEventListener('click', () => {
   const plan = docPlan(), mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
-  const meta = { name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 914, kerf: +S.doc.kerf,
-    ties: S.opts.crossTies ? { count: tr.deckNodes.length, len: +S.opts.width || 60 } : null,
+  const meta = { name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 240, kerf: +S.doc.kerf,
+    ties: S.opts.crossTies ? { count: tr.deckNodes.length, len: +S.opts.width || 60 } : null, d3: doc3D(),
     massNote: `bridge mass ${res.massTotal.toFixed(1)} g`, capNote: `${res.capKg.toFixed(1)} kg of books (needs ${((S.load.mBook1 + S.load.mBook2) * S.mat.FS).toFixed(1)} kg)`,
     scaleNote: 'Templates: 1:1' };
   const html = BuildDoc.documentHTML(tr, res, meta, plan, { steps: S.doc.steps, templates: S.doc.tpl, colour: S.doc.colour, dash: S.doc.dash });

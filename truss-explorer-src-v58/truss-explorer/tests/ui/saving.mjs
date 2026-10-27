@@ -77,6 +77,21 @@ try {
   await saveVia(p, '☰ LP data', async () => { await openMenu(p); await p.click('#dockMenu [data-click="dlLp"]'); }, '.zip');
   await saveVia(p, 'build documents', async () => { await openMenu(p); await p.click('#dockMenu [data-click="openDocs"]'); await p.waitForSelector('#docModal:not([hidden])'); await p.click('#docGo'); }, '.html');
   await p.evaluate(() => { const d = document.getElementById('docModal'); if (d) d.hidden = true; });
+
+  // 3D build documents (#116): in 3D analysis the download carries the 3D sheets, in every view
+  await p.click('#anaSwitch [data-ana="3d"]'); await p.waitForTimeout(500);
+  for (const v of ['inputs', 'both', 'bridge', 'analysis']) {
+    await leaveFs(p); await viewBtn(p, v); await p.waitForTimeout(250);
+    const d = await saveVia(p, `3D, ${v} view, build documents`, async () => { await openMenu(p); await p.click('#dockMenu [data-click="openDocs"]'); await p.waitForSelector('#docModal:not([hidden])');
+      if (v === 'inputs') check('3D: the tie-joint choice shows, "on top" by default', await p.isVisible('#docTieBox') && await p.isChecked('input[name="tiejoint"][value="ontop"]'));
+      if (v === 'inputs') check('3D: stock length defaults to 240 mm', (await p.inputValue('#docStock')) === '240');
+      await p.click('#docGo'); }, '.html');
+    if (d) { const fs = await import('fs'); const html = fs.readFileSync(await d.path(), 'utf8');
+      check(`3D, ${v} view: document has the 3D assembly, cross-frames and their templates`, /3D assembly/.test(html) && /3D cross-frames/.test(html) && /cross-frame templates/.test(html) && !/NaN|undefined/.test(html)); }
+    await p.evaluate(() => { const d = document.getElementById('docModal'); if (d) d.hidden = true; });
+  }
+  await leaveFs(p); await viewBtn(p, 'both');
+  await p.click('#anaSwitch [data-ana="2d"]'); await p.waitForTimeout(400);
   check('Part A: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
   await p.close();
 

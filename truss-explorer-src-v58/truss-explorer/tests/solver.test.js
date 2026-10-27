@@ -131,3 +131,70 @@ test('build documents: cut plan covers every member', () => {
   assert.ok(html);
   assert.ok(typeof BD.cutPlan === 'function' && typeof BD.sideSVG === 'function');
 });
+
+// ---------- 3D build documents (#116)
+const STW = 3.18;
+const D3CASES = [
+  ['default, upright, light', DEFAULT, { width: 60, tilt: 0, bottomTies: true, topPat: ['S'], botPat: ['S'], framePat: ['D', 'N'] }],
+  ['default, tilt 10, bottom ties', DEFAULT, { width: 60, tilt: 10, bottomTies: true, topPat: ['S'], botPat: ['S'], framePat: ['D', 'N'] }],
+  ['X everywhere, width 72, tilt 5', DEFAULT, { width: 72, tilt: 5, bottomTies: true, topPat: ['X'], botPat: ['X'], framePat: ['X'] }],
+  ['K frames', DEFAULT, { width: 60, tilt: 0, bottomTies: true, topPat: ['S'], botPat: ['S'], framePat: ['K', 'N'] }],
+  ['6 panels, arc top, tilt 8', Object.assign({}, DEFAULT, { panels: 6, diagLeft: ['P', 'P', 'P'], vertLeft: [true, true, true], topShape: 'arc', topEnd: 20 }), { width: 64, tilt: 8, bottomTies: true, topPat: ['S'], botPat: ['S'], framePat: ['D', 'N'] }],
+];
+function solve3D(state, o) {
+  const { tr, res } = solve2D(state);
+  const m3 = T3.build3D(tr, o), r3 = T3.analyze3D(m3, Object.assign({}, C.DEFAULT_MAT, state.mat), state.load);
+  return { tr, res, m3, r3 };
+}
+for (const [name, st, o] of D3CASES) {
+  test(`3D build documents: ${name}: every member once, centre-to-centre total = 3D wood`, () => {
+    const { tr, res, m3, r3 } = solve3D(st, o);
+    assert.ok(r3.stable, '3D model should be stable');
+    const plan = BD.cutPlan(tr, STW, { stock: 240, force: k => res.members[k].F });
+    const cx = BD.crossPlan(m3, r3, STW, { startNo: plan.items.length + 1 });
+    const crossK = m3.elems.map((e, k) => e.side === 'cross' ? k : -1).filter(k => k >= 0);
+    assert.deepEqual(cx.parts.map(q => q.k).sort((a, b) => a - b), crossK, 'each cross member exactly once');
+    assert.equal(cx.items.reduce((s, it) => s + it.pieces.length, 0), crossK.length);
+    // every side member is in exactly one piece, and no piece is longer than a stick
+    const seen = plan.pieces.flatMap(q => q.members).sort((a, b) => a - b);
+    assert.deepEqual(seen, tr.elems.map((e, k) => k));
+    plan.pieces.forEach(q => assert.ok(q.long <= 240 + 1e-6, `piece ${q.long.toFixed(1)} mm > 240`));
+    const cc = plan.pieces.reduce((s, q) => s + q.L * q.n, 0) * 2 + cx.parts.reduce((s, q) => s + q.L, 0);
+    assert.ok(Math.abs(cc - r3.wood) < 0.01, `c-c ${cc.toFixed(2)} vs 3D wood ${r3.wood.toFixed(2)}`);
+    assert.ok(cx.sameTrusses, 'front and back trusses identical');
+    // the document lists every item and has the 3D sheets
+    const html = BD.documentHTML(tr, res, { name: 'T', b: STW, h: STW, nTruss: 2, stock: 240, kerf: 1, d3: { m3, r3 } }, plan, { steps: true, templates: true });
+    assert.match(html, /3D assembly/); assert.match(html, /cross-frame templates/);
+    cx.items.forEach(it => assert.ok(html.includes(`>${it.no}</text>`), `item ${it.no} has a balloon`));
+    assert.ok(!/NaN|undefined/.test(html), 'no NaN or undefined in the document');
+  });
+}
+test('3D build documents: top tie length follows the tilt (W - 2 z sin phi) and its cut depends on the joint', () => {
+  for (const tilt of [0, 10, 20]) {
+    const { m3, r3 } = solve3D(DEFAULT, { width: 60, tilt, bottomTies: true, topPat: ['S'], botPat: ['S'], framePat: ['D', 'N'] });
+    const ph = tilt * Math.PI / 180, top = BD.crossPlan(m3, r3, STW).parts.filter(q => q.kind === 'tieTop');
+    const z = DEFAULT.height;   // flat top chord: every top joint at h
+    top.forEach(q => assert.ok(Math.abs(q.L - (60 - 2 * z * Math.sin(ph))) < 1e-6, `tilt ${tilt}: ${q.L}`));
+    // on top: square, out to the outer faces; between: shorter than centre to centre, bevelled by the tilt
+    const lap = BD.crossPlan(m3, r3, STW, { tieJoint: 'ontop' }).parts.find(q => q.kind === 'tieTop');
+    assert.ok(Math.abs(lap.long - (lap.L + STW / Math.cos(ph))) < 1e-6 && lap.cut0.kind === 'lap');
+    const btw = BD.crossPlan(m3, r3, STW, { tieJoint: 'between' }).parts.find(q => q.kind === 'tieTop');
+    assert.ok(btw.long < btw.L && Math.abs(btw.cut0.ang - tilt) < 0.01, `between: ${btw.long} < ${btw.L}, angle ${btw.cut0.ang}`);
+    const bt = BD.crossPlan(m3, r3, STW).parts.find(q => q.kind === 'tieBot');
+    assert.ok(Math.abs(bt.L - 60) < 1e-9 && bt.long < 60, 'bottom ties butt between the bottom chords');
+  }
+});
+test('build documents: 240 mm stock splices the chords at zero-force joints over the desks', () => {
+  const { tr, res } = solve2D(DEFAULT);
+  const plan = BD.cutPlan(tr, STW, { stock: 240, force: k => res.members[k].F });
+  assert.ok(plan.splices.length >= 2);
+  plan.splices.forEach(s => assert.ok(Math.abs(s.F) < 1e-6, `splice at joint ${s.node} passes ${s.F} N`));
+  const top = plan.pieces.filter(q => q.type === 'top').map(q => +q.L.toFixed(1)).sort((a, b) => a - b);
+  assert.deepEqual(top, [50, 50, 200], 'top chord in three pieces, joined at the desk edges');
+  // a long enough stick: no splices, the pieces are the same as without a stock length (2D documents unchanged)
+  const long = BD.cutPlan(tr, STW, { stock: 914, force: k => res.members[k].F }), none = BD.cutPlan(tr, STW, {});
+  assert.equal(long.splices.length, 0);
+  assert.deepEqual(long.pieces.map(q => q.long), none.pieces.map(q => q.long));
+  const html2 = BD.documentHTML(tr, res, { name: 'T', b: STW, h: STW, nTruss: 2, stock: 914, kerf: 1 }, none, { steps: true, templates: true });
+  assert.ok(!/3D assembly|cross-frame/.test(html2), '2D documents have no 3D sheets');
+});
