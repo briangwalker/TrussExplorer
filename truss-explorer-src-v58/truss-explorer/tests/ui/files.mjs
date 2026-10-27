@@ -41,6 +41,44 @@ try {
     check('crafted files: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
   }
+  // ---------- #154: a bridge file carries the 3D setup and the build-document settings to a partner
+  {
+    const p = await openPage(b, srv.url); await waitRows(p);
+    await p.click('#anaSwitch [data-ana="3d"]'); await p.waitForTimeout(400);
+    // tilt 10, bottom ties off, X on top (a non-default bracing), imperfection loads on
+    await p.evaluate(() => { const S = __dbg.S; S.d3.topPat = ['X']; S.d3.botPat = ['S']; S.d3.framePat = ['X']; });
+    await p.fill('#tilt3d', '10'); await p.dispatchEvent('#tilt3d', 'change');
+    await p.uncheck('#botTies3d').catch(() => {}); await p.check('#imperf3d'); await p.waitForTimeout(400);
+    // build-document settings: stock 200, square joints, kerf 2, one joint override
+    await p.click('#dockBtn'); await p.click('#dockMenu [data-click="openDocs"]'); await p.waitForSelector('#docModal:not([hidden])');
+    await p.fill('#docStock', '200'); await p.dispatchEvent('#docStock', 'change');
+    await p.fill('#docKerf', '2'); await p.dispatchEvent('#docKerf', 'change');
+    await p.check('input[name="jstyle"][value="square"]');
+    await p.selectOption('#docJoints select[data-f="end"] >> nth=0', 'flush');
+    const mine = await p.evaluate(() => ({ ana: __dbg.S.anaMode, wood: +__dbg.res.wood.toFixed(1), sum: document.getElementById('docSum').textContent, stock: document.getElementById('docStock').value, kerf: document.getElementById('docKerf').value, style: document.querySelector('input[name="jstyle"]:checked').value, over: Object.keys(__dbg.S.doc.over).length, tilt: __dbg.S.d3.tilt, ties: __dbg.S.d3.botTies, imp: __dbg.S.d3.imperf.on }));
+    await p.click('#docNo');
+    const dl = p.waitForEvent('download'); await p.click('#dockBtn'); await p.click('#dockMenu [data-click="saveBridge"]'); await p.waitForSelector('#saveModal:not([hidden])'); await p.click('#saveGo');
+    const file = path.join(tmp, 'shared.bridge.json'); await (await dl).saveAs(file);
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    check('#154: the file says which release, model and rules made it', saved.release && saved.model === '3D' && saved.rules && saved.rules.FS > 0 && saved.version >= 2, JSON.stringify({ r: saved.release, m: saved.model, v: saved.version }));
+    await p.close();
+    // a partner with a fresh browser opens it
+    const q = await openPage(b, srv.url); await waitRows(q);
+    await open(q, 'bridge', file); await q.waitForTimeout(600);
+    await q.click('#dockBtn'); await q.click('#dockMenu [data-click="openDocs"]'); await q.waitForSelector('#docModal:not([hidden])');
+    const theirs = await q.evaluate(() => ({ ana: __dbg.S.anaMode, wood: +__dbg.res.wood.toFixed(1), sum: document.getElementById('docSum').textContent, stock: document.getElementById('docStock').value, kerf: document.getElementById('docKerf').value, style: document.querySelector('input[name="jstyle"]:checked').value, over: Object.keys(__dbg.S.doc.over).length, tilt: __dbg.S.d3.tilt, ties: __dbg.S.d3.botTies, imp: __dbg.S.d3.imperf.on }));
+    check('#154: opens in 3D with the same wood as the file', theirs.ana === '3d' && Math.abs(theirs.wood - saved.summary.wood) < 0.15, JSON.stringify({ ana: theirs.ana, wood: theirs.wood, file: saved.summary.wood }));
+    check('#154: same 3D setup (tilt, bottom ties, imperfection loads)', theirs.tilt == mine.tilt && theirs.ties === mine.ties && theirs.imp === mine.imp, JSON.stringify([mine, theirs].map(x => [x.tilt, x.ties, x.imp])));
+    check('#154: same build-document settings and summary', ['stock', 'kerf', 'style', 'over', 'sum'].every(k => theirs[k] === mine[k]), JSON.stringify({ mine: [mine.stock, mine.kerf, mine.style, mine.over], theirs: [theirs.stock, theirs.kerf, theirs.style, theirs.over] }));
+    // a file saved before v61 (no anaMode) opens in the model its wood matches
+    const old = JSON.parse(JSON.stringify(saved)); delete old.bridge.anaMode; old.version = 1; delete old.release;
+    const q2 = await openPage(b, srv.url); await waitRows(q2);
+    await open(q2, 'bridge', write('old.bridge.json', old)); await q2.waitForTimeout(600);
+    const o2 = await q2.evaluate(() => ({ ana: __dbg.S.anaMode, wood: +__dbg.res.wood.toFixed(1), msg: document.getElementById('toast').textContent }));
+    check('#154: an older file opens in the model its wood matches, and says so', o2.ana === '3d' && Math.abs(o2.wood - saved.summary.wood) < 0.15 && /before v61/.test(o2.msg), JSON.stringify(o2));
+    check('#154: no script errors', p.errs.length + q.errs.length + q2.errs.length === 0, q.errs.concat(q2.errs).slice(0, 2).join(' | '));
+    await q.close(); await q2.close();
+  }
 } finally {
   await b.close(); srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
 }
