@@ -2776,9 +2776,29 @@ const DEFAULT = {
   showIds: true, showElems: false, showDef: true, defScale: 20, wide: false, openMap: {}, tab: 'trade',
   history: [], baseline: 0,
 };
+// Everything that comes from outside this page (an opened file, or data an earlier visit stored) is cleaned before
+// the app uses it: text can never become markup, and keys that would reach an object's prototype are dropped.
+// Typed arrays and BigInts (large-search checkpoints) pass through unchanged.
+const SAFE_CH = { '<': '‹', '>': '›', '"': '”', "'": '’', '`': 'ˋ' };
+function cleanData(x, depth) {
+  depth = depth || 0;
+  if (typeof x === 'string') return (x.length > 2000 ? x.slice(0, 2000) : x).replace(/[<>"'`]/g, c => SAFE_CH[c]);
+  if (x === null || typeof x !== 'object' || depth > 40) return x;
+  if (ArrayBuffer.isView(x) || x instanceof ArrayBuffer) return x;
+  if (Array.isArray(x)) return x.map(v => cleanData(v, depth + 1));
+  const o = {}; Object.keys(x).forEach(k => { if (k === '__proto__' || k === 'constructor' || k === 'prototype') return; o[cleanData(k, depth + 1)] = cleanData(x[k], depth + 1); });
+  return o;
+}
+// a sweep row from a file: the numbers the tables and charts read must be numbers
+const ROW_NUM = ['wood', 'capKg', 'util', 'D', 'overall', 'side', 'mass', 'height', 'panels', 'members'];
+const ROW_OPT = ['curve', 'supportOffset', 'ratio', 'overlap', 'topEnd', 'botEnd', 'tilt3', 'width3'];
+function cleanRows(rows) {
+  return (Array.isArray(rows) ? rows : []).filter(r => r && typeof r === 'object' && ROW_NUM.every(k => r[k] !== '' && r[k] != null && Number.isFinite(+r[k])))
+    .map(r => { ROW_NUM.forEach(k => { r[k] = +r[k]; }); ROW_OPT.forEach(k => { if (r[k] != null && r[k] !== '' && Number.isFinite(+r[k])) r[k] = +r[k]; }); return r; });
+}
 let S = JSON.parse(JSON.stringify(DEFAULT));
 var FIRST_VISIT = true;
-try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved && saved.panels) { S = Object.assign(S, saved); FIRST_VISIT = false; } } catch (e) {}
+try { const saved = cleanData(JSON.parse(localStorage.getItem(KEY) || 'null')); if (saved && saved.panels) { S = Object.assign(S, saved); FIRST_VISIT = false; } } catch (e) {}
 if (!S.migOv5) { if (S.opts && +S.opts.minOverlap === 20) S.opts.minOverlap = 5; S.migOv5 = true; }
 // v60 (#133): the envelope can be checked on the built bridge's outer faces (default: centrelines, as before, until the
 // course confirms how it measures), and how the ties are joined belongs to the bridge
@@ -4005,7 +4025,8 @@ function applyBridge(b) {
 }
 $('filePick').addEventListener('change', async () => {
   const f = $('filePick').files[0]; if (!f) return;
-  let doc; try { doc = JSON.parse(await f.text()); } catch (e) { toast('That file is not a bridge or sweep file (it is not valid JSON).', true); return; }
+  let doc; try { doc = cleanData(JSON.parse(await f.text())); } catch (e) { toast('That file is not a bridge or sweep file (it is not valid JSON).', true); return; }
+  if (!doc || typeof doc !== 'object') { toast('That file is not a bridge or sweep file.', true); return; }
   if (pickFor === 'bridge' || doc.format === 'se310-truss-bridge') {
     if (doc.format !== 'se310-truss-bridge' || !doc.bridge) { toast('That is not a bridge file.', true); return; }
     applyBridge(doc.bridge);
@@ -4014,6 +4035,10 @@ $('filePick').addEventListener('change', async () => {
     return;
   }
   if (doc.format !== 'se310-truss-sweep' || !Array.isArray(doc.rows)) { toast('That is not a sweep file.', true); return; }
+  // every result row needs its numbers: rows with a missing or non-numeric one are left out, and said so
+  const nIn = doc.rows.length; doc.rows = cleanRows(doc.rows);
+  if (!doc.rows.length) { toast('That sweep file has no usable results.', true); return; }
+  if (doc.rows.length < nIn) toast(`${(nIn - doc.rows.length).toLocaleString()} of ${nIn.toLocaleString()} rows in that file were incomplete and were left out.`, true);
   sweepAll = doc.rows; sweepCtx = doc.ctx || sweepCtx; sweepMode = 'file'; pendingSweep = doc;
   sweepRows = sweepAll.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30);
   lastSig = null;
@@ -4707,7 +4732,7 @@ function runFull(ck) {
 // IndexedDB keeps the last large search (it can be far bigger than the settings storage allows)
 function idb() { return new Promise((res, rej) => { try { const r = indexedDB.open('se310-truss', 1); r.onupgradeneeded = () => r.result.createObjectStore('big'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } }); }
 async function idbPut(key, val) { const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction('big', 'readwrite'); tx.objectStore('big').put(val, key); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
-async function idbGet(key) { const db = await idb(); return new Promise((res, rej) => { const q = db.transaction('big').objectStore('big').get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+async function idbGet(key) { const db = await idb(); return new Promise((res, rej) => { const q = db.transaction('big').objectStore('big').get(key); q.onsuccess = () => res(cleanData(q.result)); q.onerror = () => rej(q.error); }); }
 $('bigRestore').addEventListener('click', async () => {
   if (big.running || sweepBusy) return;
   let v = null; try { v = await idbGet('last'); } catch (e) { v = null; }
@@ -4835,13 +4860,13 @@ const combined = r => Math.min(r.util > 0 ? 1 / r.util : Infinity, r.D > 0 ? swe
 // ---------- saved sweeps (kept in this browser only)
 const SKEY = 'se310-truss-saved';
 let saved = [];
-try { saved = JSON.parse(localStorage.getItem(SKEY) || '[]') || []; } catch (e) { saved = []; }
+try { saved = cleanData(JSON.parse(localStorage.getItem(SKEY) || '[]')) || []; if (!Array.isArray(saved)) saved = []; } catch (e) { saved = []; }
 function persistSaved() { try { localStorage.setItem(SKEY, JSON.stringify(saved)); return true; } catch (e) { return false; } }
 function renderSaved() {
   const el = $('savedList'); el.innerHTML = '';
   saved.forEach((sv, i) => {
     const wrap = document.createElement('span'); wrap.className = 'chip on'; wrap.style.display = 'inline-flex'; wrap.style.gap = '6px'; wrap.style.alignItems = 'center'; wrap.style.padding = '4px 8px';
-    wrap.innerHTML = `<label class="check" style="font-size:12px"><input type="checkbox" ${sv.show !== false ? 'checked' : ''} data-sv="${i}"> <span class="swatch" style="background:${gcolor(i + 3)};opacity:.6"></span>${sv.name}</label><span class="note" style="font-size:11px">FS ${sv.FS} · ${sv.bookKg.toFixed(2)} kg</span><button type="button" class="btn ghost sm" data-del="${i}" aria-label="Delete saved sweep ${sv.name}" style="padding:0 6px">×</button>`;
+    wrap.innerHTML = `<label class="check" style="font-size:12px"><input type="checkbox" ${sv.show !== false ? 'checked' : ''} data-sv="${i}"> <span class="swatch" style="background:${gcolor(i + 3)};opacity:.6"></span>${escH(sv.name)}</label><span class="note" style="font-size:11px">FS ${sv.FS} · ${sv.bookKg.toFixed(2)} kg</span><button type="button" class="btn ghost sm" data-del="${i}" aria-label="Delete saved sweep ${sv.name}" style="padding:0 6px">×</button>`;
     el.appendChild(wrap);
   });
   el.querySelectorAll('input[data-sv]').forEach(c => c.addEventListener('change', () => { saved[+c.dataset.sv].show = c.checked; persistSaved(); drawTrackers(); }));
@@ -4849,7 +4874,7 @@ function renderSaved() {
 }
 $('saveSweep').addEventListener('click', () => {
   if (!sweepAll.length) { $('saveMsg').textContent = 'Run a sweep first.'; return; }
-  const name = ($('cmpName').value || `FS ${sweepCtx.FS} · ${sweepCtx.bookKg.toFixed(1)} kg`).slice(0, 40);
+  const name = cleanData(($('cmpName').value || `FS ${sweepCtx.FS} · ${(+sweepCtx.bookKg || 0).toFixed(1)} kg`).slice(0, 40));
   const trade = frontier(sweepAll).map(r => ({ wood: r.wood, capKg: r.capKg, label: summaryOf(r) }));
   const cf = frontier(sweepAll, combined).map(r => ({ wood: r.wood, cf: combined(r), label: summaryOf(r) }));
   saved.push({ name, FS: sweepCtx.FS, bookKg: sweepCtx.bookKg, trade, cf, show: true });
@@ -4898,8 +4923,8 @@ function groupTip(g) {
 function legendHTML(items) {
   const anyOff = items.some(it => it.off);
   const nG = items.filter(it => it.g != null).length;
-  if ((S.groupBy || 'none') === 'none') return items.map(it => `<span><span class="swatch" style="background:${it.color}"></span>${it.label}</span>`).join('') + '<span class="lghint">To hide some kinds of design, pick "Group by" above (pattern, panels…), then click a group here to hide or show it.</span>';
-  return items.map(it => `<span${it.g != null ? ` class="lg${it.off ? ' off' : ''}" data-g="${String(it.g).replace(/"/g, '&quot;')}" title="${String(it.tip || `Click to ${it.off ? 'show' : 'hide'} this group`).replace(/"/g, '&quot;')}"` : ''}><span class="swatch" style="background:${it.color};${it.dash ? 'opacity:.6;outline:1px dashed ' + it.color + ';outline-offset:1px' : ''}"></span>${it.label}</span>`).join('')
+  if ((S.groupBy || 'none') === 'none') return items.map(it => `<span><span class="swatch" style="background:${it.color}"></span>${escH(it.label)}</span>`).join('') + '<span class="lghint">To hide some kinds of design, pick "Group by" above (pattern, panels…), then click a group here to hide or show it.</span>';
+  return items.map(it => `<span${it.g != null ? ` class="lg${it.off ? ' off' : ''}" data-g="${String(it.g).replace(/"/g, '&quot;')}" title="${String(it.tip || `Click to ${it.off ? 'show' : 'hide'} this group`).replace(/"/g, '&quot;')}"` : ''}><span class="swatch" style="background:${it.color};${it.dash ? 'opacity:.6;outline:1px dashed ' + it.color + ';outline-offset:1px' : ''}"></span>${escH(it.label)}</span>`).join('')
     + (anyOff ? '<button type="button" class="btn ghost sm" data-showall="1">Show all groups</button>' : '') + (nG > 3 ? '<button type="button" class="btn ghost sm" data-hideall="1">Hide all</button>' : '') + (nG > 1 && !anyOff ? '<span class="lghint">Click a group to hide or show it. "Hide all", then click the few you want, to compare a handful.</span>' : '');
 }
 S.hideG = S.hideG || {};
@@ -5690,7 +5715,7 @@ function drawCurve() {
   });
   ctx.restore();
   $('curveLegend').innerHTML = legendHTML(series.map(s => ({ color: s.color, label: s.label, dash: s.dash, g: s.g, off: s.off, tip: s.tip })));
-  let t = `<thead><tr><th>Load level</th><th>Books (kg)</th>${series.map(s => `<th>${s.label}</th>`).join('')}</tr></thead><tbody>`;
+  let t = `<thead><tr><th>Load level</th><th>Books (kg)</th>${series.map(s => `<th>${escH(s.label)}</th>`).join('')}</tr></thead><tbody>`;
   const bk = sweepCtx ? sweepCtx.bookKg : S.load.mBook1 + S.load.mBook2;
   lv.forEach((p, i) => { t += `<tr><td>${p}%</td><td>${(bk * p / 100).toFixed(2)}</td>${series.map(s => { const d = s.data[i]; return `<td>${d.wood != null ? d.wood.toFixed(0) + ' mm' : '—'}</td>`; }).join('')}</tr>`; });
   $('curveTbl').innerHTML = t + '</tbody>';
@@ -5798,10 +5823,11 @@ function sheetFor(Dm, n, kind) {
 function sheetHTML(sh) {
   if (!sh) return '<p class="note">This result has no data sheet (it was made before sheets were added). Re-run the sweep to get one.</p>';
   const f = v => typeof v === 'number' ? (+v.toFixed(4)).toString() : v;
-  return `<p class="note" style="margin:0 0 6px"><b>${sh.kind}</b> · ${new Date(sh.when).toLocaleString()} · ${sh.analysis} analysis · tested <b>${sh.tested.toLocaleString()}</b> of ${sh.total.toLocaleString()} designs${sh.sampled ? ' (an evenly spread random sample)' : ' (every design)'} · rules: FS ${sh.FS}, books ${(+sh.bookKg).toFixed(2)} kg, deflection ≤ ${sh.defl} mm, overlap ≥ ${sh.minOv} mm.</p>
-    <div class="tablewrap"><table><thead><tr><th class="l">Swept input</th><th>From</th><th>To</th><th>Step set</th><th>Values</th><th>${sh.sampled ? 'Step reached (about)' : 'Step reached'}</th></tr></thead><tbody>${sh.rows.map(r => r.list
-      ? `<tr><td class="l">${escH(r.name)}</td><td class="l" colspan="3">${escH(r.list.join(' / '))}</td><td>${r.count}</td><td>${r.eff || 'all'}</td></tr>`
-      : `<tr><td class="l">${escH(r.name)}</td><td>${f(r.from)}</td><td>${f(r.to)}</td><td>${f(r.step)}</td><td>${r.count}</td><td>${r.eff != null ? '≈ ' + f(r.eff) : f(r.step)}</td></tr>`).join('') || '<tr><td class="l" colspan="6">Nothing was swept.</td></tr>'}</tbody></table></div>
+  const N = v => { const x = +v; return Number.isFinite(x) ? x : 0; };
+  return `<p class="note" style="margin:0 0 6px"><b>${escH(sh.kind)}</b> · ${escH(new Date(sh.when).toLocaleString())} · ${escH(sh.analysis)} analysis · tested <b>${N(sh.tested).toLocaleString()}</b> of ${N(sh.total).toLocaleString()} designs${sh.sampled ? ' (an evenly spread random sample)' : ' (every design)'} · rules: FS ${N(sh.FS)}, books ${N(sh.bookKg).toFixed(2)} kg, deflection ≤ ${N(sh.defl)} mm, overlap ≥ ${N(sh.minOv)} mm.</p>
+    <div class="tablewrap"><table><thead><tr><th class="l">Swept input</th><th>From</th><th>To</th><th>Step set</th><th>Values</th><th>${sh.sampled ? 'Step reached (about)' : 'Step reached'}</th></tr></thead><tbody>${[].concat(sh.rows || []).map(r => r.list
+      ? `<tr><td class="l">${escH(r.name)}</td><td class="l" colspan="3">${escH([].concat(r.list).join(' / '))}</td><td>${N(r.count)}</td><td>${escH(r.eff || 'all')}</td></tr>`
+      : `<tr><td class="l">${escH(r.name)}</td><td>${escH(f(r.from))}</td><td>${escH(f(r.to))}</td><td>${escH(f(r.step))}</td><td>${N(r.count)}</td><td>${r.eff != null ? '≈ ' + escH(f(r.eff)) : escH(f(r.step))}</td></tr>`).join('') || '<tr><td class="l" colspan="6">Nothing was swept.</td></tr>'}</tbody></table></div>
     <p class="note" style="margin:6px 0 0">Everything else was fixed at: ${escH(sh.fixed)}.${sh.sampled ? ' "Step reached" is how far apart the sampled designs are, on average, in each swept input: the sample covers the whole range, but less finely than the step set.' : ''}</p>`;
 }
 function sheetCSV(sh) {
@@ -5933,7 +5959,7 @@ let abPickSide = null;
 ['A', 'B'].forEach(s => $('abSrc' + s).addEventListener('change', () => { abOver = {}; if ($('abSrc' + s).value === 'file') { abPickSide = s; $('abFile').value = ''; $('abFile').click(); } abPaint(); }));
 $('abFile').addEventListener('change', async () => {
   const f = $('abFile').files[0]; if (!f || !abPickSide) return;
-  try { const doc = JSON.parse(await f.text()); if (doc.format !== 'se310-truss-bridge' || !doc.bridge) throw 0; abFiles[abPickSide] = Object.assign({ name: doc.name }, doc.bridge); }
+  try { const doc = cleanData(JSON.parse(await f.text())); if (!doc || doc.format !== 'se310-truss-bridge' || !doc.bridge) throw 0; abFiles[abPickSide] = Object.assign({ name: doc.name }, doc.bridge); }
   catch (e) { toast('That is not a bridge file.', true); }
   abPaint();
 });
@@ -6302,7 +6328,7 @@ function escH(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<'
 window.addEventListener('beforeunload', ev => { if (sweepBusy || big.running) { ev.preventDefault(); ev.returnValue = ''; } });
 // 4. earlier bridges: a copy is kept before every reset, preset or file load, and every few minutes while you work
 const BKEY = 'se310-truss-backups';
-function readBackups() { try { return JSON.parse(localStorage.getItem(BKEY) || '[]') || []; } catch (e) { return []; } }
+function readBackups() { try { const l = cleanData(JSON.parse(localStorage.getItem(BKEY) || '[]')); return Array.isArray(l) ? l : []; } catch (e) { return []; } }
 function snapBridge() { const b = bridgeState(); b.swSel = JSON.parse(JSON.stringify(SW)); b.swVals = {}; SW_IDS.forEach(id => { b.swVals[id] = $(id).value; }); return b; }
 function backupBridge(why, force) {
   const b = snapBridge(), str = JSON.stringify(b), list = readBackups();
