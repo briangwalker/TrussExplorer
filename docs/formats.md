@@ -26,7 +26,7 @@ Everything the Explorer saves, to a file or in the browser, is listed here with 
 | Material | `.material.json` | `truss-explorer-material` | 1 (draft) | checked by `formats.js`; nothing writes it yet (#150) |
 | Theme | `.theme.json` | `truss-explorer-theme` | 1 (draft) | balsaPixel themes (#108), on the balsaPixel-1.0 branch |
 
-**Names.** Files written today keep the `se310-truss-*` names so older releases can still open them. New kinds use `truss-explorer-*`, because the app is growing past SE 310 (any material, any bridge). The bridge and sweep files switch to their `truss-explorer-*` names at their next version bump; every name a kind has ever used stays readable forever.
+**Names.** Files written today keep the `se310-truss-*` names so older releases can still open them. New kinds use `truss-explorer-*`, because the app is growing past SE 310 (any material, any bridge). The bridge and sweep files switch to their `truss-explorer-*` names at their next version bump; every name a kind has ever used stays readable forever. *(Brian approved the `truss-explorer-*` naming, 2026-10-27.)*
 
 ## Shared header (bridge and sweep, version 2)
 
@@ -42,7 +42,8 @@ Written by `fileInfo()` in app.js.
 | `model` | `"2D"` / `"3D"` / null | The analysis model the numbers came from. `null` when an upgraded v1 file didn't say. |
 | `bridgeCode` | string | 8 hex digits: FNV-1a of the bridge settings. The same code is printed on the CSVs, the .py and the build documents, so a printout can be matched to its file. `null` after upgrading a v1 file (it isn't recomputed, because the app's own settings list has changed since). |
 | `rules` | object | The pass/fail rules the numbers were judged by: `FS`, `bookKg`, `deflLimit` (mm), `minOverlap` (mm), `width` (mm), `envelope` (`"outer faces"`). An upgraded v1 file gets whatever its bridge or sweep context recorded. |
-| `name` | string | Design or sweep name. |
+| `name` | string | Design or sweep name, as the person typed it. Never uploaded to the public database (#16). |
+| `autoName` | string | *Planned (#27, next version):* the generated name (time code + random word + bridge type) the design got when it was made. It is kept even if the person renames the design, and it is the only title the public database shows (#16). |
 
 ## Bridge file
 
