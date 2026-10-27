@@ -660,7 +660,7 @@ body.hidesame table .samecol { display: none; }
             <div class="row"><span class="lbl">Book 2 (kg)</span><input type="number" id="mBook2" step="0.01" min="0"></div>
             <div class="row"><span class="lbl">Factor of safety</span><input type="number" id="FS" step="0.1" min="1"></div>
             <div class="row"><span class="lbl">Side trusses</span><input type="number" id="nTruss" step="1" min="1" max="4"></div>
-            <div class="row"><span class="lbl">Bridge width (mm)</span><input type="number" id="width" step="1" min="30" max="100"></div>
+            <div class="row"><span class="lbl">Bridge width (mm)</span><input type="number" id="width" step="1" min="20" max="120"></div>
             <div class="row"><span class="lbl">Deflection limit (mm)</span><input type="number" id="deflLimit" step="0.1" min="0"></div>
             <div class="row"><span class="lbl">Min. overlap on desk (mm)</span><input type="number" id="minOverlap" step="1" min="0"></div>
             <div class="row"><span class="lbl">Measure the envelope on</span><select id="envMeasure" title="The built bridge is bigger than its joint centrelines: half a stick on every side, plus the ties when they lie on top of the chords"><option value="centre">joint centrelines (as in v59)</option><option value="outer">outer faces (the built size)</option></select></div>
@@ -836,8 +836,8 @@ body.hidesame table .samecol { display: none; }
               <label class="check"><input type="radio" name="tiejoint" value="between"> Butted between the chords</label>
             </div>
             <div class="tradectl">
-              <label>Stock stick length (mm) <input type="number" id="docStock" min="50" step="1" style="width:90px"></label>
-              <label>Saw kerf (mm) <input type="number" id="docKerf" min="0" step="0.1" style="width:70px"></label>
+              <label>Stock stick length (mm) <input type="number" id="docStock" min="50" max="2000" step="1" style="width:90px"></label>
+              <label>Saw kerf (mm) <input type="number" id="docKerf" min="0" max="10" step="0.1" style="width:70px"></label>
               <label class="check"><input type="checkbox" id="docSteps"> Build steps</label>
               <label class="check"><input type="checkbox" id="docTpl"> Full-size templates</label>
               <label class="check"><input type="checkbox" id="docColour"> Colour by part</label>

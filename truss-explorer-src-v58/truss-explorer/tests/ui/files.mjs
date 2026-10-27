@@ -79,6 +79,39 @@ try {
     check('#154: no script errors', p.errs.length + q.errs.length + q2.errs.length === 0, q.errs.concat(q2.errs).slice(0, 2).join(' | '));
     await q.close(); await q2.close();
   }
+  // ---------- #158: either Open button takes either kind of file
+  {
+    const p = await openPage(b, srv.url); await waitRows(p);
+    const sw = write('two.sweep.json', { format: 'se310-truss-sweep', version: 2, name: 'Two', savedAt: new Date().toISOString(), rows: [{ wood: 3000, capKg: 9, util: 0.5, D: 0.1, overall: 300, side: 90, mass: 4, height: 70, panels: 4, members: 21, passes: true, envOK: true, edgeOK: true, overlap: 50, pattern: 'pratt', family: 'grid' }, { wood: 3100, capKg: 10, util: 0.4, D: 0.1, overall: 300, side: 90, mass: 4, height: 72, panels: 4, members: 21, passes: true, envOK: true, edgeOK: true, overlap: 50, pattern: 'pratt', family: 'grid' }] });
+    await open(p, 'bridge', sw);
+    const r = await p.evaluate(() => ({ rows: __dbg.rows.length, msg: document.getElementById('toast').textContent }));
+    check('#158: a sweep file through Open bridge file opens as a sweep, and says so', r.rows === 2 && /sweep file, so it opened as a sweep/.test(r.msg), JSON.stringify(r));
+    await open(p, 'sweep', write('x.json', { hello: 1 }));
+    check('#158: anything else is named plainly', /not a bridge or sweep file/.test(await p.textContent('#toast')));
+    await p.close();
+  }
+  // ---------- #156: a number box never shows one value while the app uses another
+  {
+    const p = await openPage(b, srv.url); await waitRows(p);
+    await p.click('#anaSwitch [data-ana="3d"]'); await p.waitForTimeout(400);
+    await p.evaluate(() => { const g = document.getElementById('g-3d'); if (g) g.open = true; });
+    const tryBox = async (id, v) => { await p.fill(id, String(v)); await p.dispatchEvent(id, 'change'); await p.waitForTimeout(150); return { box: await p.inputValue(id), msg: await p.textContent('#toast') }; };
+    const used = () => p.evaluate(() => ({ tilt: +__dbg.S.d3.tilt, width: +__dbg.S.opts.width, stock: +__dbg.S.doc.stock, kerf: +__dbg.S.doc.kerf }));
+    const u0 = await used();
+    for (const [id, v, key] of [['#tilt3d', 89, 'tilt'], ['#width3d', 0, 'width'], ['#width3d', -10, 'width'], ['#width3d', 500, 'width'], ['#width', 500, 'width']]) {
+      const r = await tryBox(id, v), u = await used();
+      check(`#156: ${id} = ${v} is refused, the box shows the value in use`, +r.box === u[key] && u[key] === u0[key] && /must be/.test(r.msg), JSON.stringify({ box: r.box, used: u[key], msg: r.msg }));
+    }
+    await p.click('#dockBtn'); await p.click('#dockMenu [data-click="openDocs"]'); await p.waitForSelector('#docModal:not([hidden])');
+    for (const [id, v, key] of [['#docStock', 0, 'stock'], ['#docStock', '', 'stock'], ['#docStock', -5, 'stock'], ['#docKerf', -1, 'kerf'], ['#docKerf', 1000, 'kerf']]) {
+      const r = await tryBox(id, v), u = await used();
+      check(`#156: ${id} = "${v}" is refused, the box shows the value in use`, +r.box === u[key] && u[key] === u0[key], JSON.stringify({ box: r.box, used: u[key], msg: r.msg }));
+    }
+    await tryBox('#docStock', 50);
+    check('#156: stock shorter than a piece that can\'t be spliced is warned about', /can't be spliced/.test(await p.textContent('#docSum')), (await p.textContent('#docSum')).slice(0, 160));
+    check('#156: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
 } finally {
   await b.close(); srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
 }
