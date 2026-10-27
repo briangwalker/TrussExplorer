@@ -238,3 +238,16 @@ test('3D imperfection loads: off = unchanged; on = small realistic bracing force
   m3.elems.forEach((e, k) => { if (e.side === 'front') fr[e.e2] = k; });
   m3.elems.forEach((e, k) => { if (e.side === 'back') assert.ok(Math.abs(bow.members[k].F - bow.members[fr[e.e2]].F) < 1e-9, `member ${e.e2} front/back`); });
 });
+
+// ---------- desk-edge marks and edge stops in the build documents (#119)
+test('build documents: desk-edge marks always, edge stops with "ends bear on the table edge"', () => {
+  const st = Object.assign({}, DEFAULT, { edgeBear: true, supportOffset: 10 }), { tr, res } = solve2D(st);
+  const marks = BD.edgeMarks(tr), stops = BD.edgeStops(tr, 3.18);
+  assert.deepEqual(marks.map(m => m.x), [0, 200]);
+  assert.equal(stops.length, 2);
+  const plan = BD.cutPlan(tr, 3.18, { stock: 240, force: k => res.members[k].F });
+  const html = BD.documentHTML(tr, res, { name: 'T', b: 3.18, h: 3.18, nTruss: 2, stock: 240, kerf: 1 }, plan, { steps: true, templates: true });
+  assert.match(html, /Edge stop: glued under each corner joint/); assert.match(html, /line up here/); assert.match(html, /10\.0 mm onto the desks/);
+  const plain = solve2D(DEFAULT), html2 = BD.documentHTML(plain.tr, plain.res, { name: 'T', b: 3.18, h: 3.18, nTruss: 2, stock: 240, kerf: 1 }, BD.cutPlan(plain.tr, 3.18, {}), {});
+  assert.ok(!/Edge stop/.test(html2) && /line up here/.test(html2));
+});
