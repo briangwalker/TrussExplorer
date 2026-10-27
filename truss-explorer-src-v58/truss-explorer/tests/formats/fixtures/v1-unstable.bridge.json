@@ -1,0 +1,117 @@
+{
+ "format": "se310-truss-bridge",
+ "version": 1,
+ "app": "SE 310 Truss Explorer",
+ "savedAt": "2026-10-24T20:37:15.649Z",
+ "name": "Unstable v1",
+ "summary": {
+  "stable": false
+ },
+ "bridge": {
+  "name": "Partner test",
+  "family": "warren",
+  "height": 57,
+  "panels": 2,
+  "ratio": 1,
+  "sideAngle": 90,
+  "sideLean": "in",
+  "overall": 300,
+  "bookLen": 242,
+  "loads": null,
+  "bookWidth": 209,
+  "bookThick": 32,
+  "approachDiag": "P",
+  "edgeVert": true,
+  "deskVert": true,
+  "deskMode": "match",
+  "deskPanels": 1,
+  "bottom": "flat",
+  "curve": -30,
+  "deskEnds": "truss",
+  "supportMode": "all",
+  "topShape": "flat",
+  "topEnd": 0,
+  "botEnd": 0,
+  "edgeBear": false,
+  "bookContact": "rigid",
+  "claw": "off",
+  "brace": "off",
+  "tableThick": 30,
+  "braceDepth": 20,
+  "fricK": 2,
+  "fricMu": 0.4,
+  "supportOffset": 0,
+  "overlap": 50,
+  "sticks": {},
+  "pattern": "pratt",
+  "diagLeft": [
+   "P",
+   "P"
+  ],
+  "diagMiddle": "X",
+  "vertPreset": "none",
+  "vertLeft": [
+   true,
+   true
+  ],
+  "mat": {
+   "b": 3.18,
+   "h": 3.18,
+   "E": 3000,
+   "sigT": 7.5,
+   "sigC": 4.5,
+   "rho": 1.6e-07,
+   "FS": 2,
+   "K": 1
+  },
+  "load": {
+   "mBook1": 1.5,
+   "mBook2": 1,
+   "g": 9.81,
+   "nTruss": 2
+  },
+  "opts": {
+   "deflLimit": 2,
+   "width": 60,
+   "crossTies": true,
+   "minOverlap": 20
+  },
+  "doc": {
+   "style": "through",
+   "over": {},
+   "stock": 914,
+   "kerf": 1,
+   "steps": true,
+   "tpl": true
+  },
+  "focus": [],
+  "swOn": {
+   "H": true,
+   "N": true,
+   "P": true,
+   "V": false,
+   "R": false,
+   "A": false,
+   "D": false,
+   "S": false,
+   "O": false,
+   "T": false,
+   "Q": false,
+   "C": false,
+   "B": false,
+   "L": false,
+   "X": false,
+   "M": false,
+   "K": false,
+   "F": false
+  },
+  "swVals": {},
+  "d3": {
+   "tilt": 0,
+   "botTies": true,
+   "topBr": "single",
+   "botBr": "single",
+   "sway": true
+  }
+ }
+}

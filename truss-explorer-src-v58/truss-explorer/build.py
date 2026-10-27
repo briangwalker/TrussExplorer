@@ -18,6 +18,6 @@ def theme_pack():
 
 shell = rd(src, 'shell.js').replace('/*THEMES*/{ files: {}, list: [] }', theme_pack(), 1)
 ui = rd(src, 'ui.html').replace('/*SHELLCSS*/', rd(src, 'shell.css'), 1)
-for tag, text in [('/*CORE*/', rd(src, 'core.js')), ('/*CORE3D*/', rd(src, 'core3d.js')), ('/*EXPORT*/', rd(src, 'export.js')), ('/*TEMPLATE*/', rd(src, 'template.js')), ('/*BUILDDOC*/', rd(src, 'builddoc.js')), ('/*APP*/', rd(src, 'app.js')), ('/*SHELL*/', shell)]:
+for tag, text in [('/*CORE*/', rd(src, 'core.js')), ('/*CORE3D*/', rd(src, 'core3d.js')), ('/*EXPORT*/', rd(src, 'export.js')), ('/*TEMPLATE*/', rd(src, 'template.js')), ('/*BUILDDOC*/', rd(src, 'builddoc.js')), ('/*FORMATS*/', rd(src, 'formats.js')), ('/*APP*/', rd(src, 'app.js')), ('/*SHELL*/', shell)]:
     ui = ui.replace(tag, text, 1)
 open(os.path.join(here, 'index.html'), 'w', encoding='utf-8').write(ui); print('built index.html')
