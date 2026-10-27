@@ -14,7 +14,7 @@ mark() { if [ "$1" -ne 0 ]; then fail=1; echo ">>> FAILED: $2"; fi; }
 step "build (index.html must come out identical to the committed one)"
 before="$(mktemp)"; cp "$root/index.html" "$before" 2>/dev/null || : > "$before"
 python3 "$root/build.py"; mark $? "build.py"
-if cmp -s "$before" "$root/index.html"; then echo "index.html unchanged by the build"; else echo "index.html changed: commit it with the source change"; fi
+if cmp -s "$before" "$root/index.html"; then echo "index.html unchanged by the build"; else echo "index.html changed: commit it with the source change"; [ -n "${CI:-}" ] && mark 1 "committed index.html is out of date"; fi
 rm -f "$before"
 
 if [ -n "$pub" ]; then
