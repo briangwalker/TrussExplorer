@@ -1,0 +1,102 @@
+/* balsaPixel 1.0 shell: the theme contract and the window layout (Full-Screen UI Spec, steps 1 and 14 groundwork).
+   Everything here is scoped to #stage, which only exists in the window layout (?layout=classic keeps the v61 page).
+   A theme is one CSS file scoped to #stage[data-theme="<id>"]: it sets the --te-* tokens below and may add rules for
+   [data-slot] (bg | ctl | disp) and [data-part]. Class names match the UI Designer's Click-Through so themes made
+   there apply here unchanged. Meaning colours (--comp, --tens, --zero, --ok, --bad) are never mapped to theme tokens. */
+
+/* ---------- Wireframe: the default tokens ---------- */
+#stage{--te-page:#f2f4f6;--te-grid:rgba(60,70,80,.05);--te-panel:rgba(255,255,255,.94);--te-panel-peek:rgba(255,255,255,.86);--te-surface:#fff;--te-surface-2:#eef0f2;--te-line:#b9c0c8;--te-line-soft:#d5dae0;--te-ink:#1d232a;--te-muted:#4f5964;--te-strong:#3d4650;--te-on-strong:#fff;--te-ctl-bg:#fff;--te-ctl-line:#8e98a3;--te-tab:#8a5a2b;--te-accent:#f0b45a;--te-accent-ink:#2a1a04;--te-hot:#fdebd6;--te-font-ui:Barlow,"Segoe UI",system-ui,sans-serif;--te-font-head:"Barlow Semi Condensed","Arial Narrow",sans-serif;--te-font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --f-ui:var(--te-font-ui);--f-head:var(--te-font-head)}
+/* OG: the v61 look. Its tokens come from the page's own colours, so the new windows wear the old palette. */
+#stage[data-theme="og"]{--te-page:var(--bg);--te-grid:transparent;--te-panel:color-mix(in srgb,var(--sheet) 96%,transparent);--te-panel-peek:color-mix(in srgb,var(--sheet) 86%,transparent);--te-surface:var(--sheet);--te-surface-2:var(--soft);--te-line:var(--line);--te-line-soft:var(--line);--te-ink:var(--ink);--te-muted:var(--muted);--te-strong:var(--ink);--te-on-strong:var(--sheet);--te-ctl-bg:var(--sheet);--te-ctl-line:var(--line);--te-tab:var(--accent);--te-accent:var(--accent);--te-accent-ink:var(--accent-ink);--te-hot:var(--accent-soft);--te-font-ui:var(--f-body);--te-font-head:var(--f-display)}
+/* every theme but OG: the page's own colours and fonts follow the theme tokens (meaning colours stay) */
+#stage:not([data-theme="og"]){--bg:var(--te-page);--sheet:var(--te-surface);--ink:var(--te-ink);--muted:var(--te-muted);--line:var(--te-line);--soft:var(--te-surface-2);--accent:var(--te-strong);--accent-ink:var(--te-on-strong);--accent-soft:var(--te-hot);--desk:var(--te-line-soft);--f-display:var(--te-font-head);--f-body:var(--te-font-ui);color-scheme:light}
+
+/* ---------- the stage ---------- */
+body.shell{padding:0;margin:0;overflow:hidden}
+body.shell .wrap,body.shell #dock>.dockbar,body.shell #backTab,body.shell #fsExit,body.shell #dockEsc,body.shell .fsbtn{display:none!important}
+#stage{position:fixed;inset:0;overflow:hidden;font-family:var(--te-font-ui);color:var(--te-ink);background-color:var(--te-page);background-image:linear-gradient(var(--te-grid) 1px,transparent 1px),linear-gradient(90deg,var(--te-grid) 1px,transparent 1px);background-size:24px 24px}
+#stage .fslayer{background:transparent}
+#stage #fsFill{position:absolute;inset:var(--free-t,56px) var(--free-r,0px) var(--free-b,0px) var(--free-l,0px);transition:inset .18s ease-out}
+#stage .fsfill>.drawwrap{padding:12px}
+#stage .fsfill .chartbox canvas{height:100%!important}
+#stage .fsbar,#stage .fsfoot{display:none}
+#stage button:focus-visible{outline:3px solid var(--te-accent);outline-offset:1px}
+
+/* ---------- contract components ---------- */
+#stage .s-pan{position:absolute;box-sizing:border-box;background:var(--te-panel);color:var(--te-ink);border:1px solid var(--te-line);border-radius:10px;box-shadow:0 4px 16px rgba(20,30,40,.12);z-index:76;display:flex;flex-direction:column;min-width:0}
+#stage .s-pan.peek{border:2px dashed var(--te-strong);background:var(--te-panel-peek);z-index:79}
+#stage .s-ph{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border-bottom:1px solid var(--te-line-soft);font:700 13px var(--te-font-head);letter-spacing:.05em;text-transform:uppercase;flex:none;min-height:38px;box-sizing:border-box}
+#stage .s-ph .wt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#stage .grip{font:500 12px var(--te-font-mono);color:var(--te-muted)}
+#stage .s-ic{box-sizing:border-box;width:36px;height:36px;border:1px solid var(--te-ctl-line);background:var(--te-ctl-bg);color:var(--te-ink);border-radius:6px;font:600 15px var(--te-font-ui);cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;flex:none}
+#stage .s-ic.sm{width:28px;height:28px;font-size:13px}
+#stage .s-ic.on,#stage .s-ic[aria-pressed="true"]{background:var(--te-strong);border-color:var(--te-strong);color:var(--te-on-strong)}
+#stage .stp{display:inline-flex;align-items:center;gap:4px;flex:none}
+#stage .tabE{position:absolute;border:0;background:var(--te-tab);color:var(--te-on-strong);font:700 13px var(--te-font-head);letter-spacing:.06em;text-transform:uppercase;padding:14px 8px;writing-mode:vertical-rl;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);z-index:77}
+#stage .tabE.l{left:0;border-radius:0 10px 10px 0}
+#stage .tabE.r{right:0;border-radius:10px 0 0 10px}
+#stage .tabE.b,#stage .tabE.t{writing-mode:horizontal-tb;padding:8px 14px}
+#stage .tabE.b{bottom:0;border-radius:10px 10px 0 0}
+#stage .tabE.t{border-radius:0 0 10px 10px}
+#stage .nav{position:absolute;left:10px;top:8px;display:flex;align-items:center;gap:6px;padding:4px;border-radius:24px;background:var(--te-strong);box-shadow:0 4px 14px rgba(0,0,0,.2);z-index:80}
+#stage .nb{height:32px;border:0;border-radius:16px;background:transparent;color:var(--te-on-strong);font:600 13px var(--te-font-ui);padding:0 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+#stage .nb.on{background:var(--te-ctl-bg);color:var(--te-ink)}
+#stage .nb.r{width:36px;height:36px;border-radius:18px;padding:0;justify-content:center;font-size:18px}
+#stage .nb.r.sm{width:28px;font-size:14px}
+#stage .nb:disabled{opacity:.4;cursor:default}
+#stage .ng{display:flex;gap:2px;padding:2px;border-radius:18px;background:rgba(0,0,0,.25)}
+#stage .vp{display:flex;align-items:center;gap:6px;height:42px;border-radius:21px;padding:0 4px}
+#stage .vp.on{background:var(--te-surface);color:var(--te-ink)}
+#stage .vp.off{color:var(--te-on-strong)}
+#stage .vp .lab{border:0;background:transparent;color:inherit;font:600 14px var(--te-font-ui);cursor:pointer;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 4px 0 8px}
+#stage .swb{position:relative;display:inline-flex;flex:none}
+#stage .swb button{position:absolute;top:0;height:100%;width:50%;border:0;background:transparent;cursor:pointer;border-radius:14px;padding:0}
+#stage .badge{font:500 11px var(--te-font-mono);background:var(--te-accent);color:var(--te-accent-ink);border-radius:9px;padding:1px 6px}
+#stage .res{display:flex;align-items:center;gap:8px;min-height:36px;border-radius:18px;background:var(--te-surface);color:var(--te-ink);padding:0 6px 0 14px;font:500 13px var(--te-font-mono);cursor:pointer;z-index:80;flex-direction:row;white-space:nowrap}
+#stage .res .pill{font:700 11px var(--te-font-head);letter-spacing:.08em;border:1.5px solid currentColor;border-radius:10px;padding:1px 7px;background:transparent}
+#stage .res .pill.ok{color:var(--ok)}#stage .res .pill.bad{color:var(--bad)}
+#stage .res .bad{color:var(--bad)}
+#stage .mrow{display:flex;align-items:center;gap:8px;min-height:32px;font:500 14px var(--te-font-ui);cursor:pointer;border:0;background:none;width:100%;text-align:left;padding:0 4px;border-radius:6px;color:var(--te-ink)}
+#stage .mrow:hover{background:var(--te-surface-2)}
+#stage .smut{font:400 13px var(--te-font-ui);color:var(--te-muted)}
+#stage .toast{z-index:95}
+/* the app's own controls, tagged with the contract classes (not in OG, which keeps the v61 look) */
+#stage:not([data-theme="og"]) .s-b{box-sizing:border-box;min-height:32px;border:1px solid var(--te-ctl-line);background:var(--te-ctl-bg);color:var(--te-ink);border-radius:6px;padding:0 12px;font:600 14px var(--te-font-ui);letter-spacing:0;cursor:pointer}
+#stage:not([data-theme="og"]) .s-b.sm{min-height:28px;font-size:13px;padding:0 10px}
+#stage:not([data-theme="og"]) .s-b.dark,#stage:not([data-theme="og"]) .s-b[aria-pressed="true"]{background:var(--te-strong);border-color:var(--te-strong);color:var(--te-on-strong)}
+#stage:not([data-theme="og"]) .s-b:disabled{opacity:.45;cursor:default}
+#stage:not([data-theme="og"]) .seg{border:1px solid var(--te-ctl-line);border-radius:6px;overflow:hidden}
+#stage:not([data-theme="og"]) .seg button{border:0;border-right:1px solid var(--te-line-soft);background:var(--te-ctl-bg);color:var(--te-ink);font:600 13px var(--te-font-ui);letter-spacing:0}
+#stage:not([data-theme="og"]) .seg button:last-child{border-right:0}
+#stage:not([data-theme="og"]) .seg button.on{background:var(--te-strong);color:var(--te-on-strong)}
+#stage:not([data-theme="og"]) .tab{border:1px solid transparent;border-radius:6px;background:transparent;color:var(--te-ink);font:600 13px var(--te-font-ui);padding:4px 10px;cursor:pointer}
+#stage:not([data-theme="og"]) .tab.on{background:var(--te-strong);border-color:var(--te-strong);color:var(--te-on-strong)}
+
+/* ---------- windows: three states ---------- */
+#stage .s-pan .s-bd{overflow:auto;min-height:0;flex:1 1 auto;overscroll-behavior:contain}
+#stage .s-pan .s-icons{display:none;gap:6px;padding:6px;flex-wrap:wrap;align-content:flex-start}
+#stage .s-pan[data-state="I"]>.s-bd,#stage .s-pan[data-state="I"]>.s-sum{display:none!important}
+#stage .s-pan[data-state="I"] .s-icons{display:flex}
+#stage .s-pan[data-state="I"] .s-ph .wt,#stage .s-pan[data-state="I"] .s-ph .grip{display:none}
+#stage .s-pan[data-state="I"] .s-ph{justify-content:center;padding:5px}
+#stage .s-pan[data-home="left"][data-state="I"] .s-icons,#stage .s-pan[data-home="right"][data-state="I"] .s-icons{flex-direction:column;align-items:center;flex-wrap:nowrap;overflow:auto}
+#stage .s-pan[data-state="T"]:not(.peek){display:none}
+#stage .s-pan .s-ic .n{font:600 11px var(--te-font-mono)}
+/* what moves into the windows from the v61 page */
+#stage .s-pan #inputsPane{position:static;max-height:none;border:0;background:transparent;display:block;width:auto}
+#stage .s-pan .drawopts{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:0!important;font-size:13px}
+#stage .s-pan .legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin:0!important;font-size:12px}
+#stage .s-pan .tradectl{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:12px}
+#stage .s-pan[data-win="view"] .s-bd{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:6px 10px}
+#stage .s-pan[data-win="drawing"] .s-bd,#stage .s-pan[data-win="results"] .s-bd{padding:8px 10px;display:grid;gap:10px;align-content:start}
+#stage .s-pan[data-win="sweep"] .s-bd{padding:8px 10px;display:grid;gap:12px;align-content:start}
+#stage .s-pan[data-win="sweep"] .s-sum{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--te-line-soft)}
+#stage .s-pan[data-win="results"] .status{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;border:0;padding:0}
+#stage .s-pan .tablewrap{max-height:none}
+/* the ☰ drawer */
+#stage #dockMenu.drawer{position:absolute;display:block;left:10px;top:60px;z-index:86;max-height:calc(100vh - 70px);overflow:auto;width:340px;background:var(--te-surface);color:var(--te-ink);border:1px solid var(--te-ctl-line);border-radius:12px;box-shadow:0 12px 40px rgba(20,30,40,.25);padding:10px 12px}
+#stage .themerow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#stage .themerow select{flex:1;min-width:0}
+@media (prefers-reduced-motion:reduce){#stage *{transition:none!important;animation:none!important}}
+@media (max-width:700px){#stage .s-pan[data-win="inputs"][data-state="W"]{width:auto!important;right:10px}}

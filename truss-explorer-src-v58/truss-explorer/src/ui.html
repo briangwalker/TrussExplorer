@@ -361,12 +361,12 @@ body.compact .controls .grp .in > .swblock:not(.inl):not(.on) { flex-basis: auto
 .navcube text { font: 600 7px var(--f-mono, monospace); fill: var(--ink); pointer-events: none; }
 .navcube .face { cursor: pointer; } .navcube .face:hover path { fill: var(--accent-soft); stroke: var(--accent); }
 .navcube .cmp { font: 700 10px var(--f-body); fill: var(--muted); pointer-events: auto; cursor: pointer; } .navcube .cmp:hover { fill: var(--accent); }
-.navcube .nb { position: absolute; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font-size: 13px; line-height: 1; padding: 0; cursor: pointer; }
-.navcube .nb:hover, .navpad .nb:hover { border-color: var(--accent); color: var(--accent); }
+.navcube .ncb { position: absolute; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font-size: 13px; line-height: 1; padding: 0; cursor: pointer; }
+.navcube .ncb:hover, .navpad .ncb:hover { border-color: var(--accent); color: var(--accent); }
 .navcube .home { left: -4px; top: -2px; } .navcube .rl { right: 22px; top: -2px; } .navcube .rr { right: -4px; top: -2px; }
 .navpad { position: absolute; top: 8px; right: 8px; z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 4px; user-select: none; }
 .navpad .pa { fill: var(--muted); cursor: pointer; } .navpad .pa:hover { fill: var(--accent); } .navpad circle.pa { fill: var(--accent); }
-.navpad .pz { display: flex; gap: 4px; } .navpad .nb { width: 26px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font-size: 15px; line-height: 1; padding: 0; cursor: pointer; }
+.navpad .pz { display: flex; gap: 4px; } .navpad .ncb { width: 26px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font-size: 15px; line-height: 1; padding: 0; cursor: pointer; }
 .chartbox:has(.navcube) .tip { z-index: 5; }
 #fixTbl td.l { white-space: normal; }
 .resov { position: absolute; inset: 0; pointer-events: none; z-index: 2; font-family: var(--f-mono, monospace); }
@@ -442,6 +442,7 @@ table th.samecol::after { content: ' ='; font-weight: 700; }
 table td.dit { opacity: .4; }
 body.hidesame table .samecol { display: none; }
 </style>
+<style id="shellCss">/*SHELLCSS*/</style>
 
 <div class="wrap">
   <header class="top">
@@ -1067,7 +1068,7 @@ body.hidesame table .samecol { display: none; }
         <button type="button" class="btn ghost sm" data-click="dlLp" title="Joints, members, loads and limits as CSV files for a linear program">LP data (zip)</button><button type="button" class="btn ghost sm" data-click="dlCsv">Member forces (CSV)</button>
         <button type="button" class="btn acc sm" data-click="openDocs" style="grid-column:1/-1" title="Assembly drawing, part drawings, cut list, build steps and full-size templates">Build documents…</button>
       </div><span class="note" id="menuFileMsg"></span></details>
-    <details class="dsec"><summary class="dlab">Keybinding</summary>
+    <details class="dsec"><summary class="dlab">Mouse and keys</summary>
     
     <label class="kb">Left click, empty spot (2D) <select id="kbClick"><option value="home">Home view</option><option value="none">Nothing</option></select></label>
     <label class="kb">Rotate (3D) <select id="kbRot"><option value="left">Left drag</option><option value="middle">Middle drag</option><option value="right">Right drag</option></select></label>
