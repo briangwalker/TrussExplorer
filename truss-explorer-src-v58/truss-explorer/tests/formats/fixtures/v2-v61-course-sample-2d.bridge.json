@@ -1,0 +1,177 @@
+{
+ "format": "se310-truss-bridge",
+ "version": 2,
+ "app": "SE 310 Truss Explorer",
+ "release": "v61",
+ "solver": 35,
+ "savedAt": "2026-10-27T17:07:56.828Z",
+ "model": "2D",
+ "bridgeCode": "3a899a02",
+ "rules": {
+  "FS": 2,
+  "bookKg": 2.5,
+  "deflLimit": 2,
+  "minOverlap": 5,
+  "width": 60,
+  "envelope": "outer faces"
+ },
+ "name": "Design A",
+ "summary": {
+  "model": "2D",
+  "wood": 3632.3,
+  "capKg": 18.55,
+  "deflection": 0.1307,
+  "passes": false,
+  "members": 25,
+  "joints": 14
+ },
+ "bridge": {
+  "name": "Design A",
+  "family": "grid",
+  "height": 70,
+  "panels": 4,
+  "ratio": 1,
+  "sideAngle": 90,
+  "sideLean": "in",
+  "overall": 300,
+  "bookLen": 242,
+  "loads": null,
+  "bookWidth": 209,
+  "bookThick": 32,
+  "approachDiag": "P",
+  "edgeVert": true,
+  "deskVert": true,
+  "deskMode": "match",
+  "deskPanels": 1,
+  "bottom": "flat",
+  "curve": -30,
+  "deskEnds": "truss",
+  "supportMode": "all",
+  "topShape": "flat",
+  "topEnd": 0,
+  "botEnd": 0,
+  "edgeBear": false,
+  "bookContact": "rigid",
+  "claw": "off",
+  "brace": "off",
+  "tableThick": 30,
+  "braceDepth": 20,
+  "fricK": 2,
+  "fricMu": 0.4,
+  "supportOffset": 0,
+  "overlap": 50,
+  "sticks": {},
+  "pattern": "pratt",
+  "diagLeft": [
+   "P",
+   "P"
+  ],
+  "diagMiddle": "X",
+  "vertPreset": "all",
+  "vertLeft": [
+   true,
+   true
+  ],
+  "mat": {
+   "b": 3.18,
+   "h": 3.18,
+   "E": 3000,
+   "sigT": 7.5,
+   "sigC": 4.5,
+   "rho": 1.6e-7,
+   "FS": 2,
+   "K": 1
+  },
+  "load": {
+   "mBook1": 1.5,
+   "mBook2": 1,
+   "g": 9.81,
+   "nTruss": 2
+  },
+  "opts": {
+   "tieJoint": "ontop",
+   "deflLimit": 2,
+   "width": 60,
+   "crossTies": true,
+   "minOverlap": 5
+  },
+  "dragUnit": {
+   "mm": 1,
+   "ratio": 0.05,
+   "deg": 1,
+   "count": 1
+  },
+  "dragMode": "widen",
+  "doc": {
+   "style": "through",
+   "over": {},
+   "stock": 240,
+   "kerf": 1,
+   "steps": true,
+   "tpl": true,
+   "colour": true,
+   "dash": false,
+   "stock240": true
+  },
+  "focus": [],
+  "swOn": {
+   "H": true,
+   "N": true,
+   "P": true,
+   "V": false,
+   "R": false,
+   "A": false,
+   "D": true,
+   "S": false,
+   "O": true,
+   "T": false,
+   "Q": false,
+   "C": false,
+   "B": false,
+   "L": false,
+   "X": false,
+   "M": false,
+   "K": false,
+   "F": false
+  },
+  "swVals": {
+   "swH0": "10",
+   "swH1": "100",
+   "swHs": "1.25",
+   "swD0": "-30",
+   "swD1": "30",
+   "swDs": "10",
+   "swO0": "5",
+   "swO1": "45",
+   "swOs": "10"
+  },
+  "bigHours": 0,
+  "tradeDrag": "box",
+  "c3Drag": "rot",
+  "d3": {
+   "tilt": 0,
+   "botTies": true,
+   "topBr": "single",
+   "botBr": "single",
+   "sway": true,
+   "imperf": {
+    "on": false,
+    "alpha": 0.02,
+    "beta": 0.005,
+    "dir": 1
+   },
+   "topPat": [
+    "S"
+   ],
+   "botPat": [
+    "S"
+   ],
+   "framePat": [
+    "D",
+    "N"
+   ],
+   "sec": 0
+  },
+  "anaMode": "2d"
+ }
+}
