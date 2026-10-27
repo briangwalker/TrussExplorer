@@ -3,12 +3,12 @@ Section 0-1 (materials, books, geometry) come from the app's .py export; section
 (the solver) are taken unchanged from the professor's script. Pass: maxdF 0.000 N."""
 import json, os, re, subprocess, sys, tempfile, pathlib
 here = pathlib.Path(__file__).resolve().parent
-# The course script is not ours to publish (rule 8), so it lives in the git-ignored tests/private/
-# or wherever TRUSSFEA_PY points.
+# The course script is in tests/reference/ (Professor Dong cleared it under the repo's MIT licence; Brian, 2026-10-27, #147).
+# TRUSSFEA_PY can point at another copy.
 import os
-prof_path = pathlib.Path(os.environ.get('TRUSSFEA_PY', here / 'private' / 'TrussFEA_Bridge_SE310.py'))
+prof_path = pathlib.Path(os.environ.get('TRUSSFEA_PY', here / 'reference' / 'TrussFEA_Bridge_SE310.py'))
 if not prof_path.exists():
-    print(f'SKIP: put TrussFEA_Bridge_SE310.py in tests/private/ (or set TRUSSFEA_PY) to compare with the course script.'); sys.exit(0)
+    print(f'SKIP: TrussFEA_Bridge_SE310.py is missing from tests/reference/ (or set TRUSSFEA_PY), so there is no comparison with the course script.'); sys.exit(0)
 prof = prof_path.read_text(encoding='utf-8')
 cut = prof.index('#  2. PROBLEM INITIALIZATION')
 prof_solver = prof[prof.rindex('\n# ====', 0, cut):]
