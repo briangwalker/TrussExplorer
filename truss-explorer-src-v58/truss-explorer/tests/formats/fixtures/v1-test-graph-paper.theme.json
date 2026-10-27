@@ -1,0 +1,23 @@
+{
+ "format": "truss-explorer-theme",
+ "version": 1,
+ "id": "test-graph-paper",
+ "name": "Test graph paper",
+ "savedAt": "2026-10-27T12:00:00.000Z",
+ "tokens": {
+  "paper": "#fbfaf5",
+  "grid": "#cfe0ee",
+  "ink": "#1d2a3a",
+  "accent": "#c0392b",
+  "radius": "4px",
+  "line-width": "1.5"
+ },
+ "fonts": [
+  "Inter",
+  "JetBrains Mono"
+ ],
+ "images": {
+  "background": "paper-grain.png"
+ },
+ "notes": "fixture: tokens and image names only"
+}
