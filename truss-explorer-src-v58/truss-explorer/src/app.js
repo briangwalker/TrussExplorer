@@ -1211,7 +1211,9 @@ function renderDocDialog() {
   $('docTieBox').hidden = !d3; document.querySelectorAll('input[name="tiejoint"]').forEach(r => { r.checked = r.value === (S.opts.tieJoint || 'ontop'); });
   const spl = (plan.splices || []).length;
   $('docSum').textContent = `${plan.pieces.length} pieces per truss in ${plan.items.length} different cuts · ${total.toFixed(0)} mm of stick for ${nT} trusses` + (cx ? ` + ${cx.parts.length} ties and braces between them (${cx.items.length} different cuts, ${cx.parts.reduce((s, q) => s + q.long, 0).toFixed(0)} mm).` : S.anaMode === '3d' ? ' (the 3D model is unstable, so its ties and bracing are left out).' : ' (before cross-ties).')
-    + (spl ? ` ${spl} chord splice${spl > 1 ? 's' : ''}: a piece is longer than one ${+S.doc.stock || 240} mm stick.` : '');
+    + (spl ? ` ${spl} chord splice${spl > 1 ? 's' : ''}: a piece is longer than one ${+S.doc.stock || 240} mm stick.` : '')
+    + ((plan.bad || []).length ? ` ${plan.bad.length} piece${plan.bad.length > 1 ? 's' : ''} can't be cut as set: change the joints marked below.` : '')
+    + ((plan.short || []).length ? ` ${plan.short.length} member${plan.short.length > 1 ? 's are' : ' is'} under ${(6 * b).toFixed(0)} mm (6 stick widths): the pin-jointed results are less reliable there.` : '');
   const sw = no => S.doc.colour ? `<span style="display:inline-block;width:10px;height:10px;margin-right:4px;background:${BuildDoc.colOf(no)}"></span>` : '';
   $('docItems').innerHTML = '<thead><tr><th>Item</th><th class="l">Part</th><th>Qty</th><th>Long point</th><th>Short point</th><th class="l">End cuts</th></tr></thead><tbody>' +
     plan.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${BuildDoc.TL[it.type] || it.type}</td><td>${it.pieces.length * nT * it.n}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('')
@@ -1222,7 +1224,7 @@ function renderDocDialog() {
       const two = j.members.length === 2;
       const opts = ['<option value="">none</option>'].concat(j.members.map(k => `<option value="${k}" ${j.through === k ? 'selected' : ''}>${name(k)}</option>`)).join('');
       const ends = ['flush', 'square'].concat(two ? ['mitre'] : []).map(s => `<option value="${s}" ${j.end === s ? 'selected' : ''}>${s === 'flush' ? 'flush to it' : s === 'square' ? 'square (90°)' : 'mitre'}</option>`).join('');
-      return `<tr${S.doc.over[j.n] ? ' style="background:var(--accent-soft)"' : ''}><td>${j.n}</td><td class="l"><select data-j="${j.n}" data-f="through">${opts}</select></td><td class="l"><select data-j="${j.n}" data-f="end">${ends}</select></td><td>${j.end === 'mitre' ? `<input type="number" min="5" max="95" step="5" value="${j.split}" data-j="${j.n}" data-f="split" style="width:60px">` : '—'}</td></tr>`;
+      return `<tr${S.doc.over[j.n] ? ' style="background:var(--accent-soft)"' : ''}><td>${j.n}</td><td class="l"><select data-j="${j.n}" data-f="through">${opts}</select></td><td class="l"><select data-j="${j.n}" data-f="end">${ends}</select>${j.notes && j.notes.length ? `<div class="hint" style="margin:2px 0 0">Changed automatically: ${escH(j.notes.join('; '))}</div>` : ''}</td><td>${j.end === 'mitre' ? `<input type="number" min="5" max="95" step="5" value="${j.split}" data-j="${j.n}" data-f="split" style="width:60px">` : '—'}</td></tr>`;
     }).join('') + '</tbody>';
 }
 $('openDocs').addEventListener('click', () => { if (!res.stable) { toast('Make the design stable first: the build documents need a working bridge.', true); return; } renderDocDialog(); $('docModal').hidden = false; });

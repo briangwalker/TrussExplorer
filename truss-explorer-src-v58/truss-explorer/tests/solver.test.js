@@ -251,3 +251,22 @@ test('build documents: desk-edge marks always, edge stops with "ends bear on the
   const plain = solve2D(DEFAULT), html2 = BD.documentHTML(plain.tr, plain.res, { name: 'T', b: 3.18, h: 3.18, nTruss: 2, stock: 240, kerf: 1 }, BD.cutPlan(plain.tr, 3.18, {}), {});
   assert.ok(!/Edge stop/.test(html2) && /line up here/.test(html2));
 });
+
+// ---------- cuts that can always be made (#155)
+test('build documents: curved chords and shallow members never give a zero or negative cut length', () => {
+  for (const top of ['arc', 'parabola', 'catenary']) for (const n of [8, 12]) {
+    const st = Object.assign({}, DEFAULT, { panels: n, diagLeft: Array(n / 2).fill('P'), vertLeft: Array(n / 2).fill(true), topShape: top, topEnd: 20 });
+    const { tr, res } = solve2D(st);
+    for (const style of ['through', 'square', 'mitre']) {
+      const plan = BD.cutPlan(tr, STW, { style, stock: 240, force: k => res.members[k].F });
+      plan.pieces.forEach(q => assert.ok(q.short > 0.05 && q.long > 0.05, `${top} ${n} ${style}: piece ${q.members} ${q.long.toFixed(1)} / ${q.short.toFixed(1)}`));
+      assert.equal(plan.bad.length, 0);
+      if (n === 12) assert.ok(plan.joints.some(j => j.notes.length), 'the changed joints say why');
+    }
+    const m3 = T3.build3D(tr, { width: 60, tilt: 10, bottomTies: true, topPat: ['S'], botPat: ['S'], framePat: ['D', 'N'] }), r3 = T3.analyze3D(m3, Object.assign({}, C.DEFAULT_MAT), st.load);
+    if (r3.stable) BD.crossPlan(m3, r3, STW).parts.forEach(q => assert.ok(q.short > 0.05 && q.long > 0.05, `${top} ${n} 3D part ${q.lab}`));
+  }
+  // a flat chord still runs straight through (no automatic mitres)
+  const flat = BD.cutPlan(solve2D(DEFAULT).tr, STW, {});
+  assert.ok(flat.joints.every(j => !j.notes.length));
+});
