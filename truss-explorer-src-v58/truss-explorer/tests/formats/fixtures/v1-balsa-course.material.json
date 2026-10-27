@@ -1,0 +1,24 @@
+{
+ "format": "truss-explorer-material",
+ "version": 1,
+ "savedAt": "2026-10-27T12:00:00.000Z",
+ "material": {
+  "name": "Balsa (SE 310 course values)",
+  "source": "SE 310 Project I challenge PDF",
+  "asOf": "2026-10-27",
+  "behaviour": "brittle-wood",
+  "E": 3000,
+  "sigT": 7.5,
+  "sigC": 4.5,
+  "rho": 160,
+  "sizes": [
+   3.18
+  ],
+  "variability": {
+   "note": "varies by batch (challenge PDF)"
+  },
+  "joints": {},
+  "anisotropy": "grain along the stick",
+  "notes": ""
+ }
+}
