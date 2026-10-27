@@ -2627,7 +2627,7 @@ function documentHTML(tr, res, meta, plan, opt) {
     const segs = B.cuts.map(c => { const r = `<rect x="${x}" y="0" width="${c.len}" height="8" fill="${c.item === 'T' ? '#ddd' : colourMode === 'part' ? colOf(c.item) : '#fff'}" fill-opacity=".55" stroke="#333" stroke-width=".4"/><text x="${x + c.len / 2}" y="5.6" font-size="4.2" text-anchor="middle" font-family="Arial">${c.item}</text>`; x += c.len + kerf; return r; }).join('');
     return `<div class="bar"><span>Stick ${i + 1}${B.over ? ' (too long!)' : ''}</span><svg viewBox="-1 -1 ${stock + 2} 10" preserveAspectRatio="none">${segs}<rect x="0" y="0" width="${stock}" height="8" fill="none" stroke="#999" stroke-width=".3"/></svg></div>`; });
   const cutArr = allItems.map(it => `<tr><td>${swatch(it.no)}${it.no}</td><td>${lab(it)}</td><td>${qty(it)}</td><td><b>${f1(it.long)}</b></td><td>${f1(it.short)}</td><td>${cutTxt(it.cuts[0])}</td><td>${cutTxt(it.cuts[1])}</td></tr>`);
-  const jArr = plan.joints.map(j => `<tr><td>${j.n}</td><td>${j.members.join(', ')}</td><td>${j.through == null ? '—' : j.through}</td><td>${j.end}${j.end === 'mitre' ? ' ' + j.split + '/' + (100 - j.split) : ''}${j.notes && j.notes.length ? `<br><i>${j.notes.join('; ')}</i>` : ''}</td></tr>`);
+  const jArr = plan.joints.map(j => `<tr><td>${j.n}</td><td>${j.members.join(', ')}</td><td>${j.through == null ? '—' : j.through}</td><td>${j.end}${j.end === 'mitre' ? ' ' + j.split + '/' + (100 - j.split) : ''}${j.notes && j.notes.length ? `<br><i style="font-size:6pt">${j.notes.join('; ')}</i>` : ''}</td></tr>`);
   // joint advice for the 3D parts (Physics, #116): pick each joint from its force
   let xJoints = '', xjRows = [], xjNote = '';
   const xjHead = '<tr><th>Item</th><th>Part</th><th>Joint</th><th>Largest force</th></tr>';
@@ -2650,7 +2650,7 @@ function documentHTML(tr, res, meta, plan, opt) {
     const cc = chunk(cutArr, 24); cc.forEach((rows, i) => sheet(cont('Cut list', i, cc.length), `<h2>${cont('Cut list', i, cc.length)}</h2><table class="grid">${cutHead}${rows.join('')}</table>${i === cc.length - 1 ? cutNote : ''}`));
     const bc = chunk(barArr, 24); bc.forEach((rows, i) => sheet(cont('Cutting plan', i, bc.length), `<h2>${cont('Cutting plan', i, bc.length)}</h2>${i === 0 ? planNote : ''}${rows.join('')}`));
   }
-  const jc = chunk(jArr, 30);
+  const jc = chunk(jArr, 22);   // joint rows can carry a note (#155), so fewer to a sheet
   const xjOwn = xjRows.length > 12;   // a long 3D joints table gets its own sheets
   jc.forEach((rows, i) => sheet(cont('Joints', i, jc.length), `<div class="two"><div><h2>${cont('Joints', i, jc.length)}</h2><table class="grid small">${jHead}${rows.join('')}</table></div><div>${i === 0 && !xjOwn ? xJoints : ''}</div></div>`));
   if (xjOwn) { const xc = chunk(xjRows, 22); xc.forEach((rows, i) => sheet(cont('3D joints', i, xc.length), `<h2>${cont('3D joints', i, xc.length)}</h2><table class="grid">${xjHead}${rows.join('')}</table>${i === xc.length - 1 ? xjNote : ''}`)); }
