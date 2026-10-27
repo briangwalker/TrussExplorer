@@ -64,7 +64,9 @@ try {
   check('no two elements share an id', dups.length === 0, dups.join(', '));
   // the name typed in the pop-up is the name the file gets
   await bridgeBtn(); await p.waitForSelector('#saveModal:not([hidden])');
-  check('the pop-up shows the suggested name', (await p.inputValue('#saveModal #saveName')) === 'Design_A');
+  // the suggestion is the design's name as a file name; since #27 a new design's name is generated ("Maple Pratt k3f9" -> Maple_Pratt_k3f9)
+  const want = await p.evaluate(() => __dbg.S.name.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, ''));
+  check('the pop-up shows the suggested name', (await p.inputValue('#saveModal #saveName')) === want && /^[A-Z][a-z]+_[A-Za-z]+_[0-9a-z]{4}$/.test(want), want);
   await p.fill('#saveModal #saveName', 'Typed name'); await p.uncheck('#saveAsDesign');
   { const dl = p.waitForEvent('download', { timeout: 8000 }).catch(() => null); await p.click('#saveGo'); const d = await dl;
     check('a typed file name is used', !!d && d.suggestedFilename() === 'Typed_name.bridge.json' || (!!d && d.suggestedFilename() === 'Typed name.bridge.json'), d ? d.suggestedFilename() : 'no download'); }

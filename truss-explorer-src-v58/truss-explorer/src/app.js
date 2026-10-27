@@ -75,6 +75,7 @@ function cleanRows(rows) {
 let S = JSON.parse(JSON.stringify(DEFAULT));
 var FIRST_VISIT = true;
 try { const saved = cleanData(JSON.parse(localStorage.getItem(KEY) || 'null')); if (saved && saved.panels) { S = Object.assign(S, saved); FIRST_VISIT = false; } } catch (e) {}
+if (FIRST_VISIT) S.name = TrussNames.make(S);   // a new design gets a generated name, e.g. "Maple Pratt k3f9" (#27); it can be renamed
 if (!S.migOv5) { if (S.opts && +S.opts.minOverlap === 20) S.opts.minOverlap = 5; S.migOv5 = true; }
 // v61: the envelope is checked on the built bridge's outer faces (#133), and how the ties are joined belongs to the bridge
 S.opts = Object.assign({ tieJoint: (S.doc && S.doc.tieJoint) || 'ontop' }, S.opts || {});
@@ -1406,8 +1407,8 @@ $('presetSel').addEventListener('change', () => {
   const q = PRESETS[+$('presetSel').value]; if (!q) return;
   const base = JSON.parse(JSON.stringify(DEFAULT));
   UI_ONLY.forEach(k => { delete base[k]; });
-  base.name = q.name.split(' · ')[0];
   const b = Object.assign(base, q.set);
+  b.name = TrussNames.make(b);   // a preset starts a new design, so it gets a generated name too (#27)
   if ($('presetSweep').checked) Object.assign(b, { swOn: { H: true, N: true, P: true }, swVals: {} });
   // the sweep switches not named go off; ranges keep their values unless reset
   if ($('presetSweep').checked) Object.keys(S.swOn).forEach(k => { if (!(k in b.swOn)) b.swOn[k] = false; });

@@ -36,6 +36,9 @@ try {
   check('page loads with no script errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   const s0 = await page.evaluate(() => ({ stable: __dbg.res.stable, members: __dbg.res.members.length, rows: document.querySelectorAll('#s-members tbody tr').length }));
   check('default design solves and fills the member table', s0.stable && s0.rows >= s0.members, `${s0.members} members, ${s0.rows} rows`);
+  // #27: a first visit gets a generated name ("Maple Pratt k3f9"), shown in the name box and kept in the state
+  const nm = await page.evaluate(() => ({ box: document.getElementById('name').value, state: __dbg.S.name, gen: TrussNames.looksGenerated(__dbg.S.name) }));
+  check('#27: a first visit gets a generated name like "Maple Pratt k3f9"', nm.gen && nm.box === nm.state && / Pratt [0-9a-z]{4}$/.test(nm.state), JSON.stringify(nm));
   await page.screenshot({ path: path.join(shots, 'default-1440.png') });
 
   // 2. saved bridges load and match their saved summaries (2D)
@@ -103,6 +106,13 @@ try {
   await page.waitForTimeout(500);
   const key = await page.evaluate(() => { try { return !!localStorage.getItem('se310-truss-v5'); } catch (e) { return 'no storage'; } });
   check('state saved under se310-truss-v5', key === true, String(key));
+  // #27: a preset starts a new design with a generated name of its type; a reload keeps the name (stored, not remade)
+  await page.evaluate(() => { const s = document.getElementById('presetSel'); s.value = '2'; s.dispatchEvent(new Event('change', { bubbles: true })); });
+  await page.waitForTimeout(600);
+  const pre = await page.evaluate(() => __dbg.S.name);
+  await page.reload({ waitUntil: 'load' }); await page.waitForFunction(() => window.__dbg && window.__dbg.res, null, { timeout: 15000 });
+  const after = await page.evaluate(() => ({ state: __dbg.S.name, box: document.getElementById('name').value }));
+  check('#27: a preset gets a generated name of its type, and a reload keeps it', / Howe [0-9a-z]{4}$/.test(pre) && after.state === pre && after.box === pre, JSON.stringify({ pre, after }));
 
   // 6. phone width: no sideways page scroll
   const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
