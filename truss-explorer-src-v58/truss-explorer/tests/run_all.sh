@@ -33,26 +33,26 @@ step "syntax"
 ok=0; for f in core core3d export template builddoc app; do node --check "$root/src/$f.js" || ok=1; done; mark $ok "syntax"; [ $ok -eq 0 ] && echo "all modules parse"
 
 step "node: solver audit + v58 regressions (golden.json)"
-node --test "$here/solver.test.js" "$here/regressions.test.js" "$here/sampler.test.js" 2>&1 | grep -E '^not ok|^# (tests|pass|fail)|changed since v58|error:'
+node --test "$here/solver.test.js" "$here/regressions.test.js" "$here/sampler.test.js" 2>&1 | grep -aE '^not ok|^# (tests|pass|fail)|changed since v58|error:'
 node --test "$here/solver.test.js" "$here/regressions.test.js" "$here/sampler.test.js" >/dev/null 2>&1; mark $? "node tests"
 
 step "cmp.py: member forces vs the course script"
 python3 "$here/cmp.py" > /tmp/te-cmp.out 2>&1; r=$?; grep -E 'WORST|PASS|FAIL|KNOWN|SKIP|  ' /tmp/te-cmp.out | grep -v ' maxdF 0.000' ; mark $r "cmp.py"
 
 step "browser: smoke"
-node "$here/ui/smoke.mjs" 2>&1 | grep -Ev '^ok |saved summary'; mark ${PIPESTATUS[0]} "UI smoke"
+node "$here/ui/smoke.mjs" 2>&1 | grep -aEv '^ok |saved summary'; mark ${PIPESTATUS[0]} "UI smoke"
 
 step "browser: saving, every view and full-screen mode"
-node "$here/ui/saving.mjs" 2>&1 | grep -Ev '^ok '; mark ${PIPESTATUS[0]} "UI saving"
+node "$here/ui/saving.mjs" 2>&1 | grep -aEv '^ok '; mark ${PIPESTATUS[0]} "UI saving"
 
 step "browser: build documents print completely"
-node "$here/ui/documents.mjs" 2>&1 | grep -Ev '^ok '; mark ${PIPESTATUS[0]} "UI documents"
+node "$here/ui/documents.mjs" 2>&1 | grep -aEv '^ok '; mark ${PIPESTATUS[0]} "UI documents"
 
 step "browser: opening files"
-node "$here/ui/files.mjs" 2>&1 | grep -Ev '^ok '; mark ${PIPESTATUS[0]} "UI files"
+node "$here/ui/files.mjs" 2>&1 | grep -aEv '^ok '; mark ${PIPESTATUS[0]} "UI files"
 
 step "browser: v51-v58 regressions $slow"
-node "$here/ui/regressions.mjs" $slow 2>&1 | grep -Ev '^ok |^-- |^$'; mark ${PIPESTATUS[0]} "UI regressions"
+node "$here/ui/regressions.mjs" $slow 2>&1 | grep -aEv '^ok |^-- |^$'; mark ${PIPESTATUS[0]} "UI regressions"
 
 step "RESULT"
 if [ $fail -eq 0 ]; then echo "ALL GREEN"; else echo "SOMETHING FAILED (see >>> lines)"; fi
