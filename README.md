@@ -1,5 +1,7 @@
 # TrussExplorer
 
+> **This is the `balsaPixel-1.0` branch:** the full-screen UI and theme overhaul, in development (Decisions, 2026-10-27). The stable app is **v61 on `main`**, which the live page runs. Fixes land on `main` first and are merged in here.
+
 A single-page web app for designing balsa truss bridges for SE 310 Project I (UIUC, Fall 2026): hold two textbooks with a factor of safety of 2 using as little wood as possible. It solves 2D and 3D pin-jointed trusses, sweeps millions of designs, charts wood against capacity, and prints build documents.
 
 Version: v61 (2026-10-27). Live copy: the claude.ai artifact "SE 310 Truss Explorer"; coming soon at briangwalker.com/truss-explorer/.

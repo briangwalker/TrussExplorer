@@ -39,7 +39,7 @@ const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBo
 // NEVER rename this key: everyone's saved work lives under it. When the saved format changes, convert old data on load instead.
 const KEY = 'se310-truss-v5';
 const APP_VER = 35;   // bumped whenever the solver or the saved data changes
-const APP_RELEASE = 'v61';   // the release name, written into every file the app saves
+const APP_RELEASE = 'balsaPixel 1.0-dev';   // the release name, written into every file the app saves (main is the stable v61)
 
 const DEFAULT = {
   name: 'Design A', family: 'grid', height: 70, panels: 4, ratio: 1, sideAngle: 90, sideLean: 'in',
