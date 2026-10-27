@@ -30,7 +30,7 @@ EOF
 fi
 
 step "syntax"
-ok=0; for f in core core3d export template builddoc app; do node --check "$root/src/$f.js" || ok=1; done; mark $ok "syntax"; [ $ok -eq 0 ] && echo "all modules parse"
+ok=0; for f in core core3d export template builddoc app shell; do node --check "$root/src/$f.js" || ok=1; done; mark $ok "syntax"; [ $ok -eq 0 ] && echo "all modules parse"
 
 step "node: solver audit + v58 regressions (golden.json)"
 node --test "$here/solver.test.js" "$here/regressions.test.js" "$here/sampler.test.js" 2>&1 | grep -aE '^not ok|^# (tests|pass|fail)|changed since v58|error:'
@@ -50,6 +50,9 @@ node "$here/ui/documents.mjs" 2>&1 | grep -aEv '^ok '; mark ${PIPESTATUS[0]} "UI
 
 step "browser: opening files"
 node "$here/ui/files.mjs" 2>&1 | grep -aEv '^ok '; mark ${PIPESTATUS[0]} "UI files"
+
+step "browser: balsaPixel window layout and themes"
+node "$here/ui/shell.mjs" 2>&1 | grep -aEv '^ok '; mark ${PIPESTATUS[0]} "UI shell"
 
 step "browser: v51-v58 regressions $slow"
 node "$here/ui/regressions.mjs" $slow 2>&1 | grep -aEv '^ok |^-- |^$'; mark ${PIPESTATUS[0]} "UI regressions"

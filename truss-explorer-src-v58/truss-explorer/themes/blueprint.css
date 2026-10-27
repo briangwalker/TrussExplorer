@@ -1,0 +1,18 @@
+/* Blueprint (sample): proves the theme hook works. Tokens only, plus one rule per slot. */
+#stage[data-theme="blueprint"]{
+  --te-page:#1d4f8c; --te-grid:rgba(255,255,255,.08);
+  --te-panel:rgba(20,58,108,.92); --te-panel-peek:rgba(20,58,108,.8);
+  --te-surface:#173f73; --te-surface-2:#22538f; --te-line:#6f9bd1; --te-line-soft:#3f6ea8;
+  --te-ink:#f2f6ff; --te-muted:#c8d6f0;
+  --te-strong:#f0b45a; --te-on-strong:#1b1206;
+  --te-ctl-bg:#e9eef7; --te-ctl-line:#7d8fb0;
+  --te-tab:#f0b45a; --te-accent:#f0b45a; --te-accent-ink:#1b1206; --te-hot:#2c5f9e;
+}
+/* controls slot: buttons keep dark text on their light face */
+#stage[data-theme="blueprint"] [data-slot="ctl"][data-part="button"],
+#stage[data-theme="blueprint"] [data-slot="ctl"][data-part="icon-button"]{color:#14325c}
+/* background slot: windows read as paper sheets on the blueprint */
+#stage[data-theme="blueprint"] [data-part="window"],#stage[data-theme="blueprint"] [data-part="sheet"]{border-style:dashed}
+/* display slot: the drawing sits on its own dark sheet; meaning colours are left alone */
+#stage[data-theme="blueprint"] [data-part="drawing"] text{fill:#f2f6ff}
+#stage[data-theme="blueprint"] [data-part="table"] td,#stage[data-theme="blueprint"] [data-part="table"] th{background:transparent;color:#f2f6ff}

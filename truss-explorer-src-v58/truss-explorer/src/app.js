@@ -2,6 +2,8 @@
 'use strict';
 const C = TrussCore, X = TrussExport;
 const $ = id => document.getElementById(id);
+// The calls another layer may wrap (balsaPixel's window layout does). Code here calls setFs, renderKey and renderSweep, which go through these.
+const HOOKS = { setFs: k => setFsCore(k), renderKey: () => renderKeyCore(), renderSweep: () => renderSweepCore() };
 // ---------- left panel: three groups. 1 bridge shape, 2 desks and supports, 3 loads and checks (with the pass/fail rules called out)
 (function regroup() {
   const inn = id => $(id).querySelector('.in');
@@ -855,7 +857,8 @@ function woodTotalText() {
 
 // ---------- stats
 // the four project measurements, at the top of the page, so everyone reads the same numbers
-function renderKey() {
+function renderKey() { return HOOKS.renderKey(); }
+function renderKeyCore() {
   const bk = S.load.mBook1 + S.load.mBook2, need = bk * S.mat.FS;
   const ok = (c, txt) => `<b class="${c ? 'ok' : 'bad'}">${txt}</b>`;
   const s = res.stable;
@@ -1378,7 +1381,7 @@ $('filePick').addEventListener('change', async () => {
 // ---------- the floating View switch and menu, and simple bridges to start again from
 function closeDock() { $('dockMenu').hidden = true; $('dockBtn').setAttribute('aria-expanded', 'false'); }
 $('dockBtn').addEventListener('click', ev => { ev.stopPropagation(); const m = $('dockMenu'); m.hidden = !m.hidden; $('dockBtn').setAttribute('aria-expanded', String(!m.hidden)); if (!m.hidden) { paintBackups(); paintDockChecks(); } });
-document.addEventListener('click', ev => { if (!ev.target.closest('#dock')) closeDock(); });
+document.addEventListener('click', ev => { if (!ev.target.closest('#dock, #dockMenu, #dockBtn')) closeDock(); });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !$('dockMenu').hidden) closeDock(); });
 function paintDockChecks() { $('swCompact').checked = !!S.compact; $('swHelp').checked = !S.hideHelp; }
 $('swCompact').addEventListener('change', () => { if (!!S.compact !== $('swCompact').checked) $('toggleCompact').click(); });
@@ -2097,7 +2100,8 @@ function loadParams(r) {
   $('bestN').addEventListener('change', () => { S.bestN = +$('bestN').value; save(); renderSweep(); });
   $('bestN').addEventListener('click', ev => ev.stopPropagation());
 })();
-function renderSweep() {
+function renderSweep() { return HOOKS.renderSweep(); }
+function renderSweepCore() {
   const tb = $('sweepTbl');
   const none = sweepAll.length > 0 && !sweepAll.some(r => r.passes);
   $('nonePass').hidden = !none;
@@ -3416,17 +3420,17 @@ function addViewCube(cv, v, redraw, home) {
       h += `<g class="face" data-f="${q.f.t}"><path d="M${q.pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L')} Z" fill="var(--sheet)" fill-opacity="${shade.toFixed(2)}" stroke="var(--muted)" stroke-width=".8"/>`
         + (-q.depth > 0.3 ? `<text x="${q.c[0]}" y="${q.c[1] + 3}" text-anchor="middle" font-size="${(6.5 + 2.5 * -q.depth).toFixed(1)}">${q.f.t}</text>` : '') + '</g>';
     });
-    box.innerHTML = `<svg viewBox="0 0 120 104" width="120" height="104">${h}</svg><button type="button" class="nb home" title="Home view (F6)">⌂</button><button type="button" class="nb rl" title="Turn 90° left">↺</button><button type="button" class="nb rr" title="Turn 90° right">↻</button>`;
+    box.innerHTML = `<svg viewBox="0 0 120 104" width="120" height="104">${h}</svg><button type="button" class="ncb home" title="Home view (F6)">⌂</button><button type="button" class="ncb rl" title="Turn 90° left">↺</button><button type="button" class="ncb rr" title="Turn 90° right">↻</button>`;
   };
   box.addEventListener('click', ev => {
     ev.stopPropagation();
-    const f = ev.target.closest('.face'), c = ev.target.closest('.cmp'), b = ev.target.closest('.nb');
+    const f = ev.target.closest('.face'), c = ev.target.closest('.cmp'), b = ev.target.closest('.ncb');
     if (b) { if (b.classList.contains('home')) home(); else tween(v, { yaw: v.yaw + (b.classList.contains('rl') ? -1 : 1) * Math.PI / 2, pitch: v.pitch }, redraw); return; }
     if (f) { const F = FACES.find(q => q.t === f.dataset.f); tween(v, F.to, redraw); return; }
     if (c) tween(v, { yaw: +c.dataset.yaw, pitch: Math.abs(v.pitch) > 1.3 ? 0.35 : v.pitch }, redraw);
   });
   let d = null;
-  box.addEventListener('mousedown', ev => { if (ev.target.closest('.nb')) return; d = { x: ev.clientX, y: ev.clientY, yaw: v.yaw, pitch: v.pitch, moved: false }; ev.preventDefault(); });
+  box.addEventListener('mousedown', ev => { if (ev.target.closest('.ncb')) return; d = { x: ev.clientX, y: ev.clientY, yaw: v.yaw, pitch: v.pitch, moved: false }; ev.preventDefault(); });
   window.addEventListener('mousemove', ev => { if (!d) return; const dx = ev.clientX - d.x, dy = ev.clientY - d.y; if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true; if (!d.moved) return; v.yaw = d.yaw + dx * 0.02; v.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, d.pitch + dy * 0.02)); redraw(); });
   window.addEventListener('mouseup', ev => { if (d && d.moved) { ev.stopPropagation(); box.addEventListener('click', e2 => e2.stopImmediatePropagation(), { once: true, capture: true }); } d = null; });
   paint();
@@ -3438,7 +3442,7 @@ function addNavPad(host, act) {
   box.innerHTML = `<svg viewBox="0 0 70 70" width="70" height="70"><circle cx="35" cy="35" r="30" fill="var(--sheet)" fill-opacity=".9" stroke="var(--line)"/>
     <path class="pa" data-d="up" d="M35 9 L42 19 L28 19 Z"/><path class="pa" data-d="down" d="M35 61 L42 51 L28 51 Z"/><path class="pa" data-d="left" d="M9 35 L19 28 L19 42 Z"/><path class="pa" data-d="right" d="M61 35 L51 28 L51 42 Z"/>
     <circle class="pa" data-d="home" cx="35" cy="35" r="10" fill="var(--accent)"/><text x="35" y="39.5" text-anchor="middle" font-size="13" fill="var(--accent-ink)" pointer-events="none">⌂</text></svg>
-    <div class="pz"><button type="button" class="nb" data-d="in" title="Zoom in (+)">+</button><button type="button" class="nb" data-d="out" title="Zoom out (−)">−</button></div>`;
+    <div class="pz"><button type="button" class="ncb" data-d="in" title="Zoom in (+)">+</button><button type="button" class="ncb" data-d="out" title="Zoom out (−)">−</button></div>`;
   box.addEventListener('click', ev => { const t = ev.target.closest('[data-d]'); if (!t) return; ev.stopPropagation(); act(t.dataset.d); });
   box.addEventListener('mousedown', ev => ev.stopPropagation()); box.addEventListener('pointerdown', ev => ev.stopPropagation());
   const paint = () => { box.hidden = keys().nav === false; }; paint();
@@ -3564,7 +3568,8 @@ const FS_CFG = {
 };
 var fsEl = null, fsMoved = [], fsCompactWas = null;
 function fsMove(node, into) { if (!node) return; const ph = document.createComment('fs'); node.parentNode.insertBefore(ph, node); into.appendChild(node); fsMoved.push([node, ph]); }
-function setFs(key) {
+function setFs(key) { return HOOKS.setFs(key); }
+function setFsCore(key) {
   setTimeout(() => { try { paintResOverlay(); if (topOn()) draw3D(); } catch (e) {} }, 80);
   // put everything back first
   fsMoved.reverse().forEach(([n, ph]) => { ph.parentNode.insertBefore(n, ph); ph.remove(); }); fsMoved = [];
@@ -3594,7 +3599,7 @@ function setFs(key) {
 document.querySelectorAll('.fsbtn').forEach(b => b.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); setFs(b.dataset.fs); }));
 $('fsExit').addEventListener('click', () => setFs(null));
 $('dockEsc').addEventListener('click', ev => { ev.stopPropagation(); setFs(null); });
-document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && fsEl && !adj && !document.querySelector('.modal:not([hidden])')) setFs(null); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && fsEl && !window.SHELL_ON && !adj && !document.querySelector('.modal:not([hidden])')) setFs(null); });   // in the window layout Esc never leaves the place
 window.addEventListener('resize', () => { if (fsEl) { renderDrawing(); drawTrackers(); try { render3D(); } catch (e) {} } });
 
 // ---------- keeping work safe across reloads and new versions
@@ -3731,5 +3736,12 @@ function paintSame() {
   b.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); S.hideSame = !S.hideSame; paintSame(); save(); });
 });
 paintSame();
+// ---------- the one door other layers use (balsaPixel's src/shell.js; the first draft of the UI module boundary, #109) ----------
+window.TrussApp = Object.freeze({
+  get state() { return S; }, get res() { return res; }, get rows() { return sweepAll; }, get fsEl() { return fsEl; }, release: APP_RELEASE,
+  hooks: HOOKS,   // setFs(key), renderKey(), renderSweep(): replace one to run code around the original
+  save, toast, escH, topOn,
+  redraw() { try { renderDrawing(); } catch (e) {} try { drawTrackers(); } catch (e) {} try { if (topOn()) render3D(); } catch (e) {} try { paintResOverlay(); } catch (e) {} },
+});
 window.__dbg = { get S() { return S; }, drawTrackers: () => drawTrackers(), get rows() { return sweepAll; }, get res() { return res; }, load: p => loadParams(p), get ctx() { return sweepCtx; } };
 })();
