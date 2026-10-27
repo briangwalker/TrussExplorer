@@ -39,6 +39,7 @@ const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBo
 // NEVER rename this key: everyone's saved work lives under it. When the saved format changes, convert old data on load instead.
 const KEY = 'se310-truss-v5';
 const APP_VER = 34;   // bumped whenever the solver or the saved data changes
+const APP_RELEASE = 'v61';   // the release name, written into every file the app saves
 
 const DEFAULT = {
   name: 'Design A', family: 'grid', height: 70, panels: 4, ratio: 1, sideAngle: 90, sideLean: 'in',
@@ -992,7 +993,7 @@ function csvText() { return csvOf(rowsForCsv()); }
 function fileBase() { return (S.name || 'design').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'design'; }
 function pyText() { return X.exportPy(PROF_TEMPLATE, S.name || 'Design', design(), tr, res, Object.assign({}, C.DEFAULT_MAT, S.mat), S.load, S.opts); }
 function renderExport() { $('pyOut').value = pyText(); $('dlPy').disabled = !res.stable; }
-function toast(msg, err) { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); clearTimeout(toast._t); toast._t = setTimeout(() => { t.textContent = ''; }, 4000); }
+function toast(msg, err) { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); clearTimeout(toast._t); toast._t = setTimeout(() => { t.textContent = ''; }, Math.max(4000, String(msg).length * 70)); }
 async function copy(text, okMsg, fallbackEl) {
   try { await navigator.clipboard.writeText(text); toast(okMsg); }
   catch (e) { if (fallbackEl) { const d = fallbackEl.closest('details'); if (d) d.open = true; fallbackEl.focus(); fallbackEl.select(); toast('Copy was blocked here. The text is selected; press Ctrl+C or Cmd+C.', true); } else toast('Copy was blocked in this view.', true); }
@@ -1259,23 +1260,30 @@ $('docGo').addEventListener('click', () => {
   saveFile(fileBase() + '_build_documents.html', html);
 });
 // ---------- bridge and sweep files, to share with partners (and, later, to publish)
-const FILE_VER = 1;
+const FILE_VER = 2;   // 2 (v61): the analysis model, 3D setup and build-document settings travel with the bridge; every file says which release made it
+// what every saved file says about how its numbers were made
+function fileInfo(model) {
+  return { app: 'SE 310 Truss Explorer', release: APP_RELEASE, solver: APP_VER, savedAt: stamp(), model: model || (S.anaMode === '3d' ? '3D' : '2D'),
+    rules: { FS: +S.mat.FS, bookKg: +(S.load.mBook1 + S.load.mBook2).toFixed(3), deflLimit: +S.opts.deflLimit, minOverlap: +S.opts.minOverlap, width: +S.opts.width, envelope: 'outer faces' } };
+}
 // settings that belong to this browser's screen, not to the bridge
 const UI_ONLY = ['openMap', 'hideSame', 'bestN', 'expTab', 'tradeDim', 'topView', 'keys', 'showForces', 'popPos', 'migOv5', 'abSteps', 'abExt', 'anaMode', 'tab', 'wide', 'compact', 'inputsFirst', 'sideW', 'hideHelp', 'hideStats', 'history', 'baseline', 'hideG', 'showIds', 'showElems', 'showDef', 'defScale', 'showDims', 'showGhosts', 'resOnDraw', 'groupBy', 'axX', 'axY', 'colorFails', 'clickMode', 'c3', 'autoRerun', 'autoLimit', 'bigCap', 'woodBudget', 'loadTarget', 'refStep'];
-function bridgeState() { const o = {}; Object.keys(S).forEach(k => { if (!UI_ONLY.includes(k)) o[k] = S[k]; }); return JSON.parse(JSON.stringify(o)); }
+function bridgeState() { const o = {}; Object.keys(S).forEach(k => { if (!UI_ONLY.includes(k)) o[k] = S[k]; }); o.anaMode = S.anaMode === '3d' ? '3d' : '2d'; return JSON.parse(JSON.stringify(o)); }
 function bridgeSummary() {
-  return res.stable ? { wood: +res.wood.toFixed(1), capKg: +res.capKg.toFixed(2), deflection: +res.midDefl.toFixed(4), passes: !!res.passes, members: tr.elems.length, joints: tr.nodes.length } : { stable: false };
+  const model = S.anaMode === '3d' ? '3D' : '2D';
+  return res.stable ? { model, wood: +res.wood.toFixed(1), capKg: +res.capKg.toFixed(2), deflection: +res.midDefl.toFixed(4), passes: !!res.passes, members: tr.elems.length, joints: tr.nodes.length } : { model, stable: false };
 }
 const stamp = () => new Date().toISOString();
 $('saveBridge').addEventListener('click', () => {
-  const doc = { format: 'se310-truss-bridge', version: FILE_VER, app: 'SE 310 Truss Explorer', savedAt: stamp(), name: S.name || 'Design', summary: bridgeSummary(), bridge: bridgeState() };
+  const doc = Object.assign({ format: 'se310-truss-bridge', version: FILE_VER }, fileInfo(), { name: S.name || 'Design', summary: bridgeSummary(), bridge: bridgeState() });
   saveFile(fileBase() + '.bridge.json', JSON.stringify(doc, null, 1));
 });
 $('saveSweepFile').addEventListener('click', () => {
   if (!sweepAll.length) { toast('Run a sweep first.', true); return; }
-  const doc = { format: 'se310-truss-sweep', version: FILE_VER, app: 'SE 310 Truss Explorer', savedAt: stamp(), name: (S.name || 'Design') + ' sweep',
+  const sweepModel = /3D/.test(String(sweepCtx && sweepCtx.sheet && sweepCtx.sheet.analysis)) ? '3D' : '2D';
+  const doc = Object.assign({ format: 'se310-truss-sweep', version: FILE_VER }, fileInfo(sweepModel), { name: (S.name || 'Design') + ' sweep',
     message: $('sweepMsg').textContent, ctx: sweepCtx, sheet: sweepCtx && sweepCtx.sheet, mode: sweepMode, settings: { swOn: S.swOn, swVals: S.swVals, swSel: SW, focus: S.focus },
-    bridge: bridgeState(), rows: sweepAll };
+    bridge: bridgeState(), rows: sweepAll });
   saveFile(fileBase() + '.sweep.json', JSON.stringify(doc));
 });
 let pickFor = null, pendingSweep = null;
@@ -1294,7 +1302,11 @@ function applyBridge(b) {
   toggleChips('swClaw', SW.claw, { off: 'No claws', on: 'Claws' }); toggleChips('swBrace', SW.brace, { off: 'No braces', on: 'Edge braces' });
   toggleChips('swLoad', SW.loadShape, LOAD_SHAPES); toggleChips('swStick', SW.stickGroups, STICK_GROUPS);
   SWV.forEach(v => { const cb = v.k === 'O' ? $('swVaryOv') : $('swOn' + v.k); if (cb) cb.checked = swOn(v.k); });
-  paintSwBlocks(); update();
+  // the 3D setup, the build-document settings and the analysis model travel with the bridge (#154)
+  if (b.d3 && typeof b.d3 === 'object') { S.d3 = Object.assign({}, S.d3, b.d3); S.d3.imperf = Object.assign({ on: false, alpha: 0.02, beta: 0.005, dir: 1 }, b.d3.imperf || {}); }
+  if (b.doc && typeof b.doc === 'object') { S.doc = Object.assign({}, S.doc, b.doc); S.doc.over = Object.assign({}, b.doc.over || {}); if (!b.doc.stock240 && +b.doc.stock === 914) S.doc.stock = 240; S.doc.stock240 = true; }
+  if (b.anaMode === '3d' || b.anaMode === '2d') { S.anaMode = b.anaMode; paintAna(); }
+  paintSwBlocks(); update(); if (typeof render3D === 'function') try { render3D(); } catch (e) {}
 }
 $('filePick').addEventListener('change', async () => {
   const f = $('filePick').files[0]; if (!f) return;
@@ -1303,7 +1315,18 @@ $('filePick').addEventListener('change', async () => {
   if (pickFor === 'bridge' || doc.format === 'se310-truss-bridge') {
     if (doc.format !== 'se310-truss-bridge' || !doc.bridge) { toast('That is not a bridge file.', true); return; }
     applyBridge(doc.bridge);
-    $('fileMsg').textContent = `Opened "${doc.name}" (saved ${new Date(doc.savedAt).toLocaleString()}).`; toast('Bridge loaded.');
+    let note = '';
+    if (!doc.bridge.anaMode) {
+      // a file from before v61 doesn't say 2D or 3D: open it in whichever model gives the wood it was saved with
+      const want = doc.summary && +doc.summary.wood, near = () => res && res.stable && Math.abs(res.wood - want) < 0.6;
+      if (want > 0 && !near()) {
+        const was = S.anaMode; S.anaMode = was === '3d' ? '2d' : '3d'; paintAna(); update();
+        if (near()) note = ` It was saved before v61, which didn't record 2D or 3D; its wood (${want.toFixed(0)} mm) matches the ${S.anaMode === '3d' ? '3D' : '2D'} analysis, so it opened in ${S.anaMode === '3d' ? '3D' : '2D'}.`;
+        else { S.anaMode = was; paintAna(); update(); note = ` It was saved before v61 and doesn't say whether it was analysed in 2D or 3D; check the switch, and compare the wood with the file's ${want.toFixed(0)} mm.`; }
+      }
+    }
+    if (doc.version > FILE_VER) note += ' It was made by a newer release of the Explorer, so some settings may be ignored.';
+    $('fileMsg').textContent = `Opened "${doc.name}" (saved ${new Date(doc.savedAt).toLocaleString()}${doc.release ? ` with ${doc.release}` : ''}).${note}`; toast('Bridge loaded.' + note, !!note);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
