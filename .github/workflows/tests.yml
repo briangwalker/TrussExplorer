@@ -1,0 +1,39 @@
+# Every pull request and every push to main runs the whole test suite (#147).
+# The job is named run-all: the RequirePullRequests ruleset requires it to pass before a merge.
+name: tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  run-all:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: truss-explorer-src-v58/truss-explorer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python packages for the course script
+        run: pip install numpy pandas matplotlib
+      - name: Playwright with Chromium
+        run: npm install --no-save playwright && npx playwright install --with-deps chromium
+      - name: Run every check
+        env:
+          MPLBACKEND: Agg
+        run: bash tests/run_all.sh
+      - name: Keep the screenshots when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-screenshots
+          path: truss-explorer-src-v58/truss-explorer/tests/shots/
+          if-no-files-found: ignore
