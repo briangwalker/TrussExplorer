@@ -463,7 +463,7 @@ function solveLinear(A, b) {
 function analyze(tr, matIn, loadIn, opts) {
   const mat = Object.assign({}, DEFAULT_MAT, matIn || {});
   const load = Object.assign({ mBook1: 1.5, mBook2: 1.0, g: 9.81, nTruss: 2 }, loadIn || {});
-  opts = Object.assign({ deflLimit: 2.0, width: 60, crossTies: true, minOverlap: 20 }, opts || {});
+  opts = Object.assign({ deflLimit: 2.0, width: 60, crossTies: true, minOverlap: 20, envMeasure: 'centre' }, opts || {});
   const A = mat.b * mat.h, I = mat.b * Math.pow(mat.h, 3) / 12;
   const W = (load.mBook1 + load.mBook2) * load.g;
   const Pdesign = mat.FS * W;
@@ -589,10 +589,29 @@ function analyze(tr, matIn, loadIn, opts) {
   const failing = members.filter(x => x.fails);
   const maxUtil = Math.max(0, ...members.map(x => x.util));
   const envelope = [];
-  if (tr.design.height > 100 + 1e-9) envelope.push('Height is over the 100 mm limit above the deck.');
-  if (tr.overall > 300 + 1e-6) envelope.push('Overall length is over 300 mm.');
-  if (tr.minY < -50 - 1e-6) envelope.push('The bottom chord dips more than 50 mm below the deck.');
-  if (opts.width < 50 || opts.width > 75) envelope.push('Bridge width must be 50 to 75 mm.');
+  // the envelope (#133): the built bridge is bigger than its joint centrelines by half a stick on every side, plus
+  // the tie layer when the ties lie on top of the top chords, and the outside of the trusses at the bottom when they
+  // lean (tilt). opts.envMeasure 'centre' (default, as in v59) checks centrelines and warns where the outer faces would
+  // fail; 'outer' checks the outer faces.
+  const size = envelopeSize(tr, mat, opts);
+  size.warn = [];
+  { const o = size.outer, f = v => (Math.round(v * 10) / 10).toFixed(1);
+    if (o.height > 100 + 1e-9) size.warn.push(`height ${f(o.height)} mm to the top face${size.tiesOnTop ? ' of the ties' : ''} (limit 100)`);
+    if (o.length > 300 + 1e-6) size.warn.push(`length ${f(o.length)} mm outside to outside (limit 300)`);
+    if (o.depth > 50 + 1e-6) size.warn.push(`${f(o.depth)} mm below the deck (limit 50)`);
+    if (o.width < 50 - 1e-9 || o.width > 75 + 1e-9) size.warn.push(`width ${f(o.width)} mm outside to outside (limits 50 to 75)`); }
+  if (size.measure === 'centre') {
+    if (tr.design.height > 100 + 1e-9) envelope.push('Height is over the 100 mm limit above the deck.');
+    if (tr.overall > 300 + 1e-6) envelope.push('Overall length is over 300 mm.');
+    if (tr.minY < -50 - 1e-6) envelope.push('The bottom chord dips more than 50 mm below the deck.');
+    if (opts.width < 50 || opts.width > 75) envelope.push('Bridge width must be 50 to 75 mm.');
+  } else {
+    const o = size.outer, c = size.centre, f = v => (Math.round(v * 10) / 10).toFixed(1);
+    if (o.height > 100 + 1e-9) envelope.push(`Height is ${f(o.height)} mm to the top face${size.tiesOnTop ? ' of the ties' : ''} (${f(c.height)} mm to the chord centreline), over the 100 mm limit above the deck.`);
+    if (o.length > 300 + 1e-6) envelope.push(`Overall length is ${f(o.length)} mm outside to outside (${f(c.length)} mm between end joints), over 300 mm.`);
+    if (o.depth > 50 + 1e-6) envelope.push(`The bridge reaches ${f(o.depth)} mm below the deck to its underside (${f(c.depth)} mm to the centreline), more than 50 mm.`);
+    if (o.width < 50 - 1e-9 || o.width > 75 + 1e-9) envelope.push(`Bridge width is ${f(o.width)} mm outside to outside (${f(c.width)} mm centre to centre); it must be 50 to 75 mm.`);
+  }
   // no member may pass through the table top beside the span
   { const T = Math.max(0, +tr.design.tableThick || 0), Sp = tr.design.span || 200, hit = [];
     tr.elems.forEach((e, k) => { const a = tr.nodes[e.i], b = tr.nodes[e.j]; for (let t = 0.04; t < 0.97; t += 0.04) { const x = a[0] + t * (b[0] - a[0]), y = a[1] + t * (b[1] - a[1]); if ((x < -0.05 || x > Sp + 0.05) && y < -0.05 && y > -T - 0.05) { hit.push(k); break; } } });
@@ -612,7 +631,23 @@ function analyze(tr, matIn, loadIn, opts) {
   return Object.assign(base, { stable: true, U, R, members, dmax, dnode, midDefl,
     totalLen, massTruss, massTies, nTies, massTotal: massTruss + (opts.crossTies ? massTies : 0), wood,
     failing, maxUtil, deflOK, envelope, edgeOK, overlap: tr.overlap, capFactor, capKg: capFactor * (load.mBook1 + load.mBook2),
-    slips, passes: failing.length === 0 && deflOK && envelope.length === 0 && edgeOK && slips.length === 0 });
+    slips, size, passes: failing.length === 0 && deflOK && envelope.length === 0 && edgeOK && slips.length === 0 });
+}
+// the built size: every stick's outline (width b x sqrt(sticks), as drawn) around its centreline; opts.tilt (deg,
+// 3D only) leans each truss about its bottom chord; opts.tiesOnTop adds one stick above the top chords
+function envelopeSize(tr, mat, opts) {
+  const b = +mat.b || 3.18, ph = (+opts.tilt || 0) * Math.PI / 180, cs = Math.cos(ph), sn = Math.abs(Math.sin(ph));
+  let top = -Infinity, bot = Infinity, lo = Infinity, hi = -Infinity;
+  tr.elems.forEach(e => {
+    const p = tr.nodes[e.i], q = tr.nodes[e.j], L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, w = b * Math.sqrt(e.n || 1) / 2;
+    const nx = Math.abs((q[1] - p[1]) / L) * w, ny = Math.abs((q[0] - p[0]) / L) * w;   // the outline's reach across the stick
+    [p, q].forEach(z => { top = Math.max(top, z[1] + ny); bot = Math.min(bot, z[1] - ny); lo = Math.min(lo, z[0] - nx); hi = Math.max(hi, z[0] + nx); });
+  });
+  if (!tr.elems.length) { top = tr.maxY; bot = tr.minY; lo = 0; hi = tr.overall; }
+  const tiesOnTop = !!opts.tiesOnTop, W = +opts.width || 60;
+  const outer = { height: top * cs + (top > 0 ? b / 2 * sn : 0) + (tiesOnTop ? b : 0), depth: Math.max(0, -bot * cs), length: hi - lo, width: W + b * (cs + sn) };
+  const centre = { height: tr.design.height, depth: Math.max(0, -tr.minY), length: tr.overall, width: W };
+  return { measure: opts.envMeasure === 'outer' ? 'outer' : 'centre', outer, centre, tiesOnTop, b };
 }
 
 function looseJoints(tr, geo) {
@@ -631,6 +666,6 @@ function looseJoints(tr, geo) {
   return loose;
 }
 
-const api = { DEFAULT_MAT, panelWidths, expandDiagonals, expandVerticals, patternLeft, buildTruss, analyze, solveLinear };
+const api = { DEFAULT_MAT, panelWidths, expandDiagonals, expandVerticals, patternLeft, buildTruss, analyze, solveLinear, envelopeSize };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -35,10 +35,10 @@ const $ = id => document.getElementById(id);
   moveAll(inn('loadGrp'), S3);
   ['g-design', 'g-geom', 'supGrp', 'diagGrp', 'vertGrp', 'stickGrp', 'loadGrp'].forEach(id => $(id).remove());
 })();
-const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBook2: 1.0, g: 9.81, nTruss: 2 }, opts: { deflLimit: 2.0, width: 60, crossTies: true, minOverlap: 5 } };
+const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBook2: 1.0, g: 9.81, nTruss: 2 }, opts: { deflLimit: 2.0, width: 60, crossTies: true, minOverlap: 5, envMeasure: 'centre', tieJoint: 'ontop' } };
 // NEVER rename this key: everyone's saved work lives under it. When the saved format changes, convert old data on load instead.
 const KEY = 'se310-truss-v5';
-const APP_VER = 33;   // bumped whenever the solver or the saved data changes
+const APP_VER = 34;   // bumped whenever the solver or the saved data changes
 
 const DEFAULT = {
   name: 'Design A', family: 'grid', height: 70, panels: 4, ratio: 1, sideAngle: 90, sideLean: 'in',
@@ -53,6 +53,16 @@ let S = JSON.parse(JSON.stringify(DEFAULT));
 var FIRST_VISIT = true;
 try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved && saved.panels) { S = Object.assign(S, saved); FIRST_VISIT = false; } } catch (e) {}
 if (!S.migOv5) { if (S.opts && +S.opts.minOverlap === 20) S.opts.minOverlap = 5; S.migOv5 = true; }
+// v60 (#133): the envelope can be checked on the built bridge's outer faces (default: centrelines, as before, until the
+// course confirms how it measures), and how the ties are joined belongs to the bridge
+S.opts = Object.assign({ envMeasure: 'centre', tieJoint: (S.doc && S.doc.tieJoint) || 'ontop' }, S.opts || {});
+// the options every 2D analysis gets: the bridge's own, plus the tilt (3D only) and whether ties sit on the top chords
+function anaOpts(extra) {
+  const o = Object.assign({}, S.opts, extra || {});
+  if (o.tilt == null) o.tilt = S.anaMode === '3d' ? (+S.d3.tilt || 0) : 0;
+  o.tiesOnTop = (S.anaMode === '3d' || !!o.crossTies) && o.tieJoint !== 'between';
+  return o;
+}
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
 let tr = null, res = null, hlElem = -1;
@@ -188,6 +198,7 @@ Object.entries(MATKEYS).forEach(([id, k]) => $(id).addEventListener('change', ()
   const v = +$(id).value; if (!(v > 0)) return; S.mat[k] = id === 'rho' ? v * 1e-9 : v; update(); }));
 ['mBook1', 'mBook2', 'nTruss'].forEach(id => $(id).addEventListener('change', () => { const v = +$(id).value; if (!(v >= 0)) return; S.load[id] = id === 'nTruss' ? Math.max(1, Math.round(v)) : v; update(); }));
 ['width', 'deflLimit', 'minOverlap'].forEach(id => $(id).addEventListener('change', () => { const v = +$(id).value; if (!(v >= 0)) return; S.opts[id] = v; update(); }));
+$('envMeasure').addEventListener('change', () => { S.opts.envMeasure = $('envMeasure').value; update(); checkStale(); });
 $('crossTies').addEventListener('change', () => { S.opts.crossTies = $('crossTies').checked; update(); });
 $('resetMat').addEventListener('click', () => { S.mat = Object.assign({}, COURSE.mat); S.load = Object.assign({}, COURSE.load); S.opts = Object.assign({}, COURSE.opts); update(); });
 ['showIds', 'showElems', 'showDef'].forEach(id => $(id).addEventListener('change', () => { S[id] = $(id).checked; renderDrawing(); if (typeof draw3D === 'function') { draw3D(); draw3Views(); } save(); }));
@@ -267,7 +278,7 @@ function update() {
   S.deskPanels = Math.max(0, Math.min(6, Math.round(+S.deskPanels || 0))); S.supportOffset = Math.max(0, Math.min(50, +S.supportOffset || 0)); S.overlap = Math.max(0, Math.min(50, +S.overlap || 0));
   syncArrays();
   tr = C.buildTruss(design());
-  res2d = C.analyze(tr, S.mat, S.load, S.opts);
+  res2d = C.analyze(tr, S.mat, S.load, anaOpts());
   res = S.anaMode === '3d' ? apply3D(tr, res2d, S.load, d3opts(null)) : res2d;
   clearTimeout(update.bk); update.bk = setTimeout(() => { try { if (res && res.stable) backupBridge('after your changes'); } catch (e) {} }, 15000);
   paintInputs(); if (typeof sizeName === 'function') sizeName(); renderDiagChips(); renderVertChips(); renderDrawing(); renderStats(); renderTable(); renderExport(); updateSweepCount(); renderHistory(); render3D();
@@ -338,7 +349,7 @@ function paintInputs() {
   setVal('mBook1', S.load.mBook1); setVal('mBook2', S.load.mBook2); setVal('nTruss', S.load.nTruss);
   setVal('FS', S.mat.FS); setVal('E', S.mat.E); setVal('rho', Math.round(S.mat.rho * 1e9)); setVal('sigT', S.mat.sigT); setVal('sigC', S.mat.sigC);
   setVal('bS', S.mat.b); setVal('hS', S.mat.h); setVal('width', S.opts.width); setVal('deflLimit', S.opts.deflLimit);
-  $('crossTies').checked = !!S.opts.crossTies;
+  $('crossTies').checked = !!S.opts.crossTies; $('envMeasure').value = S.opts.envMeasure === 'outer' ? 'outer' : 'centre';
   $('resOnDraw').checked = !!S.resOnDraw; $('showForces').checked = !!S.showForces; paintStatsBox();
   $('showDims').checked = S.showDims !== false; $('showGhosts').checked = S.showGhosts !== false; $('edgeBear').checked = !!S.edgeBear;
   $('topEndR').min = $('botEndR').min = -Math.min(+S.tableThick || 0, 30);
@@ -888,6 +899,9 @@ function renderStats() {
   if (!res.edgeOK) li.push(['bad', `Each end reaches only ${res.overlap.toFixed(0)} mm onto the desks; the edge check needs at least ${(+S.opts.minOverlap).toFixed(0)} mm, or a slightly off-centre bridge could slip into the gap. Add desk panels or lengthen the bridge.`]);
   if (!res.deflOK) li.push(['bad', `Mid-span deflection ${res.midDefl.toFixed(3)} mm is over the ${S.opts.deflLimit} mm limit.`]);
   res.envelope.forEach(e => li.push(['bad', e]));
+  if (res.size) { const o = res.size.outer, c = res.size.centre, f = v => (Math.round(v * 10) / 10).toFixed(1);
+    if (res.size.measure === 'centre' && res.size.warn.length) li.push(['warn', `Passes on centrelines, but the built bridge is bigger: ${res.size.warn.join(', ')}. If the limits are measured on the outside, this fails. Set "Measure the envelope on" in Project limits.`]);
+    li.push(['info', `Built size, outside faces${res.size.measure === 'outer' ? ' (what the limits check)' : ' (the limits check centrelines)'}: width ${f(o.width)} mm (${f(c.width)} centre to centre) · height ${f(o.height)} mm above the deck${res.size.tiesOnTop ? ', ties on top' : ''} (${f(c.height)}) · ${f(o.depth)} mm below (${f(c.depth)}) · length ${f(o.length)} mm (${f(c.length)}).`]); }
   if (Math.abs(res.dmax - res.midDefl) > 1e-4 && res.dnode !== res.midNode) li.push(['info', `Largest vertical movement anywhere is ${res.dmax.toFixed(3)} mm at joint ${res.dnode}.`]);
   msgs.innerHTML = li.map(([c, s]) => `<li class="${c}">${s}</li>`).join('');
 }
@@ -1149,11 +1163,11 @@ dual values mean) is the part to do yourself.
   ];
 }
 // ---------- build documents: joint styles, cut list, drawing, steps, templates
-S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false, tieJoint: 'ontop' }, S.doc || {});
+S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false }, S.doc || {});
 // the kit's sticks are 240 mm (#116): move the old 914 mm default over once; a length set on purpose stays
 if (!S.doc.stock240) { if (+S.doc.stock === 914) S.doc.stock = 240; S.doc.stock240 = true; }
 // the 3D model and results the documents describe, when the 3D analysis is on
-function doc3D() { return S.anaMode === '3d' && res && res.mode3 && res.mode3.m3 && res.mode3.r3 && res.mode3.r3.stable ? { m3: res.mode3.m3, r3: res.mode3.r3, tieJoint: S.doc.tieJoint } : null; }
+function doc3D() { return S.anaMode === '3d' && res && res.mode3 && res.mode3.m3 && res.mode3.r3 && res.mode3.r3.stable ? { m3: res.mode3.m3, r3: res.mode3.r3, tieJoint: S.opts.tieJoint } : null; }
 function docPlan() {
   const b = +S.mat.b || 3.18;
   // keep only overrides that still match this design's joints
@@ -1172,8 +1186,8 @@ function renderDocDialog() {
   const lbl = tr.nodes.map((p, n) => `<text x="${p[0] + 2}" y="${v.Y(p[1]) - 2}" font-size="5" fill="#b0601a" font-family="Arial" font-weight="bold">${n}</text>`).join('');
   $('docView').setAttribute('viewBox', v.box.join(' ')); $('docView').innerHTML = v.svg + lbl;
   const nT = +S.load.nTruss || 2, total = plan.pieces.reduce((s, q) => s + q.long * q.n, 0) * nT;
-  const d3 = doc3D(), cx = d3 ? BuildDoc.crossPlan(d3.m3, d3.r3, b, { tieJoint: S.doc.tieJoint, startNo: plan.items.length + 1 }) : null;
-  $('docTieBox').hidden = !d3; document.querySelectorAll('input[name="tiejoint"]').forEach(r => { r.checked = r.value === (S.doc.tieJoint || 'ontop'); });
+  const d3 = doc3D(), cx = d3 ? BuildDoc.crossPlan(d3.m3, d3.r3, b, { tieJoint: S.opts.tieJoint, startNo: plan.items.length + 1 }) : null;
+  $('docTieBox').hidden = !d3; document.querySelectorAll('input[name="tiejoint"]').forEach(r => { r.checked = r.value === (S.opts.tieJoint || 'ontop'); });
   const spl = (plan.splices || []).length;
   $('docSum').textContent = `${plan.pieces.length} pieces per truss in ${plan.items.length} different cuts · ${total.toFixed(0)} mm of stick for ${nT} trusses` + (cx ? ` + ${cx.parts.length} ties and braces between them (${cx.items.length} different cuts, ${cx.parts.reduce((s, q) => s + q.long, 0).toFixed(0)} mm).` : S.anaMode === '3d' ? ' (the 3D model is unstable, so its ties and bracing are left out).' : ' (before cross-ties).')
     + (spl ? ` ${spl} chord splice${spl > 1 ? 's' : ''}: a piece is longer than one ${+S.doc.stock || 240} mm stick.` : '');
@@ -1202,7 +1216,7 @@ showExport(S.expTab || 'bridge');
 $('docNo').addEventListener('click', () => { $('docModal').hidden = true; });
 $('docModal').addEventListener('keydown', ev => { if (ev.key === 'Escape') $('docModal').hidden = true; });
 document.querySelectorAll('input[name="jstyle"]').forEach(r => r.addEventListener('change', () => { S.doc.style = r.value; save(); renderDocDialog(); }));
-document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.doc.tieJoint = r.value; save(); renderDocDialog(); }));
+document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.opts.tieJoint = r.value; update(); renderDocDialog(); }));
 [['docStock', 'stock'], ['docKerf', 'kerf']].forEach(([id, k]) => $(id).addEventListener('change', () => { const v = +$(id).value; if (v >= 0) { S.doc[k] = v; save(); renderDocDialog(); } }));
 [['docSteps', 'steps'], ['docTpl', 'tpl'], ['docColour', 'colour'], ['docDash', 'dash']].forEach(([id, k]) => $(id).addEventListener('change', () => { S.doc[k] = $(id).checked; save(); renderDocDialog(); }));
 $('docResetJ').addEventListener('click', () => { S.doc.over = {}; save(); renderDocDialog(); });
@@ -1539,7 +1553,7 @@ function evalCandidate(c, mode) {
     vertLeft: c.vert === 'current' ? (S.vertLeft.length === h ? S.vertLeft.slice() : Array(h).fill(S.vertPreset !== 'none')) : Array(h).fill(c.vert !== 'none'),
     edgeVert: c.vert === 'current' ? S.edgeVert : c.vert !== 'none', sideAngle: c.sideAngle, sideLean: swOn('A') ? 'in' : S.sideLean, ...choiceOver(c) });
   const t2 = C.buildTruss(d), L = candLoad(c);
-  let r2 = C.analyze(t2, S.mat, L, c.width3 != null ? Object.assign({}, S.opts, { width: +c.width3 }) : S.opts);
+  let r2 = C.analyze(t2, S.mat, L, anaOpts(Object.assign(c.width3 != null ? { width: +c.width3 } : {}, (mode || S.anaMode) === '3d' ? { tilt: c.tilt3 != null ? +c.tilt3 : +S.d3.tilt || 0 } : { tilt: 0 })));
   const r2d = r2;
   if ((mode || S.anaMode) === '3d') r2 = apply3D(t2, r2, L, d3opts(c));
   return { t2, r2, r2d };
@@ -3361,7 +3375,7 @@ function tryPatch(patch) {
   try {
     Object.keys(patch).forEach(k => { if (k === 'd3') S.d3 = Object.assign({}, S.d3, patch.d3); else S[k] = patch[k]; });
     syncArrays();
-    const t = C.buildTruss(design()); let r = C.analyze(t, S.mat, S.load, S.opts);
+    const t = C.buildTruss(design()); let r = C.analyze(t, S.mat, S.load, anaOpts());
     if (S.anaMode === '3d') r = apply3D(t, r, S.load, d3opts(null));
     return { stable: !!r.stable, passes: !!(r.stable && r.passes), wood: r.stable ? r.wood : Infinity, cap: r.stable ? r.capKg : 0 };
   } catch (e) { return { stable: false, passes: false, wood: Infinity, cap: 0 }; }

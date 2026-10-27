@@ -198,3 +198,27 @@ test('build documents: 240 mm stock splices the chords at zero-force joints over
   const html2 = BD.documentHTML(tr, res, { name: 'T', b: STW, h: STW, nTruss: 2, stock: 914, kerf: 1 }, none, { steps: true, templates: true });
   assert.ok(!/3D assembly|cross-frame/.test(html2), '2D documents have no 3D sheets');
 });
+
+// ---------- envelope on the outer faces (#133)
+test('envelope: outer faces are one stick bigger; checked only when asked, warned otherwise', () => {
+  const at = (o, s) => { const st = Object.assign({}, DEFAULT, s || {}); const tr = C.buildTruss(design(st)); return C.analyze(tr, st.mat, st.load, Object.assign({}, st.opts, o)); };
+  const b = C.DEFAULT_MAT.b;
+  // width: W + b outside; W = 75 fails (78.2), W = 71 passes (74.2)
+  const w75 = at({ width: 75, envMeasure: 'outer' }), w71 = at({ width: 71, envMeasure: 'outer' });
+  assert.ok(Math.abs(w75.size.outer.width - (75 + b)) < 1e-9);
+  assert.ok(w75.envelope.some(e => /width is 78\.2/i.test(e)), 'W 75 fails outside');
+  assert.ok(!w71.envelope.some(e => /width/i.test(e)), 'W 71 passes outside');
+  // height: centreline 99 + b/2 + one tie on top = 103.8 fails; without ties on top, 100.6 still fails
+  const h99 = at({ envMeasure: 'outer', tiesOnTop: true }, { height: 99 });
+  assert.ok(Math.abs(h99.size.outer.height - (99 + b / 2 + b)) < 1e-9 && h99.envelope.some(e => /103\.8/.test(e)));
+  // default (centrelines): the v59 checks, results unchanged, and a warning lists what would fail outside
+  const def = at({}), old = at({ envMeasure: 'centre' });
+  assert.equal(def.size.measure, 'centre');
+  assert.deepEqual(def.envelope, old.envelope);
+  assert.ok(def.size.warn.some(s => /length 303\.2/.test(s)), 'warns that 300 mm between end joints is 303.2 outside');
+  // tilt: the outside width grows at the bottom, the height drops
+  const t10 = at({ envMeasure: 'outer', tilt: 10 });
+  assert.ok(t10.size.outer.width > 60 + b && t10.size.outer.height < at({ envMeasure: 'outer' }).size.outer.height);
+  // member forces never change
+  w75.members.forEach((m, k) => assert.equal(m.F, at({ width: 75 }).members[k].F));
+});
