@@ -17,6 +17,6 @@ Needs Node 18+, Python 3 with numpy, pandas and matplotlib, and Playwright with 
 
 KNOWN lines have an open ticket (TE-052, TE-083, TE-084). They're reported but don't fail the run.
 
-**tests/private/ is git-ignored** (rule 8). Put the course script TrussFEA_Bridge_SE310.py and any of Brian's own .bridge.json files there. Without the script, cmp.py says SKIP. tests/Partner_test.bridge.json is the one shared example.
+**tests/reference/TrussFEA_Bridge_SE310.py** is the course's own solver (Professor Dong cleared it for this MIT repo, #147), so cmp.py runs everywhere, CI included. It stays a reference check, not a limit on future physics. **tests/private/ is git-ignored** (rule 8): Brian's own .bridge.json files go there. tests/Partner_test.bridge.json is the one shared example.
 
 History: the v58 tests were print-only and needed files that were never kept (core_v21_backup.js, core3d_v24_backup.js, a js_out.json generator). Their original versions are in the first commit. t44, t53 and t56 weren't in the v58 source (TE-026).

@@ -65,7 +65,7 @@ This builds the page, then runs the solver checks, a comparison with the course 
 
 You need Node 18+, Python 3 with numpy, pandas and matplotlib, and Playwright with Chromium (`npm i playwright && npx playwright install chromium`).
 
-- **The course script isn't in the repo.** If you have `TrussFEA_Bridge_SE310.py`, copy it into `tests/private/` (git-ignored) and the comparison runs; otherwise that step prints `SKIP`.
+- **The course script is in `tests/reference/`** (`TrussFEA_Bridge_SE310.py`, by Professor Dong, cleared for this repo), so the comparison runs for everyone and in CI. Don't edit it: it's the reference the 2D solver must match.
 - **Lines marked `KNOWN`** are open issues. They're reported but don't fail the run.
 - **If the regression test says results "changed since v58"**, your change moved some solver numbers. If that's intended, re-record them with `node truss-explorer-src-v58/truss-explorer/tests/regressions.test.js --update` and say why in the pull request. If it isn't, you've found a bug.
 - **New behaviour should come with a test:** a Node test for solver or maths changes, a browser check in `tests/ui/` for interface changes.
