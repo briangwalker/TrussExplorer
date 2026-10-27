@@ -819,12 +819,17 @@ body.hidesame table .samecol { display: none; }
           <div id="bigBox" class="bigbox" hidden></div>
           <div id="docModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="docH"><div class="modalcard" style="max-width:980px;max-height:92vh;overflow:auto">
             <h3 id="docH" style="margin-top:0">Build documents</h3>
-            <p class="note" style="margin:0 0 8px">A printable document for building this design: an assembly drawing (dimensioned, with a parts list), a part drawing for every different cut, a cut list with angles, a cutting plan and the joints, numbered build steps, and full-size templates to lay the sticks on. Every sheet fits one US-letter landscape page. Open the downloaded file in a browser and print it (or save it as a PDF). Print the templates at 100%, actual size.</p>
+            <p class="note" style="margin:0 0 8px">A printable document for building this design (in 3D analysis: the whole 3D bridge, with every tie and brace): an assembly drawing (dimensioned, with a parts list), a part drawing for every different cut, a cut list with angles, a cutting plan and the joints, numbered build steps, and full-size templates to lay the sticks on. Every sheet fits one US-letter landscape page. Open the downloaded file in a browser and print it (or save it as a PDF). Print the templates at 100%, actual size.</p>
             <div class="tradectl">
               <b>Joints by default:</b>
               <label class="check"><input type="radio" name="jstyle" value="through"> Chords run through; others cut flush to them</label>
               <label class="check"><input type="radio" name="jstyle" value="square"> Chords run through; others cut square (90°)</label>
               <label class="check"><input type="radio" name="jstyle" value="mitre"> Two-member corners mitred; others flush</label>
+            </div>
+            <div class="tradectl" id="docTieBox" hidden>
+              <b>3D ties across the top:</b>
+              <label class="check"><input type="radio" name="tiejoint" value="ontop"> On top of both chords, glued flat (strongest)</label>
+              <label class="check"><input type="radio" name="tiejoint" value="between"> Butted between the chords</label>
             </div>
             <div class="tradectl">
               <label>Stock stick length (mm) <input type="number" id="docStock" min="50" step="1" style="width:90px"></label>
