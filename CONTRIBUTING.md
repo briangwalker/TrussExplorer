@@ -45,7 +45,7 @@ Use the same prefix in commit messages and mention the issue number:
 
 The app lives in `truss-explorer-src-v58/truss-explorer/`:
 
-- `src/` holds the source: `core.js` (2D solver), `core3d.js` (3D), `export.js` and `template.js` (.py export), `builddoc.js` (build documents), `app.js` and `ui.html` (the interface).
+- `src/` holds the source: `core.js` (2D solver), `core3d.js` (3D), `export.js` and `template.js` (.py export), `builddoc.js` (build documents), `formats.js` (every file format and the one way files come in; spec in `docs/formats.md`), `app.js` and `ui.html` (the interface).
 - `index.html` is **built** from `src/`. Never edit it by hand. Run `python3 build.py` and commit the rebuilt `index.html` with your source change.
 
 A few rules protect existing work:

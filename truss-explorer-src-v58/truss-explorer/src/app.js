@@ -53,23 +53,7 @@ const DEFAULT = {
 // Everything that comes from outside this page (an opened file, or data an earlier visit stored) is cleaned before
 // the app uses it: text can never become markup, and keys that would reach an object's prototype are dropped.
 // Typed arrays and BigInts (large-search checkpoints) pass through unchanged.
-const SAFE_CH = { '<': '‹', '>': '›', '"': '”', "'": '’', '`': 'ˋ' };
-function cleanData(x, depth) {
-  depth = depth || 0;
-  if (typeof x === 'string') return (x.length > 2000 ? x.slice(0, 2000) : x).replace(/[<>"'`]/g, c => SAFE_CH[c]);
-  if (x === null || typeof x !== 'object' || depth > 40) return x;
-  if (ArrayBuffer.isView(x) || x instanceof ArrayBuffer) return x;
-  if (Array.isArray(x)) return x.map(v => cleanData(v, depth + 1));
-  const o = {}; Object.keys(x).forEach(k => { if (k === '__proto__' || k === 'constructor' || k === 'prototype') return; o[cleanData(k, depth + 1)] = cleanData(x[k], depth + 1); });
-  return o;
-}
-// a sweep row from a file: the numbers the tables and charts read must be numbers
-const ROW_NUM = ['wood', 'capKg', 'util', 'D', 'overall', 'side', 'mass', 'height', 'panels', 'members'];
-const ROW_OPT = ['curve', 'supportOffset', 'ratio', 'overlap', 'topEnd', 'botEnd', 'tilt3', 'width3'];
-function cleanRows(rows) {
-  return (Array.isArray(rows) ? rows : []).filter(r => r && typeof r === 'object' && ROW_NUM.every(k => r[k] !== '' && r[k] != null && Number.isFinite(+r[k])))
-    .map(r => { ROW_NUM.forEach(k => { r[k] = +r[k]; }); ROW_OPT.forEach(k => { if (r[k] != null && r[k] !== '' && Number.isFinite(+r[k])) r[k] = +r[k]; }); return r; });
-}
+const { cleanData, cleanRows } = TrussFormats;   // the import boundary lives in formats.js with the file formats (#149)
 let S = JSON.parse(JSON.stringify(DEFAULT));
 var FIRST_VISIT = true;
 try { const saved = cleanData(JSON.parse(localStorage.getItem(KEY) || 'null')); if (saved && saved.panels) { S = Object.assign(S, saved); FIRST_VISIT = false; } } catch (e) {}
@@ -1276,7 +1260,7 @@ $('docGo').addEventListener('click', () => {
   saveFile(fileBase() + '_build_documents.html', html);
 });
 // ---------- bridge and sweep files, to share with partners (and, later, to publish)
-const FILE_VER = 2;   // 2 (v61): the analysis model, 3D setup and build-document settings travel with the bridge; every file says which release made it
+const FILE_VER = TrussFormats.KINDS.bridge.current;   // the version written today; formats.js owns it with the upgrade steps (#149). 2 (v61): analysis model, 3D setup and build-document settings travel with the bridge; every file says which release made it
 // a short code for the bridge (FNV-1a of its settings): the same in its file, its CSVs, its .py and on its printed
 // documents, so a printout can be matched to the file it came from
 function fingerprint(o) { const s = JSON.stringify(o); let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); }
@@ -1337,13 +1321,14 @@ function applyBridge(b) {
 }
 $('filePick').addEventListener('change', async () => {
   const f = $('filePick').files[0]; if (!f) return;
-  let doc; try { doc = cleanData(JSON.parse(await f.text())); } catch (e) { toast('That file is not a bridge or sweep file (it is not valid JSON).', true); return; }
-  if (!doc || typeof doc !== 'object') { toast('That file is not a bridge or sweep file.', true); return; }
-  // either Open button takes either kind of file, and says which it was (#158)
-  if (doc.format !== 'se310-truss-bridge' && doc.format !== 'se310-truss-sweep') { toast(`That is not a bridge or sweep file from the Truss Explorer.`, true); return; }
-  const other = pickFor === 'bridge' && doc.format === 'se310-truss-sweep' ? 'That was a sweep file, so it opened as a sweep. ' : pickFor === 'sweep' && doc.format === 'se310-truss-bridge' ? 'That was a bridge file, so it opened as a bridge. ' : '';
-  if (doc.format === 'se310-truss-bridge') {
-    if (!doc.bridge || typeof doc.bridge !== 'object') { toast('That bridge file has no bridge in it.', true); return; }
+  // parse, clean, detect, upgrade to the current version and check, all in formats.js (#149; spec in docs/formats.md)
+  const o = TrussFormats.open(await f.text()), doc = o.doc, kind = o.kind;
+  const FILE_ERR = { 'not-json': 'That file is not a bridge or sweep file (it is not valid JSON).', 'not-an-object': 'That file is not a bridge or sweep file.', 'not-truss-explorer': 'That is not a bridge or sweep file from the Truss Explorer.', 'no-bridge': 'That bridge file has no bridge in it.', 'no-rows': 'That sweep file has no results in it.', 'no-usable-rows': 'That sweep file has no usable results.' };
+  // either Open button takes either kind of file, and says which it was (#158); materials and themes don't open here yet
+  if (o.ok && kind !== 'bridge' && kind !== 'sweep') { toast('That is not a bridge or sweep file from the Truss Explorer.', true); return; }
+  if (!o.ok) { toast(FILE_ERR[o.errors[0]] || 'That file could not be opened.', true); return; }
+  const other = pickFor === 'bridge' && kind === 'sweep' ? 'That was a sweep file, so it opened as a sweep. ' : pickFor === 'sweep' && kind === 'bridge' ? 'That was a bridge file, so it opened as a bridge. ' : '';
+  if (kind === 'bridge') {
     applyBridge(doc.bridge);
     let note = '';
     if (!doc.bridge.anaMode) {
@@ -1355,16 +1340,14 @@ $('filePick').addEventListener('change', async () => {
         else { S.anaMode = was; paintAna(); update(); note = ` It was saved before v61 and doesn't say whether it was analysed in 2D or 3D; check the switch, and compare the wood with the file's ${want.toFixed(0)} mm.`; }
       }
     }
-    if (doc.version > FILE_VER) note += ' It was made by a newer release of the Explorer, so some settings may be ignored.';
+    if (o.tooNew) note += ' It was made by a newer release of the Explorer, so some settings may be ignored.';
     $('fileMsg').textContent = `Opened "${doc.name}" (saved ${new Date(doc.savedAt).toLocaleString()}${doc.release ? ` with ${doc.release}` : ''}).${note}`; toast(other + 'Bridge loaded.' + note, !!note);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
-  if (!Array.isArray(doc.rows)) { toast('That sweep file has no results in it.', true); return; }
-  // every result row needs its numbers: rows with a missing or non-numeric one are left out, and said so
-  const nIn = doc.rows.length; doc.rows = cleanRows(doc.rows);
-  if (!doc.rows.length) { toast('That sweep file has no usable results.', true); return; }
-  if (doc.rows.length < nIn) toast(`${(nIn - doc.rows.length).toLocaleString()} of ${nIn.toLocaleString()} rows in that file were incomplete and were left out.`, true);
+  // every result row needs its numbers: rows with a missing or non-numeric one were left out by formats.js, and that is said
+  if (o.rowsDropped) toast(`${o.rowsDropped.toLocaleString()} of ${o.rowsIn.toLocaleString()} rows in that file were incomplete and were left out.`, true);
+  if (o.tooNew) toast('That sweep file was made by a newer release of the Explorer, so some settings may be ignored.', true);
   sweepAll = doc.rows; sweepCtx = doc.ctx || sweepCtx; sweepMode = 'file'; pendingSweep = doc;
   sweepRows = sweepAll.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30);
   lastSig = null;
@@ -3287,7 +3270,7 @@ let abPickSide = null;
 ['A', 'B'].forEach(s => $('abSrc' + s).addEventListener('change', () => { abOver = {}; if ($('abSrc' + s).value === 'file') { abPickSide = s; $('abFile').value = ''; $('abFile').click(); } abPaint(); }));
 $('abFile').addEventListener('change', async () => {
   const f = $('abFile').files[0]; if (!f || !abPickSide) return;
-  try { const doc = cleanData(JSON.parse(await f.text())); if (!doc || doc.format !== 'se310-truss-bridge' || !doc.bridge) throw 0; abFiles[abPickSide] = Object.assign({ name: doc.name }, doc.bridge); }
+  try { const o = TrussFormats.open(await f.text()); if (!o.ok || o.kind !== 'bridge') throw 0; abFiles[abPickSide] = Object.assign({ name: o.doc.name }, o.doc.bridge); }
   catch (e) { toast('That is not a bridge file.', true); }
   abPaint();
 });
