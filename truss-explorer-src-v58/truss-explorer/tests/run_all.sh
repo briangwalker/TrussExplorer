@@ -45,6 +45,9 @@ node "$here/ui/smoke.mjs" 2>&1 | grep -Ev '^ok |saved summary'; mark ${PIPESTATU
 step "browser: saving, every view and full-screen mode"
 node "$here/ui/saving.mjs" 2>&1 | grep -Ev '^ok '; mark ${PIPESTATUS[0]} "UI saving"
 
+step "browser: build documents print completely"
+node "$here/ui/documents.mjs" 2>&1 | grep -Ev '^ok '; mark ${PIPESTATUS[0]} "UI documents"
+
 step "browser: opening files"
 node "$here/ui/files.mjs" 2>&1 | grep -Ev '^ok '; mark ${PIPESTATUS[0]} "UI files"
 
