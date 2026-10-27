@@ -30,7 +30,7 @@ try {
   await page.waitForFunction(() => window.__dbg && window.__dbg.res, null, { timeout: 15000 });
 
   // 1. clean load
-  check('page declares UTF-8 (served without a charset header)', await page.evaluate(() => document.characterSet) === 'UTF-8', await page.evaluate(() => document.characterSet), 'TE-084');
+  check('page declares UTF-8 (served without a charset header)', await page.evaluate(() => document.characterSet) === 'UTF-8', await page.evaluate(() => document.characterSet));
   const ov = await page.evaluate(() => { const d = document.querySelector('.dockbar').getBoundingClientRect(), h = document.querySelector('header.top h1').getBoundingClientRect(); return { hit: d.right > h.left && d.bottom > h.top && d.top < h.bottom, d: Math.round(d.right), h: Math.round(h.left) }; });
   check('View bar does not cover the page title at 1440 px', !ov.hit, `bar ends x=${ov.d}, title starts x=${ov.h}`, 'TE-052');
   check('page loads with no script errors', errors.length === 0, errors.slice(0, 3).join(' | '));
