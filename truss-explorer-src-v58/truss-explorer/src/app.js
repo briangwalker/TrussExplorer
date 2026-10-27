@@ -1594,7 +1594,7 @@ function sweepSig() {
     P: ['family', 'diagLeft', 'diagMiddle'], V: ['vertLeft', 'edgeVert'], C: ['claw'], B: ['brace'], L: ['loads'], K: ['sticks'], T: ['topEnd'], Q: ['botEnd'] };
   Object.keys(drop).forEach(k => { if (swOn(k)) drop[k].forEach(f => { delete d[f]; }); });
   CHOICES.forEach(ch => { if (swOn('c_' + ch.key)) delete d[ch.key]; });
-  return JSON.stringify({ ana: S.anaMode || '2d', d3: S.anaMode === '3d' ? [S.d3.topPat, S.d3.botPat, S.d3.framePat, S.d3.tilt, S.d3.botTies, swOn('Z') ? SW.brace3 : null] : null, d, pat: swOn('P') ? null : S.pattern, vp: swOn('V') ? null : S.vertPreset, mat: S.mat, load: swOn('M') ? null : S.load, opts: S.opts, on: S.swOn, vals: SW_IDS.map(id => $(id).value), sel: SW, focus: swOn('F') ? S.focus : null });
+  return JSON.stringify({ ana: S.anaMode || '2d', d3: S.anaMode === '3d' ? [S.d3.topPat, S.d3.botPat, S.d3.framePat, S.d3.tilt, S.d3.botTies, swOn('Z') ? SW.brace3 : null].concat(S.d3.imperf && S.d3.imperf.on ? [S.d3.imperf] : []) : null, d, pat: swOn('P') ? null : S.pattern, vp: swOn('V') ? null : S.vertPreset, mat: S.mat, load: swOn('M') ? null : S.load, opts: S.opts, on: S.swOn, vals: SW_IDS.map(id => $(id).value), sel: SW, focus: swOn('F') ? S.focus : null });
 }
 function checkStale() {
   const stale = lastSig !== null && sweepSig() !== lastSig;
@@ -2514,6 +2514,7 @@ $('c3Canvas').addEventListener('mouseleave', () => { $('c3Tip').hidden = true; }
 
 // ---------- 3D view (prototype)
 S.d3 = Object.assign({ tilt: 0, botTies: true, topBr: 'single', botBr: 'single', sway: true }, S.d3 || {});
+S.d3.imperf = Object.assign({ on: false, alpha: 0.02, beta: 0.005, dir: 1 }, S.d3.imperf || {});
 // per-panel / per-station patterns (left half). Older saved settings become patterns the first time.
 if (!S.d3.topPat) S.d3.topPat = [{ none: 'N', x: 'X' }[S.d3.topBr] || 'S'];
 if (!S.d3.botPat) S.d3.botPat = [{ none: 'N', x: 'X' }[S.d3.botBr] || 'S'];
@@ -2547,7 +2548,15 @@ document.querySelectorAll('[data-pre]').forEach(b => b.addEventListener('click',
   save(); d3Changed();
 }));
 var v3 = window.__v3 = { yaw: -0.55, pitch: 0.42, zoom: 1, px: 0, py: 0, drag: null, segs: null };
-function paint3Inputs() { setVal('tilt3d', S.d3.tilt); $('botTies3d').checked = S.d3.botTies; setVal('width3d', S.opts.width); $('d3ShowPlan').checked = S.d3.showPlan !== false; $('d3ShowSec').checked = S.d3.showSec !== false; paint3Show(); }
+// imperfection loads in 3D (#117): off by default, so the results are the perfect model's, as before
+function imperfOpt() { const q = S.d3.imperf; return q && q.on ? { imperf: { alpha: +q.alpha || 0, beta: +q.beta || 0, dir: +q.dir || 1 } } : null; }
+function paintImperf() { const q = S.d3.imperf; $('imperf3d').checked = !!q.on; setVal('impAlpha', q.alpha); setVal('impBeta', q.beta); $('impDir').value = String(q.dir < 0 ? -1 : 1); $('imperfVals').style.opacity = q.on ? '' : '.5'; }
+['imperf3d', 'impAlpha', 'impBeta', 'impDir'].forEach(id => $(id).addEventListener('change', () => {
+  const q = S.d3.imperf; q.on = $('imperf3d').checked; const a = +$('impAlpha').value, b = +$('impBeta').value;
+  if (a >= 0 && a <= 0.2) q.alpha = a; if (b >= 0 && b <= 0.1) q.beta = b; q.dir = +$('impDir').value < 0 ? -1 : 1;
+  paintImperf(); save(); d3Changed();
+}));
+function paint3Inputs() { paintImperf(); setVal('tilt3d', S.d3.tilt); $('botTies3d').checked = S.d3.botTies; setVal('width3d', S.opts.width); $('d3ShowPlan').checked = S.d3.showPlan !== false; $('d3ShowSec').checked = S.d3.showSec !== false; paint3Show(); }
 function paint3Show() {
   const pl = S.d3.showPlan !== false, se = S.d3.showSec !== false;
   $('d3Plan').parentElement.hidden = !pl; $('d3Sec').parentElement.hidden = !se;
@@ -2579,7 +2588,7 @@ function apply3D(t2, r2, load, o) {
   if (!r2.stable || !window.Truss3D) return r2;
   const mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
   let m, q;
-  try { m = Truss3D.build3D(t2, o); q = Truss3D.analyze3D(m, mat, load); } catch (e) { return Object.assign({}, r2, { stable: false, passes: false, unstable3D: true }); }
+  try { m = Truss3D.build3D(t2, o); q = Truss3D.analyze3D(m, mat, load, imperfOpt()); } catch (e) { return Object.assign({}, r2, { stable: false, passes: false, unstable3D: true }); }
   if (!q.stable) return Object.assign({}, r2, { stable: false, passes: false, unstable3D: true });
   const hits = Truss3D.tableHits ? Truss3D.tableHits(m, +S.tableThick || 30, t2.design.span || 200) : [];
   // 2D element k -> its front and back copies in the 3D model (build3D adds them in order, skipping claws and braces)
@@ -2648,7 +2657,7 @@ function render3D() {
   paint3Inputs();
   const mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
   m3 = Truss3D.build3D(tr, { width: +S.opts.width || 60, tilt: +S.d3.tilt, bottomTies: S.d3.botTies, topPat: S.d3.topPat, botPat: S.d3.botPat, framePat: S.d3.framePat });
-  r3 = Truss3D.analyze3D(m3, mat, S.load);
+  r3 = Truss3D.analyze3D(m3, mat, S.load, imperfOpt());
   draw3D(); paint3Chips(); draw3Views(); renderTable3();
   const cap2 = res.stable ? res.capKg : NaN;
   $('d3Status').textContent = r3.stable ? `${r3.failing.length ? 'fails' : 'passes strength'} · capacity ${r3.capKg.toFixed(1)} kg` : 'unstable';
@@ -2656,7 +2665,7 @@ function render3D() {
   const fails = r3.failing.map(m => `${X.TYPE_LABEL[m.type] || ({ tie: 'Tie', lat: 'Lateral brace', sway: 'Sway brace' })[m.type]} (${m.side}) ${m.F.toFixed(1)} N ${m.mode}`);
   const typeWood = {}; m3.elems.forEach((e, k) => { const t = e.side === 'cross' ? e.type : 'side trusses'; typeWood[t] = (typeWood[t] || 0) + r3.members[k].L * e.n; });
   $('d3Facts').innerHTML = `Wood in the 3D model: <b>${r3.wood.toFixed(0)} mm</b> (${Object.entries(typeWood).map(([t, v]) => `${({ tie: 'ties', lat: 'lateral bracing', sway: 'sway diagonals' })[t] || t} ${v.toFixed(0)}`).join(', ')}).
-    Capacity <b>${r3.capKg.toFixed(1)} kg</b> (2D: ${Number.isFinite(cap2) ? cap2.toFixed(1) : '—'} kg) · highest use ${(r3.maxUtil * 100).toFixed(0)}% · deck deflection <b>${r3.deckDefl.toFixed(3)} mm</b> (2D: ${res.stable ? res.midDefl.toFixed(3) : '—'} mm) · largest sideways movement ${r3.sideSway.toFixed(3)} mm.
+    ${r3.imperf ? `Imperfection loads on: bow ${(r3.imperf.alpha * 100).toFixed(1)}% of each compression chord force ${r3.imperf.dir < 0 ? 'inward' : 'outward'}, sway ${(r3.imperf.beta * 100).toFixed(1)}% of each joint load (${r3.imperf.lateral.toFixed(2)} N sideways in all), so the bracing forces below are realistic. ` : ''}Capacity <b>${r3.capKg.toFixed(1)} kg</b> (2D: ${Number.isFinite(cap2) ? cap2.toFixed(1) : '—'} kg) · highest use ${(r3.maxUtil * 100).toFixed(0)}% · deck deflection <b>${r3.deckDefl.toFixed(3)} mm</b> (2D: ${res.stable ? res.midDefl.toFixed(3) : '—'} mm) · largest sideways movement ${r3.sideSway.toFixed(3)} mm.
     ${r3.lifted.length ? `${r3.lifted.length} support${r3.lifted.length > 1 ? 's' : ''} would have to pull down and lift off.` : ''}
     ${fails.length ? `<br><b style="color:var(--bad)">Over the limit:</b> ${fails.join(' · ')}` : ''}${m3.warn.length ? '<br>' + m3.warn.join(' ') : ''}`;
 }

@@ -222,3 +222,19 @@ test('envelope: outer faces are one stick bigger; checked only when asked, warne
   // member forces never change
   w75.members.forEach((m, k) => assert.equal(m.F, at({ width: 75 }).members[k].F));
 });
+
+// ---------- imperfection loads in 3D (#117)
+test('3D imperfection loads: off = unchanged; on = small realistic bracing forces that flip with the bow', () => {
+  const { tr } = solve2D(DEFAULT), mat = Object.assign({}, C.DEFAULT_MAT);
+  const m3 = T3.build3D(tr, { width: 60, tilt: 0, bottomTies: true, topPat: ['S'], botPat: ['S'], framePat: ['D', 'N'] });
+  const r0 = T3.analyze3D(m3, mat, DEFAULT.load), off = T3.analyze3D(m3, mat, DEFAULT.load, { imperf: { alpha: 0, beta: 0 } });
+  r0.members.forEach((m, k) => assert.equal(m.F, off.members[k].F));
+  const on = T3.analyze3D(m3, mat, DEFAULT.load, { imperf: { alpha: 0.02, beta: 0.005 } }), flip = T3.analyze3D(m3, mat, DEFAULT.load, { imperf: { alpha: 0.02, beta: 0.005, dir: -1 } });
+  const latTop = m3.elems.map((e, k) => e.type === 'lat' && e.plane === 'top' ? k : -1).filter(k => k >= 0);
+  latTop.forEach(k => { assert.equal(r0.members[k].F, 0); assert.ok(Math.abs(on.members[k].F) > 0.01 && Math.abs(on.members[k].F) < 1, `brace ${k}: ${on.members[k].F}`); assert.ok(Math.abs(on.members[k].F + flip.members[k].F) < 1e-9, 'flips with the bow'); });
+  assert.ok(Math.abs(on.capKg / r0.capKg - 1) < 0.01, 'capacity changes by less than 1%');
+  // bow alone (no sway): both trusses stay mirror images
+  const bow = T3.analyze3D(m3, mat, DEFAULT.load, { imperf: { alpha: 0.02, beta: 0 } }), fr = {};
+  m3.elems.forEach((e, k) => { if (e.side === 'front') fr[e.e2] = k; });
+  m3.elems.forEach((e, k) => { if (e.side === 'back') assert.ok(Math.abs(bow.members[k].F - bow.members[fr[e.e2]].F) < 1e-9, `member ${e.e2} front/back`); });
+});
