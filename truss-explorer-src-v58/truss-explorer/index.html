@@ -2566,30 +2566,39 @@ function documentHTML(tr, res, meta, plan, opt) {
   const ball = no => `<span class="ball" style="${colourMode === 'part' ? `background:${colOf(no)};color:#fff` : ''}">${no}</span>`;
   const sheets = [];
   const sheet = (title, body, cls) => sheets.push({ title, body, cls });
+  // a sheet is a fixed page, so long tables go on in continuation sheets (#153). Rows per sheet are set for the
+  // tallest rows these tables have; tests/ui/documents.mjs checks that nothing is cut off on the worst bridges.
+  const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o.length ? o : [[]]; };
+  const cont = (title, i, n) => n > 1 ? `${title} (${i + 1} of ${n})` : title;
   const splices = plan.splices || [];
   const spliceMarks = (Y) => splices.map(s => { const p = tr.nodes[s.node]; return `<g stroke="#c0392b" stroke-width=".5"><line x1="${p[0] - 2.4}" y1="${Y(p[1]) - 4}" x2="${p[0] - 2.4}" y2="${Y(p[1]) + 4}"/><line x1="${p[0] + 2.4}" y1="${Y(p[1]) - 4}" x2="${p[0] + 2.4}" y2="${Y(p[1]) + 4}"/></g><text x="${p[0]}" y="${Y(p[1]) + (s.type === 'bot' ? -5 : 7.5)}" font-size="2.8" text-anchor="middle" fill="#c0392b" font-family="Arial">splice${s.tension ? ' + splint' : ''}</text>`; }).join('');
   const spliceNote = splices.length ? ` <b>Splices</b> (red marks): ${splices.length} chord joint${splices.length > 1 ? 's' : ''} where a piece longer than one ${stock} mm stick is joined: square butt ends at the joint centre, placed where the chord force is lowest (${splices.map(s => Math.abs(s.F) < 0.005 ? 'no force' : `${Math.abs(s.F).toFixed(2)} N ${s.tension ? 'tension: glue a splint across it' : 'compression'}`).join('; ')}).` : '';
   // 1. assembly drawing (side truss)
   const v = sideSVG(tr, plan, { labels: true, balloons: true, dims: true, b, color: colourMode, dash });
-  const partsRows = plan.items.map(it => `<tr><td>${swatch(it.no)}${it.no}</td><td>${qty(it)}</td><td>${f1(it.long)}</td><td>${Math.abs(it.long - it.short) > 0.05 ? f1(it.short) : '—'}</td><td>${it.cuts.map(cutTxt).join(' / ')}</td><td>${lab(it)}${it.n > 1 ? ` (${it.n} sticks glued)` : ''}${pattern(it.no)}</td></tr>`).join('')
-    + (stopItem ? `<tr><td>${swatch(stopItem.no)}${stopItem.no}</td><td>${qty(stopItem)}</td><td>${f1(STOP_LEN)}</td><td>—</td><td>square / square</td><td>Edge stop: glued under each corner joint, against the table's face</td></tr>` : '')
-    + (!cx && meta.ties && meta.ties.count ? `<tr><td>T</td><td>${meta.ties.count}</td><td>${f1(meta.ties.len)}</td><td>—</td><td>square</td><td>Cross-tie between the trusses</td></tr>` : '');
-  sheet('Assembly drawing', `<table class="parts"><tr><th colspan="6">PARTS LIST · ${nT} TRUSSES</th></tr><tr><th>ITEM</th><th>QTY</th><th>LENGTH</th><th>SHORT PT</th><th>END CUTS</th><th>DESCRIPTION</th></tr>${partsRows}</table>
+  const partsArr = plan.items.map(it => `<tr><td>${swatch(it.no)}${it.no}</td><td>${qty(it)}</td><td>${f1(it.long)}</td><td>${Math.abs(it.long - it.short) > 0.05 ? f1(it.short) : '—'}</td><td>${it.cuts.map(cutTxt).join(' / ')}</td><td>${lab(it)}${it.n > 1 ? ` (${it.n} sticks glued)` : ''}${pattern(it.no)}</td></tr>`)
+    .concat(stopItem ? [`<tr><td>${swatch(stopItem.no)}${stopItem.no}</td><td>${qty(stopItem)}</td><td>${f1(STOP_LEN)}</td><td>—</td><td>square / square</td><td>Edge stop: glued under each corner joint, against the table's face</td></tr>`] : [])
+    .concat(!cx && meta.ties && meta.ties.count ? [`<tr><td>T</td><td>${meta.ties.count}</td><td>${f1(meta.ties.len)}</td><td>—</td><td>square</td><td>Cross-tie between the trusses</td></tr>`] : []);
+  const partsHead = `<tr><th colspan="6">PARTS LIST · ${nT} TRUSSES</th></tr><tr><th>ITEM</th><th>QTY</th><th>LENGTH</th><th>SHORT PT</th><th>END CUTS</th><th>DESCRIPTION</th></tr>`;
+  const ownParts = partsArr.length > 10;   // too many rows to sit beside the drawing
+  sheet('Assembly drawing', `${ownParts ? `<p class="note asmnote"><b>Parts list: next sheet${partsArr.length > 30 ? 's' : ''}.</b></p>` : `<table class="parts">${partsHead}${partsArr.join('')}</table>`}
     <p class="note asmnote">Side view of one truss, mm. Each part is dimensioned once (long point); identical parts carry the same item balloon. Build ${nT} identical trusses${cx ? (cx.sameTrusses ? ' (checked: the front and back trusses of the 3D model are identical)' : ' — <b>the front and back trusses differ: see the 3D sheets</b>') : ''}.${cx && cx.tilt ? ` In the 3D bridge each truss leans ${f1(cx.tilt)}° inward about its bottom chord; build it flat, exactly as drawn.` : ''}${spliceNote}${marks.length ? ` <b>Desk edge</b> (green marks): line these up with the desk edges${(+tr.design.supportOffset || 0) ? `; the support joints sit ${f1(+tr.design.supportOffset)} mm onto the desks` : ''}.` : ''}${stopItem ? ` <b>Edge stops</b>: ${stops.length * nT} sticks of ${STOP_LEN} mm glued under the corner joints, hanging down the table's face so the edge can push the bridge inward (${f1(stopItem.pieces.length * STOP_LEN)} mm of stick, not counted in the app's wood).` : ''}
     ${cx ? `Centre-to-centre wood ${f1(cc2 + ccX)} mm (side trusses ${f1(cc2)} + 3D parts ${f1(ccX)}; the app's "Wood in the 3D model" is ${f1(d3.r3.wood)} mm) · cut length ${f1(totalLen)} mm with joint allowances` : `Stick total ${f1(totalLen)} mm`} · ${meta.massNote || ''} · capacity ${meta.capNote || ''}.</p>
-    <svg class="view" style="height:${Math.max(70, 112 - Math.max(0, plan.items.length + (stopItem ? 1 : 0) - 7) * 5)}mm" viewBox="${v.box.join(' ')}">${v.svg}${spliceMarks(v.Y)}${markSVG(tr, marks, stops, v.Y, b, stopItem && colourMode === 'part' ? colOf(stopItem.no) : '#fff')}</svg>`);
+    <svg class="view" style="height:${ownParts ? 120 : Math.max(70, 112 - Math.max(0, partsArr.length - 7) * 5)}mm" viewBox="${v.box.join(' ')}">${v.svg}${spliceMarks(v.Y)}${markSVG(tr, marks, stops, v.Y, b, stopItem && colourMode === 'part' ? colOf(stopItem.no) : '#fff')}</svg>`);
+  if (ownParts) { const ch = chunk(partsArr, 30); ch.forEach((rows, i) => sheet(cont('Parts list', i, ch.length), `<table class="parts xparts">${partsHead}${rows.join('')}</table>`)); }
   // 1b. 3D frame: plan, bottom and end views with the cross parts' list
   let frames = [];
   if (cx) {
-    const m3 = d3.m3, xRows = cx.items.map(it => `<tr><td>${swatch(it.no)}${it.no}</td><td>${qty(it)}</td><td>${f1(it.cc)}</td><td><b>${f1(it.long)}</b></td><td>${Math.abs(it.long - it.short) > 0.05 ? f1(it.short) : '—'}</td><td>${it.cuts.map(cutTxt).join(' / ')}${it.cuts.some(c => c.kind === 'flush') ? ` (${it.view})` : ''}</td><td>${lab(it)}${pattern(it.no)}</td></tr>`).join('');
+    const m3 = d3.m3, xArr = cx.items.map(it => `<tr><td>${swatch(it.no)}${it.no}</td><td>${qty(it)}</td><td>${f1(it.cc)}</td><td><b>${f1(it.long)}</b></td><td>${Math.abs(it.long - it.short) > 0.05 ? f1(it.short) : '—'}</td><td>${it.cuts.map(cutTxt).join(' / ')}${it.cuts.some(c => c.kind === 'flush') ? ` (${it.view})` : ''}</td><td>${lab(it)}${pattern(it.no)}</td></tr>`);
+    const xHead = `<tr><th colspan="7">3D PARTS · BETWEEN THE TRUSSES</th></tr><tr><th>ITEM</th><th>QTY</th><th>C-C</th><th>CUT TO</th><th>SHORT PT</th><th>END CUTS</th><th>DESCRIPTION</th></tr>`, ownX = xArr.length > 7;
     const pv = view3(m3, cx, { view: 'plan', balloons: true, colour: colourMode, dash, dims: true, b }), bv = view3(m3, cx, { view: 'bottom', balloons: true, colour: colourMode, dash, dims: true, b });
     frames = distinctFrames(m3, cx);
     const fv = frames.map(g => ({ g, v: view3(m3, cx, { view: 'end', station: g.stations[0], balloons: true, colour: colourMode, dash, dims: true, b }) })).filter(q => q.v);
     const stn = g => g.stations.map(s => s + 1).join(', ');
-    sheet('3D assembly', `<table class="parts xparts"><tr><th colspan="7">3D PARTS · BETWEEN THE TRUSSES</th></tr><tr><th>ITEM</th><th>QTY</th><th>C-C</th><th>CUT TO</th><th>SHORT PT</th><th>END CUTS</th><th>DESCRIPTION</th></tr>${xRows}</table>
+    sheet('3D assembly', `${ownX ? `<p class="note"><b>3D parts list: next sheet${xArr.length > 30 ? 's' : ''}.</b></p>` : `<table class="parts xparts">${xHead}${xArr.join('')}</table>`}
       <div class="v3">${pv ? `<figure><svg viewBox="${pv.box.join(' ')}">${pv.svg}</svg><figcaption>Top plane from above (x along the bridge, back truss at the top): top chords grey, ties${cx.onTop ? ' laid on top of the chords' : ' between the chords'} and top lateral bracing.</figcaption></figure>` : ''}
       ${bv ? `<figure><svg viewBox="${bv.box.join(' ')}">${bv.svg}</svg><figcaption>Bottom plane (seen from above, through the deck): bottom chords grey, bottom ties and bracing, butted between the chords.</figcaption></figure>` : ''}</div>
       <p class="note">mm. "C-C" is centre to centre, as in the 3D model; cut each part to "cut to" (long point). ${cx.onTop ? 'Top ties lap over both top chords (glued flat on top, side grain to side grain): cut square, as long as the outside width.' : 'Top ties butt between the top chords\' inner faces.'} Lateral bracing and sway diagonals butt against the chords' and posts' inner faces; the end angle is shown in the view named in the parts list.${cx.tilt ? ` Tilt ${f1(cx.tilt)}°: the cross-frames are narrower at the top than at the bottom.` : ''}</p>`);
+    if (ownX) { const ch = chunk(xArr, 30); ch.forEach((rows, i) => sheet(cont('3D parts list', i, ch.length), `<table class="parts xparts">${xHead}${rows.join('')}</table>`)); }
     for (let s0 = 0; s0 < fv.length; s0 += 4) sheet('3D cross-frames', `<h2 style="margin:0 0 3mm">Cross-frames (end views, looking along the bridge)</h2><div class="frames">${fv.slice(s0, s0 + 4).map(({ g, v: vv }) => `<figure><svg viewBox="${vv.box.join(' ')}">${vv.svg}</svg><figcaption>Station${g.stations.length > 1 ? 's' : ''} ${stn(g)} of ${m3.frames.length}${g.stations.includes(0) || g.stations.includes(m3.frames.length - 1) ? ' (end frame)' : ''} · bracing ${g.code === 'N' ? 'ties only' : g.code}</figcaption></figure>`).join('')}</div>
       <p class="note">Front truss on the left. Grey: the side-truss posts at that station. A full-size template of each frame is at the end of this set.</p>`);
   }
@@ -2602,24 +2611,37 @@ function documentHTML(tr, res, meta, plan, opt) {
     sheet(`Part drawings ${allItems.length > per ? `(${Math.floor(s0 / per) + 1})` : ''}`, `<div class="pgrid">${cards}</div>`);
   }
   // 3. cut list, cutting plan and joints
-  const barSVG = bars.map((B, i) => { let x = 0;
+  const barArr = bars.map((B, i) => { let x = 0;
     const segs = B.cuts.map(c => { const r = `<rect x="${x}" y="0" width="${c.len}" height="8" fill="${c.item === 'T' ? '#ddd' : colourMode === 'part' ? colOf(c.item) : '#fff'}" fill-opacity=".55" stroke="#333" stroke-width=".4"/><text x="${x + c.len / 2}" y="5.6" font-size="4.2" text-anchor="middle" font-family="Arial">${c.item}</text>`; x += c.len + kerf; return r; }).join('');
-    return `<div class="bar"><span>Stick ${i + 1}${B.over ? ' (too long!)' : ''}</span><svg viewBox="-1 -1 ${stock + 2} 10" preserveAspectRatio="none">${segs}<rect x="0" y="0" width="${stock}" height="8" fill="none" stroke="#999" stroke-width=".3"/></svg></div>`; }).join('');
-  const cutRows = allItems.map(it => `<tr><td>${swatch(it.no)}${it.no}</td><td>${lab(it)}</td><td>${qty(it)}</td><td><b>${f1(it.long)}</b></td><td>${f1(it.short)}</td><td>${cutTxt(it.cuts[0])}</td><td>${cutTxt(it.cuts[1])}</td></tr>`).join('');
-  const jRows = plan.joints.map(j => `<tr><td>${j.n}</td><td>${j.members.join(', ')}</td><td>${j.through == null ? '—' : j.through}</td><td>${j.end}${j.end === 'mitre' ? ' ' + j.split + '/' + (100 - j.split) : ''}</td></tr>`).join('');
+    return `<div class="bar"><span>Stick ${i + 1}${B.over ? ' (too long!)' : ''}</span><svg viewBox="-1 -1 ${stock + 2} 10" preserveAspectRatio="none">${segs}<rect x="0" y="0" width="${stock}" height="8" fill="none" stroke="#999" stroke-width=".3"/></svg></div>`; });
+  const cutArr = allItems.map(it => `<tr><td>${swatch(it.no)}${it.no}</td><td>${lab(it)}</td><td>${qty(it)}</td><td><b>${f1(it.long)}</b></td><td>${f1(it.short)}</td><td>${cutTxt(it.cuts[0])}</td><td>${cutTxt(it.cuts[1])}</td></tr>`);
+  const jArr = plan.joints.map(j => `<tr><td>${j.n}</td><td>${j.members.join(', ')}</td><td>${j.through == null ? '—' : j.through}</td><td>${j.end}${j.end === 'mitre' ? ' ' + j.split + '/' + (100 - j.split) : ''}</td></tr>`);
   // joint advice for the 3D parts (Physics, #116): pick each joint from its force
-  let xJoints = '';
+  let xJoints = '', xjRows = [], xjNote = '';
+  const xjHead = '<tr><th>Item</th><th>Part</th><th>Joint</th><th>Largest force</th></tr>';
   if (cx) {
     const how = { tieTop: cx.onTop ? 'On top of both chords, glued flat (lap)' : 'Butted between the chords', tieMid: 'Butted at the mid joint', latTop: 'Butted between the chords, under the ties', latBot: 'Butted between the bottom chords', sway: 'Butted between the posts\' inner faces', tieBot: 'Butted between the bottom chords, not under them' };
     const tens = (res && res.members ? res.members.map((m, k) => ({ k, F: m.F })) : []).filter(m => m.F > 0.005).sort((a, c) => c.F - a.F).slice(0, 3);
     const itemOfMember = k => { const q = plan.pieces.find(p => p.members.includes(k)); return q ? q.item : '?'; };
-    xJoints = `<h2 style="margin-top:3mm">3D joints</h2><table class="grid small"><tr><th>Item</th><th>Part</th><th>Joint</th><th>Largest force</th></tr>${cx.items.map(it => `<tr><td>${it.no}</td><td>${lab(it)}</td><td>${how[it.kind]}${it.Fmax > 1 ? ' + splint (over 1 N)' : ''}</td><td>${it.Fmax.toFixed(2)} N</td></tr>`).join('')}</table>
-      ${tens.length ? `<p class="note">Side trusses: splint the end joints of the members in most tension (end grain pulls apart): ${tens.map(m => `member ${m.k} (item ${itemOfMember(m.k)}, ${m.F.toFixed(1)} N)`).join(', ')}.</p>` : ''}`;
+    xjRows = cx.items.map(it => `<tr><td>${it.no}</td><td>${lab(it)}</td><td>${how[it.kind]}${it.Fmax > 1 ? ' + splint (over 1 N)' : ''}</td><td>${it.Fmax.toFixed(2)} N</td></tr>`);
+    xjNote = tens.length ? `<p class="note">Side trusses: splint the end joints of the members in most tension (end grain pulls apart): ${tens.map(m => `member ${m.k} (item ${itemOfMember(m.k)}, ${m.F.toFixed(1)} N)`).join(', ')}.</p>` : '';
+    xJoints = `<h2 style="margin-top:3mm">3D joints</h2><table class="grid small">${xjHead}${xjRows.join('')}</table>${xjNote}`;
   }
-  sheet('Cut list and joints', `<div class="two"><div><h2>Cut list</h2><table class="grid"><tr><th>Item</th><th>Part</th><th>Qty</th><th>Long pt</th><th>Short pt</th><th>End 1</th><th>End 2</th></tr>${cutRows}</table>
-    <p class="note">Measure the long point, mark the angle (part drawings, or the templates), and cut on the waste side. "Flush" ends sit flat on the member on top; "mitre" ends meet their partner on a shared line; "runs through" continues past the joint.${splices.length ? ' "Splice" ends butt square at a joint centre.' : ''}</p>
-    <h2>Cutting plan</h2><p class="note">${bars.length} stick${bars.length > 1 ? 's' : ''} of ${stock} mm, ${kerf} mm saw kerf.${bars.some(B => B.over) ? ' <b>A part is longer than one stick: join it at a joint (see the assembly drawing).</b>' : ''}</p>${barSVG}</div>
-    <div><h2>Joints</h2><table class="grid small"><tr><th>Joint</th><th>Members</th><th>On top</th><th>Others</th></tr>${jRows}</table>${xJoints}</div></div>`);
+  const cutHead = '<tr><th>Item</th><th>Part</th><th>Qty</th><th>Long pt</th><th>Short pt</th><th>End 1</th><th>End 2</th></tr>';
+  const cutNote = `<p class="note">Measure the long point, mark the angle (part drawings, or the templates), and cut on the waste side. "Flush" ends sit flat on the member on top; "mitre" ends meet their partner on a shared line; "runs through" continues past the joint.${splices.length ? ' "Splice" ends butt square at a joint centre.' : ''}</p>`;
+  const planNote = `<p class="note">${bars.length} stick${bars.length > 1 ? 's' : ''} of ${stock} mm, ${kerf} mm saw kerf.${bars.some(B => B.over) ? ' <b>A part is longer than one stick: join it at a joint (see the assembly drawing).</b>' : ''}</p>`;
+  const jHead = '<tr><th>Joint</th><th>Members</th><th>On top</th><th>Others</th></tr>';
+  if (cutArr.length <= 16 && barArr.length <= 22) {
+    // a small set: cut list and cutting plan side by side, as before
+    sheet('Cut list and cutting plan', `<div class="two"><div><h2>Cut list</h2><table class="grid">${cutHead}${cutArr.join('')}</table>${cutNote}</div><div><h2>Cutting plan</h2>${planNote}${barArr.join('')}</div></div>`);
+  } else {
+    const cc = chunk(cutArr, 24); cc.forEach((rows, i) => sheet(cont('Cut list', i, cc.length), `<h2>${cont('Cut list', i, cc.length)}</h2><table class="grid">${cutHead}${rows.join('')}</table>${i === cc.length - 1 ? cutNote : ''}`));
+    const bc = chunk(barArr, 24); bc.forEach((rows, i) => sheet(cont('Cutting plan', i, bc.length), `<h2>${cont('Cutting plan', i, bc.length)}</h2>${i === 0 ? planNote : ''}${rows.join('')}`));
+  }
+  const jc = chunk(jArr, 30);
+  const xjOwn = xjRows.length > 12;   // a long 3D joints table gets its own sheets
+  jc.forEach((rows, i) => sheet(cont('Joints', i, jc.length), `<div class="two"><div><h2>${cont('Joints', i, jc.length)}</h2><table class="grid small">${jHead}${rows.join('')}</table></div><div>${i === 0 && !xjOwn ? xJoints : ''}</div></div>`));
+  if (xjOwn) { const xc = chunk(xjRows, 22); xc.forEach((rows, i) => sheet(cont('3D joints', i, xc.length), `<h2>${cont('3D joints', i, xc.length)}</h2><table class="grid">${xjHead}${rows.join('')}</table>${i === xc.length - 1 ? xjNote : ''}`)); }
   // 4. build steps
   if (opt.steps) {
     const order = [['bot', 'Lay the bottom chord'], ['top', 'Add the top chord'], ['end', 'Add the end posts'], ['vert', 'Glue in the verticals'], ['diag', 'Glue in the diagonals'], ['brace', 'Add the edge braces'], ['claw', 'Add the claws']];
@@ -2664,7 +2686,7 @@ function documentHTML(tr, res, meta, plan, opt) {
     for (let s0 = 0; s0 < steps.length; s0 += 4) sheet('Build steps', `<h2 style="margin:0 0 4px">Build steps <span class="note">(${cx ? 'one truss first; then the 3D frame' : `one truss; build ${nT === 2 ? 'the second' : 'the others'} the same way, then join them with the cross-ties`})</span></h2><div class="steps">${steps.slice(s0, s0 + 4).join('')}</div>`);
   }
   // 5. full-size templates, tiled to fit the page
-  let tplPages = '';
+  const tpls = [];   // full-size template pages: [inner html]
   if (opt.templates) {
     const tw = 240, th = 160, xs = tr.nodes.map(p => p[0]), ys = tr.nodes.map(p => p[1]);
     const X0 = Math.min(...xs) - 6, X1 = Math.max(...xs) + 6, Y0 = Math.min(...ys, ...stops.map(s => s.y0)) - 6, Y1 = Math.max(...ys) + 6, hgt = Math.min(th, Y1 - Y0 + 24);
@@ -2675,20 +2697,22 @@ function documentHTML(tr, res, meta, plan, opt) {
       + markSVG(tr, marks, stops, y => Y1 - y, b, 'none');
     const scale = (tx, h) => `<g stroke="#000" stroke-width=".3"><line x1="${tx + 5}" y1="${h - 6}" x2="${tx + 55}" y2="${h - 6}"/><line x1="${tx + 5}" y1="${h - 8}" x2="${tx + 5}" y2="${h - 4}"/><line x1="${tx + 55}" y1="${h - 8}" x2="${tx + 55}" y2="${h - 4}"/></g><text x="${tx + 30}" y="${h - 1}" font-size="3" text-anchor="middle" font-family="Arial">50 mm</text>`;
     const tiles = []; for (let tx = X0; tx < X1 - 1; tx += tw - 10) tiles.push(tx);
-    tplPages = tiles.map((tx, i) => `<section class="sheet tpl"><p class="note">Full-size template${cx ? ' (side truss: build both on it)' : ''} · tile ${i + 1} of ${tiles.length} · print at 100% (actual size) and check that the bar measures 50 mm. Tiles overlap by 10 mm; line up the + marks.</p>
+    tiles.forEach((tx, i) => tpls.push(`<p class="note">Full-size template${cx ? ' (side truss: build both on it)' : ''} · tile ${i + 1} of ${tiles.length} · print at 100% (actual size) and check that the bar measures 50 mm. Tiles overlap by 10 mm; line up the + marks.</p>
       <svg width="${tw}mm" height="${hgt}mm" viewBox="${tx} 0 ${tw} ${hgt}">${edges}${scale(tx, hgt)}
-        ${[tx + tw - 10, tx + 10].map(mx => `<path d="M${mx - 3} 6 h6 M${mx} 3 v6" stroke="#000" stroke-width=".3"/>`).join('')}</svg></section>`).join('');
+        ${[tx + tw - 10, tx + 10].map(mx => `<path d="M${mx - 3} 6 h6 M${mx} 3 v6" stroke="#000" stroke-width=".3"/>`).join('')}</svg>`));
     // 3D: one full-size template per different cross-frame (stand the trusses on it), and the top plane
     if (cx) {
       const m3 = d3.m3, full = (vv, cap) => { const [bx, by, bw, bh] = vv.box, h2 = bh + 14; return `<figure class="ftpl"><svg width="${bw}mm" height="${h2}mm" viewBox="${bx} ${by} ${bw} ${h2}">${vv.svg.replace(/fill="#e9e9e9"/g, 'fill="none"')}${scale(bx, by + h2)}</svg><figcaption>${cap}</figcaption></figure>`; };
       const ft = frames.map(g => { const vv = view3(m3, cx, { view: 'end', station: g.stations[0], balloons: true, colour: colourMode === 'part' ? 'part' : 'mono', b }); return vv ? full(vv, `Cross-frame, station${g.stations.length > 1 ? 's' : ''} ${g.stations.map(s => s + 1).join(', ')} · full size`) : ''; }).join('');
-      tplPages += `<section class="sheet tpl"><p class="note">Full-size cross-frame templates · print at 100% and check the 50 mm bar. Stand the two trusses on these (front truss on the left) to set the spacing${cx.tilt ? ' and the lean' : ''}; build each frame flat on its template.</p><div class="ftpls">${ft}</div></section>`;
+      tpls.push(`<p class="note">Full-size cross-frame templates · print at 100% and check the 50 mm bar. Stand the two trusses on these (front truss on the left) to set the spacing${cx.tilt ? ' and the lean' : ''}; build each frame flat on its template.</p><div class="ftpls">${ft}</div>`);
       const pv = view3(m3, cx, { view: 'plan', balloons: true, colour: colourMode === 'part' ? 'part' : 'mono', b });
       if (pv) { const [bx, by, bw, bh] = pv.box, ptiles = []; for (let tx = bx; tx < bx + bw - 1; tx += tw - 10) ptiles.push(tx);
-        tplPages += ptiles.map((tx, i) => `<section class="sheet tpl"><p class="note">Full-size top plane (from above) · tile ${i + 1} of ${ptiles.length} · print at 100%. Lay it under the finished frame to place the ties and bracing.</p><svg width="${tw}mm" height="${bh + 14}mm" viewBox="${tx} ${by} ${tw} ${bh + 14}">${pv.svg}${scale(tx, by + bh + 14)}</svg></section>`).join(''); }
+        ptiles.forEach((tx, i) => tpls.push(`<p class="note">Full-size top plane (from above) · tile ${i + 1} of ${ptiles.length} · print at 100%. Lay it under the finished frame to place the ties and bracing.</p><svg width="${tw}mm" height="${bh + 14}mm" viewBox="${tx} ${by} ${tw} ${bh + 14}">${pv.svg}${scale(tx, by + bh + 14)}</svg>`)); }
     }
   }
-  const total = sheets.length;
+  const total = sheets.length + tpls.length;
+  // every printed page carries its number (#157): the sheets in their title blocks, the templates in their header
+  const tplPages = tpls.map((h, i) => `<section class="sheet tpl"><p class="pgno">${esc(meta.name)} · page ${sheets.length + i + 1} of ${total} · template T${i + 1} of ${tpls.length}</p>${h}</section>`).join('');
   const html = sheets.map((s, i) => `<section class="sheet ${s.cls || ''}"><div class="frame"><div class="zones top"><span>4</span><span>3</span><span>2</span><span>1</span></div><div class="zones bot"><span>4</span><span>3</span><span>2</span><span>1</span></div><div class="content">${s.body}</div>
     <table class="title"><tr><td colspan="2" class="big">${esc(meta.name)}</td><td>SHEET ${i + 1} OF ${total}</td></tr>
     <tr><td>SE 310 Project I · balsa truss bridge</td><td>${esc(s.title)}</td><td>${today}</td></tr>
@@ -2713,7 +2737,7 @@ function documentHTML(tr, res, meta, plan, opt) {
     .step{overflow:hidden}.step svg{width:100%;flex:1 1 0;min-height:0;height:1px}.step p{margin:0;font-weight:bold;font-size:9pt}.sn{position:absolute;left:2mm;top:1mm;font-size:18pt;font-weight:bold;color:#3a6ea5}
     .callout{margin-left:10mm;display:flex;flex-wrap:wrap;gap:2mm;background:#e9f1fb;border-radius:2mm;padding:1mm 2mm;font-size:8.5pt}
     .ball{display:inline-block;border:.25mm solid #111;border-radius:50%;width:4.4mm;height:4.4mm;text-align:center;font-size:7pt;line-height:4.2mm;background:#fff;font-weight:bold}
-    .tpl{height:auto;min-height:199mm}.tpl svg{display:block;margin:0 auto}
+    .tpl{height:auto;min-height:199mm}.pgno{font-size:8pt;font-weight:bold;margin:0 0 1mm;text-align:right}.tpl svg{display:block;margin:0 auto}
     .xparts{float:none;margin:0 0 3mm 0;width:100%}.v3{display:flex;flex-direction:column;gap:2mm}.v3 figure{margin:0}.v3 svg{width:100%;height:46mm;display:block}figcaption{font-size:7.5pt;color:#333}
     .frames{display:grid;grid-template-columns:repeat(2,1fr);gap:4mm}.frames figure{margin:0;border:.3mm solid #ccc;padding:2mm}.frames svg{width:100%;height:62mm}
     .ftpls{display:flex;flex-wrap:wrap;gap:8mm;align-items:flex-end}.ftpl{margin:0}
