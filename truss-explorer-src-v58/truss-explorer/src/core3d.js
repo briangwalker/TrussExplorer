@@ -104,7 +104,28 @@ function build3D(tr, o) {
   return { nodes, elems, supports, deck, n, W, elemLab, nodeLab, tilt: o.tilt || 0, tr, warn, ghost, top, bottom, frames, stationCount: stations.length, topPanels: Math.max(0, top.length - 1), botPanels: Math.max(0, bottom.length - 1) };
 }
 
-function analyze3D(m3, mat, load) {
+// opt.imperf (#117, default off): { alpha, beta, dir } adds the sideways loads a real, slightly crooked bridge puts on its
+// bracing. Bowed compression chords: at every interior joint of a compression chord, alpha x |chord force| pushing out of
+// the bridge (dir = +1) or in (-1), on both trusses alike. Out of plumb: at every loaded joint, beta x its vertical load
+// sideways (+y x dir). The chord forces come from a first, perfect solve; the second solve carries both.
+function analyze3D(m3, mat, load, opt) {
+  const im = opt && opt.imperf && (+opt.imperf.alpha > 0 || +opt.imperf.beta > 0) ? opt.imperf : null;
+  const r0 = solve3D(m3, mat, load, null);
+  if (!im || !r0.stable) return r0;
+  const n = m3.n, dir = +im.dir < 0 ? -1 : 1, a = +im.alpha || 0, bt = +im.beta || 0, extra = new Float64Array(3 * m3.nodes.length);
+  const chordAt = {};
+  m3.elems.forEach((e, k) => { if (e.side === 'cross' || (e.type !== 'top' && e.type !== 'bot')) return; [e.i, e.j].forEach(i => { (chordAt[i + e.type] = chordAt[i + e.type] || { i, ks: [] }).ks.push(k); }); });
+  Object.values(chordAt).forEach(({ i, ks }) => {
+    if (ks.length < 2) return;   // a chord end, not an interior joint
+    const Fc = Math.min(...ks.map(k => r0.members[k].F)); if (!(Fc < 0)) return;   // compression only
+    extra[3 * i + 1] += (i < n ? -1 : 1) * dir * a * -Fc;
+  });
+  r0.Fv.forEach((v, d) => { if (d % 3 === 2 && v) extra[d - 1] += dir * bt * Math.abs(v); });
+  const r = solve3D(m3, mat, load, extra);
+  if (r.stable) r.imperf = { alpha: a, beta: bt, dir, lateral: extra.reduce((s, v) => s + Math.abs(v), 0) };
+  return r;
+}
+function solve3D(m3, mat, load, extra) {
   const nN = m3.nodes.length, ND = 3 * nN;
   const A = mat.b * mat.h, I = mat.b * Math.pow(mat.h, 3) / 12;
   const W = (load.mBook1 + load.mBook2) * load.g, P = mat.FS * W;   // the whole design load (both trusses)
@@ -128,6 +149,8 @@ function analyze3D(m3, mat, load) {
     Fv[3 * t.node + 2] -= P * t.frac * (1 - back);
     Fv[3 * (t.node + m3.n) + 2] -= P * t.frac * back;
   });
+  const Fz = Float64Array.from(Fv);   // the vertical loads alone (the imperfection loads are sized from these)
+  if (extra) extra.forEach((v, d) => { Fv[d] += v; });
   let active = m3.supports.slice(), lifted = [], U = null, R = null, known = null;
   for (let it = 0; it < 12; it++) {
     known = []; active.forEach(s => s.dofs.forEach(d => known.push(3 * s.node + d)));
@@ -143,7 +166,7 @@ function analyze3D(m3, mat, load) {
     if (!worst) break;
     active = active.filter(s => s !== worst.s); lifted.push(worst.s.node);
   }
-  if (!U) return { stable: false, P, lifted };
+  if (!U) return { stable: false, P, lifted, Fv: Fz };
   const capT = mat.sigT * A, capC = mat.sigC * A;
   const members = m3.elems.map((e, k) => {
     const { L, c } = geo[k];
@@ -161,7 +184,7 @@ function analyze3D(m3, mat, load) {
   const wood = geo.reduce((s, g, k) => s + g.L * m3.elems[k].n, 0);
   const sumZ = known.reduce((s, p, k) => s + (p % 3 === 2 ? R[k] : 0), 0);
   return { stable: true, P, U, members, maxUtil, failing: members.filter(m => m.fails), deckDefl: dz, sideSway: dy, wood,
-    capKg: maxUtil > 0 ? mat.FS * (load.mBook1 + load.mBook2) / maxUtil : Infinity, lifted, sumZ };
+    capKg: maxUtil > 0 ? mat.FS * (load.mBook1 + load.mBook2) / maxUtil : Infinity, lifted, sumZ, Fv: Fz };
 }
 
 // members that would pass through the table top (beside the span, below the table surface)
