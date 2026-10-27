@@ -120,6 +120,7 @@ input:focus-visible, button:focus-visible, select:focus-visible, summary:focus-v
 .msgs li::before { content: ""; position: absolute; left: 0; top: .55em; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
 .msgs li.bad::before { background: var(--bad); }
 .msgs li.info::before { background: var(--zero); }
+.msgs li.warn::before { background: var(--warn); }
 
 .tablewrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font: 13px var(--f-mono); font-variant-numeric: tabular-nums; }
@@ -662,6 +663,7 @@ body.hidesame table .samecol { display: none; }
             <div class="row"><span class="lbl">Bridge width (mm)</span><input type="number" id="width" step="1" min="30" max="100"></div>
             <div class="row"><span class="lbl">Deflection limit (mm)</span><input type="number" id="deflLimit" step="0.1" min="0"></div>
             <div class="row"><span class="lbl">Min. overlap on desk (mm)</span><input type="number" id="minOverlap" step="1" min="0"></div>
+            <div class="row"><span class="lbl">Measure the envelope on</span><select id="envMeasure" title="The built bridge is bigger than its joint centrelines: half a stick on every side, plus the ties when they lie on top of the chords"><option value="centre">joint centrelines (as in v59)</option><option value="outer">outer faces (the built size)</option></select></div>
             <div class="row"><span class="lbl">E (MPa)</span><input type="number" id="E" step="100" min="100"></div>
             <div class="row"><span class="lbl">Density (kg/m³)</span><input type="number" id="rho" step="5" min="50"></div>
             <div class="row"><span class="lbl">σ tension (MPa)</span><input type="number" id="sigT" step="0.1" min="0.1"></div>

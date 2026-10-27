@@ -120,6 +120,7 @@ input:focus-visible, button:focus-visible, select:focus-visible, summary:focus-v
 .msgs li::before { content: ""; position: absolute; left: 0; top: .55em; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
 .msgs li.bad::before { background: var(--bad); }
 .msgs li.info::before { background: var(--zero); }
+.msgs li.warn::before { background: var(--warn); }
 
 .tablewrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font: 13px var(--f-mono); font-variant-numeric: tabular-nums; }
@@ -662,6 +663,7 @@ body.hidesame table .samecol { display: none; }
             <div class="row"><span class="lbl">Bridge width (mm)</span><input type="number" id="width" step="1" min="30" max="100"></div>
             <div class="row"><span class="lbl">Deflection limit (mm)</span><input type="number" id="deflLimit" step="0.1" min="0"></div>
             <div class="row"><span class="lbl">Min. overlap on desk (mm)</span><input type="number" id="minOverlap" step="1" min="0"></div>
+            <div class="row"><span class="lbl">Measure the envelope on</span><select id="envMeasure" title="The built bridge is bigger than its joint centrelines: half a stick on every side, plus the ties when they lie on top of the chords"><option value="centre">joint centrelines (as in v59)</option><option value="outer">outer faces (the built size)</option></select></div>
             <div class="row"><span class="lbl">E (MPa)</span><input type="number" id="E" step="100" min="100"></div>
             <div class="row"><span class="lbl">Density (kg/m³)</span><input type="number" id="rho" step="5" min="50"></div>
             <div class="row"><span class="lbl">σ tension (MPa)</span><input type="number" id="sigT" step="0.1" min="0.1"></div>
@@ -1543,7 +1545,7 @@ function solveLinear(A, b) {
 function analyze(tr, matIn, loadIn, opts) {
   const mat = Object.assign({}, DEFAULT_MAT, matIn || {});
   const load = Object.assign({ mBook1: 1.5, mBook2: 1.0, g: 9.81, nTruss: 2 }, loadIn || {});
-  opts = Object.assign({ deflLimit: 2.0, width: 60, crossTies: true, minOverlap: 20 }, opts || {});
+  opts = Object.assign({ deflLimit: 2.0, width: 60, crossTies: true, minOverlap: 20, envMeasure: 'centre' }, opts || {});
   const A = mat.b * mat.h, I = mat.b * Math.pow(mat.h, 3) / 12;
   const W = (load.mBook1 + load.mBook2) * load.g;
   const Pdesign = mat.FS * W;
@@ -1669,10 +1671,29 @@ function analyze(tr, matIn, loadIn, opts) {
   const failing = members.filter(x => x.fails);
   const maxUtil = Math.max(0, ...members.map(x => x.util));
   const envelope = [];
-  if (tr.design.height > 100 + 1e-9) envelope.push('Height is over the 100 mm limit above the deck.');
-  if (tr.overall > 300 + 1e-6) envelope.push('Overall length is over 300 mm.');
-  if (tr.minY < -50 - 1e-6) envelope.push('The bottom chord dips more than 50 mm below the deck.');
-  if (opts.width < 50 || opts.width > 75) envelope.push('Bridge width must be 50 to 75 mm.');
+  // the envelope (#133): the built bridge is bigger than its joint centrelines by half a stick on every side, plus
+  // the tie layer when the ties lie on top of the top chords, and the outside of the trusses at the bottom when they
+  // lean (tilt). opts.envMeasure 'centre' (default, as in v59) checks centrelines and warns where the outer faces would
+  // fail; 'outer' checks the outer faces.
+  const size = envelopeSize(tr, mat, opts);
+  size.warn = [];
+  { const o = size.outer, f = v => (Math.round(v * 10) / 10).toFixed(1);
+    if (o.height > 100 + 1e-9) size.warn.push(`height ${f(o.height)} mm to the top face${size.tiesOnTop ? ' of the ties' : ''} (limit 100)`);
+    if (o.length > 300 + 1e-6) size.warn.push(`length ${f(o.length)} mm outside to outside (limit 300)`);
+    if (o.depth > 50 + 1e-6) size.warn.push(`${f(o.depth)} mm below the deck (limit 50)`);
+    if (o.width < 50 - 1e-9 || o.width > 75 + 1e-9) size.warn.push(`width ${f(o.width)} mm outside to outside (limits 50 to 75)`); }
+  if (size.measure === 'centre') {
+    if (tr.design.height > 100 + 1e-9) envelope.push('Height is over the 100 mm limit above the deck.');
+    if (tr.overall > 300 + 1e-6) envelope.push('Overall length is over 300 mm.');
+    if (tr.minY < -50 - 1e-6) envelope.push('The bottom chord dips more than 50 mm below the deck.');
+    if (opts.width < 50 || opts.width > 75) envelope.push('Bridge width must be 50 to 75 mm.');
+  } else {
+    const o = size.outer, c = size.centre, f = v => (Math.round(v * 10) / 10).toFixed(1);
+    if (o.height > 100 + 1e-9) envelope.push(`Height is ${f(o.height)} mm to the top face${size.tiesOnTop ? ' of the ties' : ''} (${f(c.height)} mm to the chord centreline), over the 100 mm limit above the deck.`);
+    if (o.length > 300 + 1e-6) envelope.push(`Overall length is ${f(o.length)} mm outside to outside (${f(c.length)} mm between end joints), over 300 mm.`);
+    if (o.depth > 50 + 1e-6) envelope.push(`The bridge reaches ${f(o.depth)} mm below the deck to its underside (${f(c.depth)} mm to the centreline), more than 50 mm.`);
+    if (o.width < 50 - 1e-9 || o.width > 75 + 1e-9) envelope.push(`Bridge width is ${f(o.width)} mm outside to outside (${f(c.width)} mm centre to centre); it must be 50 to 75 mm.`);
+  }
   // no member may pass through the table top beside the span
   { const T = Math.max(0, +tr.design.tableThick || 0), Sp = tr.design.span || 200, hit = [];
     tr.elems.forEach((e, k) => { const a = tr.nodes[e.i], b = tr.nodes[e.j]; for (let t = 0.04; t < 0.97; t += 0.04) { const x = a[0] + t * (b[0] - a[0]), y = a[1] + t * (b[1] - a[1]); if ((x < -0.05 || x > Sp + 0.05) && y < -0.05 && y > -T - 0.05) { hit.push(k); break; } } });
@@ -1692,7 +1713,23 @@ function analyze(tr, matIn, loadIn, opts) {
   return Object.assign(base, { stable: true, U, R, members, dmax, dnode, midDefl,
     totalLen, massTruss, massTies, nTies, massTotal: massTruss + (opts.crossTies ? massTies : 0), wood,
     failing, maxUtil, deflOK, envelope, edgeOK, overlap: tr.overlap, capFactor, capKg: capFactor * (load.mBook1 + load.mBook2),
-    slips, passes: failing.length === 0 && deflOK && envelope.length === 0 && edgeOK && slips.length === 0 });
+    slips, size, passes: failing.length === 0 && deflOK && envelope.length === 0 && edgeOK && slips.length === 0 });
+}
+// the built size: every stick's outline (width b x sqrt(sticks), as drawn) around its centreline; opts.tilt (deg,
+// 3D only) leans each truss about its bottom chord; opts.tiesOnTop adds one stick above the top chords
+function envelopeSize(tr, mat, opts) {
+  const b = +mat.b || 3.18, ph = (+opts.tilt || 0) * Math.PI / 180, cs = Math.cos(ph), sn = Math.abs(Math.sin(ph));
+  let top = -Infinity, bot = Infinity, lo = Infinity, hi = -Infinity;
+  tr.elems.forEach(e => {
+    const p = tr.nodes[e.i], q = tr.nodes[e.j], L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, w = b * Math.sqrt(e.n || 1) / 2;
+    const nx = Math.abs((q[1] - p[1]) / L) * w, ny = Math.abs((q[0] - p[0]) / L) * w;   // the outline's reach across the stick
+    [p, q].forEach(z => { top = Math.max(top, z[1] + ny); bot = Math.min(bot, z[1] - ny); lo = Math.min(lo, z[0] - nx); hi = Math.max(hi, z[0] + nx); });
+  });
+  if (!tr.elems.length) { top = tr.maxY; bot = tr.minY; lo = 0; hi = tr.overall; }
+  const tiesOnTop = !!opts.tiesOnTop, W = +opts.width || 60;
+  const outer = { height: top * cs + (top > 0 ? b / 2 * sn : 0) + (tiesOnTop ? b : 0), depth: Math.max(0, -bot * cs), length: hi - lo, width: W + b * (cs + sn) };
+  const centre = { height: tr.design.height, depth: Math.max(0, -tr.minY), length: tr.overall, width: W };
+  return { measure: opts.envMeasure === 'outer' ? 'outer' : 'centre', outer, centre, tiesOnTop, b };
 }
 
 function looseJoints(tr, geo) {
@@ -1711,7 +1748,7 @@ function looseJoints(tr, geo) {
   return loose;
 }
 
-const api = { DEFAULT_MAT, panelWidths, expandDiagonals, expandVerticals, patternLeft, buildTruss, analyze, solveLinear };
+const api = { DEFAULT_MAT, panelWidths, expandDiagonals, expandVerticals, patternLeft, buildTruss, analyze, solveLinear, envelopeSize };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -2668,10 +2705,10 @@ const $ = id => document.getElementById(id);
   moveAll(inn('loadGrp'), S3);
   ['g-design', 'g-geom', 'supGrp', 'diagGrp', 'vertGrp', 'stickGrp', 'loadGrp'].forEach(id => $(id).remove());
 })();
-const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBook2: 1.0, g: 9.81, nTruss: 2 }, opts: { deflLimit: 2.0, width: 60, crossTies: true, minOverlap: 5 } };
+const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBook2: 1.0, g: 9.81, nTruss: 2 }, opts: { deflLimit: 2.0, width: 60, crossTies: true, minOverlap: 5, envMeasure: 'centre', tieJoint: 'ontop' } };
 // NEVER rename this key: everyone's saved work lives under it. When the saved format changes, convert old data on load instead.
 const KEY = 'se310-truss-v5';
-const APP_VER = 33;   // bumped whenever the solver or the saved data changes
+const APP_VER = 34;   // bumped whenever the solver or the saved data changes
 
 const DEFAULT = {
   name: 'Design A', family: 'grid', height: 70, panels: 4, ratio: 1, sideAngle: 90, sideLean: 'in',
@@ -2686,6 +2723,16 @@ let S = JSON.parse(JSON.stringify(DEFAULT));
 var FIRST_VISIT = true;
 try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved && saved.panels) { S = Object.assign(S, saved); FIRST_VISIT = false; } } catch (e) {}
 if (!S.migOv5) { if (S.opts && +S.opts.minOverlap === 20) S.opts.minOverlap = 5; S.migOv5 = true; }
+// v60 (#133): the envelope can be checked on the built bridge's outer faces (default: centrelines, as before, until the
+// course confirms how it measures), and how the ties are joined belongs to the bridge
+S.opts = Object.assign({ envMeasure: 'centre', tieJoint: (S.doc && S.doc.tieJoint) || 'ontop' }, S.opts || {});
+// the options every 2D analysis gets: the bridge's own, plus the tilt (3D only) and whether ties sit on the top chords
+function anaOpts(extra) {
+  const o = Object.assign({}, S.opts, extra || {});
+  if (o.tilt == null) o.tilt = S.anaMode === '3d' ? (+S.d3.tilt || 0) : 0;
+  o.tiesOnTop = (S.anaMode === '3d' || !!o.crossTies) && o.tieJoint !== 'between';
+  return o;
+}
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
 let tr = null, res = null, hlElem = -1;
@@ -2821,6 +2868,7 @@ Object.entries(MATKEYS).forEach(([id, k]) => $(id).addEventListener('change', ()
   const v = +$(id).value; if (!(v > 0)) return; S.mat[k] = id === 'rho' ? v * 1e-9 : v; update(); }));
 ['mBook1', 'mBook2', 'nTruss'].forEach(id => $(id).addEventListener('change', () => { const v = +$(id).value; if (!(v >= 0)) return; S.load[id] = id === 'nTruss' ? Math.max(1, Math.round(v)) : v; update(); }));
 ['width', 'deflLimit', 'minOverlap'].forEach(id => $(id).addEventListener('change', () => { const v = +$(id).value; if (!(v >= 0)) return; S.opts[id] = v; update(); }));
+$('envMeasure').addEventListener('change', () => { S.opts.envMeasure = $('envMeasure').value; update(); checkStale(); });
 $('crossTies').addEventListener('change', () => { S.opts.crossTies = $('crossTies').checked; update(); });
 $('resetMat').addEventListener('click', () => { S.mat = Object.assign({}, COURSE.mat); S.load = Object.assign({}, COURSE.load); S.opts = Object.assign({}, COURSE.opts); update(); });
 ['showIds', 'showElems', 'showDef'].forEach(id => $(id).addEventListener('change', () => { S[id] = $(id).checked; renderDrawing(); if (typeof draw3D === 'function') { draw3D(); draw3Views(); } save(); }));
@@ -2900,7 +2948,7 @@ function update() {
   S.deskPanels = Math.max(0, Math.min(6, Math.round(+S.deskPanels || 0))); S.supportOffset = Math.max(0, Math.min(50, +S.supportOffset || 0)); S.overlap = Math.max(0, Math.min(50, +S.overlap || 0));
   syncArrays();
   tr = C.buildTruss(design());
-  res2d = C.analyze(tr, S.mat, S.load, S.opts);
+  res2d = C.analyze(tr, S.mat, S.load, anaOpts());
   res = S.anaMode === '3d' ? apply3D(tr, res2d, S.load, d3opts(null)) : res2d;
   clearTimeout(update.bk); update.bk = setTimeout(() => { try { if (res && res.stable) backupBridge('after your changes'); } catch (e) {} }, 15000);
   paintInputs(); if (typeof sizeName === 'function') sizeName(); renderDiagChips(); renderVertChips(); renderDrawing(); renderStats(); renderTable(); renderExport(); updateSweepCount(); renderHistory(); render3D();
@@ -2971,7 +3019,7 @@ function paintInputs() {
   setVal('mBook1', S.load.mBook1); setVal('mBook2', S.load.mBook2); setVal('nTruss', S.load.nTruss);
   setVal('FS', S.mat.FS); setVal('E', S.mat.E); setVal('rho', Math.round(S.mat.rho * 1e9)); setVal('sigT', S.mat.sigT); setVal('sigC', S.mat.sigC);
   setVal('bS', S.mat.b); setVal('hS', S.mat.h); setVal('width', S.opts.width); setVal('deflLimit', S.opts.deflLimit);
-  $('crossTies').checked = !!S.opts.crossTies;
+  $('crossTies').checked = !!S.opts.crossTies; $('envMeasure').value = S.opts.envMeasure === 'outer' ? 'outer' : 'centre';
   $('resOnDraw').checked = !!S.resOnDraw; $('showForces').checked = !!S.showForces; paintStatsBox();
   $('showDims').checked = S.showDims !== false; $('showGhosts').checked = S.showGhosts !== false; $('edgeBear').checked = !!S.edgeBear;
   $('topEndR').min = $('botEndR').min = -Math.min(+S.tableThick || 0, 30);
@@ -3521,6 +3569,9 @@ function renderStats() {
   if (!res.edgeOK) li.push(['bad', `Each end reaches only ${res.overlap.toFixed(0)} mm onto the desks; the edge check needs at least ${(+S.opts.minOverlap).toFixed(0)} mm, or a slightly off-centre bridge could slip into the gap. Add desk panels or lengthen the bridge.`]);
   if (!res.deflOK) li.push(['bad', `Mid-span deflection ${res.midDefl.toFixed(3)} mm is over the ${S.opts.deflLimit} mm limit.`]);
   res.envelope.forEach(e => li.push(['bad', e]));
+  if (res.size) { const o = res.size.outer, c = res.size.centre, f = v => (Math.round(v * 10) / 10).toFixed(1);
+    if (res.size.measure === 'centre' && res.size.warn.length) li.push(['warn', `Passes on centrelines, but the built bridge is bigger: ${res.size.warn.join(', ')}. If the limits are measured on the outside, this fails. Set "Measure the envelope on" in Project limits.`]);
+    li.push(['info', `Built size, outside faces${res.size.measure === 'outer' ? ' (what the limits check)' : ' (the limits check centrelines)'}: width ${f(o.width)} mm (${f(c.width)} centre to centre) · height ${f(o.height)} mm above the deck${res.size.tiesOnTop ? ', ties on top' : ''} (${f(c.height)}) · ${f(o.depth)} mm below (${f(c.depth)}) · length ${f(o.length)} mm (${f(c.length)}).`]); }
   if (Math.abs(res.dmax - res.midDefl) > 1e-4 && res.dnode !== res.midNode) li.push(['info', `Largest vertical movement anywhere is ${res.dmax.toFixed(3)} mm at joint ${res.dnode}.`]);
   msgs.innerHTML = li.map(([c, s]) => `<li class="${c}">${s}</li>`).join('');
 }
@@ -3782,11 +3833,11 @@ dual values mean) is the part to do yourself.
   ];
 }
 // ---------- build documents: joint styles, cut list, drawing, steps, templates
-S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false, tieJoint: 'ontop' }, S.doc || {});
+S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false }, S.doc || {});
 // the kit's sticks are 240 mm (#116): move the old 914 mm default over once; a length set on purpose stays
 if (!S.doc.stock240) { if (+S.doc.stock === 914) S.doc.stock = 240; S.doc.stock240 = true; }
 // the 3D model and results the documents describe, when the 3D analysis is on
-function doc3D() { return S.anaMode === '3d' && res && res.mode3 && res.mode3.m3 && res.mode3.r3 && res.mode3.r3.stable ? { m3: res.mode3.m3, r3: res.mode3.r3, tieJoint: S.doc.tieJoint } : null; }
+function doc3D() { return S.anaMode === '3d' && res && res.mode3 && res.mode3.m3 && res.mode3.r3 && res.mode3.r3.stable ? { m3: res.mode3.m3, r3: res.mode3.r3, tieJoint: S.opts.tieJoint } : null; }
 function docPlan() {
   const b = +S.mat.b || 3.18;
   // keep only overrides that still match this design's joints
@@ -3805,8 +3856,8 @@ function renderDocDialog() {
   const lbl = tr.nodes.map((p, n) => `<text x="${p[0] + 2}" y="${v.Y(p[1]) - 2}" font-size="5" fill="#b0601a" font-family="Arial" font-weight="bold">${n}</text>`).join('');
   $('docView').setAttribute('viewBox', v.box.join(' ')); $('docView').innerHTML = v.svg + lbl;
   const nT = +S.load.nTruss || 2, total = plan.pieces.reduce((s, q) => s + q.long * q.n, 0) * nT;
-  const d3 = doc3D(), cx = d3 ? BuildDoc.crossPlan(d3.m3, d3.r3, b, { tieJoint: S.doc.tieJoint, startNo: plan.items.length + 1 }) : null;
-  $('docTieBox').hidden = !d3; document.querySelectorAll('input[name="tiejoint"]').forEach(r => { r.checked = r.value === (S.doc.tieJoint || 'ontop'); });
+  const d3 = doc3D(), cx = d3 ? BuildDoc.crossPlan(d3.m3, d3.r3, b, { tieJoint: S.opts.tieJoint, startNo: plan.items.length + 1 }) : null;
+  $('docTieBox').hidden = !d3; document.querySelectorAll('input[name="tiejoint"]').forEach(r => { r.checked = r.value === (S.opts.tieJoint || 'ontop'); });
   const spl = (plan.splices || []).length;
   $('docSum').textContent = `${plan.pieces.length} pieces per truss in ${plan.items.length} different cuts · ${total.toFixed(0)} mm of stick for ${nT} trusses` + (cx ? ` + ${cx.parts.length} ties and braces between them (${cx.items.length} different cuts, ${cx.parts.reduce((s, q) => s + q.long, 0).toFixed(0)} mm).` : S.anaMode === '3d' ? ' (the 3D model is unstable, so its ties and bracing are left out).' : ' (before cross-ties).')
     + (spl ? ` ${spl} chord splice${spl > 1 ? 's' : ''}: a piece is longer than one ${+S.doc.stock || 240} mm stick.` : '');
@@ -3835,7 +3886,7 @@ showExport(S.expTab || 'bridge');
 $('docNo').addEventListener('click', () => { $('docModal').hidden = true; });
 $('docModal').addEventListener('keydown', ev => { if (ev.key === 'Escape') $('docModal').hidden = true; });
 document.querySelectorAll('input[name="jstyle"]').forEach(r => r.addEventListener('change', () => { S.doc.style = r.value; save(); renderDocDialog(); }));
-document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.doc.tieJoint = r.value; save(); renderDocDialog(); }));
+document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.opts.tieJoint = r.value; update(); renderDocDialog(); }));
 [['docStock', 'stock'], ['docKerf', 'kerf']].forEach(([id, k]) => $(id).addEventListener('change', () => { const v = +$(id).value; if (v >= 0) { S.doc[k] = v; save(); renderDocDialog(); } }));
 [['docSteps', 'steps'], ['docTpl', 'tpl'], ['docColour', 'colour'], ['docDash', 'dash']].forEach(([id, k]) => $(id).addEventListener('change', () => { S.doc[k] = $(id).checked; save(); renderDocDialog(); }));
 $('docResetJ').addEventListener('click', () => { S.doc.over = {}; save(); renderDocDialog(); });
@@ -4172,7 +4223,7 @@ function evalCandidate(c, mode) {
     vertLeft: c.vert === 'current' ? (S.vertLeft.length === h ? S.vertLeft.slice() : Array(h).fill(S.vertPreset !== 'none')) : Array(h).fill(c.vert !== 'none'),
     edgeVert: c.vert === 'current' ? S.edgeVert : c.vert !== 'none', sideAngle: c.sideAngle, sideLean: swOn('A') ? 'in' : S.sideLean, ...choiceOver(c) });
   const t2 = C.buildTruss(d), L = candLoad(c);
-  let r2 = C.analyze(t2, S.mat, L, c.width3 != null ? Object.assign({}, S.opts, { width: +c.width3 }) : S.opts);
+  let r2 = C.analyze(t2, S.mat, L, anaOpts(Object.assign(c.width3 != null ? { width: +c.width3 } : {}, (mode || S.anaMode) === '3d' ? { tilt: c.tilt3 != null ? +c.tilt3 : +S.d3.tilt || 0 } : { tilt: 0 })));
   const r2d = r2;
   if ((mode || S.anaMode) === '3d') r2 = apply3D(t2, r2, L, d3opts(c));
   return { t2, r2, r2d };
@@ -5994,7 +6045,7 @@ function tryPatch(patch) {
   try {
     Object.keys(patch).forEach(k => { if (k === 'd3') S.d3 = Object.assign({}, S.d3, patch.d3); else S[k] = patch[k]; });
     syncArrays();
-    const t = C.buildTruss(design()); let r = C.analyze(t, S.mat, S.load, S.opts);
+    const t = C.buildTruss(design()); let r = C.analyze(t, S.mat, S.load, anaOpts());
     if (S.anaMode === '3d') r = apply3D(t, r, S.load, d3opts(null));
     return { stable: !!r.stable, passes: !!(r.stable && r.passes), wood: r.stable ? r.wood : Infinity, cap: r.stable ? r.capKg : 0 };
   } catch (e) { return { stable: false, passes: false, wood: Infinity, cap: 0 }; }
