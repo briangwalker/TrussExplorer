@@ -2,6 +2,10 @@
 // Usage: node tests/ui/regressions.mjs [--slow]     (--slow adds t71, a pilot + time-limited large search, ~1 min)
 import { serve, browser, openPage, waitRows, checker, SHOTS } from './harness.mjs';
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
+import { fileURLToPath } from 'url';
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 const slow = process.argv.includes('--slow');
 const srv = await serve();
@@ -31,6 +35,34 @@ try {
     }
     check('#185: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
+  });
+
+  // #247 (v63): a bridge file from before the outer-face rule opens with the reason it fails and the number to change
+  await section('#247 old 300 mm files say why they fail', async () => {
+    const p = await openPage(b, srv.url);
+    const src = JSON.parse(fs.readFileSync(path.join(here, '..', 'Partner_test.bridge.json'), 'utf8'));
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'te247-'));
+    const len = Object.assign({}, src, { name: 'Old length mode', release: 'v60', bridge: Object.assign({}, src.bridge, { deskMode: 'length', overlap: 50, anaMode: '2d' }) });
+    const now = Object.assign({}, src, { name: 'Starter now', release: 'v62', bridge: Object.assign({}, src.bridge, { deskMode: 'length', overlap: 48.4, anaMode: '2d' }) });
+    const files = { match: path.join(here, '..', 'Partner_test.bridge.json'), length: path.join(tmp, 'old-length.bridge.json'), ok: path.join(tmp, 'starter.bridge.json') };
+    fs.writeFileSync(files.length, JSON.stringify(len)); fs.writeFileSync(files.ok, JSON.stringify(now));
+    const open = async (f, name) => { await p.setInputFiles('#filePick', f); await p.waitForFunction(n => (document.getElementById('fileMsg') || {}).textContent.includes(n), name, { timeout: 8000 }); await p.waitForTimeout(300); return p.$eval('#fileMsg', e => e.textContent); };
+    const m1 = await open(files.match, src.name);
+    const w1 = (m1.match(/"Set the overlap", then Overlap onto each desk to (\d+\.\d) mm/) || [])[1];
+    check('#247: a v61-era file (300 mm, desk panels as wide as the span panels) says it is too long and how to fix it', /before the outer-face rule/.test(m1) && /too long/.test(m1) && !!w1, m1);
+    await p.click('#deskMode [data-v="length"]'); await p.fill('#overlap', String(w1)); await p.press('#overlap', 'Enter'); await p.waitForTimeout(500);
+    const r1 = await p.evaluate(() => ({ ov: __dbg.S.overlap, env: __dbg.res.envelope.length, L: __dbg.res.size.outer.length }));
+    check('#247: following that advice makes it fit 300 mm', Math.abs(r1.ov - w1) < 1e-9 && r1.env === 0 && r1.L <= 300, JSON.stringify(r1));
+    const m2 = await open(files.length, len.name);
+    const want = (m2.match(/To fit, set Overlap onto each desk to (\d+\.\d) mm/) || [])[1];
+    check('#247: in overlap mode it gives the overlap to set', !!want && +want >= 48 && +want < 50, m2);
+    await p.fill('#overlap', '40'); await p.press('#overlap', 'Enter'); await p.fill('#overlap', String(want)); await p.press('#overlap', 'Enter'); await p.waitForTimeout(500);
+    const r = await p.evaluate(() => ({ ov: __dbg.S.overlap, env: __dbg.res.envelope.length, L: __dbg.res.size.outer.length }));
+    check('#247: following the advice makes it fit 300 mm', Math.abs(r.ov - want) < 1e-9 && r.env === 0 && r.L <= 300, JSON.stringify(r));
+    const m3 = await open(files.ok, now.name);
+    check('#247: a file that fits gets no note', !/too long/.test(m3), m3);
+    check('#247: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    fs.rmSync(tmp, { recursive: true, force: true }); await p.close();
   });
 
   // t66 (v51): the bridge view is still on the page and moves only in full screen
