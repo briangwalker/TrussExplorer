@@ -72,6 +72,7 @@ You need Node 18+, Python 3 with numpy, pandas and matplotlib, and Playwright wi
 - **Lines marked `KNOWN`** are open issues. They're reported but don't fail the run.
 - **If the regression test says results "changed since v58"**, your change moved some solver numbers. If that's intended, re-record them with `node truss-explorer-src-v58/truss-explorer/tests/regressions.test.js --update` and say why in the pull request. If it isn't, you've found a bug.
 - **New behaviour should come with a test:** a Node test for solver or maths changes, a browser check in `tests/ui/` for interface changes. `run_all.sh` runs every `tests/*.test.js` and every `tests/ui/*.mjs` by itself, so a new test file needs no other edit.
+- **Name the spec rules your PR follows** (Spec first, rulebook rule 3). If it changes the screen (`shell.*`, `ui.html`, the drawing, inputs, charts, 3D or controls parts of `src/app/`, `themes/`) or a file format, say which rules it meets in the description, e.g. `Spec rules met: UI-A3, UI-W5`, or `docs/formats.md (theme section)`, or `Spec: none - <why>`. The **spec-cited** check reminds you (it doesn't block). `tests/specs.test.js` checks the specs themselves and fails if a step marked shipped is missing a hook in the code. Details: `docs/spec-checks.md`.
 
 ## 5. Open a pull request
 
