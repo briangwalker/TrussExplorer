@@ -11,11 +11,12 @@ while [ $# -gt 0 ]; do case "$1" in --slow) slow="--slow";; --published) pub="$2
 fail=0; step() { printf '\n=== %s ===\n' "$1"; }
 mark() { if [ "$1" -ne 0 ]; then fail=1; echo ">>> FAILED: $2"; fi; }
 
-step "build (index.html must come out identical to the committed one)"
-before="$(mktemp)"; cp "$root/index.html" "$before" 2>/dev/null || : > "$before"
-python3 "$root/build.py"; mark $? "build.py"
-if cmp -s "$before" "$root/index.html"; then echo "index.html unchanged by the build"; else echo "index.html changed: commit it with the source change"; [ -n "${CI:-}" ] && mark 1 "committed index.html is out of date"; fi
-rm -f "$before"
+step "build twice: the page must come out byte-identical (index.html isn't committed on balsaPixel-1.0, TE-B-018)"
+first="$(mktemp)"
+python3 "$root/build.py"; r1=$?; cp "$root/index.html" "$first" 2>/dev/null || : > "$first"
+python3 "$root/build.py" > /dev/null; r2=$?; mark $((r1 + r2)) "build.py"
+if cmp -s "$first" "$root/index.html"; then echo "two builds identical ($(wc -c < "$root/index.html") bytes)"; else mark 1 "build.py is not deterministic: two builds differ"; fi
+rm -f "$first"
 
 if [ -n "$pub" ]; then
   step "build vs the published page"

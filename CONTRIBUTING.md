@@ -47,7 +47,8 @@ The app lives in `truss-explorer-src-v58/truss-explorer/`:
 
 - `src/` holds the source: `core.js` (2D solver), `core3d.js` (3D), `export.js` and `template.js` (.py export), `builddoc.js` (build documents), `formats.js` (every file format and the one way files come in; spec in `docs/formats.md`), `app.js` and `ui.html` (the interface).
 - **Adding a module:** put `src/yourmodule.js` in, and `build.py` adds it to the page by itself (alphabetically, before `app.js`), with no list to edit. It must stand alone: define one global (like `TrussFormats`) and run nothing at load that needs another module. Only modules whose position matters have their own `<script>/*NAME*/</script>` line in `ui.html`.
-- `index.html` is **built** from `src/`. Never edit it by hand. Run `python3 build.py` and commit the rebuilt `index.html` with your source change.
+- `index.html` is **built** from `src/`. Never edit it by hand. On `balsaPixel-1.0` it is **not committed** (it's in `.gitignore`): run `python3 build.py` to make it, and don't add it to your commit. On `main` (v61) it is still committed, so a change there commits the rebuilt `index.html`.
+- **Merging `main` forward into `balsaPixel-1.0`:** git stops with a modify/delete conflict on `index.html` every time. Keep it deleted: `git rm truss-explorer-src-v58/truss-explorer/index.html`, then finish the merge.
 
 A few rules protect existing work:
 
