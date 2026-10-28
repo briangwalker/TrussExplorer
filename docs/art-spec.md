@@ -1,6 +1,6 @@
 # Truss Explorer Art Standard (themes and art assets)
 
-**Version 1.0.1 · 2026-10-28 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
+**Version 1.0.2 · 2026-10-28 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel **looks and moves**: themes, tokens, materials, pictures, icons, textures and motion. Every rule has a number (`ART-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -36,7 +36,7 @@ A theme is a set of tokens plus per-part looks (UI-T1). These are the tokens a *
 | ART-K3 | `surface`, `surface-2` | cards, table rows, switch tracks | `#fff`, `#eef0f2` | `#fbf8f1`, `#f1e9d6` |
 | ART-K4 | `line`, `line-soft` | window borders; dividers | `#b9c0c8`, `#d5dae0` | `#b48b52`, `rgba(110,80,40,.25)` |
 | ART-K5 | `ink`, `muted` | text; secondary text | `#1d232a`, `#4f5964` | `#23262b`, `#5b6774` |
-| ART-K6 | `strong`, `on-strong` | picked controls, top bar, tabs; text on them | `#3d4650`, `#fff` | `#8c5e22`, `#fff8ec` |
+| ART-K6 | `strong`, `on-strong` | picked controls, top bar, tabs; text on them | `#7a4f1c`, `#fff` | `#8c5e22`, `#fff8ec` |
 | ART-K7 | `ctl-bg`, `ctl-line` | unpicked controls: face and border | `#fff`, `#8e98a3` | `#ebd09b`, `#a9804a` |
 | ART-K8 | `tab` | brown edge tabs | `#8a5a2b` | `#8a5a2b` |
 | ART-K9 | `accent`, `accent-ink` | count badge, tour marks, **focus ring** | `#f0b45a`, `#2a1a04` | `#f0b45a`, `#2a1a04` |
@@ -46,11 +46,9 @@ A theme is a set of tokens plus per-part looks (UI-T1). These are the tokens a *
 | ART-K13 | **Images** (shared themes): `page`, `panel`, `control`, `control-pressed`, `control-end`, `screen`, `screen-key` | textures behind the parts above; `.png`, `.jpg` or `.webp`, file names only | none | `paper.webp`, `photo-balsa.webp`, `photo-balsa.webp`, `photo-top.webp`, `photo-endgrain.webp`, `lcd.png`, `pixelwood.png` |
 | ART-K14 | **Never tokens.** The meaning colours (compression, tension, zero force, pass, fail) and the member-force colours on the drawing are owned by the app code and are the same in every theme except OG (UI-A18, UI-T6). | Reference values in `src/ui.html` today: C `#c23a2b`, T `#2160a8`, 0 `#9aa5af`, pass `#2f7a4b`. Fail must be **magenta + ✕** (decision 2026-10-25), but the app's `--bad` is `#b4232a` (red). That is a bug for Dev Lead: #258. | | |
 
-**Open (TE-B-096 X3): Wireframe `strong`.** Brian's Axioms make brown the action colour, but ART-K6 gives Wireframe slate `#3d4650`. Brian picks one at sign-off, before #221:
-- **(a) Brown:** Wireframe `strong` = `#7a4f1c`, `on-strong` = `#fff` (7.1:1, passes ART-C1). Every theme then shares one action colour.
-- **(b) Named exception ART-K6a:** Wireframe keeps slate `#3d4650` (9.6:1) because it is the plain, colour-free working look; brown stays the action colour in every other theme.
+| ART-K15 | **OG is frozen.** OG (UI-T6, #162) is the v60 look exactly as it shipped (the same look as v61: nothing visual changed in `src/ui.html` from v60 to v63). Its reference is the **archived Axioms, rev 18** and the **v60 token sheet**, both in Drive [30] Art Assets › OG reference (archive). OG keeps the v60 tokens and its known contrast gaps, keeps red for fail, and **gets no updates**: no ART-K6 brown change, no ART-K14 magenta, no ART-C contrast fixes. The one exception is how the fonts load: OG uses the same three families (Barlow, Barlow Semi Condensed, IBM Plex Mono) from self-hosted files instead of Google Fonts (ART-T1, ART-X6), which looks the same. | Archive: https://docs.google.com/document/d/1vvVoXbNG8BQ1RJGZkC89sfncb8SzT4vQkskwu7ptWAU · token sheet: https://drive.google.com/file/d/1Fvl6w2XLI-4FfLjm9lpGpnxvDCiYbT-j | | |
 
-Graphics leans (a): it keeps the Axioms whole and the contrast still passes.
+**Brown is the action colour in every current theme** (Brian, 2026-10-28, TE-B-118): Wireframe's `strong` is brown `#7a4f1c` on `#fff` (7.1:1, passes ART-C1). OG keeps its own v60 brown (ART-K15).
 
 A built-in theme may add private tokens with its own prefix (Notebook + Calculator uses `--nc-*` in the Click-Through and the plain names `--balsa-*`, `--stain*`, `--lcd*` in the kit). Private tokens never appear in a shared theme file.
 
@@ -171,7 +169,7 @@ All live under ☰ › Look and controls › Theme (UI-A16). They change looks o
 | ART-O2 | Window look (also picks the slider, ART-W6) | tray · calculator · paper labels · tape labels | tray | live in kit; calculator in the Click-Through |
 | ART-O3 | Favicon | calc-te · calc-ok · calc-smile · end-hand · end-calc · random | calc-te | live in kit |
 | ART-O4 | LCD pixel size; chart dot size | 2–8 px; 2–12 px | 3 px; 6 px | live in kit |
-| ART-O5 | Motion tuning (ART-M1–M4 numbers), with Reset to defaults. Ships to users under ☰ > Look and controls > Theme; 1000 ms is the default, and a click or key during a transition jumps to its end (UI-M5). (Future Vision Lead A2, TE-B-102; Brian can overrule at sign-off.) | | Brian's picks | live in the Motion Lab |
+| ART-O5 | Motion tuning (ART-M1–M4 numbers), with Reset to defaults. Values are clamped to 100–6000 ms, and anything missing or not a number falls back to 1000 ms (White Hat; UI review of #272). Ships to users under ☰ > Look and controls > Theme; 1000 ms is the default, and a click or key during a transition jumps to its end (UI-M5). (Future Vision Lead A2, TE-B-102; Brian can overrule at sign-off.) | | Brian's picks | live in the Motion Lab |
 
 ## ART-A · Asset register
 
@@ -202,13 +200,13 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 
 | Step | Issue | Must meet |
 |---|---|---|
-| 2 · Truss 2D full screen | #209 | ART-D1–D5, ART-S1–S9, ART-W1, ART-C1–C3, ART-I1–I2 |
+| 2 · Truss 2D full screen | #209 | ART-D1–D5, ART-S1–S9, ART-W1, ART-C1–C3, ART-I1–I3, ART-M7 |
 | 3 · Sweep bar, results card, PIP | #210 | ART-D2, ART-W7, ART-W3 (results strip) |
 | 4 · Analysis full screen | #211 | ART-M6, ART-C5 |
 | 8 · Inputs screen | #215 | ART-H1–H4, ART-H6, ART-W5, ART-W6 |
 | 11 · Keyboard and screen readers | #218 | ART-S5, ART-I2 |
 | 13 · First-time tour | #220 | ART-M3 |
-| 14 · Themes and OG | #221 | ART-P1–P6, ART-K1–K14, ART-C1–C4, ART-T1–T3, ART-W1–W9, ART-X1–X7, ART-O1–O5, ART-H5 |
+| 14 · Themes and OG | #221 | ART-P1–P6, ART-K1–K15, ART-C1–C4, ART-T1–T3, ART-W1–W9, ART-X1–X7, ART-O1–O5, ART-H5 |
 | Transitions | #143 | ART-M1, ART-M2, ART-M4, ART-M5 |
 | Restless bridge | #144 | ART-M3 |
 
@@ -219,11 +217,12 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 | ART-K14 (fail colour) | #258 | `--bad` in `src/ui.html` is red `#b4232a`; the decision is magenta + ✕ |
 | ART-T1, ART-X6 | #221 (and TE-B-026) | self-hosted fonts; drop the Google Fonts `@import` |
 | ART-H4 | #215 | conflict with UI-T4 closes when #266 (ui-spec 1.2) merges |
-| ART-K6 (Wireframe `strong`) | needs Brian, before #221 | conflict with the Axioms (brown is the action colour): option (a) brown or (b) exception ART-K6a, TE-B-096 X3 |
+| ART-M8 | none (decision record) | settled 2026-10-28; ART-M1 carries the 1000 ms |
 | ART-X8 | #134 | waiting on Brian's photos |
 | ART-W2, ART-W4, slider options C and D | #221, after Brian picks | options only |
 
 ## Change log
 
+- **1.0.2 · 2026-10-28** Wireframe `strong` is brown `#7a4f1c` (Brian, TE-B-118, option a); the conflict row is closed and ART-K6a is not needed. New ART-K15: OG is frozen at the v60 look, with its reference (archived Axioms rev 18 and the v60 token sheet) in Drive [30] Art Assets › OG reference (archive). ART-O5 says the 100–6000 ms clamp with a 1000 ms fallback (UI's review of #272). Step 2 (#209) now cites ART-I3 and ART-M7, and ART-M8 has a coverage row, so the spec report shows 0 uncited rules.
 - **1.0.1 · 2026-10-28** ART-M8 settled: 1000 ms both ways (Brian, TE-B-102); ART-M1 says both directions. ART-M3 holds the restless-bridge numbers, UI-M2 points here (TE-B-099). ART-O5 tuning ships to users (Future Vision Lead A2, TE-B-102). ART-H4 notes ui-spec 1.2 (#266) now points to the shear. Added the Wireframe `strong` choice (TE-B-096 X3) as a conflict row in the coverage table (rule 3 SPEC FIRST f).
 - **1.0 · 2026-10-28** First numbered art standard. Gathers theme 1.0–1.2 (Motion Lab v1–v14), Brian's notes 2026-10-25 to 2026-10-28, the light/heavy rule and the photo/generated wood decision (Decisions rows 50–58), White Hat's limits (TE-B-014), UI's theme boundary (#109, UI-T1–T6), and the Click-Through notes (PIP member colour, books vs wood pile). Follows the Creative Documentation Standard 1.0.
