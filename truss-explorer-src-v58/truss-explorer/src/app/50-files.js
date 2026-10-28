@@ -30,11 +30,21 @@ $('saveBridge').addEventListener('click', () => {
 });
 $('saveSweepFile').addEventListener('click', () => {
   if (!sweepAll.length) { toast('Run a sweep first.', true); return; }
+  saveFile(fileBase() + '.sweep.json', JSON.stringify(sweepDoc()));
+});
+// the same sweep as a compact .tsweep (#179; docs/formats.md): the same document, written by formats.js as gzip and binary columns
+function sweepDoc() {
   const sweepModel = /3D/.test(String(sweepCtx && sweepCtx.sheet && sweepCtx.sheet.analysis)) ? '3D' : '2D';
-  const doc = Object.assign({ format: 'se310-truss-sweep', version: FILE_VER }, fileInfo(sweepModel), { name: (S.name || 'Design') + ' sweep',
+  return Object.assign({ format: 'se310-truss-sweep', version: FILE_VER }, fileInfo(sweepModel), { name: (S.name || 'Design') + ' sweep',
     message: $('sweepMsg').textContent, ctx: sweepCtx, sheet: sweepCtx && sweepCtx.sheet, mode: sweepMode, settings: { swOn: S.swOn, swVals: S.swVals, swSel: SW, focus: S.focus },
     bridge: bridgeState(), rows: sweepAll });
-  saveFile(fileBase() + '.sweep.json', JSON.stringify(doc));
+}
+$('saveSweepTsweep').addEventListener('click', async () => {
+  if (!sweepAll.length) { toast('Run a sweep first.', true); return; }
+  let t; try { t = await TrussFormats.toTsweep(JSON.parse(JSON.stringify(sweepDoc()))); }
+  catch (e) { toast(e && e.message === 'no-gzip' ? 'This browser can\'t write .tsweep files. Use Save sweep file instead.' : 'The sweep could not be written as a .tsweep file.', true); return; }
+  if (t.dupes) toast(`${t.dupes.toLocaleString()} repeated designs were saved once.`);
+  saveFile(fileBase() + '.tsweep', new Blob([t.bytes], { type: 'application/gzip' }));
 });
 let pickFor = null, pendingSweep = null;
 $('loadBridge').addEventListener('click', () => { pickFor = 'bridge'; $('filePick').value = ''; $('filePick').click(); });
@@ -73,8 +83,10 @@ function tooLongNote(release) {
 $('filePick').addEventListener('change', async () => {
   const f = $('filePick').files[0]; if (!f) return;
   // parse, clean, detect, upgrade to the current version and check, all in formats.js (#149; spec in docs/formats.md)
-  const o = TrussFormats.open(await f.text()), doc = o.doc, kind = o.kind;
-  const FILE_ERR = { 'not-json': 'That file is not a bridge or sweep file (it is not valid JSON).', 'not-an-object': 'That file is not a bridge or sweep file.', 'not-truss-explorer': 'That is not a bridge or sweep file from the Truss Explorer.', 'no-bridge': 'That bridge file has no bridge in it.', 'no-rows': 'That sweep file has no results in it.', 'no-usable-rows': 'That sweep file has no usable results.' };
+  // a .tsweep (gzip) goes through the bytes door; it comes back as the same sweep document a .sweep.json gives (#179)
+  const buf = new Uint8Array(await f.arrayBuffer());
+  const o = TrussFormats.isTsweepBytes(buf) ? await TrussFormats.openBytes(buf) : TrussFormats.open(new TextDecoder().decode(buf)), doc = o.doc, kind = o.kind;
+  const FILE_ERR = { 'not-json': 'That file is not a bridge or sweep file (it is not valid JSON).', 'not-an-object': 'That file is not a bridge or sweep file.', 'not-truss-explorer': 'That is not a bridge or sweep file from the Truss Explorer.', 'no-bridge': 'That bridge file has no bridge in it.', 'no-rows': 'That sweep file has no results in it.', 'no-usable-rows': 'That sweep file has no usable results.', 'not-tsweep': 'That file is not a bridge or sweep file from the Truss Explorer.', 'no-gzip': 'This browser can\'t open .tsweep files. Ask for the .sweep.json instead.', 'too-big': 'That .tsweep file unzips to more than 512 MB, so it was not opened.', 'newer-layout': 'That .tsweep file was made by a newer release with a layout this one can\'t read.', 'damaged': 'That .tsweep file is damaged and could not be opened.' };
   // either Open button takes either kind of file, and says which it was (#158); materials and themes don't open here yet
   if (o.ok && kind !== 'bridge' && kind !== 'sweep') { toast('That is not a bridge or sweep file from the Truss Explorer.', true); return; }
   if (!o.ok) { toast(FILE_ERR[o.errors[0]] || 'That file could not be opened.', true); return; }
@@ -100,6 +112,8 @@ $('filePick').addEventListener('change', async () => {
   // every result row needs its numbers: rows with a missing or non-numeric one were left out by formats.js, and that is said
   if (o.rowsDropped) toast(`${o.rowsDropped.toLocaleString()} of ${o.rowsIn.toLocaleString()} rows in that file were incomplete and were left out.`, true);
   if (o.tooNew) toast('That sweep file was made by a newer release of the Explorer, so some settings may be ignored.', true);
+  // the spec's checks: the numbers or the settings were changed after saving (it still opens; sweep results are read-only)
+  if (o.warnings && (o.warnings.includes('changed-data') || o.warnings.includes('changed-settings'))) toast('That .tsweep file was changed or damaged after it was saved' + (o.warnings.includes('changed-data') ? ' (its results)' : ' (its settings)') + ', so treat its numbers with care.', true);
   sweepAll = doc.rows; sweepCtx = doc.ctx || sweepCtx; sweepMode = 'file'; pendingSweep = doc;
   sweepRows = sweepAll.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30);
   lastSig = null;
