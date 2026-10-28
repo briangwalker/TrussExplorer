@@ -45,10 +45,11 @@ Use the same prefix in commit messages and mention the issue number:
 
 The app lives in `truss-explorer-src-v58/truss-explorer/`:
 
-- `src/` holds the source: `core.js` (2D solver), `core3d.js` (3D), `export.js` and `template.js` (.py export), `builddoc.js` (build documents), `formats.js` (every file format and the one way files come in; spec in `docs/formats.md`), `app.js` and `ui.html` (the interface).
+- `src/` holds the source: `core.js` (2D solver), `core3d.js` (3D), `export.js` and `template.js` (.py export), `builddoc.js` (build documents), `formats.js` (every file format and the one way files come in; spec in `docs/formats.md`), `ui.html` and `app/` (the interface: on `balsaPixel-1.0`, `app.js` is cut into parts `src/app/10-state.js` … `99-door.js`, joined in name order by `build.py`; see `src/app/README.md` for the parts and their owners).
 - **Adding a module:** put `src/yourmodule.js` in, and `build.py` adds it to the page by itself (alphabetically, before `app.js`), with no list to edit. It must stand alone: define one global (like `TrussFormats`) and run nothing at load that needs another module. Only modules whose position matters have their own `<script>/*NAME*/</script>` line in `ui.html`.
 - `index.html` is **built** from `src/`. Never edit it by hand. On `balsaPixel-1.0` it is **not committed** (it's in `.gitignore`): run `python3 build.py` to make it, and don't add it to your commit. On `main` (v61) it is still committed, so a change there commits the rebuilt `index.html`.
 - **Merging `main` forward into `balsaPixel-1.0`:** git stops with a modify/delete conflict on `index.html` every time. Keep it deleted: `git rm truss-explorer-src-v58/truss-explorer/index.html`, then finish the merge.
+- **A `main` fix to `app.js`, merged forward:** `main` still has the unsplit `src/app.js`, so git reports a modify/delete conflict on it. Port the fix by hand into the matching part in `src/app/` (find it with the section comment above the changed lines), keep `src/app.js` deleted (`git rm truss-explorer-src-v58/truss-explorer/src/app.js`), and run `bash tests/run_all.sh` before finishing the merge.
 
 A few rules protect existing work:
 

@@ -7,7 +7,8 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { SRC } = require('./lib.js');
-const APP = fs.readFileSync(path.join(SRC, 'app.js'), 'utf8');
+// app.js is cut into src/app/NN-*.js (#109); joined in name order it is the same text
+const APP = fs.readdirSync(path.join(SRC, 'app')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(SRC, 'app', f), 'utf8')).join('');
 
 // the text of a top-level `function name(` (to its matching brace) or one-line `const name =`
 function cut(name) {

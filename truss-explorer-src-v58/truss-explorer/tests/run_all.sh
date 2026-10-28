@@ -32,7 +32,9 @@ fi
 
 step "syntax"
 # every module in src/, so a new file needs no edit here (#109, TE-B-018)
-ok=0; for f in "$root"/src/*.js; do node --check "$f" || ok=1; done; mark $ok "syntax"; [ $ok -eq 0 ] && echo "all modules parse"
+ok=0; for f in "$root"/src/*.js; do node --check "$f" || ok=1; done
+# a folder of parts (src/app/NN-*.js, #109) only parses once joined: check the joined text
+for d in "$root"/src/*/; do [ -n "$(ls "$d"*.js 2>/dev/null)" ] || continue; j="$(mktemp --suffix=.js)"; cat "$d"*.js > "$j"; node --check "$j" || { ok=1; echo "in the parts of $d"; }; rm -f "$j"; done; mark $ok "syntax"; [ $ok -eq 0 ] && echo "all modules parse"
 
 step "node: every tests/*.test.js (solver audit, v58 regressions, sampler, file formats ...)"
 node --test "$here"/*.test.js 2>&1 | grep -aE '^not ok|^# (tests|pass|fail)|changed since v58|error:'
