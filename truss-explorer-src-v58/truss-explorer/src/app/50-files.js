@@ -58,6 +58,18 @@ function applyBridge(b) {
   if (b.anaMode === '3d' || b.anaMode === '2d') { S.anaMode = b.anaMode; paintAna(); }
   paintSwBlocks(); update(); if (typeof render3D === 'function') try { render3D(); } catch (e) {}
 }
+// #247: a bridge saved before the outer-face rule (v61), or from v61's 300 mm starter, is a few mm too long outside to
+// outside. Say so when it opens, with the number to change, instead of only "Bridge loaded." and a red FAILS.
+function tooLongNote(release) {
+  const sz = res2d && res2d.size; if (!sz || !tr || sz.outer.length <= 300 + 1e-6) return '';
+  const over = sz.outer.length - 300, ov = Math.floor((tr.overlap - over / 2) * 10) / 10;
+  const old = !/^v\d+$/.test(String(release || '')) || +String(release).slice(1) < 61;
+  // the overlap is what sets the length outside the span; "Same width as span panels" has no length to type, so it says to switch
+  const fix = ov < S.opts.minOverlap - 1e-6 ? ` Shortening the overlap enough would take it under the ${S.opts.minOverlap} mm minimum on each desk; the notes under the drawing list what to change.`
+    : S.deskMode === 'length' ? ` To fit, set Overlap onto each desk to ${ov.toFixed(1)} mm (Inputs).`
+    : ` To fit, set Panels on each desk to "Set the overlap", then Overlap onto each desk to ${ov.toFixed(1)} mm (Inputs).`;
+  return ` ${old ? 'This bridge was made before the outer-face rule (v61): it' : 'It'} is ${over.toFixed(1)} mm too long, ${sz.outer.length.toFixed(1)} mm outside to outside, and the limit is 300 mm.${fix}`;
+}
 $('filePick').addEventListener('change', async () => {
   const f = $('filePick').files[0]; if (!f) return;
   // parse, clean, detect, upgrade to the current version and check, all in formats.js (#149; spec in docs/formats.md)
@@ -80,6 +92,7 @@ $('filePick').addEventListener('change', async () => {
       }
     }
     if (o.tooNew) note += ' It was made by a newer release of the Explorer, so some settings may be ignored.';
+    note += tooLongNote(doc.release);
     $('fileMsg').textContent = `Opened "${doc.name}" (saved ${new Date(doc.savedAt).toLocaleString()}${doc.release ? ` with ${doc.release}` : ''}).${note}`; toast(other + 'Bridge loaded.' + note, !!note);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
