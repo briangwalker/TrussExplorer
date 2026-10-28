@@ -37,6 +37,31 @@ try {
     await p.close();
   });
 
+  // #239 (v64): with "ends bear on the table edge", the 2D view, the 3D view and the build documents show the same edge stops,
+  // and the 3D model holds those corner joints sideways as the 2D model does
+  await section('#239 edge stops agree in 2D, 3D and the build documents', async () => {
+    const p = await openPage(b, srv.url);
+    const presets = await p.evaluate(() => [...document.querySelectorAll('#presetSel option[value]:not([value=""])')].map(o => [o.value, o.textContent]));
+    const cases = [['the starter bridge', null], ...presets.filter(([, n]) => /table edges/i.test(n)).map(([v, n]) => [n, v])];
+    for (const [name, preset] of cases) {
+      if (preset != null) await p.evaluate(v => { const s = document.getElementById('presetSel'); s.value = v; s.dispatchEvent(new Event('change')); }, preset);
+      await p.evaluate(() => { const c = document.getElementById('edgeBear'); if (!c.checked) c.click(); });
+      await p.evaluate(() => document.querySelector('#anaSwitch [data-ana="2d"]').click()); await p.waitForTimeout(400);
+      const two = await p.evaluate(() => ({ corners: (__dbg.res.activeSupports || []).filter(s => s.corner).map(s => s.node).sort(), doc: BuildDoc.edgeStops(__dbg.tr, +__dbg.S.mat.b || 3.18).map(s => s.node).sort(), svg: document.querySelectorAll('#draw path[fill="var(--warn)"]').length }));
+      await p.evaluate(() => document.querySelector('#anaSwitch [data-ana="3d"]').click()); await p.waitForTimeout(900);
+      const three = await p.evaluate(() => { const tr = __dbg.tr, m3 = __dbg.m3; const held = []; tr.supports.forEach((s, i) => { if (s.corner) [m3.supports[2 * i], m3.supports[2 * i + 1]].forEach(q => held.push(q.dofs.includes(0))); }); return { drawn: __dbg.v3.edgeStops, held, stable: !!(__dbg.r3 && __dbg.r3.stable) }; });
+      check(`#239 ${name}: build documents and 2D agree on the edge stops (${two.doc.length})`, two.doc.length > 0 && JSON.stringify(two.doc) === JSON.stringify(two.corners) && two.svg >= two.doc.length, JSON.stringify(two));
+      check(`#239 ${name}: the 3D view draws them on both trusses (${2 * two.doc.length})`, three.drawn === 2 * two.doc.length, JSON.stringify(three));
+      check(`#239 ${name}: the 3D model holds those joints sideways`, three.held.length === 2 * two.doc.length && three.held.every(Boolean), JSON.stringify(three));
+      await p.evaluate(() => { const c = document.getElementById('edgeBear'); if (c.checked) c.click(); }); await p.waitForTimeout(500);
+      const off = await p.evaluate(() => __dbg.v3.edgeStops);
+      check(`#239 ${name}: none drawn in 3D with the option off`, off === 0, String(off));
+      await p.evaluate(() => document.querySelector('#anaSwitch [data-ana="2d"]').click());
+    }
+    check('#239: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  });
+
   // #247 (v63): a bridge file from before the outer-face rule opens with the reason it fails and the number to change
   await section('#247 old 300 mm files say why they fail', async () => {
     const p = await openPage(b, srv.url);

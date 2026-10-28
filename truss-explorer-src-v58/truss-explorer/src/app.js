@@ -2933,6 +2933,25 @@ function draw3D() {
     });
     ctx.globalAlpha = 1;
   }
+  // edge stops (#239): with "ends bear on the table edge", the same stops the 2D view and the build documents show, on both
+  // trusses: a short stick under each corner joint, hanging down the table's face (drawn see-through) so the edge pushes it inward
+  v3.edgeStops = 0;
+  if (tr.design.edgeBear && window.BuildDoc) {
+    const bS = +S.mat.b || 3.18, stops = BuildDoc.edgeStops(tr, bS), tz = Math.min(+S.tableThick || 30, 60);
+    if (stops.length) {
+      ctx.globalAlpha = 0.28; [0, 200].forEach(x => poly([[x, -Wd, 0], [x, Wd, 0], [x, Wd, -tz], [x, -Wd, -tz]], cssv('--desk'), cssv('--muted'))); ctx.globalAlpha = 1;
+    }
+    stops.forEach(st => {
+      const i = tr.supports.findIndex(s => s.node === st.node); if (i < 0) return;
+      [m3.supports[2 * i], m3.supports[2 * i + 1]].forEach(s => {
+        if (!s || s.ghost) return;
+        const [x, y, z] = m3.nodes[s.node], xc = (st.x0 + st.x1) / 2, a = proj(xc, y, z), q = proj(xc, y, z - (st.y1 - st.y0));
+        ctx.strokeStyle = cssv('--warn'); ctx.lineWidth = Math.max(2.5, 3.18 * sc * 0.9); ctx.lineCap = 'butt';
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); v3.edgeStops++;
+      });
+    });
+    if (v3.edgeStops) { const q = proj(0, -Wd, -tz); ctx.font = '9px IBM Plex Mono, monospace'; ctx.fillStyle = cssv('--warn'); ctx.textAlign = 'left'; ctx.fillText('edge stops bear on the table face', q[0], q[1] + 12); }
+  }
   // supports
   m3.supports.forEach(s => { if (s.ghost) return; const q = proj(...m3.nodes[s.node]); ctx.fillStyle = r3 && r3.lifted.includes(s.node) ? cssv('--warn') : cssv('--ink'); ctx.beginPath(); ctx.arc(q[0], q[1] + 4, 2.6, 0, 7); ctx.fill(); });
   // the book, as a see-through box on the deck
@@ -3746,5 +3765,5 @@ function paintSame() {
   b.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); S.hideSame = !S.hideSame; paintSame(); save(); });
 });
 paintSame();
-window.__dbg = { get S() { return S; }, drawTrackers: () => drawTrackers(), get rows() { return sweepAll; }, get res() { return res; }, load: p => loadParams(p), get ctx() { return sweepCtx; } };
+window.__dbg = { get S() { return S; }, drawTrackers: () => drawTrackers(), get rows() { return sweepAll; }, get res() { return res; }, load: p => loadParams(p), get ctx() { return sweepCtx; }, get tr() { return tr; }, get m3() { return m3; }, get r3() { return r3; }, get v3() { return v3; } };
 })();
