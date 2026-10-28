@@ -33,8 +33,8 @@ step "syntax"
 ok=0; for f in core core3d export template builddoc app; do node --check "$root/src/$f.js" || ok=1; done; mark $ok "syntax"; [ $ok -eq 0 ] && echo "all modules parse"
 
 step "node: solver audit + v58 regressions (golden.json)"
-node --test "$here/solver.test.js" "$here/regressions.test.js" "$here/sampler.test.js" "$here/bentchord.test.js" 2>&1 | grep -aE '^not ok|^# (tests|pass|fail)|changed since v58|error:'
-node --test "$here/solver.test.js" "$here/regressions.test.js" "$here/sampler.test.js" "$here/bentchord.test.js" >/dev/null 2>&1; mark $? "node tests"
+node --test "$here/solver.test.js" "$here/regressions.test.js" "$here/sampler.test.js" "$here/bentchord.test.js" "$here/exports.test.js" 2>&1 | grep -aE '^not ok|^# (tests|pass|fail)|changed since v58|error:'
+node --test "$here/solver.test.js" "$here/regressions.test.js" "$here/sampler.test.js" "$here/bentchord.test.js" "$here/exports.test.js" >/dev/null 2>&1; mark $? "node tests"
 
 step "cmp.py: member forces vs the course script"
 python3 "$here/cmp.py" > /tmp/te-cmp.out 2>&1; r=$?; grep -E 'WORST|PASS|FAIL|KNOWN|SKIP|  ' /tmp/te-cmp.out | grep -v ' maxdF 0.000' ; mark $r "cmp.py"
