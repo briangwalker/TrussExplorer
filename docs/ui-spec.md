@@ -201,6 +201,7 @@ UI owns **when, where and what stops it**. Graphics owns **how it looks and move
 - **UI-M6 Reduced motion and off switches.**
   - With `prefers-reduced-motion`: no wiggle; transitions become a 150 ms fade; the cube snap is instant (UI-V3).
   - ☰ › View and display has *Restless bridge* and *Scene transitions* switches.
+  - ☰ › Look and controls › Theme has the motion tuning (**ART-O5**), with *Reset to defaults*; the transition default is 1000 ms. A saved value outside 100–6000 ms is ignored and 1000 ms is used. Because a click or key always skips to the end (UI-M5), even a slow setting never blocks input (Future Vision Lead, TE-B-102).
 - **UI-M7 The tour reuses the restless bridge.** The first-time tour (UI-F2) uses the same mechanism and the same stop rules, then returns to the student's own settings.
 
 ## Coverage: rules that aren't in a build step yet
@@ -240,7 +241,7 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 
 ## Change log
 
-- **1.3 · 2026-10-28** From the Future Vision Lead's A2 review (TE-B-096) and Dev Lead's TE-B-099/102: added the Axioms the build depends on: UI-V9 (Inventor mouse, G1), UI-C6–C8 (chart zoom, reset, 3D fits, G2), UI-W11 home + eyes (X4, G3), UI-W12 project facts (G4), UI-A19 help text (G5), UI-W13 dialogs (G6), UI-I9 widths and columns (G7), UI-S9 long jobs (G8), UI-A20 easy reset (G9). UI-M2 now points to ART-M3 for its numbers; UI-M5 is 1000 ms both ways (Brian; ART-M1). UI-K2 notes the open F6 question (X1, Brian).
+- **1.3 · 2026-10-28** From the Future Vision Lead's A2 review (TE-B-096) and Dev Lead's TE-B-099/102: added the Axioms the build depends on: UI-V9 (Inventor mouse, G1), UI-C6–C8 (chart zoom, reset, 3D fits, G2), UI-W11 home + eyes (X4, G3), UI-W12 project facts (G4), UI-A19 help text (G5), UI-W13 dialogs (G6), UI-I9 widths and columns (G7), UI-S9 long jobs (G8), UI-A20 easy reset (G9). UI-M2 now points to ART-M3 for its numbers; UI-M5 is 1000 ms both ways (Brian; ART-M1). UI-M6 lists the ART-O5 motion tuning beside the off switches (Future Vision Lead A2, TE-B-102). UI-K2 notes the open F6 question (X1, Brian).
 - **1.2 · 2026-10-28** Tilt hook is a shear, not a rotation (UI-T4, UI-I6 → ART-H4; TE-B-083). Build-step table now cites the 8 rules the spec report found uncited (TE-B-086): UI-A1, UI-A2, UI-A9, UI-A17, UI-W4, UI-S1, UI-N4, UI-N5. Step 8 cites UI-T4.
 - **1.1 · 2026-10-28** Added UI-M (motion): the restless bridge's run and stop rules, "That's my bridge" in the state badge (#144), and when scene transitions play (#143). Added the coverage table. Steps 13 and 14 now cite UI-M. Follows the [creative documentation standard](ui-creative-doc-standard.md).
 - **1.0 · 2026-10-28** First numbered standard. It gathers:
