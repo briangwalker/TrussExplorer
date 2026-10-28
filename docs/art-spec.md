@@ -99,6 +99,7 @@ A theme option chooses one window look; the controls inside a window are made of
 | ART-W7 | **Sweep window, icons state:** a square ▶ key (36 px), the count, and the fold keys; no words. | | | Brian, 2026-10-28 | live |
 | ART-W8 | **Re-check sheet:** a thick paper block; both choices on one torn scrap with an inked "or", circled in black ink on hover. | | | Brian, 2026-10-27 | live in kit |
 | ART-W9 | **Value tag editor:** the calculator pop-up with a joystick and a move bar (UI-I8 sets its size and behaviour). | | | Brian, 2026-10-27 | live in kit |
+| ART-W10 | **Walkthrough card** (UI-K6) | a small paper note, taped at one corner, beside what it is about; the sentence in Kalam, the step count ("3 of 9") in the UI font | key cap = an inked key outline drawn on the paper, never a balsa stick on paper (ART-P1); on a Calculator window the target's own pixel key lights | highlight = a pencil ring around the target with the ART-M7 wobble, over a `hot` highlighter wash; reduced motion: drawn once, no pulse | planned #220 |
 
 ## ART-D · The drawing
 
@@ -205,7 +206,7 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 | 4 · Analysis full screen | #211 | ART-M6, ART-C5 |
 | 8 · Inputs screen | #215 | ART-H1–H4, ART-H6, ART-W5, ART-W6 |
 | 11 · Keyboard and screen readers | #218 | ART-S5, ART-I2 |
-| 13 · First-time tour | #220 | ART-M3 |
+| 13 · First-time tour | #220 | ART-M3, ART-W10 |
 | 14 · Themes and OG | #221 | ART-P1–P6, ART-K1–K15, ART-C1–C4, ART-T1–T3, ART-W1–W9, ART-X1–X7, ART-O1–O5, ART-H5 |
 | Transitions | #143 | ART-M1, ART-M2, ART-M4, ART-M5 |
 | Restless bridge | #144 | ART-M3 |
@@ -223,6 +224,6 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 
 ## Change log
 
-- **1.0.2 · 2026-10-28** Wireframe `strong` is brown `#7a4f1c` (Brian, TE-B-118, option a); the conflict row is closed and ART-K6a is not needed. New ART-K15: OG is frozen at the v60 look, with its reference (archived Axioms rev 18 and the v60 token sheet) in Drive [30] Art Assets › OG reference (archive). ART-O5 says the 100–6000 ms clamp with a 1000 ms fallback (UI's review of #272). Step 2 (#209) now cites ART-I3 and ART-M7, and ART-M8 has a coverage row, so the spec report shows 0 uncited rules.
+- **1.0.2 · 2026-10-28** Wireframe `strong` is brown `#7a4f1c` (Brian, TE-B-118, option a); the conflict row is closed and ART-K6a is not needed. New ART-K15: OG is frozen at the v60 look, with its reference (archived Axioms rev 18 and the v60 token sheet) in Drive [30] Art Assets › OG reference (archive). ART-O5 says the 100–6000 ms clamp with a 1000 ms fallback (UI's review of #272). New ART-W10: the walkthrough card's look, which UI-K6 points to (TE-B-138). Step 2 (#209) now cites ART-I3 and ART-M7, and ART-M8 has a coverage row, so the spec report shows 0 uncited rules.
 - **1.0.1 · 2026-10-28** ART-M8 settled: 1000 ms both ways (Brian, TE-B-102); ART-M1 says both directions. ART-M3 holds the restless-bridge numbers, UI-M2 points here (TE-B-099). ART-O5 tuning ships to users (Future Vision Lead A2, TE-B-102). ART-H4 notes ui-spec 1.2 (#266) now points to the shear. Added the Wireframe `strong` choice (TE-B-096 X3) as a conflict row in the coverage table (rule 3 SPEC FIRST f).
 - **1.0 · 2026-10-28** First numbered art standard. Gathers theme 1.0–1.2 (Motion Lab v1–v14), Brian's notes 2026-10-25 to 2026-10-28, the light/heavy rule and the photo/generated wood decision (Decisions rows 50–58), White Hat's limits (TE-B-014), UI's theme boundary (#109, UI-T1–T6), and the Click-Through notes (PIP member colour, books vs wood pile). Follows the Creative Documentation Standard 1.0.
