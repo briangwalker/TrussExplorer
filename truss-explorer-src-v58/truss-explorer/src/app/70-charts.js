@@ -192,7 +192,7 @@ $('tradeCsv').addEventListener('click', () => {
   const extra = [...new Set(sweepAll.flatMap(r => Object.keys(r).filter(k => /^st_|^fc_/.test(k))))];
   const outc = ['wood', 'mass', 'D', 'util', 'capKg', 'passes', 'edgeOK', 'envOK', 'refined'];
   const all = cols.concat(extra, outc);
-  const esc = v => v == null ? '' : (typeof v === 'number' ? (Number.isFinite(v) ? +v.toPrecision(8) : '') : String(v).replace(/[",\n]/g, ' '));
+  const esc = v => v == null ? '' : (typeof v === 'number' ? (Number.isFinite(v) ? +v.toPrecision(8) : '') : csvSafe(String(v)).replace(/[",\n]/g, ' '));
   const csv = infoLines(sweepInfo()).map(l => '# ' + l).concat([all.join(',')], sweepAll.map(r => all.map(k => esc(r[k])).join(','))).join('\n');
   saveFile(fileBase() + '_tradeoff.csv', csv);
 });

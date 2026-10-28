@@ -836,6 +836,11 @@ body.hidesame table .samecol { display: none; }
               <label class="check"><input type="radio" name="tiejoint" value="ontop"> On top of both chords, glued flat (strongest)</label>
               <label class="check"><input type="radio" name="tiejoint" value="between"> Butted between the chords</label>
             </div>
+            <div class="tradectl" id="docBentBox" hidden>
+              <b>Curved top chord:</b>
+              <label class="check"><input type="checkbox" id="docBent"> One stick bent to the curve (adds a full-size bending form, checks and steps)</label>
+              <span class="hint" id="docBentNote" style="flex-basis:100%"></span>
+            </div>
             <div class="tradectl">
               <label>Stock stick length (mm) <input type="number" id="docStock" min="50" max="2000" step="1" style="width:90px"></label>
               <label>Saw kerf (mm) <input type="number" id="docKerf" min="0" max="10" step="0.1" style="width:70px"></label>
