@@ -16,6 +16,23 @@ async function section(name, fn) {
 }
 
 try {
+  // #185 (v62): the starter bridge and every "Start from a simple bridge" preset pass, 2D and 3D, with the envelope on the outer faces
+  await section('#185 starters fit the outer-face envelope', async () => {
+    const p = await openPage(b, srv.url);
+    const now = () => p.evaluate(() => { const r = __dbg.res; return { passes: !!r.passes, env: r.envelope.length, L: r.size && r.size.outer ? r.size.outer.length : 999, ov: r.overlap }; });
+    for (const ana of ['2d', '3d']) {
+      await p.evaluate(a => document.querySelector(`#anaSwitch [data-ana="${a}"]`).click(), ana); await p.waitForTimeout(700);
+      if (ana === '2d') { const r = await now(); check('#185: the starter bridge passes (299.98 mm outside, 48.4 mm on each desk)', r.passes && r.env === 0 && r.L <= 300 && Math.abs(r.ov - 48.4) < 1e-6, JSON.stringify(r)); }
+      const n = await p.evaluate(() => document.querySelectorAll('#presetSel option[value]:not([value=""])').length);
+      for (let i = 0; i < n; i++) {
+        await p.evaluate(i => { const s = document.getElementById('presetSel'); s.value = String(i); s.dispatchEvent(new Event('change')); }, i); await p.waitForTimeout(700);
+        const r = await now(); check(`#185: ${ana.toUpperCase()} preset ${i + 1} of ${n} passes and fits 300 mm outside`, r.passes && r.env === 0 && r.L <= 300 + 1e-9, JSON.stringify(r));
+      }
+    }
+    check('#185: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  });
+
   // t66 (v51): the bridge view is still on the page and moves only in full screen
   await section('t66 still bridge view', async () => {
     const p = await openPage(b, srv.url);

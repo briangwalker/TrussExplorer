@@ -41,12 +41,14 @@ const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBo
 // NEVER rename this key: everyone's saved work lives under it. When the saved format changes, convert old data on load instead.
 const KEY = 'se310-truss-v5';
 const APP_VER = 35;   // bumped whenever the solver or the saved data changes
-const APP_RELEASE = 'balsaPixel 1.0-dev';   // the release name, written into every file the app saves (main is the stable v61)
+const APP_RELEASE = 'balsaPixel 1.0.0-alpha.1';   // SemVer pre-release (board TE-B-017); written into every file the app saves (main is the stable v6x line)
 
+// The starter bridge fits the 300 mm envelope measured on the outer faces (#185, Brian 2026-10-28): 48.4 mm on each desk
+// gives 296.8 mm between end joints and 299.98 mm outside (half a stick, 1.59 mm, shorter at each end than v61's 300 mm).
 const DEFAULT = {
   name: 'Design A', family: 'grid', height: 70, panels: 4, ratio: 1, sideAngle: 90, sideLean: 'in',
-  overall: 300, bookLen: 242, loads: null, bookWidth: 209, bookThick: 32, approachDiag: 'P', edgeVert: true, deskVert: true, deskMode: 'match', deskPanels: 1,
-  bottom: 'flat', curve: -30, deskEnds: 'truss', supportMode: 'all', topShape: 'flat', topEnd: 0, botEnd: 0, edgeBear: false, showDims: true, showGhosts: true, bookContact: 'rigid', claw: 'off', brace: 'off', tableThick: 30, braceDepth: 20, fricK: 2, fricMu: 0.4, supportOffset: 0, overlap: 50, sticks: {}, groupBy: 'none',
+  overall: 296.8, bookLen: 242, loads: null, bookWidth: 209, bookThick: 32, approachDiag: 'P', edgeVert: true, deskVert: true, deskMode: 'length', deskPanels: 1,
+  bottom: 'flat', curve: -30, deskEnds: 'truss', supportMode: 'all', topShape: 'flat', topEnd: 0, botEnd: 0, edgeBear: false, showDims: true, showGhosts: true, bookContact: 'rigid', claw: 'off', brace: 'off', tableThick: 30, braceDepth: 20, fricK: 2, fricMu: 0.4, supportOffset: 0, overlap: 48.4, sticks: {}, groupBy: 'none',
   pattern: 'pratt', diagLeft: ['P', 'P'], diagMiddle: 'X', vertPreset: 'all', vertLeft: [true, true],
   mat: Object.assign({}, COURSE.mat), load: Object.assign({}, COURSE.load), opts: Object.assign({}, COURSE.opts),
   showIds: true, showElems: false, showDef: true, defScale: 20, wide: false, openMap: {}, tab: 'trade',
