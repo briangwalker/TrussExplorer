@@ -1,6 +1,6 @@
 # Truss Explorer UI Standard
 
-**Version 1.1 · 2026-10-28 · owner: UI Designer · creative sign-off: Brian**
+**Version 1.2 · 2026-10-28 · owner: UI Designer · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel looks and behaves. Every rule has a number (`UI-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -111,7 +111,7 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 - **UI-I3** **Model limit** (Δh or Δp below the −30 mm table face or above h, support past the overlap, tilt over 30°): the value can't be built. The input stops at the wall and a ⟂ note says why. Sliders show a grey wall zone.
 - **UI-I4** **Software cap** (400 values in one range): never cut silently. Run sweep is blocked, with two choices: a coarser step, or sample 400 evenly.
 - **UI-I5** A swept range shows `asked → run` when the two differ, and ⓘ lists the reasons with counts. Dependent pairs are counted per combination, duplicate designs never run, and the sweep bar shows how many were skipped.
-- **UI-I6** Each category picture lights the input you hover. Theme pictures use `data-in="key …"`. The Load picture shows as many books as the Books input, and the 3D picture leans with Tilt (theme hooks, UI-T4).
+- **UI-I6** Each category picture lights the input you hover. Theme pictures use `data-in="key …"`. The Load picture shows as many books as the Books input, and the 3D picture shears with Tilt (theme hooks, UI-T4 and ART-H4).
 - **UI-I7** Inputs content:
   - The books input is one total mass, "Mass of all the books", default 2.5 kg.
   - The truss family of this bridge has its own picker beside the sweep chips.
@@ -139,7 +139,7 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
   - the 8 category pictures and `topchord-note.svg` (with `data-in`);
   - `woodpile.svg` and `books.svg` (drawn where the drawing places them, with the built-in shapes as fallback);
   - book groups `book1` and `book2`, with copies stacked for more books;
-  - `data-lean="left"` or `"right"` groups, which rotate with Tilt.
+  - Tilt **shears** the 3D picture, it doesn't rotate it. The page applies the matrices in **ART-H4**: `data-lean` groups (left, right and in) with their `data-lean-shear` and `data-lean-matrix` numbers, with T = tan(tilt). Graphics owns the numbers; this rule only says the page must apply them.
 - **UI-T5** **Calculator screens:** any button drawn on an LCD screen is pixel art only. Balsa-stick buttons are for controls on paper or wood.
 - **UI-T6** **OG** is the v60 look, kept warts and all, and is exempt from the contrast checklist. It unlocks after the first finished sweep or 20 minutes (#162). Badge: **OG**.
 
@@ -206,22 +206,23 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 | Step | Issue | Must meet |
 |---|---|---|
 | 1 | #183 (shipped) | UI-A4, UI-A5, UI-A6, UI-A7, UI-W1 |
-| 2 · Truss 2D full screen | #209 | **UI-A3**, UI-A7, UI-A12, UI-A13, UI-D1–D6, UI-W3, UI-W5, UI-W10, UI-V8 |
-| 3 · Sweep bar, results card, PIP | #210 | UI-W2, UI-W6, UI-W7, UI-W8, UI-A11, UI-H5–H8 |
-| 4 · Analysis full screen | #211 | **UI-A3**, UI-A7, UI-A8, UI-S4, UI-S6, UI-C1, UI-C4, UI-W11, UI-N1–N3 |
+| 2 · Truss 2D full screen | #209 | **UI-A3**, UI-A7, UI-A12, UI-A13, UI-A17, UI-S1, UI-D1–D6, UI-W3, UI-W4, UI-W5, UI-W10, UI-V8 |
+| 3 · Sweep bar, results card, PIP | #210 | UI-A2, UI-W2, UI-W6, UI-W7, UI-W8, UI-A11, UI-H5–H8 |
+| 4 · Analysis full screen | #211 | **UI-A3**, UI-A1, UI-A7, UI-A17, UI-A8, UI-S4, UI-S6, UI-C1, UI-C4, UI-W11, UI-N1–N3 |
 | 5 · Hover previews, click loads | #212 | UI-A10, UI-A11, UI-H1, UI-H2, UI-H4 |
 | 6 · Compare | #213 | UI-H3, UI-S7 |
 | 7 · 3D Look from | #214 | UI-S2, UI-V1–V7 (and #33) |
-| 8 · Inputs screen | #215 | UI-S3, UI-I1–I8 |
+| 8 · Inputs screen | #215 | UI-S3, UI-I1–I8, UI-T4 (Tilt shear, ART-H4) |
 | 9 · Empty and in-between states | #216 | UI-A14, UI-S5, UI-D4 |
-| 10 · ☰ and sheets | #217 | UI-A16, UI-W8, UI-W9, UI-A15 |
-| 11 · Keyboard and screen readers | #218 | UI-K1–K4 |
+| 10 · ☰ and sheets | #217 | UI-A16, UI-W8, UI-W9, UI-A15, UI-A9, UI-N4 |
+| 11 · Keyboard and screen readers | #218 | UI-K1–K4, UI-N5 |
 | 12 · Phone | #219 | UI-S8 |
 | 13 · First-time tour | #220 | UI-F1–F2, UI-M1–M4, UI-M7 (#144) |
 | 14 · Themes and OG | #221 | UI-T1–T6, UI-A18, UI-M5–M6 (#143) |
 
 ## Change log
 
+- **1.2 · 2026-10-28** Tilt hook is a shear, not a rotation (UI-T4, UI-I6 → ART-H4; TE-B-083). Build-step table now cites the 8 rules the spec report found uncited (TE-B-086): UI-A1, UI-A2, UI-A9, UI-A17, UI-W4, UI-S1, UI-N4, UI-N5. Step 8 cites UI-T4.
 - **1.1 · 2026-10-28** Added UI-M (motion): the restless bridge's run and stop rules, "That's my bridge" in the state badge (#144), and when scene transitions play (#143). Added the coverage table. Steps 13 and 14 now cite UI-M. Follows the [creative documentation standard](ui-creative-doc-standard.md).
 - **1.0 · 2026-10-28** First numbered standard. It gathers:
   - the Full-Screen UI Spec (rounds 5–10);
