@@ -67,7 +67,9 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 7. **Bridge file**: upload the TE-bug file TE just saved (required).
 8. **Screenshot**: upload (optional).
 
-No name or email question. The form's description says: "Reports go to the TE team. Please don't put your name or other personal details in the answers."
+No name or email question. Uploads take images and `.json` only, with a small size limit (White Hat, TE-B-136). The form's description says: "Reports go to the TE team. Google asks you to sign in to attach files; only Brian sees who sent a report, and it never appears in public issues. Please don't put your name or other personal details in the answers."
+
+The link carries only the release, the model and the 8-character bridge code, never the bridge name, notes or saved data. It opens as a plain link in a new tab, not inside TE (White Hat, TE-B-136).
 
 ## UI-S · Screens
 
@@ -287,7 +289,7 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 
 ## Change log
 
-- **1.4 · 2026-10-28** Brian's F6 decision (TE-B-117): UI-K2 settled (F6 jumps windows; Home view is Home key, double-click middle, ⌂). Added UI-K5 (every binding can be changed, in ☰ › Look and controls › Mouse and keys, the path #228 uses; UI-V9 now says the same) and UI-K6 (keys and mouse walkthrough, step 13). Added UI-W14 (Report a bug button, dialog and form questions; #115, TE-B-132). Added sheet, dialog, toast, tour and walkthrough to the words line. Added UI-B1–B5 (build documents easy to follow; TE-B-129). Reference build is Click-Through v18.
+- **1.4 · 2026-10-28** Brian's F6 decision (TE-B-117): UI-K2 settled (F6 jumps windows; Home view is Home key, double-click middle, ⌂). Added UI-K5 (every binding can be changed, in ☰ › Look and controls › Mouse and keys, the path #228 uses; UI-V9 now says the same) and UI-K6 (keys and mouse walkthrough, step 13). Added UI-W14 (Report a bug button, dialog and form questions; #115, TE-B-132, with White Hat's link and upload limits from TE-B-136). Added sheet, dialog, toast, tour and walkthrough to the words line. Added UI-B1–B5 (build documents easy to follow; TE-B-129). Reference build is Click-Through v18.
 - **1.3 · 2026-10-28** From the Future Vision Lead's A2 review (TE-B-096) and Dev Lead's TE-B-099/102: added the Axioms the build depends on: UI-V9 (Inventor mouse, G1), UI-C6–C8 (chart zoom, reset, 3D fits, G2), UI-W11 home + eyes (X4, G3), UI-W12 project facts (G4), UI-A19 help text (G5), UI-W13 dialogs (G6), UI-I9 widths and columns (G7), UI-S9 long jobs (G8), UI-A20 easy reset (G9). UI-M2 now points to ART-M3 for its numbers; UI-M5 is 1000 ms both ways (Brian; ART-M1). UI-M6 lists the ART-O5 motion tuning beside the off switches (Future Vision Lead A2, TE-B-102). UI-K2 notes the open F6 question (X1, Brian).
 - **1.2 · 2026-10-28** Tilt hook is a shear, not a rotation (UI-T4, UI-I6 → ART-H4; TE-B-083). Build-step table now cites the 8 rules the spec report found uncited (TE-B-086): UI-A1, UI-A2, UI-A9, UI-A17, UI-W4, UI-S1, UI-N4, UI-N5. Step 8 cites UI-T4.
 - **1.1 · 2026-10-28** Added UI-M (motion): the restless bridge's run and stop rules, "That's my bridge" in the state badge (#144), and when scene transitions play (#143). Added the coverage table. Steps 13 and 14 now cite UI-M. Follows the [creative documentation standard](ui-creative-doc-standard.md).
