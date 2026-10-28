@@ -24,6 +24,8 @@ const CASES = [
   ['3D 12-panel catenary', many(12, 'catenary'), D3()],
   ['3D 12-panel arc, tilt 25, width 120, X everywhere', many(12, 'arc'), D3({ tilt: 25, width: 120, topPat: ['X'], botPat: ['X'], framePat: ['X'] })],
   ['2D edge bear, s 10', Object.assign({}, DEFAULT, { edgeBear: true, supportOffset: 10 }), null],
+  // #298: an arch through the flat bottom chord (the BDT-004 style): the bottom chord is cut at the crossings
+  ['3D arch through the bottom chord', Object.assign({}, DEFAULT, { height: 30, panels: 4, deskMode: 'length', overlap: 48.4, deskEnds: 'feet', topShape: 'catenary', topEnd: -27, pattern: 'pratt', diagLeft: ['P', 'P'], vertLeft: [true, true] }), D3({ framePat: ['D'] })],
   // #282: the curved top chord as one stick bent to the curve (a bending form page, the checks sheet, a day-before step)
   ['2D bent top chord, 6-panel parabola h 90', Object.assign({}, DEFAULT, { height: 90, topShape: 'parabola', topEnd: 50, panels: 6, diagLeft: ['X', 'X', 'X'], vertLeft: [true, true, true] }), null, { bentTop: true }],
   ['3D bent top chord, 12-panel arc', many(12, 'arc'), D3(), { bentTop: true }],
