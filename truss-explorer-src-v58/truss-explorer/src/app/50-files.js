@@ -125,8 +125,8 @@ $('presetSel').addEventListener('change', () => {
   const q = PRESETS[+$('presetSel').value]; if (!q) return;
   const base = JSON.parse(JSON.stringify(DEFAULT));
   UI_ONLY.forEach(k => { delete base[k]; });
-  base.name = q.name.split(' · ')[0];
   const b = Object.assign(base, q.set);
+  b.name = TrussNames.make(b);   // a preset starts a new design, so it gets a generated name too (#27)
   if ($('presetSweep').checked) Object.assign(b, { swOn: { H: true, N: true, P: true }, swVals: {} });
   // the sweep switches not named go off; ranges keep their values unless reset
   if ($('presetSweep').checked) Object.keys(S.swOn).forEach(k => { if (!(k in b.swOn)) b.swOn[k] = false; });

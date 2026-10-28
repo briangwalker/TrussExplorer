@@ -61,6 +61,7 @@ const { cleanData, cleanRows } = TrussFormats;   // the import boundary lives in
 let S = JSON.parse(JSON.stringify(DEFAULT));
 var FIRST_VISIT = true;
 try { const saved = cleanData(JSON.parse(localStorage.getItem(KEY) || 'null')); if (saved && saved.panels) { S = Object.assign(S, saved); FIRST_VISIT = false; } } catch (e) {}
+if (FIRST_VISIT) S.name = TrussNames.make(S);   // a new design gets a generated name, e.g. "Maple Pratt k3f9" (#27); it can be renamed
 if (!S.migOv5) { if (S.opts && +S.opts.minOverlap === 20) S.opts.minOverlap = 5; S.migOv5 = true; }
 // v61: the envelope is checked on the built bridge's outer faces (#133), and how the ties are joined belongs to the bridge
 S.opts = Object.assign({ tieJoint: (S.doc && S.doc.tieJoint) || 'ontop' }, S.opts || {});
