@@ -21,7 +21,12 @@ Have an idea or found a bug that isn't listed? Open an issue first with **Detail
 
 ## 2. Make a branch
 
-Branch from `main`, and start the name with the prefix for the area you're changing:
+**Pick the line first.** The project has two lines of code (rulebook rule 4h):
+
+- **Fixes to the live app** branch from `main` and go back into `main`. The live page is built only from `main`.
+- **New interface work** (balsaPixel: the window layout, themes and the rest of the UI overhaul) branches from `balsaPixel-1.0` and goes back into `balsaPixel-1.0`. It never goes into `main`.
+
+If you're not sure which line a change belongs to, ask on its issue. Then start the branch name with the prefix for the area you're changing:
 
 | Prefix | Area |
 |---|---|
@@ -33,15 +38,30 @@ Branch from `main`, and start the name with the prefix for the area you're chang
 | `docs` | documentation |
 | `admin` | issue queue and project rules |
 | `hist` | design history |
+| `arch` | code structure, build, file formats, performance |
+| `qa` | test cases, accessibility, chaos testing |
+| `sec` | security reviews |
 
 Use the same prefix in commit messages and mention the issue number:
 
-    git checkout main && git pull
+    git checkout main && git pull        # or balsaPixel-1.0 for new interface work
     git checkout -b ui/scale-bar-toggle
     ...
     git commit -m "ui: show the scale bar only when displacement is on (#32)"
 
 ## 3. Make the change
+
+**Spec first** (rulebook rule 3). Before you build, read the spec for the area you're changing, and name the rules your change meets:
+
+| Area | Spec | Owner |
+|---|---|---|
+| Layout and interaction | `docs/ui-spec.md` (rules `UI-…`), on `balsaPixel-1.0` | UI Designer |
+| Look, colour, motion, themes | `docs/art-spec.md` (rules `ART-…`), on `balsaPixel-1.0` | Graphics Designer |
+| Files the app saves and opens | `docs/formats.md` | Architecture Lead |
+| Solver, sampling, statistics | `docs/math/` and the spec named on the issue | Math Consultant |
+| The structural model | the spec named on the issue | Physics Consultant |
+
+If the area has no spec yet, ask its owner on the issue before you build. A decision isn't done until it's in the repo spec and an issue cites it.
 
 The app lives in `truss-explorer-src-v58/truss-explorer/`:
 
@@ -72,12 +92,14 @@ You need Node 18+, Python 3 with numpy, pandas and matplotlib, and Playwright wi
 
 ## 5. Open a pull request
 
-Open it **into `main`**. In the description:
+Open it **into the line you branched from**: `main` for fixes, `balsaPixel-1.0` for new interface work. The pull request template asks for:
 
 - `Closes #n` so the issue closes when it merges
 - what changed and why, in a few lines
+- the spec rules it meets on a `Spec rules met:` line (`UI-…`, `ART-…`, `docs/formats.md`, a Math or Physics spec); on `balsaPixel-1.0` the `spec-cited` check reads it (`docs/spec-checks.md`)
+- the reviews it asks for: UI or Graphics for anything on screen, Math or Physics when results can change, White Hat when it hits a trigger R1–R8 in `docs/security-checklist.md` (it reads files, writes exports, touches themes, CI, the build or dependencies, and more)
 - the result lines from your own `run_all.sh` run (the `tests`, `pass` and `checks passed` counts), so a reviewer can check them
-- a screenshot for anything visible
+- screenshots at 1440 × 900 and at 390 px wide for anything visible
 
 Dev Lead reviews it, runs the tests, and either merges it or asks for changes. Merged changes reach the live app in the next release.
 

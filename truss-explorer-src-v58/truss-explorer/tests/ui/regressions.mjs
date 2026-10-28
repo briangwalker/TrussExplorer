@@ -2,6 +2,10 @@
 // Usage: node tests/ui/regressions.mjs [--slow]     (--slow adds t71, a pilot + time-limited large search, ~1 min)
 import { serve, browser, openPage, waitRows, checker, SHOTS } from './harness.mjs';
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
+import { fileURLToPath } from 'url';
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 const slow = process.argv.includes('--slow');
 const srv = await serve();
@@ -31,6 +35,101 @@ try {
     }
     check('#185: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
+  });
+
+  // #282 (v64): the build-documents dialog offers "one stick bent to the curve" only for a curved top chord, and says what it needs
+  await section('#282 bent top chord option', async () => {
+    const p = await openPage(b, srv.url);
+    const dlg = () => p.evaluate(() => { document.getElementById('openDocs').click(); return { box: !document.getElementById('docBentBox').hidden, note: document.getElementById('docBentNote').textContent }; });
+    const flat = await dlg();
+    check('#282: a flat top chord has no bent-chord option', !flat.box, JSON.stringify(flat));
+    await p.evaluate(() => { document.getElementById('docModal').hidden = true; });
+    const src = JSON.parse(fs.readFileSync(path.join(here, '..', 'Partner_test.bridge.json'), 'utf8')), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'te282-'));
+    const f = path.join(tmp, 'curved.bridge.json');
+    fs.writeFileSync(f, JSON.stringify(Object.assign({}, src, { name: 'Curved top', bridge: Object.assign({}, src.bridge, { height: 90, topShape: 'parabola', topEnd: 50, panels: 6, diagLeft: ['X', 'X', 'X'], vertLeft: [true, true, true], vertPreset: 'custom', deskMode: 'length', overlap: 48.4, anaMode: '2d' }) })));
+    await p.setInputFiles('#filePick', f); await p.waitForFunction(() => /Curved top/.test(document.getElementById('fileMsg').textContent), null, { timeout: 8000 }); await p.waitForTimeout(400);
+    fs.rmSync(tmp, { recursive: true, force: true });
+    const off = await dlg();
+    check('#282: a curved top chord offers it, off by default', off.box && /straight pieces/.test(off.note), JSON.stringify(off));
+    await p.click('#docBent'); await p.waitForTimeout(300);
+    const on = await p.evaluate(() => ({ note: document.getElementById('docBentNote').textContent, items: document.getElementById('docItems').textContent, saved: __dbg.S.doc.bentTop }));
+    check('#282: ticked, it says the radius and that it must be soaked, and the parts table lists the bent stick', on.saved === true && /Top chord \(one bent stick\)/.test(on.items) && /Tightest radius \d+ mm/.test(on.note) && /soak or steam/.test(on.note), JSON.stringify(on).slice(0, 300));
+    await p.click('#docBent');
+    check('#282: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  });
+
+  // #281 (v64): a starter preset gives the same bridge and result whatever 3D setup came before it
+  await section('#281 presets reset the 3D setup', async () => {
+    const p = await openPage(b, srv.url), q = await openPage(b, srv.url);
+    const n = await p.evaluate(() => document.querySelectorAll('#presetSel option[value]:not([value=""])').length);
+    const pick = (pg, i) => pg.evaluate(i => { const s = document.getElementById('presetSel'); s.value = String(i); s.dispatchEvent(new Event('change')); }, i);
+    const state = pg => pg.evaluate(() => { const r = __dbg.res, d = Object.assign({}, __dbg.S.d3); delete d.showPlan; delete d.showSec;
+      return { d3: JSON.stringify(d), stable: !!r.stable, passes: !!r.passes, wood: r.stable ? +r.wood.toFixed(3) : null, cap: r.stable ? +r.capKg.toFixed(3) : null }; });
+    for (const pg of [p, q]) { await pg.evaluate(() => document.querySelector('#anaSwitch [data-ana="3d"]').click()); await pg.waitForTimeout(600); }
+    for (let i = 0; i < n; i++) {
+      // p: mess up every 3D setting first (Brian's case: X top bracing, framePat D/N, tilt, ties off, imperfections on); q: a fresh page
+      await p.evaluate(() => { Object.assign(__dbg.S.d3, { tilt: 12, botTies: false, topBr: 'x', botBr: 'single', topPat: ['X'], botPat: ['N'], framePat: ['X', 'K'], sec: 2, imperf: { on: true, alpha: 0.05, beta: 0.01, dir: -1 } }); });
+      await pick(p, i); await pick(q, i); await p.waitForTimeout(900); await q.waitForTimeout(900);
+      const a1 = await state(p), a2 = await state(q);
+      check(`#281: preset ${i + 1} of ${n} after other 3D settings = on a fresh page (3D)`, JSON.stringify(a1) === JSON.stringify(a2), JSON.stringify({ after: a1, fresh: a2 }));
+      if (i === 0) check('#281: Course sample is stable in 3D', a1.stable, JSON.stringify(a1));
+    }
+    check('#281: no script errors', p.errs.length + q.errs.length === 0, p.errs.concat(q.errs).slice(0, 2).join(' | '));
+    await p.close(); await q.close();
+  });
+
+  // #239 (v64): with "ends bear on the table edge", the 2D view, the 3D view and the build documents show the same edge stops,
+  // and the 3D model holds those corner joints sideways as the 2D model does
+  await section('#239 edge stops agree in 2D, 3D and the build documents', async () => {
+    const p = await openPage(b, srv.url);
+    const presets = await p.evaluate(() => [...document.querySelectorAll('#presetSel option[value]:not([value=""])')].map(o => [o.value, o.textContent]));
+    const cases = [['the starter bridge', null], ...presets.filter(([, n]) => /table edges/i.test(n)).map(([v, n]) => [n, v])];
+    for (const [name, preset] of cases) {
+      if (preset != null) await p.evaluate(v => { const s = document.getElementById('presetSel'); s.value = v; s.dispatchEvent(new Event('change')); }, preset);
+      await p.evaluate(() => { const c = document.getElementById('edgeBear'); if (!c.checked) c.click(); });
+      await p.evaluate(() => document.querySelector('#anaSwitch [data-ana="2d"]').click()); await p.waitForTimeout(400);
+      const two = await p.evaluate(() => ({ corners: (__dbg.res.activeSupports || []).filter(s => s.corner).map(s => s.node).sort(), doc: BuildDoc.edgeStops(__dbg.tr, +__dbg.S.mat.b || 3.18).map(s => s.node).sort(), svg: document.querySelectorAll('#draw path[fill="var(--warn)"]').length }));
+      await p.evaluate(() => document.querySelector('#anaSwitch [data-ana="3d"]').click()); await p.waitForTimeout(900);
+      const three = await p.evaluate(() => { const tr = __dbg.tr, m3 = __dbg.m3; const held = []; tr.supports.forEach((s, i) => { if (s.corner) [m3.supports[2 * i], m3.supports[2 * i + 1]].forEach(q => held.push(q.dofs.includes(0))); }); return { drawn: __dbg.v3.edgeStops, held, stable: !!(__dbg.r3 && __dbg.r3.stable) }; });
+      check(`#239 ${name}: build documents and 2D agree on the edge stops (${two.doc.length})`, two.doc.length > 0 && JSON.stringify(two.doc) === JSON.stringify(two.corners) && two.svg >= two.doc.length, JSON.stringify(two));
+      check(`#239 ${name}: the 3D view draws them on both trusses (${2 * two.doc.length})`, three.drawn === 2 * two.doc.length, JSON.stringify(three));
+      check(`#239 ${name}: the 3D model holds those joints sideways`, three.held.length === 2 * two.doc.length && three.held.every(Boolean), JSON.stringify(three));
+      await p.evaluate(() => { const c = document.getElementById('edgeBear'); if (c.checked) c.click(); }); await p.waitForTimeout(500);
+      const off = await p.evaluate(() => __dbg.v3.edgeStops);
+      check(`#239 ${name}: none drawn in 3D with the option off`, off === 0, String(off));
+      await p.evaluate(() => document.querySelector('#anaSwitch [data-ana="2d"]').click());
+    }
+    check('#239: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  });
+
+  // #247 (v63): a bridge file from before the outer-face rule opens with the reason it fails and the number to change
+  await section('#247 old 300 mm files say why they fail', async () => {
+    const p = await openPage(b, srv.url);
+    const src = JSON.parse(fs.readFileSync(path.join(here, '..', 'Partner_test.bridge.json'), 'utf8'));
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'te247-'));
+    const len = Object.assign({}, src, { name: 'Old length mode', release: 'v60', bridge: Object.assign({}, src.bridge, { deskMode: 'length', overlap: 50, anaMode: '2d' }) });
+    const now = Object.assign({}, src, { name: 'Starter now', release: 'v62', bridge: Object.assign({}, src.bridge, { deskMode: 'length', overlap: 48.4, anaMode: '2d' }) });
+    const files = { match: path.join(here, '..', 'Partner_test.bridge.json'), length: path.join(tmp, 'old-length.bridge.json'), ok: path.join(tmp, 'starter.bridge.json') };
+    fs.writeFileSync(files.length, JSON.stringify(len)); fs.writeFileSync(files.ok, JSON.stringify(now));
+    const open = async (f, name) => { await p.setInputFiles('#filePick', f); await p.waitForFunction(n => (document.getElementById('fileMsg') || {}).textContent.includes(n), name, { timeout: 8000 }); await p.waitForTimeout(300); return p.$eval('#fileMsg', e => e.textContent); };
+    const m1 = await open(files.match, src.name);
+    const w1 = (m1.match(/"Set the overlap", then Overlap onto each desk to (\d+\.\d) mm/) || [])[1];
+    check('#247: a v61-era file (300 mm, desk panels as wide as the span panels) says it is too long and how to fix it', /before the outer-face rule/.test(m1) && /too long/.test(m1) && !!w1, m1);
+    await p.click('#deskMode [data-v="length"]'); await p.fill('#overlap', String(w1)); await p.press('#overlap', 'Enter'); await p.waitForTimeout(500);
+    const r1 = await p.evaluate(() => ({ ov: __dbg.S.overlap, env: __dbg.res.envelope.length, L: __dbg.res.size.outer.length }));
+    check('#247: following that advice makes it fit 300 mm', Math.abs(r1.ov - w1) < 1e-9 && r1.env === 0 && r1.L <= 300, JSON.stringify(r1));
+    const m2 = await open(files.length, len.name);
+    const want = (m2.match(/To fit, set Overlap onto each desk to (\d+\.\d) mm/) || [])[1];
+    check('#247: in overlap mode it gives the overlap to set', !!want && +want >= 48 && +want < 50, m2);
+    await p.fill('#overlap', '40'); await p.press('#overlap', 'Enter'); await p.fill('#overlap', String(want)); await p.press('#overlap', 'Enter'); await p.waitForTimeout(500);
+    const r = await p.evaluate(() => ({ ov: __dbg.S.overlap, env: __dbg.res.envelope.length, L: __dbg.res.size.outer.length }));
+    check('#247: following the advice makes it fit 300 mm', Math.abs(r.ov - want) < 1e-9 && r.env === 0 && r.L <= 300, JSON.stringify(r));
+    const m3 = await open(files.ok, now.name);
+    check('#247: a file that fits gets no note', !/too long/.test(m3), m3);
+    check('#247: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    fs.rmSync(tmp, { recursive: true, force: true }); await p.close();
   });
 
   // t66 (v51): the bridge view is still on the page and moves only in full screen

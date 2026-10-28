@@ -59,7 +59,8 @@ const SAFE_CH = { '<': '‹', '>': '›', '"': '”', "'": '’', '`': 'ˋ' };
 function cleanData(x, depth) {
   depth = depth || 0;
   if (typeof x === 'string') return (x.length > 2000 ? x.slice(0, 2000) : x).replace(/[<>"'`]/g, c => SAFE_CH[c]).replace(/[\u0000-\u001F\u007F\u2028\u2029]/g, ' ');   // text from outside is one line
-  if (x === null || typeof x !== 'object' || depth > 40) return x;
+  if (depth > 40) return null;   // nested deeper than any real file: drop it (fails closed, as on balsaPixel-1.0, #248)
+  if (x === null || typeof x !== 'object') return x;
   if (ArrayBuffer.isView(x) || x instanceof ArrayBuffer) return x;
   if (Array.isArray(x)) return x.map(v => cleanData(v, depth + 1));
   const o = {}; Object.keys(x).forEach(k => { if (k === '__proto__' || k === 'constructor' || k === 'prototype') return; o[cleanData(k, depth + 1)] = cleanData(x[k], depth + 1); });
@@ -1200,7 +1201,7 @@ dual values mean) is the part to do yourself.
   ];
 }
 // ---------- build documents: joint styles, cut list, drawing, steps, templates
-S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false }, S.doc || {});
+S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false, bentTop: false }, S.doc || {});
 // the kit's sticks are 240 mm (#116): move the old 914 mm default over once; a length set on purpose stays
 if (!S.doc.stock240) { if (+S.doc.stock === 914) S.doc.stock = 240; S.doc.stock240 = true; }
 // the 3D model and results the documents describe, when the 3D analysis is on
@@ -1212,11 +1213,18 @@ function docPlan() {
   Object.keys(S.doc.over).forEach(n => { const j = J.find(q => q.n === +n); if (!j) return; const o = S.doc.over[n]; if (o.through != null && !j.m.some(q => q.k === o.through)) return; ok[n] = o; });
   S.doc.over = ok;
   // pieces longer than one stock stick are spliced where the chord force is lowest (the worst of the two trusses in 3D)
-  return BuildDoc.cutPlan(tr, b, { style: S.doc.style, over: S.doc.over, stock: +S.doc.stock || 240, force: k => res && res.members && res.members[k] ? res.members[k].F : 0 });
+  return BuildDoc.cutPlan(tr, b, { style: S.doc.style, over: S.doc.over, stock: +S.doc.stock || 240, force: k => res && res.members && res.members[k] ? res.members[k].F : 0, bentTop: !!S.doc.bentTop && topCurves() });
 }
+// a top chord that bends at its joints can be built as one stick bent to the curve (#282)
+function topCurves() { return BuildDoc.cutPlan(tr, +S.mat.b || 3.18, { bentTop: true }).bendAt.length > 0; }
 function renderDocDialog() {
   const plan = docPlan(), b = +S.mat.b || 3.18;
   document.querySelectorAll('input[name="jstyle"]').forEach(r => { r.checked = r.value === S.doc.style; });
+  const curves = topCurves(); $('docBentBox').hidden = !curves; $('docBent').checked = !!S.doc.bentTop;
+  const bck = curves && S.doc.bentTop ? BuildDoc.bentCheck(tr, plan, res, Object.assign({}, C.DEFAULT_MAT, S.mat)) : null;
+  $('docBentNote').innerHTML = !curves ? '' : !bck ? 'Off: the curved top chord is cut as straight pieces, joint to joint.'
+    : bck.tooTight ? `<b style="color:var(--bad)">✕ Too tight for one stick:</b> bent to this curve the chord reaches ${Math.round(bck.worstUse * 100)}% of its strength at the design load. Untick this for straight pieces, or flatten the curve.`
+    : `Tightest radius ${bck.Rmin.toFixed(0)} mm: ${bck.mustSoak ? `<b>soak or steam it</b> and let it dry on the bending form (bent dry, the wood stretches ${(bck.strain * 100).toFixed(2)}%; it breaks at ${(bck.strainLimit * 100).toFixed(2)}%)` : 'it can be bent dry'}. Once dried to shape it uses up to ${Math.round(bck.worstUse * 100)}% of its strength at the design load. The documents add a bending form, the checks and the steps.`;
   $('docStock').value = S.doc.stock; $('docKerf').value = S.doc.kerf; $('docSteps').checked = S.doc.steps; $('docTpl').checked = S.doc.tpl; $('docColour').checked = S.doc.colour; $('docDash').checked = S.doc.dash;
   // view with joint numbers
   const v = BuildDoc.sideSVG(tr, plan, { labels: false, b, color: S.doc.colour ? 'part' : 'mono', dash: S.doc.dash });
@@ -1233,7 +1241,7 @@ function renderDocDialog() {
     + ((plan.short || []).length ? ` ${plan.short.length} member${plan.short.length > 1 ? 's are' : ' is'} under ${(6 * b).toFixed(0)} mm (6 stick widths): the pin-jointed results are less reliable there.` : '');
   const sw = no => S.doc.colour ? `<span style="display:inline-block;width:10px;height:10px;margin-right:4px;background:${BuildDoc.colOf(no)}"></span>` : '';
   $('docItems').innerHTML = '<thead><tr><th>Item</th><th class="l">Part</th><th>Qty</th><th>Long point</th><th>Short point</th><th class="l">End cuts</th></tr></thead><tbody>' +
-    plan.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${BuildDoc.TL[it.type] || it.type}</td><td>${it.pieces.length * nT * it.n}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('')
+    plan.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${BuildDoc.TL[it.type] || it.type}${it.bent ? ' (one bent stick)' : ''}</td><td>${it.pieces.length * nT * it.n}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('')
     + (cx ? cx.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${it.label}</td><td>${it.pieces.length}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('') : '') + '</tbody>';
   const name = k => `${k} ${(BuildDoc.TL[tr.elems[k].type] || '').toLowerCase()}`;
   $('docJoints').innerHTML = '<thead><tr><th>Joint</th><th class="l">On top / runs through</th><th class="l">Other ends</th><th>Mitre %</th></tr></thead><tbody>' +
@@ -1259,7 +1267,7 @@ document.querySelectorAll('input[name="jstyle"]').forEach(r => r.addEventListene
 document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.opts.tieJoint = r.value; update(); renderDocDialog(); }));
 $('docStock').addEventListener('change', () => guardNum('docStock', 50, 2000, S.doc.stock, v => { S.doc.stock = v; save(); renderDocDialog(); }, 'Stock stick length'));
 $('docKerf').addEventListener('change', () => guardNum('docKerf', 0, 10, S.doc.kerf, v => { S.doc.kerf = v; save(); renderDocDialog(); }, 'Saw kerf'));
-[['docSteps', 'steps'], ['docTpl', 'tpl'], ['docColour', 'colour'], ['docDash', 'dash']].forEach(([id, k]) => $(id).addEventListener('change', () => { S.doc[k] = $(id).checked; save(); renderDocDialog(); }));
+[['docSteps', 'steps'], ['docTpl', 'tpl'], ['docColour', 'colour'], ['docDash', 'dash'], ['docBent', 'bentTop']].forEach(([id, k]) => $(id).addEventListener('change', () => { S.doc[k] = $(id).checked; save(); renderDocDialog(); }));
 $('docResetJ').addEventListener('click', () => { S.doc.over = {}; save(); renderDocDialog(); });
 $('docJoints').addEventListener('change', ev => {
   const t = ev.target, n = t.dataset.j, f = t.dataset.f; if (n == null) return;
@@ -1272,7 +1280,7 @@ $('docJoints').addEventListener('change', ev => {
 });
 $('docGo').addEventListener('click', () => {
   const plan = docPlan(), mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
-  const meta = { name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 240, kerf: +S.doc.kerf,
+  const meta = { mat, name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 240, kerf: +S.doc.kerf,
     ties: S.opts.crossTies ? { count: tr.deckNodes.length, len: +S.opts.width || 60 } : null, d3: doc3D(),
     massNote: `bridge mass ${res.massTotal.toFixed(1)} g`, capNote: `${res.capKg.toFixed(1)} kg of books (needs ${((S.load.mBook1 + S.load.mBook2) * S.mat.FS).toFixed(1)} kg)`,
     scaleNote: 'Templates: 1:1', info: (() => { const fi = fileInfo(); return `${fi.release} · ${fi.model} · bridge code ${fi.bridgeCode} · FS ${fi.rules.FS}, books ${fi.rules.bookKg} kg, envelope on outer faces`; })() };
@@ -1339,6 +1347,18 @@ function applyBridge(b) {
   if (b.anaMode === '3d' || b.anaMode === '2d') { S.anaMode = b.anaMode; paintAna(); }
   paintSwBlocks(); update(); if (typeof render3D === 'function') try { render3D(); } catch (e) {}
 }
+// #247: a bridge saved before the outer-face rule (v61), or from v61's 300 mm starter, is a few mm too long outside to
+// outside. Say so when it opens, with the number to change, instead of only "Bridge loaded." and a red FAILS.
+function tooLongNote(release) {
+  const sz = res2d && res2d.size; if (!sz || !tr || sz.outer.length <= 300 + 1e-6) return '';
+  const over = sz.outer.length - 300, ov = Math.floor((tr.overlap - over / 2) * 10) / 10;
+  const old = !/^v\d+$/.test(String(release || '')) || +String(release).slice(1) < 61;
+  // the overlap is what sets the length outside the span; "Same width as span panels" has no length to type, so it says to switch
+  const fix = ov < S.opts.minOverlap - 1e-6 ? ` Shortening the overlap enough would take it under the ${S.opts.minOverlap} mm minimum on each desk; the notes under the drawing list what to change.`
+    : S.deskMode === 'length' ? ` To fit, set Overlap onto each desk to ${ov.toFixed(1)} mm (Inputs).`
+    : ` To fit, set Panels on each desk to "Set the overlap", then Overlap onto each desk to ${ov.toFixed(1)} mm (Inputs).`;
+  return ` ${old ? 'This bridge was made before the outer-face rule (v61): it' : 'It'} is ${over.toFixed(1)} mm too long, ${sz.outer.length.toFixed(1)} mm outside to outside, and the limit is 300 mm.${fix}`;
+}
 $('filePick').addEventListener('change', async () => {
   const f = $('filePick').files[0]; if (!f) return;
   let doc; try { doc = cleanData(JSON.parse(await f.text())); } catch (e) { toast('That file is not a bridge or sweep file (it is not valid JSON).', true); return; }
@@ -1360,6 +1380,7 @@ $('filePick').addEventListener('change', async () => {
       }
     }
     if (doc.version > FILE_VER) note += ' It was made by a newer release of the Explorer, so some settings may be ignored.';
+    note += tooLongNote(doc.release);
     $('fileMsg').textContent = `Opened "${doc.name}" (saved ${new Date(doc.savedAt).toLocaleString()}${doc.release ? ` with ${doc.release}` : ''}).${note}`; toast(other + 'Bridge loaded.' + note, !!note);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
@@ -1413,6 +1434,8 @@ $('presetSel').addEventListener('change', () => {
   // the sweep switches not named go off; ranges keep their values unless reset
   if ($('presetSweep').checked) Object.keys(S.swOn).forEach(k => { if (!(k in b.swOn)) b.swOn[k] = false; });
   S.sticks = {}; S.loads = null; S.focus = [];
+  // every 3D setting the preset doesn't name goes back to a fresh page's (#281); the 2D/3D switch and the view stay as they are
+  b.d3 = Object.assign(d3Defaults(), { showPlan: S.d3.showPlan, showSec: S.d3.showSec }, q.set.d3 || {});
   applyBridge(b);
   $('presetSel').value = ''; closeDock(); toast(`Started from "${q.name}". Changed your mind? ☰ → Go back to an earlier bridge.`);
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2596,6 +2619,8 @@ $('c3Canvas').addEventListener('mousemove', ev => {
 $('c3Canvas').addEventListener('mouseleave', () => { $('c3Tip').hidden = true; });
 
 // ---------- 3D view (prototype)
+// a fresh page's 3D setup; a starter preset puts it back too (#281), so a preset gives the same bridge whatever came before
+function d3Defaults() { return { tilt: 0, botTies: true, topBr: 'single', botBr: 'single', sway: true, imperf: { on: false, alpha: 0.02, beta: 0.005, dir: 1 }, topPat: ['S'], botPat: ['S'], framePat: ['D', 'N'], sec: 0 }; }
 S.d3 = Object.assign({ tilt: 0, botTies: true, topBr: 'single', botBr: 'single', sway: true }, S.d3 || {});
 S.d3.imperf = Object.assign({ on: false, alpha: 0.02, beta: 0.005, dir: 1 }, S.d3.imperf || {});
 // per-panel / per-station patterns (left half). Older saved settings become patterns the first time.
@@ -2921,6 +2946,25 @@ function draw3D() {
       ctx.globalAlpha = 0.16; poly([[x0, y0, 0], [x1, y0, 0], [x1, y0 - sd * Hh * Math.sin(ph), Hh * Math.cos(ph)], [x0, y0 - sd * Hh * Math.sin(ph), Hh * Math.cos(ph)]], cssv('--warn'), cssv('--warn'));
     });
     ctx.globalAlpha = 1;
+  }
+  // edge stops (#239): with "ends bear on the table edge", the same stops the 2D view and the build documents show, on both
+  // trusses: a short stick under each corner joint, hanging down the table's face (drawn see-through) so the edge pushes it inward
+  v3.edgeStops = 0;
+  if (tr.design.edgeBear && window.BuildDoc) {
+    const bS = +S.mat.b || 3.18, stops = BuildDoc.edgeStops(tr, bS), tz = Math.min(+S.tableThick || 30, 60);
+    if (stops.length) {
+      ctx.globalAlpha = 0.28; [0, 200].forEach(x => poly([[x, -Wd, 0], [x, Wd, 0], [x, Wd, -tz], [x, -Wd, -tz]], cssv('--desk'), cssv('--muted'))); ctx.globalAlpha = 1;
+    }
+    stops.forEach(st => {
+      const i = tr.supports.findIndex(s => s.node === st.node); if (i < 0) return;
+      [m3.supports[2 * i], m3.supports[2 * i + 1]].forEach(s => {
+        if (!s || s.ghost) return;
+        const [x, y, z] = m3.nodes[s.node], xc = (st.x0 + st.x1) / 2, a = proj(xc, y, z), q = proj(xc, y, z - (st.y1 - st.y0));
+        ctx.strokeStyle = cssv('--warn'); ctx.lineWidth = Math.max(2.5, 3.18 * sc * 0.9); ctx.lineCap = 'butt';
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); v3.edgeStops++;
+      });
+    });
+    if (v3.edgeStops) { const q = proj(0, -Wd, -tz); ctx.font = '9px IBM Plex Mono, monospace'; ctx.fillStyle = cssv('--warn'); ctx.textAlign = 'left'; ctx.fillText('edge stops bear on the table face', q[0], q[1] + 12); }
   }
   // supports
   m3.supports.forEach(s => { if (s.ghost) return; const q = proj(...m3.nodes[s.node]); ctx.fillStyle = r3 && r3.lifted.includes(s.node) ? cssv('--warn') : cssv('--ink'); ctx.beginPath(); ctx.arc(q[0], q[1] + 4, 2.6, 0, 7); ctx.fill(); });
@@ -3735,5 +3779,5 @@ function paintSame() {
   b.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); S.hideSame = !S.hideSame; paintSame(); save(); });
 });
 paintSame();
-window.__dbg = { get S() { return S; }, drawTrackers: () => drawTrackers(), get rows() { return sweepAll; }, get res() { return res; }, load: p => loadParams(p), get ctx() { return sweepCtx; } };
+window.__dbg = { get S() { return S; }, drawTrackers: () => drawTrackers(), get rows() { return sweepAll; }, get res() { return res; }, load: p => loadParams(p), get ctx() { return sweepCtx; }, get tr() { return tr; }, get m3() { return m3; }, get r3() { return r3; }, get v3() { return v3; } };
 })();
