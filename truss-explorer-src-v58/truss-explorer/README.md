@@ -8,6 +8,8 @@ Version: v59 (2026-10-27). Live copy: the claude.ai artifact "SE 310 Truss Explo
     python3 build.py      # writes index.html from src/
 Open index.html in a browser. Everything runs in the page; saved bridges stay in your browser (localStorage / IndexedDB) or in files you save.
 
+**On the balsaPixel-1.0 branch, index.html is not in the repo:** run `python3 build.py` to make it (two builds give the same bytes, and `run_all.sh` checks that). Each release carries the built page as an attached file (Brian attaches it, since the coding sessions can't edit releases), so you can also download it from the release. `main` (v61) still has its committed copy until balsaPixel replaces it.
+
 ## Layout
 - src/core.js: 2D geometry and direct-stiffness solver (TrussCore)
 - src/core3d.js: 3D model and solver (Truss3D)

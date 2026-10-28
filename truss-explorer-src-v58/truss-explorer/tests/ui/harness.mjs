@@ -15,6 +15,8 @@ fs.mkdirSync(SHOTS, { recursive: true });
 // Serve the built page the way GitHub Pages does (UTF-8 declared in the header). Pass {charset:false} to serve it bare.
 // The tests written for v61 run the v61 page layout (?layout=classic); pass {shell:true} for the balsaPixel window layout.
 export function serve(file = path.join(ROOT, 'index.html'), { charset = true, shell = false } = {}) {
+  // index.html is built, not committed (balsaPixel-1.0): run_all.sh builds it first; on its own, run python3 build.py
+  if (!fs.existsSync(file)) throw new Error(`${file} is missing: run python3 build.py first (or bash tests/run_all.sh)`);
   return new Promise(res => {
     const srv = http.createServer((q, r) => { r.setHeader('content-type', charset ? 'text/html; charset=utf-8' : 'text/html'); r.end(fs.readFileSync(file)); });
     srv.listen(0, '127.0.0.1', () => res({ url: `http://127.0.0.1:${srv.address().port}/${shell ? '' : '?layout=classic'}`, close: () => srv.close() }));

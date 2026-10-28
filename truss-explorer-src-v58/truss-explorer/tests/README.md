@@ -4,6 +4,8 @@
     bash tests/run_all.sh --slow     # also t71: a huge space, pilot and time-limited run
     bash tests/run_all.sh --published saved-live-page.html   # also check the build against the live page
 
+run_all.sh builds index.html first, twice, and checks both builds are byte-identical; on balsaPixel-1.0 the page isn't committed. To run one browser test on its own, run `python3 build.py` first. New `tests/*.test.js` and `tests/ui/*.mjs` files are picked up without editing run_all.sh.
+
 Needs Node 18+, Python 3 with numpy, pandas and matplotlib, and Playwright with Chromium (`npm i playwright && npx playwright install chromium`).
 
 | File | What it checks |
