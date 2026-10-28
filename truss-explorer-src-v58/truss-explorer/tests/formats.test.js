@@ -107,6 +107,23 @@ test('cleaning: text never becomes markup, prototype keys are dropped, row numbe
   assert.strictEqual(o.doc.rows[0].wood, 3000); assert.ok(!/[<>]/.test(o.doc.rows[0].label));
 });
 
+test('text from a file is one line of plain text', () => {
+  const o = F.open({ format: 'se310-truss-bridge', version: 2, name: 'Line one\nline two\r\nthree\tfour\u2028five\u0085six\u0000', bridge: { name: 'A\nB', panels: 4 } });
+  assert.ok(o.ok);
+  for (const s of [o.doc.name, o.doc.bridge.name]) assert.ok(!/[\u0000-\u001F\u007F-\u009F\u2028\u2029]/.test(s), JSON.stringify(s));
+  assert.strictEqual(o.doc.bridge.name, 'A B', 'a line break becomes a space, so words stay apart');
+  assert.strictEqual(F.cleanData('plain name, 3.18 mm'), 'plain name, 3.18 mm', 'ordinary text is unchanged');
+});
+
+test('data nested deeper than any real file is dropped, not passed through', () => {
+  let deep = { name: '<b>x</b>' }; for (let i = 0; i < 60; i++) deep = { a: deep };
+  const c = F.cleanData({ top: deep });
+  let n = c.top, d = 0; while (n && typeof n === 'object' && 'a' in n) { n = n.a; d++; }
+  assert.strictEqual(n, null, 'the part past the limit is null');
+  assert.ok(d < 45, 'cut at about 40 levels');
+  assert.strictEqual(F.cleanData({ s: 'ok' }).s, 'ok', 'normal data is unchanged');
+});
+
 test('material file (draft v1): checked, and converted to the solver units', () => {
   const o = F.open(fix('v1-balsa-course.material.json'));
   assert.ok(o.ok, String(o.errors)); assert.strictEqual(o.kind, 'material');

@@ -11,11 +11,14 @@
 'use strict';
 
 // ---------- the import boundary (moved here from app.js, unchanged)
+const CTRL = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/g;
 const SAFE_CH = { '<': '‹', '>': '›', '"': '”', "'": '’', '`': 'ˋ' };
 function cleanData(x, depth) {
   depth = depth || 0;
-  if (typeof x === 'string') return (x.length > 2000 ? x.slice(0, 2000) : x).replace(/[<>"'`]/g, c => SAFE_CH[c]);
-  if (x === null || typeof x !== 'object' || depth > 40) return x;
+  // text from outside is one line of plain text: control characters (line breaks, tabs ...) become spaces
+  if (typeof x === 'string') return (x.length > 2000 ? x.slice(0, 2000) : x).replace(CTRL, ' ').replace(/[<>"'`]/g, c => SAFE_CH[c]);
+  if (x === null || typeof x !== 'object') return x;
+  if (depth > 40) return null;   // fail closed: anything nested deeper than any real file is dropped, never passed through (White Hat review, #248)
   if (ArrayBuffer.isView(x) || x instanceof ArrayBuffer) return x;
   if (Array.isArray(x)) return x.map(v => cleanData(v, depth + 1));
   const o = {}; Object.keys(x).forEach(k => { if (k === '__proto__' || k === 'constructor' || k === 'prototype') return; o[cleanData(k, depth + 1)] = cleanData(x[k], depth + 1); });
