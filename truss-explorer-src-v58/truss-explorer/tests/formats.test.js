@@ -115,6 +115,15 @@ test('text from a file is one line of plain text', () => {
   assert.strictEqual(F.cleanData('plain name, 3.18 mm'), 'plain name, 3.18 mm', 'ordinary text is unchanged');
 });
 
+test('data nested deeper than any real file is dropped, not passed through', () => {
+  let deep = { name: '<b>x</b>' }; for (let i = 0; i < 60; i++) deep = { a: deep };
+  const c = F.cleanData({ top: deep });
+  let n = c.top, d = 0; while (n && typeof n === 'object' && 'a' in n) { n = n.a; d++; }
+  assert.strictEqual(n, null, 'the part past the limit is null');
+  assert.ok(d < 45, 'cut at about 40 levels');
+  assert.strictEqual(F.cleanData({ s: 'ok' }).s, 'ok', 'normal data is unchanged');
+});
+
 test('material file (draft v1): checked, and converted to the solver units', () => {
   const o = F.open(fix('v1-balsa-course.material.json'));
   assert.ok(o.ok, String(o.errors)); assert.strictEqual(o.kind, 'material');
