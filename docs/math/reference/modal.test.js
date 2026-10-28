@@ -17,7 +17,7 @@ const C = require(path.join(APP, 'src/core.js')), L = require(path.join(APP, 'te
   console.log(`1. single bar: k = ${k.toFixed(1)} N/mm, f = ${f.toFixed(2)} Hz (Physics' hand value 277 Hz; exact formula ${exact.toFixed(2)} Hz): ok`); }
 
 // 2. #207 check 2: default bridge, with and without books, vs the static estimate f ≈ (1/2π)·√(g/δ)
-function bridgeModes(S, withBooks) {
+function bridgeModes(S, withBooks, stuck, booksVerticalOnly) {
   const d = L.design(S), t = C.buildTruss(d), mat = Object.assign({}, C.DEFAULT_MAT, S.mat), load = S.load, r = C.analyze(t, mat, load, S.opts);
   assert(r.stable);
   const nD = 2 * t.nodes.length, K = Array.from({ length: nD }, () => new Float64Array(nD)), mass = new Float64Array(nD), A = mat.b * mat.h;
@@ -27,10 +27,13 @@ function bridgeModes(S, withBooks) {
     const m = mat.rho * A * e.n * Le;   // kg (rho in kg/mm³)
     [e.i, e.j].forEach(n => { mass[2 * n] += m / 2; mass[2 * n + 1] += m / 2; }); });
   const bookPerTruss = (load.mBook1 + load.mBook2) / load.nTruss;   // unfactored: the books as they really sit
-  if (withBooks) t.trib.forEach(q => { mass[2 * q.node] += bookPerTruss * q.frac; mass[2 * q.node + 1] += bookPerTruss * q.frac; });
+  if (withBooks) t.trib.forEach(q => { if (!booksVerticalOnly) mass[2 * q.node] += bookPerTruss * q.frac; mass[2 * q.node + 1] += bookPerTruss * q.frac; });
   // a joint with no mass would make M singular: give it a tiny mass (it then has a very high, irrelevant frequency)
   for (let i = 0; i < nD; i++) if (!(mass[i] > 0)) mass[i] = 1e-9;
   const fixed = new Set(r.DispCon.map(([n, dof]) => 2 * n + dof - 1));
+  // Physics on #207 (TE-B-105): on the desk, friction holds every bearing joint for vibrations this small, so in the MODAL
+  // solve a joint that bears (y held) is held sideways too. The static solve keeps the course pin/roller convention.
+  if (stuck) r.DispCon.forEach(([n, dof]) => { if (dof === 2) fixed.add(2 * n); });
   const out = M.modes(K, fixed, mass, 6);
   // static estimate: deflection under the unfactored books = FS-design deflection / FS
   const delta = r.midDefl / mat.FS, fStatic = Math.sqrt(9810 / delta) / (2 * Math.PI);   // g in mm/s²
@@ -50,4 +53,17 @@ function bridgeModes(S, withBooks) {
   // M-orthogonality of the modes (a solver sanity check)
   const a = w.out.modes[0].phi, b = w.out.modes[1].phi; let dot = 0, na = 0; a.forEach((v, i) => { dot += w.mass[i] * v * b[i]; na += w.mass[i] * v * v; });
   assert(Math.abs(dot / na) < 1e-9); console.log('   modes are mass-orthogonal; the bounce is within ±20% of the static estimate: ok'); }
+// 3. #207 with the supports held by friction (Physics, TE-B-105). Measured, not assumed: the along-span mode moves from 57 Hz up to
+// just below the bounce. What's left is the top chord (where the books sit) racking along the span over the panels, carrying the
+// books' along-span mass. If the books slide on the deck instead (their mass acts only vertically), the bounce is mode 1.
+{ const S = Object.assign({}, L.DEFAULT), st = bridgeModes(S, true, true), vo = bridgeModes(S, true, true, true);
+  const vert = (m, x) => M.energyShares(m.phi, x.mass, 2)[1], show = x => x.out.modes.slice(0, 4).map((m, k) => `f${k + 1} ${m.f.toFixed(1)} Hz (${Math.round(100 * vert(m, x))}% vertical)`).join(', ');
+  console.log('3. supports held sideways (friction), books ride with the deck: ' + show(st));
+  console.log('   ... books' + "'" + ' mass vertical only (books slide): ' + show(vo));
+  const iV = st.out.modes.findIndex(m => vert(m, st) > 0.5), ratio = st.out.modes[iV].f / st.fStatic;
+  assert(st.out.modes[0].f > w0(), 'holding the supports raises the lowest mode');
+  assert(ratio > 0.8 && ratio < 1.2, 'the bounce stays within ±20% of the static estimate');
+  assert(vert(vo.out.modes[0], vo) > 0.5, 'with the books sliding, mode 1 is the bounce');
+  console.log(`   bounce: mode ${iV + 1}, ${st.out.modes[iV].f.toFixed(1)} Hz, ratio ${ratio.toFixed(3)} to the static estimate; the racking mode sits ${(100 * (1 - st.out.modes[0].f / st.out.modes[iV].f)).toFixed(1)}% below it: ok`); }
+function w0() { return bridgeModes(Object.assign({}, L.DEFAULT), true).out.modes[0].f; }
 console.log('modal tests: all passed');
