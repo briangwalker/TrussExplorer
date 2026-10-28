@@ -8,5 +8,5 @@ window.TrussApp = Object.freeze({
   drawInto(target, opts) { if (!(target instanceof SVGSVGElement) || target === $('draw')) throw new Error('drawInto needs an <svg> other than the main drawing'); renderDrawing(target, currentDesign(), opts); },
   redraw() { try { renderDrawing(); } catch (e) {} try { drawTrackers(); } catch (e) {} try { if (topOn()) render3D(); } catch (e) {} try { paintResOverlay(); } catch (e) {} },
 });
-window.__dbg = { get S() { return S; }, drawTrackers: () => drawTrackers(), get rows() { return sweepAll; }, get res() { return res; }, load: p => loadParams(p), get ctx() { return sweepCtx; } };
+window.__dbg = { get S() { return S; }, drawTrackers: () => drawTrackers(), get rows() { return sweepAll; }, get res() { return res; }, load: p => loadParams(p), get ctx() { return sweepCtx; }, get tr() { return tr; }, get m3() { return m3; }, get r3() { return r3; }, get v3() { return v3; } };
 })();

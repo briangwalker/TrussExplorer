@@ -150,7 +150,7 @@ function lpFiles() {
     });
     B.push(row);
   }
-  const readme = `SE 310 Truss Explorer - LP data for "${S.name}"
+  const readme = `SE 310 Truss Explorer - LP data for "${X.pyName(S.name)}"
 ${summaryOf({ family: S.family, pattern: S.pattern, panels: S.panels, height: S.height, overall: tr.overall, ratio: S.ratio, sideAngle: S.sideAngle, curve: tr.info.curve, bottom: tr.info.shape, supportOffset: tr.info.supportOffset })}
 Exported ${new Date().toISOString().slice(0, 10)}. Units: mm, N. One side truss (the loads are this truss's share).
 ${infoLines().join('\n')}
@@ -194,7 +194,7 @@ dual values mean) is the part to do yourself.
   ];
 }
 // ---------- build documents: joint styles, cut list, drawing, steps, templates
-S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false }, S.doc || {});
+S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false, bentTop: false }, S.doc || {});
 // the kit's sticks are 240 mm (#116): move the old 914 mm default over once; a length set on purpose stays
 if (!S.doc.stock240) { if (+S.doc.stock === 914) S.doc.stock = 240; S.doc.stock240 = true; }
 // the 3D model and results the documents describe, when the 3D analysis is on
@@ -206,11 +206,18 @@ function docPlan() {
   Object.keys(S.doc.over).forEach(n => { const j = J.find(q => q.n === +n); if (!j) return; const o = S.doc.over[n]; if (o.through != null && !j.m.some(q => q.k === o.through)) return; ok[n] = o; });
   S.doc.over = ok;
   // pieces longer than one stock stick are spliced where the chord force is lowest (the worst of the two trusses in 3D)
-  return BuildDoc.cutPlan(tr, b, { style: S.doc.style, over: S.doc.over, stock: +S.doc.stock || 240, force: k => res && res.members && res.members[k] ? res.members[k].F : 0 });
+  return BuildDoc.cutPlan(tr, b, { style: S.doc.style, over: S.doc.over, stock: +S.doc.stock || 240, force: k => res && res.members && res.members[k] ? res.members[k].F : 0, bentTop: !!S.doc.bentTop && topCurves() });
 }
+// a top chord that bends at its joints can be built as one stick bent to the curve (#282)
+function topCurves() { return BuildDoc.cutPlan(tr, +S.mat.b || 3.18, { bentTop: true }).bendAt.length > 0; }
 function renderDocDialog() {
   const plan = docPlan(), b = +S.mat.b || 3.18;
   document.querySelectorAll('input[name="jstyle"]').forEach(r => { r.checked = r.value === S.doc.style; });
+  const curves = topCurves(); $('docBentBox').hidden = !curves; $('docBent').checked = !!S.doc.bentTop;
+  const bck = curves && S.doc.bentTop ? BuildDoc.bentCheck(tr, plan, res, Object.assign({}, C.DEFAULT_MAT, S.mat)) : null;
+  $('docBentNote').innerHTML = !curves ? '' : !bck ? 'Off: the curved top chord is cut as straight pieces, joint to joint.'
+    : bck.tooTight ? `<b style="color:var(--bad)">✕ Too tight for one stick:</b> bent to this curve the chord reaches ${Math.round(bck.worstUse * 100)}% of its strength at the design load. Untick this for straight pieces, or flatten the curve.`
+    : `Tightest radius ${bck.Rmin.toFixed(0)} mm: ${bck.mustSoak ? `<b>soak or steam it</b> and let it dry on the bending form (bent dry, the wood stretches ${(bck.strain * 100).toFixed(2)}%; it breaks at ${(bck.strainLimit * 100).toFixed(2)}%)` : 'it can be bent dry'}. Once dried to shape it uses up to ${Math.round(bck.worstUse * 100)}% of its strength at the design load. The documents add a bending form, the checks and the steps.`;
   $('docStock').value = S.doc.stock; $('docKerf').value = S.doc.kerf; $('docSteps').checked = S.doc.steps; $('docTpl').checked = S.doc.tpl; $('docColour').checked = S.doc.colour; $('docDash').checked = S.doc.dash;
   // view with joint numbers
   const v = BuildDoc.sideSVG(tr, plan, { labels: false, b, color: S.doc.colour ? 'part' : 'mono', dash: S.doc.dash });
@@ -227,7 +234,7 @@ function renderDocDialog() {
     + ((plan.short || []).length ? ` ${plan.short.length} member${plan.short.length > 1 ? 's are' : ' is'} under ${(6 * b).toFixed(0)} mm (6 stick widths): the pin-jointed results are less reliable there.` : '');
   const sw = no => S.doc.colour ? `<span style="display:inline-block;width:10px;height:10px;margin-right:4px;background:${BuildDoc.colOf(no)}"></span>` : '';
   $('docItems').innerHTML = '<thead><tr><th>Item</th><th class="l">Part</th><th>Qty</th><th>Long point</th><th>Short point</th><th class="l">End cuts</th></tr></thead><tbody>' +
-    plan.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${BuildDoc.TL[it.type] || it.type}</td><td>${it.pieces.length * nT * it.n}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('')
+    plan.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${BuildDoc.TL[it.type] || it.type}${it.bent ? ' (one bent stick)' : ''}</td><td>${it.pieces.length * nT * it.n}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('')
     + (cx ? cx.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${it.label}</td><td>${it.pieces.length}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('') : '') + '</tbody>';
   const name = k => `${k} ${(BuildDoc.TL[tr.elems[k].type] || '').toLowerCase()}`;
   $('docJoints').innerHTML = '<thead><tr><th>Joint</th><th class="l">On top / runs through</th><th class="l">Other ends</th><th>Mitre %</th></tr></thead><tbody>' +
@@ -253,7 +260,7 @@ document.querySelectorAll('input[name="jstyle"]').forEach(r => r.addEventListene
 document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.opts.tieJoint = r.value; update(); renderDocDialog(); }));
 $('docStock').addEventListener('change', () => guardNum('docStock', 50, 2000, S.doc.stock, v => { S.doc.stock = v; save(); renderDocDialog(); }, 'Stock stick length'));
 $('docKerf').addEventListener('change', () => guardNum('docKerf', 0, 10, S.doc.kerf, v => { S.doc.kerf = v; save(); renderDocDialog(); }, 'Saw kerf'));
-[['docSteps', 'steps'], ['docTpl', 'tpl'], ['docColour', 'colour'], ['docDash', 'dash']].forEach(([id, k]) => $(id).addEventListener('change', () => { S.doc[k] = $(id).checked; save(); renderDocDialog(); }));
+[['docSteps', 'steps'], ['docTpl', 'tpl'], ['docColour', 'colour'], ['docDash', 'dash'], ['docBent', 'bentTop']].forEach(([id, k]) => $(id).addEventListener('change', () => { S.doc[k] = $(id).checked; save(); renderDocDialog(); }));
 $('docResetJ').addEventListener('click', () => { S.doc.over = {}; save(); renderDocDialog(); });
 $('docJoints').addEventListener('change', ev => {
   const t = ev.target, n = t.dataset.j, f = t.dataset.f; if (n == null) return;
@@ -266,7 +273,7 @@ $('docJoints').addEventListener('change', ev => {
 });
 $('docGo').addEventListener('click', () => {
   const plan = docPlan(), mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
-  const meta = { name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 240, kerf: +S.doc.kerf,
+  const meta = { mat, name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 240, kerf: +S.doc.kerf,
     ties: S.opts.crossTies ? { count: tr.deckNodes.length, len: +S.opts.width || 60 } : null, d3: doc3D(),
     massNote: `bridge mass ${res.massTotal.toFixed(1)} g`, capNote: `${res.capKg.toFixed(1)} kg of books (needs ${((S.load.mBook1 + S.load.mBook2) * S.mat.FS).toFixed(1)} kg)`,
     scaleNote: 'Templates: 1:1', info: (() => { const fi = fileInfo(); return `${fi.release} · ${fi.model} · bridge code ${fi.bridgeCode} · FS ${fi.rules.FS}, books ${fi.rules.bookKg} kg, envelope on outer faces`; })() };

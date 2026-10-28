@@ -6,7 +6,7 @@ function fingerprint(o) { const s = JSON.stringify(o); let h = 0x811c9dc5; for (
 // the same facts as lines of text, for CSVs, the .py, the LP README and the build documents (over: { model, rules } of a sweep)
 function infoLines(over) {
   const fi = fileInfo(over && over.model), r = Object.assign({}, fi.rules, over && over.rules);
-  return [`SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`, `Design: ${S.name || 'Design'} · ${fi.model} analysis · saved ${fi.savedAt}`,
+  return [`SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`, `Design: ${X.pyName(S.name || 'Design')} · ${fi.model} analysis · saved ${fi.savedAt}`,
     `Rules: FS ${r.FS}, books ${r.bookKg} kg, deflection <= ${r.deflLimit} mm, overlap >= ${r.minOverlap} mm, width ${r.width} mm, envelope on outer faces`, `Bridge code: ${fi.bridgeCode}`];
 }
 // the rules a sweep's results were judged by (they can differ from the inputs on screen)
@@ -158,6 +158,8 @@ $('presetSel').addEventListener('change', () => {
   // the sweep switches not named go off; ranges keep their values unless reset
   if ($('presetSweep').checked) Object.keys(S.swOn).forEach(k => { if (!(k in b.swOn)) b.swOn[k] = false; });
   S.sticks = {}; S.loads = null; S.focus = [];
+  // every 3D setting the preset doesn't name goes back to a fresh page's (#281); the 2D/3D switch and the view stay as they are
+  b.d3 = Object.assign(d3Defaults(), { showPlan: S.d3.showPlan, showSec: S.d3.showSec }, q.set.d3 || {});
   applyBridge(b);
   $('presetSel').value = ''; closeDock(); toast(`Started from "${q.name}". Changed your mind? ☰ → Go back to an earlier bridge.`);
   window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -126,8 +126,13 @@ function section1(name, d, tr, res, load, opts) {
   return L.join('\n');
 }
 
+// Names in exports: one line, and only characters that are safe in a Python comment, string or f-string, and a CSV cell.
+function pyName(s) {
+  const t = String(s == null ? '' : s).replace(/[\u0000-\u001F\u007F\u2028\u2029]+/g, ' ').replace(/[^\p{L}\p{N} _.,:;()+#·\-\/]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return t || 'Design';
+}
 function exportPy(template, name, d, tr, res, mat, load, opts) {
-  const safeName = String(name).replace(/["{}\\]/g, '');
+  const safeName = pyName(name);
   const matTxt = [
     `b_stick   = ${mat.b}          # mm   - stick width  (1/8 inch)`,
     `h_stick   = ${mat.h}          # mm   - stick depth  (1/8 inch)`,
@@ -155,6 +160,6 @@ function exportPy(template, name, d, tr, res, mat, load, opts) {
     .replace('{{LIMITS}}', lim);
 }
 
-const api = { exportPy, describe, TYPE_LABEL };
+const api = { exportPy, describe, TYPE_LABEL, pyName };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussExport = api;
 })(typeof window !== 'undefined' ? window : globalThis);
