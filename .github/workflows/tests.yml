@@ -30,7 +30,7 @@ jobs:
       - name: Python packages for the course script
         run: pip install -r tests/requirements.txt
       - name: Playwright with Chromium
-        run: npm ci && npx playwright install --with-deps chromium
+        run: npm ci --ignore-scripts && npx playwright install --with-deps chromium
       - name: Run every check
         env:
           MPLBACKEND: Agg

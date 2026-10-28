@@ -65,7 +65,7 @@ From the repo root:
 
 This builds the page, then runs the solver checks, a comparison with the course script, and the browser tests. It takes about 6 minutes and ends with `ALL GREEN` when everything passes. Add `--slow` for the very large search tests.
 
-You need Node 22 and Python 3.12 (the versions CI uses). From `truss-explorer-src-v58/truss-explorer/`: `npm ci` (the pinned Playwright and axe-core), `npx playwright install chromium`, and `pip install -r tests/requirements.txt`. Run the suite the way CI does, `CI=1 bash tests/run_all.sh`, after rebasing on the branch you're targeting, so a green local run means a green CI run.
+You need Node 22 and Python 3.12 (the versions CI uses). From `truss-explorer-src-v58/truss-explorer/`: `npm ci --ignore-scripts` (the pinned Playwright and axe-core; no install scripts needed), `npx playwright install chromium`, and `pip install -r tests/requirements.txt`. Run the suite the way CI does, `CI=1 bash tests/run_all.sh`, after rebasing on the branch you're targeting, so a green local run means a green CI run.
 
 - **The course script is in `tests/reference/`** (`TrussFEA_Bridge_SE310.py`, by Professor Dong, cleared for this repo), so the comparison runs for everyone and in CI. Don't edit it: it's the reference the 2D solver must match.
 - **Lines marked `KNOWN`** are open issues. They're reported but don't fail the run.

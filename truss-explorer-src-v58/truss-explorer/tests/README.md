@@ -6,7 +6,7 @@
 
 run_all.sh builds index.html first, twice, and checks both builds are byte-identical; on balsaPixel-1.0 the page isn't committed. To run one browser test on its own, run `python3 build.py` first. New `tests/*.test.js` and `tests/ui/*.mjs` files are picked up without editing run_all.sh.
 
-You need Node 22 and Python 3.12 (the versions CI uses). From the app folder: `npm ci` (the pinned Playwright and axe-core), `npx playwright install chromium`, and `pip install -r tests/requirements.txt`. Run the suite the way CI does, `CI=1 bash tests/run_all.sh`, after rebasing on the branch you're targeting, so a green local run means a green CI run.
+You need Node 22 and Python 3.12 (the versions CI uses). From the app folder: `npm ci --ignore-scripts` (the pinned Playwright and axe-core; no install scripts needed), `npx playwright install chromium`, and `pip install -r tests/requirements.txt`. Run the suite the way CI does, `CI=1 bash tests/run_all.sh`, after rebasing on the branch you're targeting, so a green local run means a green CI run.
 
 **tests/a11y/a11y.mjs** is QA's keyboard and screen-reader script (#68, #218), which the balsaPixel step issues name in their acceptance checks. Run it by hand with `node tests/a11y/a11y.mjs` after `python3 build.py`. It isn't in run_all.sh or CI yet, because it still fails (6 of 28 on 647631e: #184, #241, #242, #68). When it passes, move it to tests/ui/ and run_all.sh runs it by itself.
 
