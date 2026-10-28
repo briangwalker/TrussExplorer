@@ -7,3 +7,5 @@ Specs and reference code from the Math Consultant role. Reference code here is f
 | [sweep-file-format.md](sweep-file-format.md) | The `.tsweep` file: version, sweep info, fingerprint, number columns, merging |
 | [build-guide-sweep-data.md](build-guide-sweep-data.md) | How to build the file, the result check for shared files, and charts with millions of designs |
 | [reference/](reference/) | `tsweep.js` + `tsweep.test.js`, `density.js` + `density.bench.js` (run with Node 18+) |
+| [reference/modal.js](reference/modal.js) | Vibration modes for #207: lumped mass + Jacobi, with `modal.test.js` (the two #207 checks) |
+| [reference/chart-open/](reference/chart-open/) | #236 chart-open profiler (on the balsaPixel-1.0 branch) |
