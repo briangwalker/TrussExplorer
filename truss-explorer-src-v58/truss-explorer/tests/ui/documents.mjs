@@ -55,6 +55,13 @@ try {
     check(`${name}: every item is in the cut list`, listed === items, `${listed} of ${items}`);
     const N = r.pages, okNums = r.nums.every((s, i) => s === `SHEET ${i + 1} OF ${N}`) && r.pg.every((s, i) => s.includes(`page ${r.nums.length + i + 1} of ${N}`));
     check(`${name}: page numbers match the ${N} printed pages`, okNums, r.nums.slice(-1)[0] + ' / ' + (r.pg.slice(-1)[0] || ''));
+    // #302: the steps start with printing the templates and cutting the parts, name their templates, and splint what's marked;
+    // #299: the platform check comes first only when a chord end sits below the deck
+    const st2 = await p.evaluate(() => { const s = [...document.querySelectorAll('.step')].map(e => e.textContent); return { first: s.slice(0, 4).join(' | '), all: s.join(' | '), n: s.length }; });
+    const low = Math.min(...tr.nodes.map(q => q[1])) < -0.5;
+    check(`${name}: steps start with ${low ? 'the platform check, then ' : ''}printing the templates and cutting the parts`, (!low || /measure the real test platforms/.test(st2.first)) && /Print and check the templates/.test(st2.first) && /Cut and label every part/.test(st2.first) && /template T1/.test(st2.all) && (low || !/measure the real test platforms/.test(st2.all)), st2.first.slice(0, 300));
+    const marked = /splint/.test(await p.evaluate(() => [...document.querySelectorAll('table.grid, .note')].map(e => e.textContent).join(' ')));
+    check(`${name}: every splint the documents mark has a step`, !marked || /Splint/.test(st2.all), '');
     if (cfg && cfg.bentTop) {
       const bt = await p.evaluate(() => ({ sheet: [...document.querySelectorAll('.title td')].some(td => td.textContent === 'Bent top chord'), form: [...document.querySelectorAll('.tpl .note')].filter(n => /Bending form/.test(n.textContent)).length, day: [...document.querySelectorAll('.step p')].some(e => /The day before/.test(e.textContent)), bar: [...document.querySelectorAll('.tpl')].filter(s => /Bending form/.test(s.textContent)).every(s => s.querySelector('svg').getAttribute('width') === '240mm'), splices: (document.body.textContent.match(/Splices/g) || []).length }));
       check(`${name}: the bent top chord gets its checks sheet, a full-size bending form (240 mm wide, 1:1) and a day-before step`, bt.sheet && bt.form > 0 && bt.day && bt.bar, JSON.stringify(bt));
