@@ -4,8 +4,11 @@
 // This is a reference for Dev Lead, not app code: the app's own copy goes in src/ through a normal pull request.
 (function (root) {
 const MAGIC = 'TRUSS-EXPLORER-SWEEP 1\n';
-const FORMAT = 'truss-explorer-sweep', FORMAT_VERSION = 1;
-// rule fields: change them and every stored use/deflection rescales exactly, so they are NOT part of the fingerprint
+// format name differs from the JSON sweep's names (se310-truss-sweep / truss-explorer-sweep) so detect() can never confuse them
+const FORMAT = 'truss-explorer-tsweep', HEADER_VERSION = 1;
+const MAX_UNZIPPED = 512 * 1024 * 1024;   // refuse files that unzip past this (a small gzip can expand enormously)
+// rescalable rules: change them and every stored use/deflection/overlap check is re-judged exactly, so they are NOT in the fingerprint.
+// The other two shared rules, width and envelope, change which designs pass in ways that can't be rescaled: they ARE in the fingerprint.
 const RULE_KEYS = ['FS', 'bookKg', 'deflLimit', 'minOverlap'];
 // flag bits (one byte per design)
 const F = { stable: 1, envOK: 2, edgeOK: 4, slipOK: 8, tableOK: 16 };
@@ -21,7 +24,7 @@ function canon(v) {   // sorted keys, no spaces, numbers in shortest round-trip 
 async function sha256hex(bytes) { const h = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join(''); }
 const enc = s => new TextEncoder().encode(s);
 // the model fingerprint: solver version + everything fixed that changes a result (never the swept inputs, never the rules)
-function modelOf(h) { return { appVer: h.app.appVer, analysis: h.sweep.analysis, base: h.base, material: h.material }; }
+function modelOf(h) { const r = h.rules || {}; return { solver: h.solver, model: h.model, base: h.base, material: h.material, width: r.width, envelope: r.envelope }; }
 async function fingerprint(h) { return 'sha256:' + await sha256hex(enc(canon(modelOf(h)))); }
 
 // ---------- design numbers: mixed radix over sweep.dims, last dimension changes fastest
@@ -36,7 +39,13 @@ function putVarint(out, v) { v = BigInt(v); do { let b = Number(v & 127n); v >>=
 function getVarint(buf, pos) { let v = 0n, s = 0n, b; do { b = buf[pos.i++]; v |= BigInt(b & 127) << s; s += 7n; } while (b & 128); return v; }
 
 // ---------- gzip using the platform's own streams
-async function gz(bytes, how) { const s = new Blob([bytes]).stream().pipeThrough(how === 'c' ? new CompressionStream('gzip') : new DecompressionStream('gzip')); return new Uint8Array(await new Response(s).arrayBuffer()); }
+async function gz(bytes, how, max) {
+  const s = new Blob([bytes]).stream().pipeThrough(how === 'c' ? new CompressionStream('gzip') : new DecompressionStream('gzip'));
+  if (how === 'c') return new Uint8Array(await new Response(s).arrayBuffer());
+  const parts = [], rd = s.getReader(); let n = 0;   // count while unzipping, stop past the cap
+  for (;;) { const { done, value } = await rd.read(); if (done) break; n += value.length; if (n > max) { await rd.cancel(); throw new Error('file unzips to more than ' + Math.round(max / 1048576) + ' MB: refused'); } parts.push(value); }
+  const out = new Uint8Array(n); let o = 0; parts.forEach(p => { out.set(p, o); o += p.length; }); return out;
+}
 
 // rows: [{ idx (number|bigint|string), wood, use, defl, overlap, flags, gov, braceWood? }]
 async function encode(header, rows) {
@@ -50,7 +59,7 @@ async function encode(header, rows) {
   // lay the blocks out on 8-byte boundaries so f32 columns load straight into Float32Array views
   let off = 0; const layout = cols.map(c => { const o = off; off = Math.ceil((off + c.bytes.length) / 8) * 8; return { name: c.name, type: c.type, offset: o, length: c.bytes.length }; });
   const payload = new Uint8Array(off); cols.forEach((c, i) => payload.set(c.bytes, layout[i].offset));
-  const h = Object.assign({}, header, { format: FORMAT, formatVersion: FORMAT_VERSION, rows: n, columns: layout });
+  const h = Object.assign({}, header, { format: FORMAT, version: HEADER_VERSION, rows: n, columns: layout });
   h.fingerprint = await fingerprint(h);
   h.payloadSha256 = await sha256hex(payload);
   let head = MAGIC + JSON.stringify(h) + '\n'; const pad = (8 - enc(head).length % 8) % 8; head = head.slice(0, -1) + ' '.repeat(pad) + '\n';
@@ -58,14 +67,20 @@ async function encode(header, rows) {
   return gz(all, 'c');
 }
 
-async function decode(fileBytes, { verifyHash = true } = {}) {
-  const all = await gz(fileBytes, 'd');
+async function decode(fileBytes, { verifyHash = true, maxUnzipped = MAX_UNZIPPED } = {}) {
+  const all = await gz(fileBytes, 'd', maxUnzipped);
   const nl1 = all.indexOf(10), magic = new TextDecoder().decode(all.subarray(0, nl1 + 1));
-  if (magic !== MAGIC) throw new Error('not a .tsweep v1 file');
+  if (magic !== MAGIC) throw new Error(/^TRUSS-EXPLORER-SWEEP /.test(magic) ? 'made with a newer binary layout than this release can read: refused' : 'not a .tsweep file');
   const nl2 = all.indexOf(10, nl1 + 1), h = JSON.parse(new TextDecoder().decode(all.subarray(nl1 + 1, nl2)));
-  if (h.format !== FORMAT || h.formatVersion !== FORMAT_VERSION) throw new Error('unsupported format version ' + h.formatVersion);
+  if (h.format !== FORMAT) throw new Error('not a .tsweep header');
   const payload = all.slice(nl2 + 1);   // copy: aligned at 0
-  const problems = [];
+  const problems = [], warnings = [];
+  // header schema newer than this release: open anyway (rule 4); unknown fields are kept, unknown columns skipped
+  if (!(h.version <= HEADER_VERSION)) warnings.push('made by a newer release (header version ' + h.version + '): unknown fields and columns are ignored');
+  // every column must lie inside the data and hold exactly one value per row
+  const size = { f32: 4, u8: 1 };
+  h.columns.forEach(c => { if (c.offset < 0 || c.offset + c.length > payload.length) problems.push('column ' + c.name + ' runs past the end of the data'); else if (size[c.type] && c.length !== h.rows * size[c.type]) problems.push('column ' + c.name + ' has the wrong length'); });
+  if (problems.length) return { header: h, col: {}, problems, warnings };
   if (verifyHash && await sha256hex(payload) !== h.payloadSha256) problems.push('data hash does not match: the file was changed or damaged');
   if (await fingerprint(h) !== h.fingerprint) problems.push('fingerprint does not match the header settings');
   const col = {};
@@ -75,7 +90,7 @@ async function decode(fileBytes, { verifyHash = true } = {}) {
     else if (c.type === 'u8') col[c.name] = b;
     else if (c.type === 'uvarint-delta') { const out = new Array(h.rows), pos = { i: 0 }; let v = 0n; for (let i = 0; i < h.rows; i++) { v += getVarint(b, pos); out[i] = v; } col.idx = out; }
   });
-  return { header: h, col, problems };
+  return { header: h, col, problems, warnings };
 }
 
 // ---------- rescale to other rules (exact: use and deflection both scale with FS x book mass)
@@ -107,9 +122,9 @@ function merge(A, B, rules) {
   });
   conflicts.forEach(i => rows.delete(i));   // two files disagree on a design: keep neither until it is re-solved
   const sampled = [ha, hb].map(h => h.sweep.sampling);
-  const header = { app: ha.app, name: ha.name + ' + ' + hb.name, savedAt: new Date().toISOString().slice(0, 10), analysis: ha.analysis,
-    sweep: { analysis: ha.sweep.analysis, dims, total: String(radix(dims).total), sampling: { method: 'merged', parts: sampled } },
-    base: ha.base, material: ha.material, rules, checks: [], merged: { from: [ha.name, hb.name], conflicts: conflicts.length } };
+  const header = { app: ha.app, release: ha.release, solver: ha.solver, model: ha.model, name: ha.name + ' + ' + hb.name, savedAt: new Date().toISOString(),
+    sweep: { dims, total: String(radix(dims).total), sampling: { method: 'merged', parts: sampled } },
+    base: ha.base, material: ha.material, rules: Object.assign({}, ha.rules, rules), checks: [], merged: { from: [ha.name, hb.name], conflicts: conflicts.length } };
   return { header, rows: [...rows.values()], conflicts };
 }
 
@@ -125,6 +140,6 @@ function checkPlan(nRows, frontierRows, sampleSize, rand) {
 const detectChance = (f, s) => 1 - Math.pow(1 - f, s);           // chance of catching a file where a fraction f of rows is wrong
 const sampleFor = (f, p) => Math.ceil(Math.log(1 - p) / Math.log(1 - f));   // rows needed to catch fraction f with probability p
 
-const api = { MAGIC, FORMAT, FORMAT_VERSION, RULE_KEYS, F, GOV, canon, fingerprint, encode, decode, merge, rescaleFactor, checkPlan, detectChance, sampleFor, idxToDigits, digitsToIdx, radix };
+const api = { MAGIC, FORMAT, HEADER_VERSION, MAX_UNZIPPED, RULE_KEYS, F, GOV, canon, fingerprint, encode, decode, merge, rescaleFactor, checkPlan, detectChance, sampleFor, idxToDigits, digitsToIdx, radix };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TSweep = api;
 })(typeof window !== 'undefined' ? window : globalThis);

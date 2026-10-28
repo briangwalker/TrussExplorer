@@ -25,45 +25,53 @@ TRUSS-EXPLORER-SWEEP 1\n          <- magic line (text)
 
 ## Header (JSON)
 
+The header uses the **shared v2 header** names from [`docs/formats.md`](../formats.md) (`release`, `solver`, `model`, `savedAt`, `bridgeCode`, `rules`), so a `.tsweep` and a `.sweep.json` from the same release describe themselves the same way.
+
 ```json
 {
-  "format": "truss-explorer-sweep",
-  "formatVersion": 1,
-  "app": { "name": "SE 310 Truss Explorer", "version": "v60", "appVer": 34 },
+  "format": "truss-explorer-tsweep",
+  "version": 1,
+  "app": "SE 310 Truss Explorer",
+  "release": "v61",
+  "solver": 35,
+  "model": "2D",
+  "savedAt": "2026-10-27T17:07:12.000Z",
+  "bridgeCode": "3a899a02",
   "name": "Shallow Pratt study",
-  "savedAt": "2026-10-27",
   "sweep": {
-    "analysis": "2d",
     "dims": [ { "key": "panels", "values": [4, 5, 6] }, { "key": "height", "values": [40, 45, 50] }, { "key": "st_top", "values": [1] } ],
     "total": "27",
     "sampling": { "method": "all" }
   },
   "base": { "...": "every fixed input that is not sweepable (span, table thickness, loads list, ...)" },
   "material": { "b": 3.18, "h": 3.18, "E": 3000, "sigT": 7.5, "sigC": 4.5, "rho": 1.6e-7, "K": 1 },
-  "rules": { "FS": 2, "bookKg": 2.5, "deflLimit": 2, "minOverlap": 20 },
+  "rules": { "FS": 2, "bookKg": 2.5, "deflLimit": 2, "minOverlap": 5, "width": 60, "envelope": "outer faces" },
   "rows": 27,
   "columns": [ { "name": "wood", "type": "f32", "offset": 0, "length": 108 }, "..." ],
   "fingerprint": "sha256:…",
   "payloadSha256": "…",
-  "checks": [ { "date": "2026-10-28", "appVer": 34, "sampled": 300, "frontier": 41, "mismatches": 0 } ],
+  "checks": [ { "date": "2026-10-28", "solver": 35, "sampled": 300, "frontier": 41, "mismatches": 0 } ],
   "stats": { "tested": 27, "unstable": 0, "fail": { "strength": 3, "deflection": 1, "envelope": 0, "edge": 0, "slip": 0 } }
 }
 ```
 
 | Field | Meaning |
 |---|---|
-| `app.version`, `app.appVer` | The version name (for people) and the solver/data version number (`APP_VER` in app.js), which goes into the fingerprint. |
-| `sweep.dims` | **Every sweepable input, in a fixed order, including the ones not swept** (one value). That is what makes merging work: a sweep that held height at 40 and one that swept 40–60 describe the same input. Last dimension changes fastest (as `candAt` does today). Values are numbers, strings or small objects (choices). |
+| `format`, `version` | `truss-explorer-tsweep` and the **header schema** version. The name is deliberately different from the JSON sweep's names (`se310-truss-sweep`, `truss-explorer-sweep`) so the two kinds can't be confused. |
+| `release`, `solver` | The release name for people (free text, never compared), and `APP_VER`, which *is* compared and goes into the fingerprint. |
+| `model` | `"2D"` or `"3D"`: the analysis the numbers came from. In the fingerprint. |
+| `bridgeCode` | The short FNV-1a code printed on CSVs and build documents, for matching printouts to files. Display only: merge safety uses `fingerprint`. |
+| `sweep.dims` | **Every sweepable input, in a fixed order, including the ones not swept** (one value). That is what makes merging work: a sweep that held height at 40 and one that swept 40–60 describe the same input. Last dimension changes fastest (as `candAt` does). Values are numbers, strings or small objects (choices). |
 | `sweep.total` | Number of designs in the grid, as a string (exact past 2^53). |
 | `sweep.sampling` | `{"method":"all"}` for a full grid; `{"method":"feistel-v1","keys":["…"],"tested":n}` for a large search (the #18 shuffle: keys plus count say exactly which designs were tried); `{"method":"merged","parts":[…]}` after a merge. |
-| `base`, `material`, `analysis` | Everything else that changes a result. |
-| `rules` | FS, book mass, deflection limit, minimum overlap: the **reference rules** the stored use and deflection were computed at. Not in the fingerprint, because results rescale exactly (factor k = FS′·m′ ⁄ FS·m). |
-| `fingerprint` | `sha256` of the canonical JSON of `{appVer, analysis, base, material}` (sorted keys, no spaces, shortest number form). Two files can merge only if their fingerprints are equal. |
-| `payloadSha256` | Hash of the binary part: shows the numbers were not changed after saving. It proves the file is intact, not that the results are true. Part 2 of the guide covers that. |
+| `base`, `material` | Everything else that changes a result. **`material` is in solver units** (mm, N, MPa; `rho` in kg/mm³), like a bridge file, not the SI of a `.material.json`. |
+| `rules` | The shared rules object. **Only `FS`, `bookKg`, `deflLimit` and `minOverlap` are rescalable**: use and deflection are stored at these reference values and rescale exactly when they change (k = FS′·m′ ⁄ FS·m), and the overlap check re-runs on the stored `overlap`. **`width` and `envelope` are not rescalable** (they change which designs pass), so they are in the fingerprint. |
+| `fingerprint` | `sha256` of the canonical JSON of `{solver, model, base, material, width, envelope}` (sorted keys, no spaces, shortest number form). Two files can merge only if their fingerprints are equal. |
+| `payloadSha256` | Hash of the binary part: shows the numbers were not changed after saving. It proves the file is intact, not that the results are true; the build guide, part 2, covers that. |
 | `checks` | Results of spot-check re-solves, appended by whoever checked. Informational only: a checker always re-checks with its own random picks. |
 | `stats` | Counters for the #90 charts (why designs fail), so they are available without reading every row. |
 
-No personal details go in a file: no user names, emails or grades. `name` is the sweep's name.
+No personal details go in a file: no user names, emails or grades. `name` is the sweep's name (never uploaded to a public database; see `autoName` in formats.md).
 
 ## Columns (one value per stored design, sorted by design number)
 
@@ -90,6 +98,18 @@ No personal details go in a file: no user names, emails or grades. `name` is the
 4. If the same design appears in both files, the results must agree (relative tolerance 1e-5). If they don't, **drop both copies** and list the design as a conflict to re-solve; never pick one silently.
 5. Recount `stats` from the merged rows. Never add two files' counters, because the files can overlap.
 
-## Versioning
+## Versions and safety
 
-A new `appVer` (a solver change) means a new fingerprint, so results from different solver versions never mix; a library keeps them as separate sets. A new `formatVersion` means a new magic line; readers refuse versions they don't know.
+There are **two version numbers**, and they behave differently:
+
+- **The magic line** (`TRUSS-EXPLORER-SWEEP 1`) is the *binary layout*. A reader refuses a layout number it doesn't know. This is the one deliberate exception to formats.md rule 4, because a binary layout can't be read past a change.
+- **The header `version`** is the *header schema*. A newer one opens with a warning ("made by a newer release") and keeps fields it doesn't know (rule 4). Every column is listed with its offset and length, so a reader **skips columns it doesn't know**. Adding a column therefore needs only a header version bump, never a new layout.
+
+A new `solver` (a solver change) means a new fingerprint, so results from different solver versions never mix; a library keeps them as separate sets.
+
+**Opening a file safely** (the binary door into `TrussFormats.open`, for White Hat #125):
+1. Check the magic line.
+2. Gunzip **with a cap on the unzipped size** (512 MB in the reference); stop and refuse past it, because a few-kB gzip can expand to gigabytes.
+3. Check every column lies inside the data and holds exactly `rows` values.
+4. Pass the header JSON through the same `cleanData` as JSON files: `sweep.dims` values include strings (pattern names, choices) that appear on screen. The number columns can't carry markup.
+5. Check `payloadSha256` and the fingerprint. If either fails, say why and open read-only.
