@@ -1,7 +1,7 @@
 # White Hat Security Review Checklist (security standard 1.0)
 
 Owner: **White Hat**. Version 1.0, 2026-10-28.
-Home: `docs/security-review-checklist.md` in the repo, once committed. Until then: the project file "White Hat Security Review Checklist" and a dated copy in Drive [51] Test Cases.
+Home: `docs/security-checklist.md` in the repo, once committed (TE-B-076). Until then: the project file "White Hat Security Review Checklist" and a dated copy in Drive [51] Test Cases.
 This file is public and safe to share. It lists what is checked, never how to break anything. Real weaknesses go only in Drive [52] Security (Private) as SEC-NNN files (rulebook rule 1).
 
 ## 1. Which pull requests need a White Hat review

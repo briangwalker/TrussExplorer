@@ -56,7 +56,7 @@ Use the same prefix in commit messages and mention the issue number:
 | Area | Spec | Owner |
 |---|---|---|
 | Layout and interaction | `docs/ui-spec.md` (rules `UI-…`), on `balsaPixel-1.0` | UI Designer |
-| Look, colour, motion, themes | `docs/art-spec.md` (rules `ART-…`), when it lands | Graphics Designer |
+| Look, colour, motion, themes | `docs/art-spec.md` (rules `ART-…`), on `balsaPixel-1.0` | Graphics Designer |
 | Files the app saves and opens | `docs/formats.md` | Architecture Lead |
 | Solver, sampling, statistics | `docs/math/` and the spec named on the issue | Math Consultant |
 | The structural model | the spec named on the issue | Physics Consultant |
@@ -96,8 +96,8 @@ Open it **into the line you branched from**: `main` for fixes, `balsaPixel-1.0` 
 
 - `Closes #n` so the issue closes when it merges
 - what changed and why, in a few lines
-- the spec rules it meets (`UI-…`, `ART-…`, `docs/formats.md`, a Math or Physics spec)
-- the reviews it asks for: UI or Graphics for anything on screen, Math or Physics when results can change, White Hat for anything that reads files or adds a dependency
+- the spec rules it meets on a `Spec rules met:` line (`UI-…`, `ART-…`, `docs/formats.md`, a Math or Physics spec); on `balsaPixel-1.0` the `spec-cited` check reads it (`docs/spec-checks.md`)
+- the reviews it asks for: UI or Graphics for anything on screen, Math or Physics when results can change, White Hat when it hits a trigger R1–R8 in `docs/security-checklist.md` (it reads files, writes exports, touches themes, CI, the build or dependencies, and more)
 - the result lines from your own `run_all.sh` run (the `tests`, `pass` and `checks passed` counts), so a reviewer can check them
 - screenshots at 1440 × 900 and at 390 px wide for anything visible
 
