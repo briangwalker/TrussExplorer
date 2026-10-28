@@ -159,7 +159,7 @@ UI owns **when** something moves (UI-M); this section owns **how**. Every motion
 | ART-M5 | **Press:** 120 ms ease-out. **Panel open/fold:** 280 ms. | `--t-press`, `--t-panel` | instant | | live |
 | ART-M6 | **Chart dots** plot right to left like a TI-84, in LCD cells; the dot size and the LCD pixel size are separate settings. | dot 6 px; LCD pixel 3 px (choices 2, 3, 4, 6, 8) | dots appear at once | Brian, 2026-10-26 | planned #211 |
 | ART-M7 | **Undo mark:** a hand-drawn red circle, redrawn with a new random wobble on every hover. | | static circle | Brian, 2026-10-27 | live in kit |
-| ART-M8 | **Settled:** the scene transition lasts 1000 ms in both directions (ART-M1). UI-M5 points to ART-M1 for the length. Still open: whether the 100–6000 ms tuning (ART-O5) ships to users. | | | Brian 2026-10-28 (TE-B-102) | settled |
+| ART-M8 | **Settled:** the scene transition lasts 1000 ms in both directions (ART-M1). UI-M5 points to ART-M1 for the length. The 100–6000 ms tuning ships to users (ART-O5). | | | Brian 2026-10-28 (TE-B-102) | settled |
 
 ## ART-O · Theme options (settings inside one theme)
 
@@ -171,7 +171,7 @@ All live under ☰ › Look and controls › Theme (UI-A16). They change looks o
 | ART-O2 | Window look (also picks the slider, ART-W6) | tray · calculator · paper labels · tape labels | tray | live in kit; calculator in the Click-Through |
 | ART-O3 | Favicon | calc-te · calc-ok · calc-smile · end-hand · end-calc · random | calc-te | live in kit |
 | ART-O4 | LCD pixel size; chart dot size | 2–8 px; 2–12 px | 3 px; 6 px | live in kit |
-| ART-O5 | Motion tuning (ART-M1–M4 numbers), with Reset to defaults. Whether it ships to users is open (TE-B-102). | | Brian's picks | live in the Motion Lab |
+| ART-O5 | Motion tuning (ART-M1–M4 numbers), with Reset to defaults. Ships to users under ☰ > Look and controls > Theme; 1000 ms is the default, and a click or key during a transition jumps to its end (UI-M5). (Future Vision Lead A2, TE-B-102; Brian can overrule at sign-off.) | | Brian's picks | live in the Motion Lab |
 
 ## ART-A · Asset register
 
@@ -220,11 +220,10 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 | ART-T1, ART-X6 | #221 (and TE-B-026) | self-hosted fonts; drop the Google Fonts `@import` |
 | ART-H4 | #215 | conflict with UI-T4 closes when #266 (ui-spec 1.2) merges |
 | ART-K6 (Wireframe `strong`) | needs Brian, before #221 | conflict with the Axioms (brown is the action colour): option (a) brown or (b) exception ART-K6a, TE-B-096 X3 |
-| ART-O5 (tuning ships to users?) | needs Brian | open after TE-B-102 |
 | ART-X8 | #134 | waiting on Brian's photos |
 | ART-W2, ART-W4, slider options C and D | #221, after Brian picks | options only |
 
 ## Change log
 
-- **1.0.1 · 2026-10-28** ART-M8 settled: 1000 ms both ways (Brian, TE-B-102); ART-M1 says both directions. ART-M3 holds the restless-bridge numbers, UI-M2 points here (TE-B-099). ART-H4 notes ui-spec 1.2 (#266) now points to the shear. Added the Wireframe `strong` choice (TE-B-096 X3) and the ART-O5 question as conflict rows in the coverage table (rule 3 SPEC FIRST f).
+- **1.0.1 · 2026-10-28** ART-M8 settled: 1000 ms both ways (Brian, TE-B-102); ART-M1 says both directions. ART-M3 holds the restless-bridge numbers, UI-M2 points here (TE-B-099). ART-O5 tuning ships to users (Future Vision Lead A2, TE-B-102). ART-H4 notes ui-spec 1.2 (#266) now points to the shear. Added the Wireframe `strong` choice (TE-B-096 X3) as a conflict row in the coverage table (rule 3 SPEC FIRST f).
 - **1.0 · 2026-10-28** First numbered art standard. Gathers theme 1.0–1.2 (Motion Lab v1–v14), Brian's notes 2026-10-25 to 2026-10-28, the light/heavy rule and the photo/generated wood decision (Decisions rows 50–58), White Hat's limits (TE-B-014), UI's theme boundary (#109, UI-T1–T6), and the Click-Through notes (PIP member colour, books vs wood pile). Follows the Creative Documentation Standard 1.0.
