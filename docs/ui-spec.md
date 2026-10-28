@@ -1,6 +1,6 @@
 # Truss Explorer UI Standard
 
-**Version 1.0 · 2026-10-28 · owner: UI Designer · creative sign-off: Brian**
+**Version 1.1 · 2026-10-28 · owner: UI Designer · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel looks and behaves. Every rule has a number (`UI-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -32,7 +32,7 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 | UI-A13 | **Results live on the drawing** | The books stack on the deck, the wood pile sits on the floor under the bridge, and δ, determinacy and "fits" are callouts. The results card then shows numbers only. |
 | UI-A14 | **Never a blank screen** | Before a sweep, the chart shows your bridge as one dot and points to Run sweep. Stale or partial results say so and offer the fix (UI-S5). |
 | UI-A15 | **Start small** | Windows open as icons; only one window per side is wide. H clears the screen; hovering a tab peeks. |
-| UI-A16 | **Rare things live in ☰** | Export, files, theme, view settings, keys and help. Sheets open in the middle, one at a time; Esc closes them. |
+| UI-A16 | **Rare things live in ☰** | Export, files, theme, view settings (cube, ring, Home, restless bridge, transitions), keys and help. Sheets open in the middle, one at a time; Esc closes them. |
 | UI-A17 | **Meaning is never colour alone** | C / T / 0 letters, ✕ for fails, dashes for previews, shape cues for picked members (UI-D5). |
 | UI-A18 | **Meaning colours never change** | Compression red, tension blue, zero-force grey, pass green, fail **magenta + ✕**. Grey means zero force only, never "fails". Themes can't change these (UI-T2); OG is the only exception, kept as-is. |
 
@@ -155,6 +155,48 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 - **UI-F1** Four steps, one at a time: the top bar, a ✎ value, Run sweep, ⓘ.
 - **UI-F2** The bridge wiggles and changes one setting every 6 s while the tour runs, and goes back to the student's own settings when it ends. The tour stays in ☰ → Help.
 
+## UI-M · Motion: the restless bridge and scene transitions
+
+UI owns **when, where and what stops it**. Graphics owns **how it looks and moves** (curves, timings, art), in the Motion Lab (https://claude.ai/artifact/LxaymNQizNMPGy4QaBSDUg) and the Graphics spec. Brian's picks are the defaults.
+
+- **UI-M1 Restless bridge (#144): when it runs.** Only for a new user: no saved bridge and no file opened yet. It runs on the Truss view while the user has been idle for about 6 s. It never runs while a sweep is running, a pop-up or sheet is open, or the page is hidden.
+- **UI-M2 What it does.** Brian's picks (Warn mode, wiggle 50 %, changing part 120 %, shake 1.6 s), in order:
+  1. The bridge wiggles, and the part about to change shakes more.
+  2. One input changes: height, panel count, flat ↔ arched top, or flat ↔ sagging bottom.
+  3. That ✎ tag pops and is stained brown, and a handwritten note appears ("ooh, an arch!").
+  4. The results update.
+
+  Changes made by the restless bridge are not logged in History one by one.
+- **UI-M3 What stops it, for good.** It stops at the first of these:
+  - any input change by the user;
+  - Load, opening a file, or Run sweep;
+  - **That's my bridge**;
+  - turning off *Restless bridge* in ☰ › View and display.
+
+  The stop is remembered per browser, and the bridge stays as it is when it stops.
+- **UI-M4 "That's my bridge" lives in the state badge.** While the bridge is restless, the badge under the results strip (UI-A11) reads **Restless bridge · That's my bridge ✓**. Clicking it keeps the current design, saves it as the first History entry, and turns the badge into ✓ LOADED.
+- **UI-M5 Scene transitions (#143).**
+  - **When:** only when you switch between Truss and Analysis with the top-bar switches. Not on a PIP swap, and not on tab changes inside Analysis.
+  - **Look:** each theme supplies its own; Notebook + Calculator has the sweep line growing into the calculator and the paper slip zooming back. Wireframe uses a plain fade.
+  - **Length:** under 0.9 s.
+  - **Input is never blocked:** a click or key during a transition jumps to its end.
+- **UI-M6 Reduced motion and off switches.**
+  - With `prefers-reduced-motion`: no wiggle; transitions become a 150 ms fade; the cube snap is instant (UI-V3).
+  - ☰ › View and display has *Restless bridge* and *Scene transitions* switches.
+- **UI-M7 The tour reuses the restless bridge.** The first-time tour (UI-F2) uses the same mechanism and the same stop rules, then returns to the student's own settings.
+
+## Coverage: rules that aren't in a build step yet
+
+Every rule above must be cited by a build issue. These weren't, until now:
+
+| Rules | Issue that builds them | Note |
+|---|---|---|
+| UI-M1–M4, UI-M7 | #144, as part of step 13 (#220) | #144 was waiting on UI's stop rules; they're above |
+| UI-M5, UI-M6 | #143, as part of step 14 (#221) | transitions are theme-specific |
+| UI-C2, UI-C3 | #148 | group select; not in the 14 steps |
+| UI-I2–I5 | #87, #131, inside step 8 (#215) | |
+| UI-C5 | #230, #231 | planned |
+
 ---
 
 ## Build steps and the rules they must meet
@@ -175,11 +217,12 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 | 10 · ☰ and sheets | #217 | UI-A16, UI-W8, UI-W9, UI-A15 |
 | 11 · Keyboard and screen readers | #218 | UI-K1–K4 |
 | 12 · Phone | #219 | UI-S8 |
-| 13 · First-time tour | #220 | UI-F1–F2 |
-| 14 · Themes and OG | #221 | UI-T1–T6, UI-A18 |
+| 13 · First-time tour | #220 | UI-F1–F2, UI-M1–M4, UI-M7 (#144) |
+| 14 · Themes and OG | #221 | UI-T1–T6, UI-A18, UI-M5–M6 (#143) |
 
 ## Change log
 
+- **1.1 · 2026-10-28** Added UI-M (motion): the restless bridge's run and stop rules, "That's my bridge" in the state badge (#144), and when scene transitions play (#143). Added the coverage table. Steps 13 and 14 now cite UI-M. Follows the [creative documentation standard](ui-creative-doc-standard.md).
 - **1.0 · 2026-10-28** First numbered standard. It gathers:
   - the Full-Screen UI Spec (rounds 5–10);
   - Click-Through versions 1–17;
