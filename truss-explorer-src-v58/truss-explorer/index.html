@@ -2630,7 +2630,8 @@ function documentHTML(tr, res, meta, plan, opt) {
   const allCuts = []; plan.pieces.forEach(q => { for (let t = 0; t < nT * q.n; t++) allCuts.push({ len: q.long, item: q.item }); });
   if (cx) cx.parts.forEach(q => allCuts.push({ len: q.long, item: q.item }));
   if (stopItem) stopItem.pieces.forEach(() => allCuts.push({ len: STOP_LEN, item: stopItem.no }));
-  else if (meta.ties && meta.ties.count) for (let t = 0; t < meta.ties.count; t++) allCuts.push({ len: meta.ties.len, item: 'T' });
+  // 2D cross-ties (the 3D plan already lists its ties as parts, #300); also with edge stops, which used to hide them
+  if (!cx && meta.ties && meta.ties.count) for (let t = 0; t < meta.ties.count; t++) allCuts.push({ len: meta.ties.len, item: 'T' });
   const kerf = meta.kerf == null ? 1 : meta.kerf, stock = meta.stock || 240;
   const bars = stockPlan(allCuts, stock, kerf), totalLen = allCuts.reduce((s, c) => s + c.len, 0);
   // centre-to-centre wood: what the app's "Wood in the 3D model" counts (cut lengths add the joint allowances)

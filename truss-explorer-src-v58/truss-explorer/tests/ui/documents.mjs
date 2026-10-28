@@ -34,7 +34,7 @@ try {
     const plan = BD.cutPlan(tr, 3.18, Object.assign({ stock: 240, force: k => res.members[k].F }, cfg || {}));
     let d3 = null; if (o) { const m3 = T3.build3D(tr, o), r3 = T3.analyze3D(m3, Object.assign({}, C.DEFAULT_MAT), st.load); if (r3.stable) d3 = { m3, r3, tieJoint: 'ontop' }; }
     if (o && !d3) { check(`${name}: 3D model is stable`, false); continue; }
-    const html = BD.documentHTML(tr, res, { name, b: 3.18, h: 3.18, nTruss: 2, stock: 240, kerf: 1, massNote: 'm', capNote: 'c', d3 }, plan, { steps: true, templates: true, colour: true });
+    const html = BD.documentHTML(tr, res, { name, b: 3.18, h: 3.18, nTruss: 2, stock: 240, kerf: 1, massNote: 'm', capNote: 'c', d3, ties: { count: tr.deckNodes.length, len: 60 } }, plan, { steps: true, templates: true, colour: true });
     const f = path.join(tmp, name.replace(/\W+/g, '_') + '.html'); fs.writeFileSync(f, html);
     const p = await b.newPage({ viewport: { width: 1200, height: 900 } }); await p.goto('file://' + f);
     const r = await p.evaluate(() => {
@@ -51,6 +51,9 @@ try {
     const items = plan.items.length + (d3 ? BD.crossPlan(d3.m3, d3.r3, 3.18, {}).items.length : 0) + (st.edgeBear ? 1 : 0);
     const listed = await p.evaluate(() => [...document.querySelectorAll('table.grid')].filter(t => /Long pt/.test(t.textContent)).reduce((s, t) => s + t.querySelectorAll('tr').length - 1, 0));
     check(`${name}: every item is in the cut list`, listed === items, `${listed} of ${items}`);
+    // #300: the 3D plan lists its ties as parts, so the 2D cross-tie 'T' pieces are added only without 3D (edge stops or not)
+    const tCuts = await p.evaluate(() => [...document.querySelectorAll('.bar text')].filter(e => e.textContent === 'T').length);
+    check(`${name}: cross-ties counted once in the cutting plan (${d3 ? 'none as T in 3D' : tr.deckNodes.length + ' T in 2D'})`, tCuts === (d3 ? 0 : tr.deckNodes.length), `${tCuts} T pieces`);
     const N = r.pages, okNums = r.nums.every((s, i) => s === `SHEET ${i + 1} OF ${N}`) && r.pg.every((s, i) => s.includes(`page ${r.nums.length + i + 1} of ${N}`));
     check(`${name}: page numbers match the ${N} printed pages`, okNums, r.nums.slice(-1)[0] + ' / ' + (r.pg.slice(-1)[0] || ''));
     if (cfg && cfg.bentTop) {
