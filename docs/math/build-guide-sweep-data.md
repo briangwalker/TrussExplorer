@@ -13,12 +13,13 @@ Spec: [`sweep-file-format.md`](sweep-file-format.md). Reference: `reference/tswe
 **Steps**
 
 1. **Keep results as columns inside the app, not one object per design.** Today `sweepAll` holds one object of about 750 bytes per design. Add a small `SweepStore` holding `Float32Array`s for wood, use, defl, overlap (and braceWood in 3D), `Uint8Array`s for flags and gov, and the design numbers. Keep the existing row objects only for the few hundred designs shown in tables (best results, frontier). This step also unlocks part 3.
-2. **List every sweepable input in `sweep.dims`**, one value when it isn't swept, in one fixed order. `sweepDims()` already builds most of this; add the inputs it leaves out as one-value dims.
-3. **Fingerprint:** canonical JSON of `{appVer, analysis, base, material}`, hashed with `crypto.subtle.digest('SHA-256')`. `sweepSig()` is the starting point. Leave out the four rule fields (FS, bookKg, deflLimit, minOverlap).
-4. **Save:** `TSweep.encode(header, rows)` and download as `name.tsweep`. **Load:** `TSweep.decode(bytes)`. If `problems` isn't empty, show it and open the file read-only.
-5. **Pass/fail on load:** passes = stable ∧ envOK ∧ slipOK ∧ tableOK ∧ use·k ≤ 1 ∧ defl·k ≤ limit ∧ overlap ≥ minOverlap, with k = (FS × bookKg of the rules in use) ÷ (FS × bookKg in the header). This is the same maths as today's Re-check, so the Re-check button just changes the rules and redraws.
-6. **Keep reading old `.sweep.json` files** (convert on load, as `fromOldSweep` in the test does). Never remove that path, because people have saved sweeps.
-7. **Merge button** ("Add a sweep to this one"): `TSweep.merge(A, B)`. Show the union grid, the rows gained, and any conflicts.
+2. **Open through the binary door** in `formats.js` (magic line, capped unzip, column bounds, `cleanData` on the header): see "Versions and safety" in the spec.
+3. **List every sweepable input in `sweep.dims`**, one value when it isn't swept, in one fixed order. `sweepDims()` already builds most of this; add the inputs it leaves out as one-value dims.
+4. **Fingerprint:** canonical JSON of `{solver, model, base, material, width, envelope}`, hashed with `crypto.subtle.digest('SHA-256')`. `sweepSig()` is the starting point. Leave out the four rescalable rules (FS, bookKg, deflLimit, minOverlap); `width` and `envelope` stay in because they can't be rescaled. Use the shared v2 header names from `docs/formats.md`.
+5. **Save:** `TSweep.encode(header, rows)` and download as `name.tsweep`. **Load:** `TSweep.decode(bytes)`. If `problems` isn't empty, show it and open the file read-only.
+6. **Pass/fail on load:** passes = stable ∧ envOK ∧ slipOK ∧ tableOK ∧ use·k ≤ 1 ∧ defl·k ≤ limit ∧ overlap ≥ minOverlap, with k = (FS × bookKg of the rules in use) ÷ (FS × bookKg in the header). This is the same maths as today's Re-check, so the Re-check button just changes the rules and redraws.
+7. **Keep reading old `.sweep.json` files** (convert on load, as `fromOldSweep` in the test does). Never remove that path, because people have saved sweeps.
+8. **Merge button** ("Add a sweep to this one"): `TSweep.merge(A, B)`. Show the union grid, the rows gained, and any conflicts.
 
 **Acceptance check:** `tsweep.test.js` passes. The sample sweep round-trips at 51× smaller with no row changed by more than 1e-6 relative. A merged pair re-checks to the same best design as one sweep run over the union grid. An old `.sweep.json` still opens.
 
@@ -31,18 +32,18 @@ Spec: [`sweep-file-format.md`](sweep-file-format.md). Reference: `reference/tswe
 **The check, in order**
 
 1. **Intact?** `decode()` checks `payloadSha256`, and that `fingerprint` matches the header. If either fails, reject the file.
-2. **Same solver?** `app.appVer` must equal the running app's. If not, the file can be *viewed* but not *verified* or merged into a library; label it "made with an older solver".
+2. **Same solver?** `solver` must equal the running app's. If not, the file can be *viewed* but not *verified* or merged into a library; label it "made with an older solver".
 3. **Random spot-check:** re-solve `s` rows chosen **with the checker's own randomness** (`crypto.getRandomValues`). Never derive the choice from the file: an uploader could keep tweaking a file until the checked rows happened to be honest ones.
    - If a fraction f of rows is wrong, the chance at least one is caught is **1 − (1 − f)ˢ**.
    - s = 300 catches a file that's 1% wrong 95% of the time; s = 460 does it 99% of the time; s = 1,000 catches 0.3% wrong 95% of the time.
    - Cost: about 0.1 s for 300 rows in 2D, about 0.5–1 s in 3D.
 4. **Always re-solve the designs that matter:** every row on the 3-objective frontier (wood, use, deflection), plus the best 30 passing designs. A fake only matters if it wins, and a winning fake is always caught.
 5. **Compare:** wood, use, defl and overlap to a relative 1e-5; flags exactly. Any mismatch rejects the whole file and lists the rows that failed.
-6. **Record:** append `{date, appVer, sampled, frontier, mismatches}` to `checks`. A library re-runs the check itself; it never trusts a `checks` entry it didn't write.
+6. **Record:** append `{date, solver, sampled, frontier, mismatches}` to `checks`. A library re-runs the check itself; it never trusts a `checks` entry it didn't write.
 
 **Where it must run** is White Hat's call. Options: in each user's browser before merging (simple, but anyone can skip it), as a GitHub check on pull requests that add files to a `sweeps/` folder (free and can't be skipped), or on a server. For a growing shared dataset, the GitHub check is the natural first step.
 
-**Acceptance check:** over 1,000 trials at s = 300, a file with 1% of rows altered is rejected 92–98% of the time (theory: 95.1%). A file with only its best design faked is rejected every time. An honest file passes 100 of 100 trials. A file from another `appVer` opens but can't be merged.
+**Acceptance check:** over 1,000 trials at s = 300, a file with 1% of rows altered is rejected 92–98% of the time (theory: 95.1%). A file with only its best design faked is rejected every time. An honest file passes 100 of 100 trials. A file from another `solver` opens but can't be merged.
 
 ---
 
