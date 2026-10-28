@@ -391,12 +391,42 @@ function nav2D(d) {
   else if (d === 'left') v2.px += 0.15 * w; else if (d === 'right') v2.px -= 0.15 * w; else if (d === 'up') v2.py += 0.15 * h; else if (d === 'down') v2.py -= 0.15 * h;
   applyV2();
 }
-function renderDrawing() {
-  const svg = $('draw');
+// ---------- the 2D drawing (#255 part A; UI-A3, UI-H5)
+// drawingSVG(design, opts) builds the picture from a design alone: no element, no listeners, no shared state.
+//   design = { tr, res, S }: the truss, its results and the settings the picture reads (height, tableThick, mat.b,
+//            showDef/defScale/showIds/showElems/showForces). currentDesign() is the one on screen.
+//   opts   = { hl: member to highlight (-1 none), ghosts: swept ranges, dims: clickable dimension labels }.
+//            ghosts and dims describe the sweep and the editor on screen, so they only make sense for the current design.
+// renderDrawing(target, design, opts) draws it into an <svg>. With no arguments it is the main view, exactly as before:
+// #draw, pan and zoom (v2), the results overlay, the hover and click listeners and the dimension editor. Any other
+// target (the PIP, #210) gets its own fitted viewBox and nothing else, so it never moves the main view.
+function currentDesign() { return { tr, res, S }; }
+function renderDrawing(target, design, opts) {
+  const main = !target || target === $('draw');
+  const svg = target || $('draw');
+  opts = Object.assign(main ? { hl: hlElem, ghosts: S.showGhosts !== false, dims: S.showDims !== false } : { hl: -1, ghosts: false, dims: false }, opts);
+  const d = drawingSVG(design || currentDesign(), opts);
+  if (main) { renderDrawing.base = d.base; applyV2(); paintResOverlay(); }
+  else svg.setAttribute('viewBox', d.base.join(' '));
+  svg.innerHTML = d.svg;
+  if (!main) return;
+  svg.querySelectorAll('.dimlab').forEach(g => { if (adj && g.dataset.var === adj.key) g.classList.add('act'); g.addEventListener('click', ev => { ev.stopPropagation(); openDimPop(g.dataset.var); }); });
+  svg.querySelectorAll('.mem').forEach(l => {
+    l.addEventListener('mouseenter', () => highlight(+l.dataset.k));
+    l.addEventListener('mouseleave', () => highlight(-1));
+    l.addEventListener('click', () => {
+      $('s-members').open = true;
+      const row = document.querySelector(`#tbl tbody tr[data-k="${l.dataset.k}"]`);
+      if (row) { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); highlight(+l.dataset.k); }
+    });
+  });
+}
+function drawingSVG(design, opts) {
+  const { tr, res, S } = design;   // the design's own, never the shared ones
   const xs = tr.nodes.map(n => n[0]);
   const x0 = Math.min(-70, Math.min(...xs) - 22), x1 = Math.max(270, Math.max(...xs) + 22);
   const yTop = Math.max(128, +S.height + 46), yBot = -76;
-  renderDrawing.base = [x0, 0, x1 - x0, yTop - yBot]; applyV2();
+  const base = [x0, 0, x1 - x0, yTop - yBot];
   const Y = y => yTop - y;
   const o = [];
   const MONO = 'IBM Plex Mono, monospace';
@@ -428,7 +458,7 @@ function renderDrawing() {
     const m = ok ? res.members[k] : null;
     if (m) col = m.F < 0 ? 'var(--comp)' : m.F > 0 ? 'var(--tens)' : 'var(--zero)';
     const tip = m ? `Member ${k} (${X.TYPE_LABEL[e.type]}): ${m.F.toFixed(2)} N ${m.TC}, L ${m.L.toFixed(1)} mm, Pcr ${m.Pcr.toFixed(1)} N, use ${(m.util * 100).toFixed(0)}%` : `Member ${k}`;
-    o.push(`<line data-k="${k}" class="mem" x1="${a[0]}" y1="${Y(a[1])}" x2="${b[0]}" y2="${Y(b[1])}" stroke="${col}" stroke-width="${hlElem === k ? 5.5 : memW(e)}" stroke-linecap="round" style="cursor:pointer"><title>${tip}${e.n > 1 ? ` · ${e.n} sticks` : ''}</title></line>`);
+    o.push(`<line data-k="${k}" class="mem" x1="${a[0]}" y1="${Y(a[1])}" x2="${b[0]}" y2="${Y(b[1])}" stroke="${col}" stroke-width="${opts.hl === k ? 5.5 : memWOf(S, e)}" stroke-linecap="round" style="cursor:pointer"><title>${tip}${e.n > 1 ? ` · ${e.n} sticks` : ''}</title></line>`);
   });
   if (ok && S.showDef) {
     const sc = S.defScale;
@@ -493,23 +523,13 @@ function renderDrawing() {
     const col = m.fails ? 'var(--bad)' : F < 0 ? 'var(--comp)' : F > 0 ? 'var(--tens)' : 'var(--zero)';
     o.push(`<g pointer-events="none"><rect x="${mx - wd / 2}" y="${Y(my) - 3.3}" width="${wd}" height="5.6" rx="1" fill="var(--sheet)" fill-opacity=".9" stroke="${col}" stroke-width=".3"/><text x="${mx}" y="${Y(my) + 1.2}" font-family="${MONO}" font-size="3.9" font-weight="600" fill="${col}" text-anchor="middle">${txt}</text></g>`);
   });
-  // swept ranges as dashed outlines, then the clickable dimension labels
-  if (S.showGhosts !== false) o.push(sweepGhosts(Y));
-  paintResOverlay();
-  if (S.showDims !== false) o.push(dimLabels(Y, x0, x1));
-  svg.innerHTML = o.join('');
-  svg.querySelectorAll('.dimlab').forEach(g => { if (adj && g.dataset.var === adj.key) g.classList.add('act'); g.addEventListener('click', ev => { ev.stopPropagation(); openDimPop(g.dataset.var); }); });
-  svg.querySelectorAll('.mem').forEach(l => {
-    l.addEventListener('mouseenter', () => highlight(+l.dataset.k));
-    l.addEventListener('mouseleave', () => highlight(-1));
-    l.addEventListener('click', () => {
-      $('s-members').open = true;
-      const row = document.querySelector(`#tbl tbody tr[data-k="${l.dataset.k}"]`);
-      if (row) { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); highlight(+l.dataset.k); }
-    });
-  });
+  // swept ranges as dashed outlines, then the clickable dimension labels (main view only: they read the screen's sweep and editor)
+  if (opts.ghosts) o.push(sweepGhosts(Y));
+  if (opts.dims) o.push(dimLabels(Y, x0, x1));
+  return { svg: o.join(''), base };
 }
-function memW(e) { return S.mat.b * (e.n === 4 && e.bundle === 'compact' ? 2 : e.n); }
+function memWOf(s, e) { return s.mat.b * (e.n === 4 && e.bundle === 'compact' ? 2 : e.n); }
+function memW(e) { return memWOf(S, e); }
 function highlight(k) {
   if (hlElem === k) return;
   hlElem = k;
