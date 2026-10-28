@@ -7,6 +7,10 @@ on:
     branches: [main, balsaPixel-1.0]
 permissions:
   contents: read
+# a newer push to the same pull request cancels its older run (pushes to main and balsaPixel-1.0 always finish)
+concurrency:
+  group: tests-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   run-all:
     runs-on: ubuntu-latest
@@ -22,10 +26,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      # pinned versions, the same as a local run (tests/requirements.txt, package-lock.json; board TE-B-052/053)
       - name: Python packages for the course script
-        run: pip install numpy pandas matplotlib
+        run: pip install -r tests/requirements.txt
       - name: Playwright with Chromium
-        run: npm install --no-save playwright && npx playwright install --with-deps chromium
+        run: npm ci && npx playwright install --with-deps chromium
       - name: Run every check
         env:
           MPLBACKEND: Agg

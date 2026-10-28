@@ -1,0 +1,9 @@
+{
+  "name": "truss-explorer-tests",
+  "private": true,
+  "description": "Test tools for the Truss Explorer, pinned so CI and local runs use the same versions (board TE-B-052/053). The app itself has no dependencies.",
+  "devDependencies": {
+    "axe-core": "4.14.0",
+    "playwright": "1.64.1"
+  }
+}
