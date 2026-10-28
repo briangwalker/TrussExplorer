@@ -37,6 +37,26 @@ try {
     await p.close();
   });
 
+  // #281 (v64): a starter preset gives the same bridge and result whatever 3D setup came before it
+  await section('#281 presets reset the 3D setup', async () => {
+    const p = await openPage(b, srv.url), q = await openPage(b, srv.url);
+    const n = await p.evaluate(() => document.querySelectorAll('#presetSel option[value]:not([value=""])').length);
+    const pick = (pg, i) => pg.evaluate(i => { const s = document.getElementById('presetSel'); s.value = String(i); s.dispatchEvent(new Event('change')); }, i);
+    const state = pg => pg.evaluate(() => { const r = __dbg.res, d = Object.assign({}, __dbg.S.d3); delete d.showPlan; delete d.showSec;
+      return { d3: JSON.stringify(d), stable: !!r.stable, passes: !!r.passes, wood: r.stable ? +r.wood.toFixed(3) : null, cap: r.stable ? +r.capKg.toFixed(3) : null }; });
+    for (const pg of [p, q]) { await pg.evaluate(() => document.querySelector('#anaSwitch [data-ana="3d"]').click()); await pg.waitForTimeout(600); }
+    for (let i = 0; i < n; i++) {
+      // p: mess up every 3D setting first (Brian's case: X top bracing, framePat D/N, tilt, ties off, imperfections on); q: a fresh page
+      await p.evaluate(() => { Object.assign(__dbg.S.d3, { tilt: 12, botTies: false, topBr: 'x', botBr: 'single', topPat: ['X'], botPat: ['N'], framePat: ['X', 'K'], sec: 2, imperf: { on: true, alpha: 0.05, beta: 0.01, dir: -1 } }); });
+      await pick(p, i); await pick(q, i); await p.waitForTimeout(900); await q.waitForTimeout(900);
+      const a1 = await state(p), a2 = await state(q);
+      check(`#281: preset ${i + 1} of ${n} after other 3D settings = on a fresh page (3D)`, JSON.stringify(a1) === JSON.stringify(a2), JSON.stringify({ after: a1, fresh: a2 }));
+      if (i === 0) check('#281: Course sample is stable in 3D', a1.stable, JSON.stringify(a1));
+    }
+    check('#281: no script errors', p.errs.length + q.errs.length === 0, p.errs.concat(q.errs).slice(0, 2).join(' | '));
+    await p.close(); await q.close();
+  });
+
   // #239 (v64): with "ends bear on the table edge", the 2D view, the 3D view and the build documents show the same edge stops,
   // and the 3D model holds those corner joints sideways as the 2D model does
   await section('#239 edge stops agree in 2D, 3D and the build documents', async () => {
