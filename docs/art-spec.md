@@ -44,7 +44,7 @@ A theme is a set of tokens plus per-part looks (UI-T1). These are the tokens a *
 | ART-K11 | `mem-hi`, `mem-hi-ink`, `mem-dim`, `mem-hi-flag` | the picked member (ART-D2) | `rgba(240,180,90,.6)`, `#1d232a`, `.6`, `#fff` | `#ffe14d`, `#2b1a0a`, `.85`, `#ffe14d` |
 | ART-K12 | `font-ui`, `font-head`, `font-mono`, `font-hand` | text; titles; numbers and LCD; handwriting | Barlow, Barlow Semi Condensed, IBM Plex Mono, — | Barlow Semi Condensed, Kalam, VT323, Kalam |
 | ART-K13 | **Images** (shared themes): `page`, `panel`, `control`, `control-pressed`, `control-end`, `screen`, `screen-key` | textures behind the parts above; `.png`, `.jpg` or `.webp`, file names only | none | `paper.webp`, `photo-balsa.webp`, `photo-balsa.webp`, `photo-top.webp`, `photo-endgrain.webp`, `lcd.png`, `pixelwood.png` |
-| ART-K14 | **Never tokens.** The meaning colours (compression, tension, zero force, pass, fail) and the member-force colours on the drawing are owned by the app code and are the same in every theme except OG (UI-A18, UI-T6). | Reference values in `src/ui.html` today: C `#c23a2b`, T `#2160a8`, 0 `#9aa5af`, pass `#2f7a4b`. Fail must be **magenta + ✕** (decision 2026-10-25), but the app's `--bad` is `#b4232a` (red). That is a bug for Dev Lead: see the coverage table. | | |
+| ART-K14 | **Never tokens.** The meaning colours (compression, tension, zero force, pass, fail) and the member-force colours on the drawing are owned by the app code and are the same in every theme except OG (UI-A18, UI-T6). | Reference values in `src/ui.html` today: C `#c23a2b`, T `#2160a8`, 0 `#9aa5af`, pass `#2f7a4b`. Fail must be **magenta + ✕** (decision 2026-10-25), but the app's `--bad` is `#b4232a` (red). That is a bug for Dev Lead: #258. | | |
 
 A built-in theme may add private tokens with its own prefix (Notebook + Calculator uses `--nc-*` in the Click-Through and the plain names `--balsa-*`, `--stain*`, `--lcd*` in the kit). Private tokens never appear in a shared theme file.
 
@@ -210,7 +210,7 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 
 | Rules | Issue that should cover them | Note |
 |---|---|---|
-| ART-K14 (fail colour) | new issue for Dev Lead | `--bad` in `src/ui.html` is red `#b4232a`; the decision is magenta + ✕ |
+| ART-K14 (fail colour) | #258 | `--bad` in `src/ui.html` is red `#b4232a`; the decision is magenta + ✕ |
 | ART-T1, ART-X6 | #221 (and TE-B-026) | self-hosted fonts; drop the Google Fonts `@import` |
 | ART-H4 | #215 | UI's hook rotates; switch to the shear |
 | ART-M8 | needs Brian | 1000 ms vs UI-M5's 0.9 s |

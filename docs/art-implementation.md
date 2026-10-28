@@ -118,7 +118,7 @@ Two of the options need small pieces of code:
 
 - **Picked member (ART-D2):** the drawing reads `--te-mem-hi`, `--te-mem-hi-ink`, `--te-mem-dim` and `--te-mem-hi-flag` with `getComputedStyle(stage)` when it draws. The widths in ART-D2 are the drawing's, not the theme's.
 - **Meaning colours (ART-K14):** come from the app, never from `--te-*`. #197 keeps them where theme styles can't reach them.
-- **Fix needed:** the app's fail colour `--bad` is `#b4232a` (red). The decision is magenta + ✕, so it should be magenta, e.g. `#b0177a` light / `#f07cc4` dark as in the Click-Through.
+- **Fix needed (#258):** the app's fail colour `--bad` is `#b4232a` (red). The decision is magenta + ✕, so it should be magenta, e.g. `#b0177a` light / `#f07cc4` dark as in the Click-Through.
 
 ### 4.5 Motion (ART-M)
 
