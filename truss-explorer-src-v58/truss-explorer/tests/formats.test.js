@@ -17,7 +17,7 @@ const REPO = path.resolve(__dirname, '..', '..', '..');
 
 test('every fixture file opens, upgrades to the current version, and passes the check', () => {
   const files = fs.readdirSync(FIX).filter(f => f.endsWith('.json'));
-  assert.ok(files.length >= 9, 'fixtures present');
+  assert.ok(files.length >= 10, 'fixtures present');
   for (const f of files) {
     const o = F.open(fix(f));
     assert.ok(o.ok, `${f}: ${o.errors}`);
@@ -112,8 +112,44 @@ test('material file (draft v1): checked, and converted to the solver units', () 
   assert.ok(o.ok, String(o.errors)); assert.strictEqual(o.kind, 'material');
   const mat = F.materialToMat(o.doc.material);
   assert.deepStrictEqual(mat, { b: 3.18, h: 3.18, E: 3000, sigT: 7.5, sigC: 4.5, rho: 1.6e-7 }, 'matches C.DEFAULT_MAT (kg/m³ -> kg/mm³)');
-  const bad = F.open({ format: 'truss-explorer-material', version: 1, material: { E: -1, sigT: 7.5, sigC: 4.5, rho: 160, behaviour: 'jelly', sizes: [] } });
-  assert.ok(!bad.ok); assert.deepStrictEqual(bad.errors, ['bad-number:material.E', 'bad-value:material.behaviour', 'bad-value:material.sizes']);
+  const bad = F.open({ format: 'truss-explorer-material', version: 1, material: { E: -1, sigT: 7.5, sigC: 4.5, rho: 160, behaviour: 'jelly', sizes: [3.18] } });
+  assert.ok(!bad.ok); assert.deepStrictEqual(bad.errors, ['bad-number:material.E', 'bad-value:material.behaviour', 'bad-value:material.sizes'], 'sizes are { b, h }, not bare numbers');
+});
+
+test('material file: the Physics review fields (#178): rectangular sections, provenance, joints, variability', () => {
+  const base = JSON.parse(fix('v1-balsa-course.material.json'));
+  const m = o => F.open(Object.assign({}, base, { material: Object.assign({}, base.material, o) }));
+  const rect = m({ sizes: [{ b: 3.18, h: 3.18 }, { b: 6.35, h: 1.59 }] });
+  assert.ok(rect.ok); assert.deepStrictEqual([F.materialToMat(rect.doc.material, 1).b, F.materialToMat(rect.doc.material, 1).h], [6.35, 1.59]);
+  assert.ok(m({ sigCperp: 0.4, sigPL: 2.2, estimated: ['sigC', 'sigCperp'], sources: { sigCperp: 'dent test (#23)' }, condition: '12% moisture' }).ok);
+  assert.ok(m({ joints: { 'butt-flush': { 'wood-cement': { tension: 12, shear: 9, slip: 0.1, source: 'test' } } } }).ok);
+  assert.ok(m({ variability: { cov: { E: 0.2, sigC: 0.15 } } }).ok && m({ variability: { low: { E: 2000 }, high: { E: 4000 }, note: 'batch' } }).ok);
+  assert.deepStrictEqual(m({ estimated: ['colour'] }).errors, ['bad-value:material.estimated']);
+  assert.deepStrictEqual(m({ joints: { lap: { epoxy: { tension: -3 } } } }).errors, ['bad-value:material.joints']);
+  assert.deepStrictEqual(m({ variability: { cov: { E: 'lots' } } }).errors, ['bad-value:material.variability']);
+  assert.deepStrictEqual(m({ sigCperp: 0 }).errors, ['bad-number:material.sigCperp']);
+  assert.ok(m({ behaviour: 'polymer' }).warnings.includes('polymer-without-creep'));
+});
+
+test('theme file: data only (White Hat, TE-B-014): tokens, font names and image names; CSS, script and links are refused', () => {
+  const ok = F.open(fix('v1-test-graph-paper.theme.json')); assert.ok(ok.ok, String(ok.errors)); assert.strictEqual(ok.kind, 'theme');
+  const base = JSON.parse(fix('v1-test-graph-paper.theme.json'));
+  const t = o => F.open(Object.assign({}, base, o));
+  assert.ok(t({ css: 'notebook.css' }).errors.includes('not-allowed:css'));
+  assert.ok(t({ js: 'x.js' }).errors.includes('not-allowed:js'));
+  assert.ok(t({ script: 'alert(1)' }).errors.includes('not-allowed:script'));
+  assert.ok(t({ tokens: { paper: 'url(https://evil.example/x.png)' } }).errors.includes('bad-token:paper'), 'no links out');
+  assert.ok(t({ tokens: { ink: 'red; } .res { display:none' } }).errors.includes('bad-token:ink'), 'no CSS injection through a value');
+  assert.ok(t({ tokens: { 'Bad Name': '#fff' } }).errors.includes('bad-token:Bad Name'));
+  assert.ok(t({ images: { background: 'logo.svg' } }).errors.includes('bad-value:images'), 'no SVG (it can carry script)');
+  assert.ok(t({ images: { background: '../../secret.png' } }).errors.includes('bad-value:images'), 'no paths');
+  assert.ok(t({ fonts: ['https://fonts.googleapis.com/css?family=Inter'] }).errors.includes('bad-value:fonts'), 'font names, never URLs');
+});
+
+test('the compact sweep header has its own name, and is only valid inside its binary file', () => {
+  assert.strictEqual(F.detect({ format: 'truss-explorer-tsweep', version: 1 }).kind, 'tsweep');
+  assert.strictEqual(F.detect({ format: 'truss-explorer-sweep', version: 2 }).kind, 'sweep', 'no clash with the JSON sweep (Math review)');
+  assert.deepStrictEqual(F.open({ format: 'truss-explorer-tsweep', version: 1 }).errors, ['binary-format']);
 });
 
 test('every name and version in KINDS has an upgrade path from version 1', () => {

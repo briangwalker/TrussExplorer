@@ -36,6 +36,9 @@ const KINDS = {
   sweep:    { names: ['se310-truss-sweep', 'truss-explorer-sweep'], current: 2, ext: '.sweep.json' },
   material: { names: ['truss-explorer-material'], current: 1, ext: '.material.json', draft: true },
   theme:    { names: ['truss-explorer-theme'], current: 1, ext: '.theme.json', draft: true },
+  // the compact binary sweep (docs/math/sweep-file-format.md, #179): this is its header's name and schema version.
+  // The magic line inside the gzip is the binary layout version, checked by the bytes reader, which refuses one it doesn't know.
+  tsweep:   { names: ['truss-explorer-tsweep'], current: 1, ext: '.tsweep', binary: true, draft: true },
 };
 const NAME_TO_KIND = {}; Object.keys(KINDS).forEach(k => KINDS[k].names.forEach(n => { NAME_TO_KIND[n] = k; }));
 
@@ -104,6 +107,7 @@ const UP = {
   },
   material: {},
   theme: {},
+  tsweep: {},
 };
 
 function upgrade(doc) {
@@ -116,6 +120,48 @@ function upgrade(doc) {
     d = step(d); steps.push(`${v}->${v + 1}`); v++;
   }
   return { doc: d, det, from: det.version, to: Math.max(v, det.version), steps };
+}
+
+// ---------- material record (#150; Physics review on #178)
+const BEHAVIOURS = ['brittle-wood', 'ductile-metal', 'polymer'];
+const MAT_REQ = ['E', 'sigT', 'sigC', 'rho'], MAT_OPT = ['sigTult', 'sigCperp', 'sigPL'];
+const pos = x => num(x) && +x > 0;
+function checkMaterial(m, errors, warnings) {
+  MAT_REQ.forEach(k => { if (!pos(m[k])) errors.push('bad-number:material.' + k); });
+  MAT_OPT.forEach(k => { if (k in m && m[k] != null && !pos(m[k])) errors.push('bad-number:material.' + k); });
+  if (!BEHAVIOURS.includes(m.behaviour)) errors.push('bad-value:material.behaviour');
+  // sections are { b, h } (mm): square sticks today, rectangular ones later without a new version
+  if (!Array.isArray(m.sizes) || !m.sizes.length || !m.sizes.every(z => isObj(z) && pos(z.b) && pos(z.h))) errors.push('bad-value:material.sizes');
+  if ('estimated' in m && !(Array.isArray(m.estimated) && m.estimated.every(k => typeof k === 'string' && (MAT_REQ.includes(k) || MAT_OPT.includes(k))))) errors.push('bad-value:material.estimated');
+  if ('sources' in m && !(isObj(m.sources) && Object.values(m.sources).every(v => typeof v === 'string'))) errors.push('bad-value:material.sources');
+  if ('creep' in m && m.creep != null && !(isObj(m.creep) && pos(m.creep.factor))) errors.push('bad-value:material.creep');
+  if ('joints' in m && !(isObj(m.joints) && Object.values(m.joints).every(meth => isObj(meth) && Object.values(meth).every(j => isObj(j)
+      && ['tension', 'shear', 'slip'].every(k => !(k in j) || j[k] == null || (num(j[k]) && +j[k] >= 0)))))) errors.push('bad-value:material.joints');
+  if ('variability' in m && m.variability != null) {
+    const v = m.variability, nums = o => isObj(o) && Object.values(o).every(x => num(x) && +x >= 0);
+    if (!isObj(v) || ('cov' in v && !nums(v.cov)) || ('low' in v && !nums(v.low)) || ('high' in v && !nums(v.high))) errors.push('bad-value:material.variability');
+  }
+  if (!m.source) warnings.push('no-source');
+  if (m.behaviour === 'polymer' && !m.creep) warnings.push('polymer-without-creep');
+}
+
+// ---------- theme file (White Hat, board TE-B-014): a theme from outside the app is DATA ONLY.
+// Tokens (colours, sizes, font names) and image file names; no CSS text, no script, no links out.
+// Built-in themes listed in themes/index.json may point at a .css file because they arrive through a reviewed PR;
+// formats.js never accepts one. A theme can't reach the verdict, force colours or results card (#197).
+const THEME_KEYS = ['format', 'version', 'id', 'name', 'savedAt', 'tokens', 'images', 'fonts', 'notes'];
+const TOKEN_NAME = /^[a-z][a-z0-9-]{0,39}$/;
+const TOKEN_VALUE = /^(#[0-9a-fA-F]{3,8}|-?\d+(\.\d+)?(px|rem|em|%|deg)?|[A-Za-z][A-Za-z0-9 ,-]{0,59})$/;
+const IMAGE_FILE = /^[a-z0-9][a-z0-9_-]{0,39}\.(png|jpe?g|webp)$/;
+function checkTheme(t, errors, warnings) {
+  if (typeof t.id !== 'string' || !/^[a-z0-9-]{1,40}$/.test(t.id)) errors.push('bad-value:id');
+  Object.keys(t).forEach(k => { if (!THEME_KEYS.includes(k)) errors.push('not-allowed:' + k); });   // css, js, script, html... are all refused
+  if ('tokens' in t) {
+    if (!isObj(t.tokens)) errors.push('bad-value:tokens');
+    else Object.keys(t.tokens).forEach(k => { const v = String(t.tokens[k]); if (!TOKEN_NAME.test(k) || !TOKEN_VALUE.test(v)) errors.push('bad-token:' + k); });
+  }
+  if ('images' in t && !(isObj(t.images) && Object.values(t.images).every(f => typeof f === 'string' && IMAGE_FILE.test(f)))) errors.push('bad-value:images');   // no SVG: it can carry script
+  if ('fonts' in t && !(Array.isArray(t.fonts) && t.fonts.every(f => typeof f === 'string' && /^[A-Za-z][A-Za-z0-9 -]{0,39}$/.test(f)))) errors.push('bad-value:fonts');   // names of fonts the site hosts, never URLs
 }
 
 // ---------- checks: errors mean the file can't be used; warnings mean it can, with gaps
@@ -138,14 +184,11 @@ function check(doc, savedAs) {
   } else if (det.kind === 'material') {
     const m = isObj(doc.material) ? doc.material : null;
     if (!m) errors.push('no-material');
-    else {
-      ['E', 'sigT', 'sigC', 'rho'].forEach(k => { if (!num(m[k]) || +m[k] <= 0) errors.push('bad-number:material.' + k); });
-      if (!['brittle-wood', 'ductile-metal', 'polymer'].includes(m.behaviour)) errors.push('bad-value:material.behaviour');
-      if (!Array.isArray(m.sizes) || !m.sizes.length || !m.sizes.every(s => num(s) && +s > 0)) errors.push('bad-value:material.sizes');
-      if (!m.source) warnings.push('no-source');
-    }
+    else checkMaterial(m, errors, warnings);
   } else if (det.kind === 'theme') {
-    if (typeof doc.id !== 'string' || !/^[a-z0-9-]{1,40}$/.test(doc.id)) errors.push('bad-value:id');
+    checkTheme(doc, errors, warnings);
+  } else if (det.kind === 'tsweep') {
+    errors.push('binary-format');   // a .tsweep header is only valid inside its gzip, read by the bytes reader (#179)
   }
   if ((savedAs || det.version) >= 2 && (det.kind === 'bridge' || det.kind === 'sweep')) ['release', 'savedAt'].forEach(k => { if (!doc[k]) warnings.push('missing:' + k); });
   return { ok: errors.length === 0, det, errors, warnings };
@@ -171,9 +214,10 @@ function open(input) {
 // ---------- material files (#150): SI on disk; the solver's mat object uses kg/mm³ for density
 // (rho 160 kg/m³ in a file = 1.6e-7 kg/mm³ in app.js S.mat)
 const KG_M3_TO_KG_MM3 = 1e-9;
-function materialToMat(m, size) {
-  const b = num(size) ? +size : +m.sizes[0];
-  return { b, h: b, E: +m.E, sigT: +m.sigT, sigC: +m.sigC, rho: +m.rho * KG_M3_TO_KG_MM3 };
+// i: which of the material's sections (default the first)
+function materialToMat(m, i) {
+  const z = m.sizes[num(i) ? +i : 0] || m.sizes[0];
+  return { b: +z.b, h: +z.h, E: +m.E, sigT: +m.sigT, sigC: +m.sigC, rho: +m.rho * KG_M3_TO_KG_MM3 };
 }
 
 const api = { KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat };

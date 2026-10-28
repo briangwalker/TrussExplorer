@@ -6,19 +6,27 @@
   "name": "Balsa (SE 310 course values)",
   "source": "SE 310 Project I challenge PDF",
   "asOf": "2026-10-27",
+  "condition": "as supplied in the course kit",
   "behaviour": "brittle-wood",
   "E": 3000,
   "sigT": 7.5,
   "sigC": 4.5,
   "rho": 160,
+  "sigCperp": null,
+  "sigPL": null,
   "sizes": [
-   3.18
+   {
+    "b": 3.18,
+    "h": 3.18
+   }
   ],
+  "estimated": [],
+  "sources": {},
+  "anisotropy": "grain along the stick",
   "variability": {
    "note": "varies by batch (challenge PDF)"
   },
   "joints": {},
-  "anisotropy": "grain along the stick",
   "notes": ""
  }
 }
