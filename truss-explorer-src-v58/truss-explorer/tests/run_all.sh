@@ -30,11 +30,12 @@ EOF
 fi
 
 step "syntax"
-ok=0; for f in core core3d export template builddoc formats app shell; do node --check "$root/src/$f.js" || ok=1; done; mark $ok "syntax"; [ $ok -eq 0 ] && echo "all modules parse"
+# every module in src/, so a new file needs no edit here (#109, TE-B-018)
+ok=0; for f in "$root"/src/*.js; do node --check "$f" || ok=1; done; mark $ok "syntax"; [ $ok -eq 0 ] && echo "all modules parse"
 
-step "node: solver audit + v58 regressions (golden.json) + file formats"
-node --test "$here/solver.test.js" "$here/regressions.test.js" "$here/sampler.test.js" "$here/formats.test.js" 2>&1 | grep -aE '^not ok|^# (tests|pass|fail)|changed since v58|error:'
-node --test "$here/solver.test.js" "$here/regressions.test.js" "$here/sampler.test.js" "$here/formats.test.js" >/dev/null 2>&1; mark $? "node tests"
+step "node: every tests/*.test.js (solver audit, v58 regressions, sampler, file formats ...)"
+node --test "$here"/*.test.js 2>&1 | grep -aE '^not ok|^# (tests|pass|fail)|changed since v58|error:'
+node --test "$here"/*.test.js >/dev/null 2>&1; mark $? "node tests"
 
 step "cmp.py: member forces vs the course script"
 python3 "$here/cmp.py" > /tmp/te-cmp.out 2>&1; r=$?; grep -E 'WORST|PASS|FAIL|KNOWN|SKIP|  ' /tmp/te-cmp.out | grep -v ' maxdF 0.000' ; mark $r "cmp.py"
@@ -56,6 +57,13 @@ node "$here/ui/shell.mjs" 2>&1 | grep -aEv '^ok '; mark ${PIPESTATUS[0]} "UI she
 
 step "browser: v51-v58 regressions $slow"
 node "$here/ui/regressions.mjs" $slow 2>&1 | grep -aEv '^ok |^-- |^$'; mark ${PIPESTATUS[0]} "UI regressions"
+
+# any other browser test in tests/ui/ (a new *.mjs there runs without editing this file; harness.mjs is the shared helper)
+for t in "$here"/ui/*.mjs; do
+  case "$(basename "$t")" in harness.mjs|smoke.mjs|saving.mjs|documents.mjs|files.mjs|shell.mjs|regressions.mjs) continue;; esac
+  step "browser: $(basename "$t" .mjs)"
+  node "$t" 2>&1 | grep -aEv '^ok '; mark ${PIPESTATUS[0]} "UI $(basename "$t" .mjs)"
+done
 
 step "RESULT"
 if [ $fail -eq 0 ]; then echo "ALL GREEN"; else echo "SOMETHING FAILED (see >>> lines)"; fi
