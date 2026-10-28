@@ -4172,6 +4172,8 @@ $('presetSel').addEventListener('change', () => {
   // the sweep switches not named go off; ranges keep their values unless reset
   if ($('presetSweep').checked) Object.keys(S.swOn).forEach(k => { if (!(k in b.swOn)) b.swOn[k] = false; });
   S.sticks = {}; S.loads = null; S.focus = [];
+  // every 3D setting the preset doesn't name goes back to a fresh page's (#281); the 2D/3D switch and the view stay as they are
+  b.d3 = Object.assign(d3Defaults(), { showPlan: S.d3.showPlan, showSec: S.d3.showSec }, q.set.d3 || {});
   applyBridge(b);
   $('presetSel').value = ''; closeDock(); toast(`Started from "${q.name}". Changed your mind? ☰ → Go back to an earlier bridge.`);
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -5355,6 +5357,8 @@ $('c3Canvas').addEventListener('mousemove', ev => {
 $('c3Canvas').addEventListener('mouseleave', () => { $('c3Tip').hidden = true; });
 
 // ---------- 3D view (prototype)
+// a fresh page's 3D setup; a starter preset puts it back too (#281), so a preset gives the same bridge whatever came before
+function d3Defaults() { return { tilt: 0, botTies: true, topBr: 'single', botBr: 'single', sway: true, imperf: { on: false, alpha: 0.02, beta: 0.005, dir: 1 }, topPat: ['S'], botPat: ['S'], framePat: ['D', 'N'], sec: 0 }; }
 S.d3 = Object.assign({ tilt: 0, botTies: true, topBr: 'single', botBr: 'single', sway: true }, S.d3 || {});
 S.d3.imperf = Object.assign({ on: false, alpha: 0.02, beta: 0.005, dir: 1 }, S.d3.imperf || {});
 // per-panel / per-station patterns (left half). Older saved settings become patterns the first time.
