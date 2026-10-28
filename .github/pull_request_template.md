@@ -8,7 +8,9 @@ Closes #
 
 
 ### Spec rules this meets
-<!-- UI-… from docs/ui-spec.md, ART-… from docs/art-spec.md, docs/formats.md, or the Math/Physics spec named on the issue. "None: no spec covers this" means you asked the owner on the issue first. -->
+<!-- Rule IDs from docs/ui-spec.md and docs/art-spec.md, the docs/formats.md section, or the Math/Physics spec named on the issue.
+     The "spec-cited" check reads this line (docs/spec-checks.md). If no spec covers the change, write "Spec: none - <why>" and ask the owner on the issue first. -->
+Spec rules met: 
 
 
 ### Reviews requested
@@ -27,6 +29,9 @@ Closes #
 
 
 ### Security
-<!-- White Hat's per-PR checklist goes here once docs/security-checklist.md exists (board TE-B-076). Keep security details out of public text: private findings stay in Drive [52]. -->
+<!-- If the PR hits a trigger R1-R8 in docs/security-checklist.md (outside author, code assistant, file import, exports, themes or shell,
+     CI/build/dependencies, network/storage/code loading, deploy), tick White Hat above and list the triggers here. White Hat's review comment
+     uses that checklist. Keep security details out of public text: private findings stay in Drive [52]. -->
+Triggers: 
 
 _Signed:_
