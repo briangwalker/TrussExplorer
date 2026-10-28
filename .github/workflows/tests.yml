@@ -42,6 +42,13 @@ jobs:
           name: built-page
           path: truss-explorer-src-v58/truss-explorer/index.html
           if-no-files-found: ignore
+      - name: Keep each theme's screenshot for review (#265; tests/ui/shell.mjs takes them at 1440 x 900)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: theme-screenshots
+          path: truss-explorer-src-v58/truss-explorer/tests/shots/shell-theme-*.png
+          if-no-files-found: ignore
       - name: Keep the screenshots when something fails
         if: failure()
         uses: actions/upload-artifact@v4
