@@ -39,7 +39,7 @@ const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBo
 // NEVER rename this key: everyone's saved work lives under it. When the saved format changes, convert old data on load instead.
 const KEY = 'se310-truss-v5';
 const APP_VER = 35;   // bumped whenever the solver or the saved data changes
-const APP_RELEASE = 'v62';   // the release name, written into every file the app saves
+const APP_RELEASE = 'v63';   // the release name, written into every file the app saves
 
 // The starter bridge fits the 300 mm envelope measured on the outer faces (#185, Brian 2026-10-28): 48.4 mm on each desk
 // gives 296.8 mm between end joints and 299.98 mm outside (half a stick, 1.59 mm, shorter at each end than v61's 300 mm).
@@ -58,7 +58,7 @@ const DEFAULT = {
 const SAFE_CH = { '<': '‹', '>': '›', '"': '”', "'": '’', '`': 'ˋ' };
 function cleanData(x, depth) {
   depth = depth || 0;
-  if (typeof x === 'string') return (x.length > 2000 ? x.slice(0, 2000) : x).replace(/[<>"'`]/g, c => SAFE_CH[c]);
+  if (typeof x === 'string') return (x.length > 2000 ? x.slice(0, 2000) : x).replace(/[<>"'`]/g, c => SAFE_CH[c]).replace(/[\u0000-\u001F\u007F\u2028\u2029]/g, ' ');   // text from outside is one line
   if (x === null || typeof x !== 'object' || depth > 40) return x;
   if (ArrayBuffer.isView(x) || x instanceof ArrayBuffer) return x;
   if (Array.isArray(x)) return x.map(v => cleanData(v, depth + 1));
@@ -999,7 +999,9 @@ function setSticks(k, fn) {
   update();
 }
 $('resetSticks').addEventListener('click', () => { S.sticks = {}; update(); });
-function csvOf(rows) { return rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(',')).join('\n'); }
+// a CSV cell that a spreadsheet would read as a formula (= + - @ ...) is kept as text; plain numbers stay numbers
+function csvSafe(v) { if (typeof v !== 'string') return v; const t = v.replace(/[\u0000-\u001F\u007F]+/g, ' '); return /^[=+\-@]/.test(t) && !/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t) ? "'" + t : t; }
+function csvOf(rows) { return rows.map(r => r.map(v => { v = csvSafe(v); return /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v; }).join(',')).join('\n'); }
 function csvText() { return infoLines().map(l => '# ' + l).join('\n') + '\n' + csvOf(rowsForCsv()); }
 
 // ---------- export
@@ -1154,7 +1156,7 @@ function lpFiles() {
     });
     B.push(row);
   }
-  const readme = `SE 310 Truss Explorer - LP data for "${S.name}"
+  const readme = `SE 310 Truss Explorer - LP data for "${X.pyName(S.name)}"
 ${summaryOf({ family: S.family, pattern: S.pattern, panels: S.panels, height: S.height, overall: tr.overall, ratio: S.ratio, sideAngle: S.sideAngle, curve: tr.info.curve, bottom: tr.info.shape, supportOffset: tr.info.supportOffset })}
 Exported ${new Date().toISOString().slice(0, 10)}. Units: mm, N. One side truss (the loads are this truss's share).
 ${infoLines().join('\n')}
@@ -1285,7 +1287,7 @@ function fingerprint(o) { const s = JSON.stringify(o); let h = 0x811c9dc5; for (
 // the same facts as lines of text, for CSVs, the .py, the LP README and the build documents (over: { model, rules } of a sweep)
 function infoLines(over) {
   const fi = fileInfo(over && over.model), r = Object.assign({}, fi.rules, over && over.rules);
-  return [`SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`, `Design: ${S.name || 'Design'} · ${fi.model} analysis · saved ${fi.savedAt}`,
+  return [`SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`, `Design: ${X.pyName(S.name || 'Design')} · ${fi.model} analysis · saved ${fi.savedAt}`,
     `Rules: FS ${r.FS}, books ${r.bookKg} kg, deflection <= ${r.deflLimit} mm, overlap >= ${r.minOverlap} mm, width ${r.width} mm, envelope on outer faces`, `Bridge code: ${fi.bridgeCode}`];
 }
 // the rules a sweep's results were judged by (they can differ from the inputs on screen)
@@ -2308,7 +2310,7 @@ $('tradeCsv').addEventListener('click', () => {
   const extra = [...new Set(sweepAll.flatMap(r => Object.keys(r).filter(k => /^st_|^fc_/.test(k))))];
   const outc = ['wood', 'mass', 'D', 'util', 'capKg', 'passes', 'edgeOK', 'envOK', 'refined'];
   const all = cols.concat(extra, outc);
-  const esc = v => v == null ? '' : (typeof v === 'number' ? (Number.isFinite(v) ? +v.toPrecision(8) : '') : String(v).replace(/[",\n]/g, ' '));
+  const esc = v => v == null ? '' : (typeof v === 'number' ? (Number.isFinite(v) ? +v.toPrecision(8) : '') : csvSafe(String(v)).replace(/[",\n]/g, ' '));
   const csv = infoLines(sweepInfo()).map(l => '# ' + l).concat([all.join(',')], sweepAll.map(r => all.map(k => esc(r[k])).join(','))).join('\n');
   saveFile(fileBase() + '_tradeoff.csv', csv);
 });
@@ -3160,7 +3162,7 @@ function sheetHTML(sh) {
     <p class="note" style="margin:6px 0 0">Everything else was fixed at: ${escH(sh.fixed)}.${sh.sampled ? ' "Step reached" is how far apart the sampled designs are, on average, in each swept input: the sample covers the whole range, but less finely than the step set.' : ''}</p>`;
 }
 function sheetCSV(sh) {
-  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const q = v => `"${String(v == null ? '' : csvSafe(v)).replace(/"/g, '""')}"`;
   const fi = fileInfo(sweepInfo().model);
   const head = [['Made with', `SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`], ['Bridge code', fi.bridgeCode], ['Run', sh.kind], ['When', sh.when], ['Analysis', sh.analysis], ['Designs tested', sh.tested], ['Designs in the ranges', sh.total], ['Sampled', sh.sampled ? 'yes' : 'no'], ['FS', sh.FS], ['Books (kg)', sh.bookKg], ['Deflection limit (mm)', sh.defl], ['Min overlap (mm)', sh.minOv], ['Fixed inputs', sh.fixed], []];
   const tbl = [['Swept input', 'From', 'To', 'Step set', 'Values', 'Choices', 'Step reached (about)']].concat(sh.rows.map(r => r.list ? [r.name, '', '', '', r.count, r.list.join(' / '), r.eff || 'all'] : [r.name, r.from, r.to, r.step, r.count, '', r.eff != null ? r.eff : r.step]));
