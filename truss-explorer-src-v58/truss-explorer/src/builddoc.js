@@ -12,6 +12,15 @@ function meet(p, u, q, c) { const den = crs(u, c); if (Math.abs(den) < 1e-12) re
 
 const TYPE_ORDER = { bot: 0, top: 1, end: 2, vert: 3, diag: 4, brace: 5, claw: 6 };
 const isChord = e => e.type === 'top' || e.type === 'bot';
+// radius of the circle through three points (Infinity when they're in a line)
+const circ = (p, q, r) => { const a = Math.hypot(q[0] - p[0], q[1] - p[1]), c = Math.hypot(r[0] - q[0], r[1] - q[1]), d = Math.hypot(r[0] - p[0], r[1] - p[1]);
+  const ar = Math.abs((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])) / 2; return ar < 1e-9 ? Infinity : a * c * d / (4 * ar); };
+// the joints of a piece in order, from its first end, and its members in the same order
+function chainOf(tr, q) {
+  const seq = [q.nodes[0]], mem = [], left = new Set(q.members); let cur = q.nodes[0];
+  while (left.size) { const k = [...left].find(k2 => tr.elems[k2].i === cur || tr.elems[k2].j === cur); if (k == null) break; left.delete(k); mem.push(k); cur = tr.elems[k].i === cur ? tr.elems[k].j : tr.elems[k].i; seq.push(cur); }
+  return { seq, mem };
+}
 
 // the joints of the truss with the members that meet there (direction pointing away from the joint)
 function jointsOf(tr) {
@@ -57,6 +66,15 @@ function cutPlan(tr, b, cfg) {
   // end cut of member k at joint n: returns the cut-line distances (along the member, from the joint centre) for its two edges
   const ends = {}, notes = {};
   const note = (n, s) => { (notes[n] = notes[n] || []); if (!notes[n].includes(s)) notes[n].push(s); };
+  // a curved top chord built as ONE stick bent to the curve (#282): at every joint where two top-chord members meet at
+  // a bend of under 30°, the stick runs through (no cut), and the others cut flush to its face as at any through joint
+  const bendAt = new Set();
+  if (cfg.bentTop) J.forEach(j => {
+    const tops = j.m.filter(q => tr.elems[q.k].type === 'top'); if (tops.length !== 2) return;
+    const c = dot(tops[0].dir, tops[1].dir); if (!(c < -Math.cos(30 * D2R)) || c < -Math.cos(0.5 * D2R)) return;
+    parent[find(tops[1].k)] = find(tops[0].k); cont[j.n] = new Set([tops[0].k, tops[1].k]); bendAt.add(j.n);
+    note(j.n, 'top chord: one bent stick runs through');
+  });
   tr.elems.forEach((e, k) => {
     [e.i, e.j].forEach(n => {
       const j = byNode[n], p = j.p, me = j.m.find(q => q.k === k), u = me.dir, nrm = perp(u);
@@ -152,15 +170,49 @@ function cutPlan(tr, b, cfg) {
     });
     pieces.length = 0; out.sort((a, b2) => TYPE_ORDER[a.type] - TYPE_ORDER[b2.type] || a.members[0] - b2.members[0]).forEach(q => pieces.push(q));
   }
+  // a piece of top chord that bends at one of its joints is cut straight to its length along the joints, then bent (#282)
+  pieces.forEach(q => { q.bent = bendAt.size > 0 && q.type === 'top' && q.members.some(k => [tr.elems[k].i, tr.elems[k].j].some(n => bendAt.has(n) && n !== q.nodes[0] && n !== q.nodes[1])); });
+  // a bent stick follows the curve between joints, a little longer than the straight joint-to-joint line: add the difference
+  // (each panel taken as a circular arc through its two joints with the radius at its tighter end)
+  pieces.filter(q => q.bent).forEach(q => {
+    const { seq } = chainOf(tr, q), P = n => tr.nodes[n];
+    const Rn = seq.map((n, i) => i === 0 || i === seq.length - 1 ? Infinity : circ(P(seq[i - 1]), P(n), P(seq[i + 1])));
+    let extra = 0; for (let i = 0; i + 1 < seq.length; i++) { const L = Math.hypot(...sub(P(seq[i + 1]), P(seq[i]))), R = Math.min(Rn[i], Rn[i + 1]); if (Number.isFinite(R)) extra += 2 * R * Math.asin(Math.min(1, L / (2 * R))) - L; }
+    q.arcExtra = extra; q.long += extra; q.short += extra; q.centre += extra;
+  });
   // parts list: identical pieces (to 0.5 mm and 1°) share an item number
-  const keyOf = q => [q.type, (Math.round(q.long * 2) / 2).toFixed(1), (Math.round(q.short * 2) / 2).toFixed(1), [Math.round(q.cut0.ang), Math.round(q.cut1.ang)].sort((a, b2) => a - b2).join('/'), q.n].join('|');
+  const keyOf = q => [q.bent ? 'bent' : '', q.type, (Math.round(q.long * 2) / 2).toFixed(1), (Math.round(q.short * 2) / 2).toFixed(1), [Math.round(q.cut0.ang), Math.round(q.cut1.ang)].sort((a, b2) => a - b2).join('/'), q.n].join('|');
   const items = [];
-  pieces.forEach(q => { const key = keyOf(q); let it = items.find(i => i.key === key); if (!it) { it = { key, no: items.length + 1, type: q.type, long: q.long, short: q.short, cuts: [q.cut0, q.cut1], n: q.n, pieces: [] }; items.push(it); } it.pieces.push(q); q.item = it.no; });
+  pieces.forEach(q => { const key = keyOf(q); let it = items.find(i => i.key === key); if (!it) { it = { key, no: items.length + 1, type: q.type, bent: !!q.bent, long: q.long, short: q.short, cuts: [q.cut0, q.cut1], n: q.n, pieces: [] }; items.push(it); } it.pieces.push(q); q.item = it.no; });
   // pieces too short to cut, or short enough that the pin-jointed model gets doubtful (L < 6 stick widths, Physics #155)
   const bad = pieces.filter(q => !(q.short > 0.05) || !(q.long > 0.05)), short = pieces.filter(q => q.L < 6 * b);
-  return { joints: J.map(j => Object.assign({ n: j.n, members: j.m.map(q => q.k), notes: notes[j.n] || [] }, rule(j.n))), ends, pieces, items, splices, bad, short };
+  return { joints: J.map(j => Object.assign({ n: j.n, members: j.m.map(q => q.k), notes: notes[j.n] || [] }, rule(j.n), cont[j.n] && bendAt.has(j.n) ? { through: [...cont[j.n]][0] } : {})), ends, pieces, items, splices, bad, short, bendAt: [...bendAt] };
 }
 const SPLICE = { kind: 'splice', eA: 0, eB: 0, ang: 0 };
+
+// can the bent top chord be built (#282, #194; Physics, TE-B-128)? For each bent piece: the radius at each inner joint
+// is the circle through it and its two neighbours on the chord; a member's radius is the tighter of its two ends.
+// - bending it dry: outer-fibre strain (b/2)/R against the failure strain sigT/E. Over it: soak or steam, dry on the form.
+// - once dried to shape, the wood between two joints sits off the straight force line by the sagitta e = L^2/(8R), so a
+//   member force F also bends it by F*e: stress |F|/A + |F|*e/Z, against sigC (compression) or sigT (tension).
+// F is the member force at the design load (books x FS), as everywhere in the documents.
+function bentCheck(tr, plan, res, mat) {
+  mat = mat || {}; const b = +mat.b || 3.18, h = +mat.h || b, E = +mat.E || 3000, sigT = +mat.sigT || 7.5, sigC = +mat.sigC || 4.5;
+  const A = b * h, Z = b * h * h / 6, strainLimit = sigT / E;
+  const out = (plan.pieces || []).filter(q => q.bent).map(q => {
+    const { seq, mem } = chainOf(tr, q);
+    const Rn = seq.map((n, i) => i === 0 || i === seq.length - 1 ? Infinity : circ(tr.nodes[seq[i - 1]], tr.nodes[n], tr.nodes[seq[i + 1]]));
+    const members = mem.map((k, i) => {
+      const L = Math.hypot(...sub(tr.nodes[seq[i + 1]], tr.nodes[seq[i]])), R = Math.min(Rn[i], Rn[i + 1]), e = Number.isFinite(R) ? L * L / (8 * R) : 0, arc = Number.isFinite(R) ? 2 * R * Math.asin(Math.min(1, L / (2 * R))) : L;
+      const F = res && res.members && res.members[k] ? res.members[k].F : 0, sigma = Math.abs(F) / A + Math.abs(F) * e / Z;
+      return { k, L, arc, R, e, F, sigma, use: sigma / (F < 0 ? sigC : sigT), straightUse: Math.abs(F) / A / (F < 0 ? sigC : sigT) };
+    });
+    const Rmin = Math.min(...Rn), strain = Number.isFinite(Rmin) ? (b / 2) / Rmin : 0;
+    return { item: q.item, nodes: seq, len: q.long, L: q.L, Rmin, strain, members, worstUse: Math.max(0, ...members.map(m => m.use)), worst: members.slice().sort((x, y) => y.use - x.use)[0] };
+  });
+  const Rmin = Math.min(Infinity, ...out.map(o => o.Rmin)), strain = Number.isFinite(Rmin) ? (b / 2) / Rmin : 0, worstUse = Math.max(0, ...out.map(o => o.worstUse));
+  return { pieces: out, Rmin, strain, strainLimit, mustSoak: strain > strainLimit, worstUse, tooTight: worstUse >= 1, A, Z };
+}
 
 // first-fit decreasing: how to cut the pieces from stock sticks
 function stockPlan(lengths, stock, kerf) {
@@ -433,6 +485,23 @@ function markSVG(tr, marks, stops, Y, b, colour) {
     + stops.map(s => `<rect x="${s.x0}" y="${Y(s.y1)}" width="${s.x1 - s.x0}" height="${s.y1 - s.y0}" fill="${colour || '#fff'}" stroke="#111" stroke-width=".25"/><text x="${s.left ? s.x1 + 1 : s.x0 - 1}" y="${Y(s.y0) - 1}" font-size="2.6" text-anchor="${s.left ? 'start' : 'end'}" fill="#111" font-family="Arial">edge stop</text>`).join('');
 }
 
+// the full-size bending form for a bent top chord (#282): the curve through the chord's joints (a smooth curve, the shape a
+// stick takes when it's pinned through those points), the stick's two faces, a tick and number at every joint, and pin
+// marks beside the stick on alternate sides every ~17 mm. Returns the SVG pieces in mm, y up in the truss's own axes.
+function bendForm(tr, piece, b) {
+  const { seq } = chainOf(tr, piece), P = seq.map(n => tr.nodes[n]), m = P.length;
+  // Catmull-Rom through the joints, sampled finely
+  const at = (i, s) => { const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(m - 1, i + 2)], s2 = s * s, s3 = s2 * s;
+    return [0, 1].map(d => 0.5 * ((2 * p1[d]) + (-p0[d] + p2[d]) * s + (2 * p0[d] - 5 * p1[d] + 4 * p2[d] - p3[d]) * s2 + (-p0[d] + 3 * p1[d] - 3 * p2[d] + p3[d]) * s3)); };
+  const pts = [], at0 = [0]; for (let i = 0; i + 1 < m; i++) for (let j = 0; j < 24; j++) pts.push(at(i, j / 24)); pts.push(P[m - 1]);
+  for (let i = 1; i < pts.length; i++) at0.push(at0[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const nrm = i => { const a2 = pts[Math.max(0, i - 1)], c2 = pts[Math.min(pts.length - 1, i + 1)]; return perp(unit(sub(c2, a2))); };
+  const off = d => pts.map((p, i) => add(p, mul(nrm(i), d)));
+  const len = at0[at0.length - 1];
+  const pins = []; for (let s = 8, side = 1; s < len - 4; s += 17, side = -side) { const i = at0.findIndex(v => v >= s); pins.push(add(pts[i], mul(nrm(i), side * (b / 2 + 1.6)))); }
+  const ticks = seq.map((n, i) => { const k = i === 0 ? 0 : i === m - 1 ? pts.length - 1 : i * 24, nv = nrm(k); return { n, p: P[i], a: add(P[i], mul(nv, b / 2 + 4)), c: sub(P[i], mul(nv, b / 2 + 4)) }; });
+  return { pts, up: off(b / 2), dn: off(-b / 2), pins, ticks, len, xs: pts.map(p => p[0]), ys: pts.map(p => p[1]) };
+}
 function documentHTML(tr, res, meta, plan, opt) {
   opt = opt || {};
   const b = meta.b || 3.18, nT = meta.nTruss || 2, colourMode = opt.colour === false ? 'mono' : 'part', dash = !!opt.dash;
@@ -444,7 +513,10 @@ function documentHTML(tr, res, meta, plan, opt) {
   const stopItem = stops.length ? (() => { const q = { L: STOP_LEN, cut0: { kind: 'square', eA: 0, eB: 0, ang: 0 }, cut1: { kind: 'square', eA: 0, eB: 0, ang: 0 }, long: STOP_LEN, short: STOP_LEN, members: [] };
     return { no: plan.items.length + (cx ? cx.items.length : 0) + 1, type: 'stop', label: 'Edge stop (under each corner joint)', long: STOP_LEN, short: STOP_LEN, cc: STOP_LEN, cuts: [q.cut0, q.cut1], n: 1, view: 'side view', pieces: Array.from({ length: stops.length * nT }, () => q), Fmax: 0, kind: 'stop' }; })() : null;
   const allItems = plan.items.concat(cx ? cx.items : [], stopItem ? [stopItem] : []);
-  const isX = it => !!it.label, lab = it => it.label || TL[it.type] || it.type, qty = it => isX(it) ? it.pieces.length : it.pieces.length * nT * it.n;
+  // a curved top chord built as one bent stick (#282): its checks, sheet, form and steps
+  const bentPieces = plan.pieces.filter(q => q.bent), bent = bentPieces.length ? bentCheck(tr, plan, res, meta.mat || { b, h: meta.h || b }) : null;
+  const pctB = v => `${Math.round(v * 100)}%`;
+  const isX = it => !!it.label, lab = it => it.label || (it.bent ? 'Top chord: one stick bent to the curve' : TL[it.type] || it.type), qty = it => isX(it) ? it.pieces.length : it.pieces.length * nT * it.n;
   const allCuts = []; plan.pieces.forEach(q => { for (let t = 0; t < nT * q.n; t++) allCuts.push({ len: q.long, item: q.item }); });
   if (cx) cx.parts.forEach(q => allCuts.push({ len: q.long, item: q.item }));
   if (stopItem) stopItem.pieces.forEach(() => allCuts.push({ len: STOP_LEN, item: stopItem.no }));
@@ -467,13 +539,13 @@ function documentHTML(tr, res, meta, plan, opt) {
   const spliceNote = splices.length ? ` <b>Splices</b> (red marks): ${splices.length} chord joint${splices.length > 1 ? 's' : ''} where a piece longer than one ${stock} mm stick is joined: square butt ends at the joint centre, placed where the chord force is lowest (${splices.map(s => Math.abs(s.F) < 0.005 ? 'no force' : `${Math.abs(s.F).toFixed(2)} N ${s.tension ? 'tension: glue a splint across it' : 'compression'}`).join('; ')}).` : '';
   // 1. assembly drawing (side truss)
   const v = sideSVG(tr, plan, { labels: true, balloons: true, dims: true, b, color: colourMode, dash });
-  const partsArr = plan.items.map(it => `<tr><td>${swatch(it.no)}${it.no}</td><td>${qty(it)}</td><td>${f1(it.long)}</td><td>${Math.abs(it.long - it.short) > 0.05 ? f1(it.short) : '—'}</td><td>${it.cuts.map(cutTxt).join(' / ')}</td><td>${lab(it)}${it.n > 1 ? ` (${it.n} sticks glued)` : ''}${pattern(it.no)}</td></tr>`)
+  const partsArr = plan.items.map(it => `<tr><td>${swatch(it.no)}${it.no}</td><td>${qty(it)}</td><td>${f1(it.long)}</td><td>${Math.abs(it.long - it.short) > 0.05 ? f1(it.short) : '—'}</td><td>${it.cuts.map(cutTxt).join(' / ')}</td><td>${lab(it)}${it.n > 1 ? ` (${it.n} sticks glued)` : ''}${it.bent ? ': length along the curve; cut 10-15 mm long at each end, bend, then trim' : ''}${pattern(it.no)}</td></tr>`)
     .concat(stopItem ? [`<tr><td>${swatch(stopItem.no)}${stopItem.no}</td><td>${qty(stopItem)}</td><td>${f1(STOP_LEN)}</td><td>—</td><td>square / square</td><td>Edge stop: glued under each corner joint, against the table's face</td></tr>`] : [])
     .concat(!cx && meta.ties && meta.ties.count ? [`<tr><td>T</td><td>${meta.ties.count}</td><td>${f1(meta.ties.len)}</td><td>—</td><td>square</td><td>Cross-tie between the trusses</td></tr>`] : []);
   const partsHead = `<tr><th colspan="6">PARTS LIST · ${nT} TRUSSES</th></tr><tr><th>ITEM</th><th>QTY</th><th>LENGTH</th><th>SHORT PT</th><th>END CUTS</th><th>DESCRIPTION</th></tr>`;
   const ownParts = partsArr.length > 10;   // too many rows to sit beside the drawing
   sheet('Assembly drawing', `${ownParts ? `<p class="note asmnote"><b>Parts list: next sheet${partsArr.length > 30 ? 's' : ''}.</b></p>` : `<table class="parts">${partsHead}${partsArr.join('')}</table>`}
-    <p class="note asmnote">Side view of one truss, mm. Each part is dimensioned once (long point); identical parts carry the same item balloon. Build ${nT} identical trusses${cx ? (cx.sameTrusses ? ' (checked: the front and back trusses of the 3D model are identical)' : ' — <b>the front and back trusses differ: see the 3D sheets</b>') : ''}.${cx && cx.tilt ? ` In the 3D bridge each truss leans ${f1(cx.tilt)}° inward about its bottom chord; build it flat, exactly as drawn.` : ''}${spliceNote}${(plan.bad || []).length ? ` <b style="color:#c0392b">${plan.bad.length} piece${plan.bad.length > 1 ? 's' : ''} can't be cut as set (no length left between the end cuts): change the joints marked in the joints table.</b>` : ''}${(plan.short || []).length ? ` <b>Short members</b>: ${plan.short.length} piece${plan.short.length > 1 ? 's are' : ' is'} under ${f1(6 * b)} mm (6 stick widths); members this short behave like a solid web, so the results are less reliable.` : ''}${marks.length ? ` <b>Desk edge</b> (green marks): line these up with the desk edges${(+tr.design.supportOffset || 0) ? `; the support joints sit ${f1(+tr.design.supportOffset)} mm onto the desks` : ''}.` : ''}${stopItem ? ` <b>Edge stops</b>: ${stops.length * nT} sticks of ${STOP_LEN} mm glued under the corner joints, hanging down the table's face so the edge can push the bridge inward (${f1(stopItem.pieces.length * STOP_LEN)} mm of stick, not counted in the app's wood).` : ''}
+    <p class="note asmnote">Side view of one truss, mm. Each part is dimensioned once (long point); identical parts carry the same item balloon. ${bent ? ` <b>Bent top chord</b>: ${bentPieces.length * nT} stick${bentPieces.length * nT > 1 ? 's' : ''} bent to the curve (tightest radius ${f1(bent.Rmin)} mm); ${bent.tooTight ? '<b style="color:#c0392b">too tight for one stick here: use straight pieces (see the Bent top chord sheet)</b>' : bent.mustSoak ? 'soak or steam it and let it dry on the bending form first' : 'it can be bent dry'}. See the Bent top chord sheet.` : ''} Build ${nT} identical trusses${cx ? (cx.sameTrusses ? ' (checked: the front and back trusses of the 3D model are identical)' : ' — <b>the front and back trusses differ: see the 3D sheets</b>') : ''}.${cx && cx.tilt ? ` In the 3D bridge each truss leans ${f1(cx.tilt)}° inward about its bottom chord; build it flat, exactly as drawn.` : ''}${spliceNote}${(plan.bad || []).length ? ` <b style="color:#c0392b">${plan.bad.length} piece${plan.bad.length > 1 ? 's' : ''} can't be cut as set (no length left between the end cuts): change the joints marked in the joints table.</b>` : ''}${(plan.short || []).length ? ` <b>Short members</b>: ${plan.short.length} piece${plan.short.length > 1 ? 's are' : ' is'} under ${f1(6 * b)} mm (6 stick widths); members this short behave like a solid web, so the results are less reliable.` : ''}${marks.length ? ` <b>Desk edge</b> (green marks): line these up with the desk edges${(+tr.design.supportOffset || 0) ? `; the support joints sit ${f1(+tr.design.supportOffset)} mm onto the desks` : ''}.` : ''}${stopItem ? ` <b>Edge stops</b>: ${stops.length * nT} sticks of ${STOP_LEN} mm glued under the corner joints, hanging down the table's face so the edge can push the bridge inward (${f1(stopItem.pieces.length * STOP_LEN)} mm of stick, not counted in the app's wood).` : ''}
     ${cx ? `Centre-to-centre wood ${f1(cc2 + ccX)} mm (side trusses ${f1(cc2)} + 3D parts ${f1(ccX)}; the app's "Wood in the 3D model" is ${f1(d3.r3.wood)} mm) · cut length ${f1(totalLen)} mm with joint allowances` : `Stick total ${f1(totalLen)} mm`} · ${meta.massNote || ''} · capacity ${meta.capNote || ''}.</p>
     <svg class="view" style="height:${ownParts ? 120 : Math.max(70, 112 - Math.max(0, partsArr.length - 7) * 5)}mm" viewBox="${v.box.join(' ')}">${v.svg}${spliceMarks(v.Y)}${markSVG(tr, marks, stops, v.Y, b, stopItem && colourMode === 'part' ? colOf(stopItem.no) : '#fff')}</svg>`);
   if (ownParts) { const ch = chunk(partsArr, 30); ch.forEach((rows, i) => sheet(cont('Parts list', i, ch.length), `<table class="parts xparts">${partsHead}${rows.join('')}</table>`)); }
@@ -520,7 +592,7 @@ function documentHTML(tr, res, meta, plan, opt) {
     xJoints = `<h2 style="margin-top:3mm">3D joints</h2><table class="grid small">${xjHead}${xjRows.join('')}</table>${xjNote}`;
   }
   const cutHead = '<tr><th>Item</th><th>Part</th><th>Qty</th><th>Long pt</th><th>Short pt</th><th>End 1</th><th>End 2</th></tr>';
-  const cutNote = `<p class="note">Measure the long point, mark the angle (part drawings, or the templates), and cut on the waste side. "Flush" ends sit flat on the member on top; "mitre" ends meet their partner on a shared line; "runs through" continues past the joint.${splices.length ? ' "Splice" ends butt square at a joint centre.' : ''}</p>`;
+  const cutNote = `<p class="note">Measure the long point, mark the angle (part drawings, or the templates), and cut on the waste side. "Flush" ends sit flat on the member on top; "mitre" ends meet their partner on a shared line; "runs through" continues past the joint. Butt joints (a stick end against another stick's face): end grain soaks up cement, so double-glue: a thin coat, let it go tacky, a second coat, then press; finish with a small fillet.${splices.length ? ' "Splice" ends butt square at a joint centre.' : ''}</p>`;
   const planNote = `<p class="note">${bars.length} stick${bars.length > 1 ? 's' : ''} of ${stock} mm, ${kerf} mm saw kerf.${bars.some(B => B.over) ? ' <b>A part is longer than one stick: join it at a joint (see the assembly drawing).</b>' : ''}</p>`;
   const jHead = '<tr><th>Joint</th><th>Members</th><th>On top</th><th>Others</th></tr>';
   if (cutArr.length <= 16 && barArr.length <= 22) {
@@ -534,20 +606,42 @@ function documentHTML(tr, res, meta, plan, opt) {
   const xjOwn = xjRows.length > 12;   // a long 3D joints table gets its own sheets
   jc.forEach((rows, i) => sheet(cont('Joints', i, jc.length), `<div class="two"><div><h2>${cont('Joints', i, jc.length)}</h2><table class="grid small">${jHead}${rows.join('')}</table></div><div>${i === 0 && !xjOwn ? xJoints : ''}</div></div>`));
   if (xjOwn) { const xc = chunk(xjRows, 22); xc.forEach((rows, i) => sheet(cont('3D joints', i, xc.length), `<h2>${cont('3D joints', i, xc.length)}</h2><table class="grid">${xjHead}${rows.join('')}</table>${i === xc.length - 1 ? xjNote : ''}`)); }
+  // 3b. the bent top chord (#282): can it be bent, is it strong enough once bent, and how to make it (Physics, TE-B-128)
+  if (bent) {
+    const rows = bent.pieces.flatMap(pc => pc.members.map(mb => `<tr><td>${pc.item}</td><td>${mb.k}</td><td>${f1(mb.L)}</td><td>${Number.isFinite(mb.R) ? f1(mb.R) : 'straight'}</td><td>${mb.e.toFixed(2)}</td><td>${Math.abs(mb.F).toFixed(2)} ${mb.F < -0.005 ? 'C' : mb.F > 0.005 ? 'T' : ''}</td><td>${pctB(mb.straightUse)}</td><td${mb.use >= 1 ? ' style="color:#c0392b;font-weight:bold"' : ''}>${pctB(mb.use)}</td></tr>`));
+    const verdict = bent.tooTight
+      ? `<p class="note" style="color:#c0392b;font-size:10pt"><b>Too tight for one stick: use straight pieces.</b> Bent to this curve, member ${bent.pieces.map(pc => pc.worst).sort((x, y) => y.use - x.use)[0].k} would be at ${pctB(bent.worstUse)} of its strength at the design load (over 100%). Untick "one bent stick" to get straight pieces joint to joint, or make the curve flatter.</p>`
+      : `<p class="note" style="font-size:9pt"><b>Strong enough once dried to shape:</b> at most ${pctB(bent.worstUse)} of its strength at the design load (straight pieces joint to joint: ${pctB(Math.max(...bent.pieces.flatMap(pc => pc.members.map(mb => mb.straightUse))))}). The wood between joints sits off the straight line by the sagitta e = L²/8R, so the chord force also bends it.</p>`;
+    const dry = `<p class="note" style="font-size:9pt"><b>${bent.mustSoak ? 'It must be soaked or steamed' : 'It can be bent dry'}:</b> at the tightest radius, ${f1(bent.Rmin)} mm, the outer fibre stretches ${(bent.strain * 100).toFixed(2)}% (b/2R); balsa breaks at about ${(bent.strainLimit * 100).toFixed(2)}% (σt/E).${bent.mustSoak ? ' Bent dry it would crack.' : ''}</p>`;
+    const how = `<ol class="note" style="font-size:8.5pt;margin:1mm 0 0;padding-left:5mm">
+      <li><b>The day before</b> (Thursday evening for a Friday build): print the bending form (template pages) at 100% and check its 50 mm bar. Tape it to a board pins go into, wax paper on top.</li>
+      <li>Pick straight-grained, dense sticks (one per truss, from sticks of similar density) and cut each <b>10-15 mm longer</b> than the cut list at each end. Weigh each one dry and write the mass down.</li>
+      <li><b>Soak</b> in hot tap water (not boiling) for about 15-30 min, or <b>steam</b> it for 1-3 min along the whole curved part, until a scrap of the same stock bends to the crown radius without creaking. Test the scrap first. Mind your hands near steam.</li>
+      <li>Pin it to the form starting at the crown (the tightest part), working out to each end. Pins go <b>beside</b> the stick at the pin marks, inside and outside alternately, <b>never through it</b>. If it creaks, stop, re-wet that part and go slower; a crack means a new stick or straight pieces.</li>
+      <li>Check it lies on the line everywhere (no gap over 0.5 mm), then mark the joint positions from the form onto the stick with a pencil.</li>
+      <li>Let it dry pinned, at room temperature, <b>overnight (at least 8-12 h)</b>, no heater or hot hair dryer. It's dry when its mass is back within about 2% of the dry mass.</li>
+      <li><b>Build day:</b> unpin it (a little springback is normal; within about 1 mm of the line is fine), trim the ends to the cut list, re-check the joint marks, and glue it in as the top chord, pinned to the curve on the truss template. Verticals and diagonals are cut flush to its curved face and double-glued.</li></ol>`;
+    sheet('Bent top chord', `<div class="two"><div><h2>Bent top chord: checks</h2><table class="grid small"><tr><th>Item</th><th>Member</th><th>L</th><th>R</th><th>Sagitta e</th><th>Force at design load</th><th>Use, straight</th><th>Use, bent</th></tr>${rows.join('')}</table>${dry}${verdict}<p class="note">mm and N. R: the circle through each joint and its two neighbours on the chord (a member takes the tighter of its two ends). Use, bent = (|F|/A + |F|·e/Z) / σ, with A = ${f1(bent.A)} mm² and Z = ${f1(bent.Z)} mm³. Checks from the Physics Consultant (#194, #282).</p></div>
+      <div><h2>How to make it</h2>${how}</div></div>`);
+  }
   // 4. build steps
   if (opt.steps) {
     const order = [['bot', 'Lay the bottom chord'], ['top', 'Add the top chord'], ['end', 'Add the end posts'], ['vert', 'Glue in the verticals'], ['diag', 'Glue in the diagonals'], ['brace', 'Add the edge braces'], ['claw', 'Add the claws']];
     const done = new Set(); let stepNo = 0;
     const callOf = its => Object.entries(its).map(([no, c]) => `<div class="part"><b>${c}×</b> ${ball(+no)} ${f1(allItems[no - 1].long)}</div>`).join('');
     const box = (callout, vv, title) => `<div class="step"><div class="sn">${++stepNo}</div><div class="callout">${callout}</div><svg viewBox="${vv.box.join(' ')}">${vv.svg}</svg><p>${title}</p></div>`;
-    const steps = order.map(([ty, title]) => {
+    const steps = [];
+    if (bent) { const vv = sideSVG(tr, plan, { highlight: new Set(bentPieces.flatMap(q => q.members)), b, color: colourMode === 'part' ? 'part' : '#c0392b', dash });
+      const its = {}; bentPieces.forEach(q => { its[q.item] = (its[q.item] || 0) + 1; });
+      steps.push(box(callOf(its), vv, `${bent.tooTight ? '<span style="color:#c0392b">Too tight for one stick: use straight pieces instead (Bent top chord sheet).</span> ' : ''}The day before: ${bent.mustSoak ? 'soak or steam the top-chord sticks, pin them beside the bending form and let them dry overnight' : 'bend the top-chord sticks on the bending form'} (Bent top chord sheet)`)); }
+    order.map(([ty, title]) => {
       const ks = tr.elems.map((e, k) => e.type === ty ? k : -1).filter(k => k >= 0); if (!ks.length) return '';
       const hi = new Set(ks), gr = new Set(done); ks.forEach(k => done.add(k));
       const vv = sideSVG(tr, plan, { highlight: new Set([...hi, ...gr]), grey: gr, b, color: colourMode === 'part' ? 'part' : '#c0392b', dash });
       const its = {}; plan.pieces.filter(q => q.members.some(k => hi.has(k))).forEach(q => { its[q.item] = (its[q.item] || 0) + 1; });
       const spl = ty === 'bot' || ty === 'top' ? splices.filter(s => s.type === ty) : [];
-      return box(callOf(its), { box: vv.box, svg: vv.svg + (spl.length ? spliceMarks(vv.Y) : '') }, title + (spl.length ? ` (${spl.length + 1} pieces: butt them at the red marks${spl.some(s => s.tension) ? ', with a splint where marked' : ''})` : ''));
-    }).filter(Boolean);
+      return box(callOf(its), { box: vv.box, svg: vv.svg + (spl.length ? spliceMarks(vv.Y) : '') }, (ty === 'top' && bent ? 'Glue in the bent top chord, pinned to the curve on the template, joint marks on the joints' : title) + (spl.length ? ` (${spl.length + 1} pieces: butt them at the red marks${spl.some(s => s.tension) ? ', with a splint where marked' : ''})` : ''));
+    }).filter(Boolean).forEach(s => steps.push(s));
     if (stopItem) { const vv = sideSVG(tr, plan, { b, color: '#c8c8c8' }); steps.push(box(callOf({ [stopItem.no]: stops.length }), { box: vv.box, svg: vv.svg + markSVG(tr, marks, stops, vv.Y, b, colourMode === 'part' ? colOf(stopItem.no) : '#c0392b') }, 'Glue an edge stop under each corner joint, square to the bottom chord: it hangs down the table\'s face')); }
     if (cx) {
       const m3 = d3.m3, built = new Set(), ofKind = (...ks) => cx.parts.filter(q => ks.includes(q.kind));
@@ -573,8 +667,9 @@ function documentHTML(tr, res, meta, plan, opt) {
       step3(ofKind('sway').filter(q => !built.has(q.k) && !xOnce.has(q.k)), 'end', { station: Math.max(0, m3.frames.findIndex(f => f.code !== 'N' && !endSt.has(m3.frames.indexOf(f)))) }, 'Glue in the sway diagonals of the other cross-frames');
       const second = cx.parts.filter(q => xOnce.has(q.k) && !built.has(q.k));
       if (second.length) step3(second, second.every(q => q.kind === 'sway') ? 'end' : second.some(q => q.kind === 'latBot') && !second.some(q => q.kind === 'latTop') ? 'bottom' : 'plan', {}, 'Last: the second diagonal of each X. Measure the real gap after the first is set and cut to fit; never force a long one in');
-      steps.push(`<div class="step"><div class="sn">${++stepNo}</div><p style="margin-top:12mm;font-size:11pt">Let the cement dry completely before anything is loaded (see the cement's label; overnight is safest). Check the bridge sits flat and square, and against the 3D view in the app.</p></div>`);
+      steps.push(`<div class="step"><div class="sn">${++stepNo}</div><p style="margin-top:12mm;font-size:11pt">Let the cement dry completely before anything is loaded (see the cement's label; overnight is safest). Check the bridge sits flat and square, and against the 3D view in the app. No load at all before test day: store it flat with nothing on it.</p></div>`);
     }
+    if (!cx) steps.push(`<div class="step"><div class="sn">${++stepNo}</div><p style="margin-top:12mm;font-size:11pt">Let the cement dry completely (see the cement's label; overnight is safest). No load at all before test day: store the trusses flat with nothing on them.</p></div>`);
     for (let s0 = 0; s0 < steps.length; s0 += 4) sheet('Build steps', `<h2 style="margin:0 0 4px">Build steps <span class="note">(${cx ? 'one truss first; then the 3D frame' : `one truss; build ${nT === 2 ? 'the second' : 'the others'} the same way, then join them with the cross-ties`})</span></h2><div class="steps">${steps.slice(s0, s0 + 4).join('')}</div>`);
   }
   // 5. full-size templates, tiled to fit the page
@@ -589,7 +684,7 @@ function documentHTML(tr, res, meta, plan, opt) {
       + markSVG(tr, marks, stops, y => Y1 - y, b, 'none');
     const scale = (tx, h) => `<g stroke="#000" stroke-width=".3"><line x1="${tx + 5}" y1="${h - 6}" x2="${tx + 55}" y2="${h - 6}"/><line x1="${tx + 5}" y1="${h - 8}" x2="${tx + 5}" y2="${h - 4}"/><line x1="${tx + 55}" y1="${h - 8}" x2="${tx + 55}" y2="${h - 4}"/></g><text x="${tx + 30}" y="${h - 1}" font-size="3" text-anchor="middle" font-family="Arial">50 mm</text>`;
     const tiles = []; for (let tx = X0; tx < X1 - 1; tx += tw - 10) tiles.push(tx);
-    tiles.forEach((tx, i) => tpls.push(`<p class="note">Full-size template${cx ? ' (side truss: build both on it)' : ''} · tile ${i + 1} of ${tiles.length} · print at 100% (actual size) and check that the bar measures 50 mm. Tiles overlap by 10 mm; line up the + marks.</p>
+    tiles.forEach((tx, i) => tpls.push(`<p class="note">Full-size template${cx ? ' (side truss: build both on it)' : ''} · tile ${i + 1} of ${tiles.length} · print at 100% (actual size) and check that the bar measures 50 mm. Tiles overlap by 10 mm; line up the + marks. Pins go beside the sticks, never through them.</p>
       <svg width="${tw}mm" height="${hgt}mm" viewBox="${tx} 0 ${tw} ${hgt}">${edges}${scale(tx, hgt)}
         ${[tx + tw - 10, tx + 10].map(mx => `<path d="M${mx - 3} 6 h6 M${mx} 3 v6" stroke="#000" stroke-width=".3"/>`).join('')}</svg>`));
     // 3D: one full-size template per different cross-frame (stand the trusses on it), and the top plane
@@ -601,6 +696,20 @@ function documentHTML(tr, res, meta, plan, opt) {
       if (pv) { const [bx, by, bw, bh] = pv.box, ptiles = []; for (let tx = bx; tx < bx + bw - 1; tx += tw - 10) ptiles.push(tx);
         ptiles.forEach((tx, i) => tpls.push(`<p class="note">Full-size top plane (from above) · tile ${i + 1} of ${ptiles.length} · print at 100%. Lay it under the finished frame to place the ties and bracing.</p><svg width="${tw}mm" height="${bh + 14}mm" viewBox="${tx} ${by} ${tw} ${bh + 14}">${pv.svg}${scale(tx, by + bh + 14)}</svg>`)); }
     }
+  }
+  // the bending form for each different bent piece, full size (always printed when the chord is bent: it's the build day's jig)
+  if (bent) {
+    const tw = 240, seen = new Set();
+    bentPieces.forEach(q => { if (seen.has(q.item)) return; seen.add(q.item);
+      const F = bendForm(tr, q, b), X0 = Math.min(...F.xs) - 12, X1 = Math.max(...F.xs) + 12, Y0 = Math.min(...F.ys) - 14, Y1 = Math.max(...F.ys) + 12, hgt = Y1 - Y0 + 16;
+      const pl = a2 => a2.map(z => `${z[0].toFixed(2)},${(Y1 - z[1]).toFixed(2)}`).join(' ');
+      const g = `<polyline points="${pl(F.up)}" fill="none" stroke="#000" stroke-width=".25"/><polyline points="${pl(F.dn)}" fill="none" stroke="#000" stroke-width=".25"/><polyline points="${pl(F.pts)}" fill="none" stroke="#666" stroke-width=".15" stroke-dasharray="1 1"/>`
+        + F.ticks.map((tk, i) => `<line x1="${tk.a[0]}" y1="${Y1 - tk.a[1]}" x2="${tk.c[0]}" y2="${Y1 - tk.c[1]}" stroke="#c0392b" stroke-width=".35"/><text x="${tk.a[0]}" y="${Y1 - tk.a[1] - 1}" font-size="3" text-anchor="middle" fill="#c0392b" font-family="Arial">${i === 0 || i === F.ticks.length - 1 ? 'end ' : ''}joint ${tk.n}</text>`).join('')
+        + F.pins.map(pn => `<circle cx="${pn[0]}" cy="${Y1 - pn[1]}" r=".8" fill="none" stroke="#0b6e4f" stroke-width=".3"/>`).join('');
+      const bar = tx => `<g stroke="#000" stroke-width=".3"><line x1="${tx + 5}" y1="${hgt - 6}" x2="${tx + 55}" y2="${hgt - 6}"/><line x1="${tx + 5}" y1="${hgt - 8}" x2="${tx + 5}" y2="${hgt - 4}"/><line x1="${tx + 55}" y1="${hgt - 8}" x2="${tx + 55}" y2="${hgt - 4}"/></g><text x="${tx + 30}" y="${hgt - 1}" font-size="3" text-anchor="middle" font-family="Arial">50 mm</text>`;
+      const tiles = []; for (let tx = X0; tx < X1 - 1; tx += tw - 10) tiles.push(tx);
+      tiles.forEach((tx, i) => tpls.push(`<p class="note"><b>Bending form</b>, item ${q.item} (top chord, one stick bent to the curve) · tile ${i + 1} of ${tiles.length} · print at 100% (actual size) and check that the bar measures 50 mm. ${F.len.toFixed(1)} mm along the curve between the end joints; red ticks: the joints (mark them on the stick); green circles: pins, beside the stick, never through it. Wax paper on top.</p>
+        <svg width="${tw}mm" height="${hgt}mm" viewBox="${tx} 0 ${tw} ${hgt}">${g}${bar(tx)}${tiles.length > 1 ? [tx + tw - 10, tx + 10].map(mx => `<path d="M${mx - 3} 6 h6 M${mx} 3 v6" stroke="#000" stroke-width=".3"/>`).join('') : ''}</svg>`)); });
   }
   const total = sheets.length + tpls.length;
   // every printed page carries its number (#157): the sheets in their title blocks, the templates in their header
@@ -637,6 +746,6 @@ function documentHTML(tr, res, meta, plan, opt) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name)} · build documents</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>${html}${tplPages}</body></html>`;
 }
 
-const api = { edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
+const api = { bentCheck, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.BuildDoc = api;
 })(typeof window !== 'undefined' ? window : globalThis);

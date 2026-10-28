@@ -37,6 +37,28 @@ try {
     await p.close();
   });
 
+  // #282 (v64): the build-documents dialog offers "one stick bent to the curve" only for a curved top chord, and says what it needs
+  await section('#282 bent top chord option', async () => {
+    const p = await openPage(b, srv.url);
+    const dlg = () => p.evaluate(() => { document.getElementById('openDocs').click(); return { box: !document.getElementById('docBentBox').hidden, note: document.getElementById('docBentNote').textContent }; });
+    const flat = await dlg();
+    check('#282: a flat top chord has no bent-chord option', !flat.box, JSON.stringify(flat));
+    await p.evaluate(() => { document.getElementById('docModal').hidden = true; });
+    const src = JSON.parse(fs.readFileSync(path.join(here, '..', 'Partner_test.bridge.json'), 'utf8')), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'te282-'));
+    const f = path.join(tmp, 'curved.bridge.json');
+    fs.writeFileSync(f, JSON.stringify(Object.assign({}, src, { name: 'Curved top', bridge: Object.assign({}, src.bridge, { height: 90, topShape: 'parabola', topEnd: 50, panels: 6, diagLeft: ['X', 'X', 'X'], vertLeft: [true, true, true], vertPreset: 'custom', deskMode: 'length', overlap: 48.4, anaMode: '2d' }) })));
+    await p.setInputFiles('#filePick', f); await p.waitForFunction(() => /Curved top/.test(document.getElementById('fileMsg').textContent), null, { timeout: 8000 }); await p.waitForTimeout(400);
+    fs.rmSync(tmp, { recursive: true, force: true });
+    const off = await dlg();
+    check('#282: a curved top chord offers it, off by default', off.box && /straight pieces/.test(off.note), JSON.stringify(off));
+    await p.click('#docBent'); await p.waitForTimeout(300);
+    const on = await p.evaluate(() => ({ note: document.getElementById('docBentNote').textContent, items: document.getElementById('docItems').textContent, saved: __dbg.S.doc.bentTop }));
+    check('#282: ticked, it says the radius and that it must be soaked, and the parts table lists the bent stick', on.saved === true && /Top chord \(one bent stick\)/.test(on.items) && /Tightest radius \d+ mm/.test(on.note) && /soak or steam/.test(on.note), JSON.stringify(on).slice(0, 300));
+    await p.click('#docBent');
+    check('#282: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  });
+
   // #281 (v64): a starter preset gives the same bridge and result whatever 3D setup came before it
   await section('#281 presets reset the 3D setup', async () => {
     const p = await openPage(b, srv.url), q = await openPage(b, srv.url);
