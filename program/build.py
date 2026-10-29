@@ -1,6 +1,6 @@
 # Builds the single-page app: src/ui.html with each module dropped into its placeholder -> index.html
 # balsaPixel: src/shell.js is its own <script> after app.js and reaches the app only through window.TrussApp;
-# src/shell.css goes into its own <style>; every theme listed in themes/index.json is inlined as a string, so the page stays one file.
+# src/shell.css goes into its own <style>; every theme listed in themes/index.json is packed by tools/themepack.py and inlined, so the page stays one file.
 #
 # Where each module goes (#109, board TE-B-018: no shared list to edit, so two PRs adding files don't collide):
 #   <script>/*NAME*/</script> in ui.html  -> src/name.js, at that spot (for modules whose position matters: the solver, app.js, the shell)
@@ -15,16 +15,16 @@ import os, re, json, sys
 here = os.path.dirname(os.path.abspath(__file__)); src = os.path.join(here, 'src')
 rd = lambda *p: open(os.path.join(*p), encoding='utf-8').read()
 
-def theme_pack():
-    tdir = os.path.join(here, 'themes'); idx = json.loads(rd(tdir, 'index.json'))
-    files, lst = {}, []
-    for t in idx['themes']:
-        css = t.get('css')
-        if css and css not in files: files[css] = rd(tdir, css)
-        assert t.get('format') == 'truss-explorer-theme' and t.get('version') == 1, f"theme {t.get('id')}: unknown format or version"
-        lst.append({k: t[k] for k in ('id', 'name', 'css') if k in t})
-    # inside a <script>: no "</" can close it early
-    return json.dumps({'files': files, 'list': lst}, ensure_ascii=True).replace('</', '<\\/')
+# themes: packed by tools/themepack.py (#265; docs/art-implementation.md section 3). It inlines each theme's images as data: URIs,
+# packs pictures and icons, refuses anything that would load from outside or carry script, and checks the 400 KB budget.
+sys.path.insert(0, os.path.join(here, 'tools'))
+import themepack
+try:
+    THEMES, FONTS, _report = themepack.pack(os.path.join(here, 'themes'))
+except themepack.Refused as e:
+    sys.exit('build.py: theme refused: ' + str(e))
+for line in themepack.KNOWN_SEEN: print(line)
+def theme_pack(): return themepack.pack_json(THEMES)
 
 ui = rd(src, 'ui.html')
 PLACED = re.compile(r'<script>/\*([A-Z0-9]+)\*/</script>')
@@ -45,7 +45,7 @@ def module(f):
 
 # one pass over the original ui.html, so text inside a module is never mistaken for a placeholder
 def fill(m):
-    if m.group(0) == '/*SHELLCSS*/': return rd(src, 'shell.css')
+    if m.group(0) == '/*SHELLCSS*/': return rd(src, 'shell.css') + ('\n' + FONTS if FONTS else '')   # shared theme fonts (themes/fonts/fonts.css), packed
     if m.group(0) == '<!--MODULES-->': return '\n'.join('<script>' + module(f) + '</script>' for f in others)
     return '<script>' + module(m.group(1).lower() + '.js') + '</script>'
 ui = re.sub(r'/\*SHELLCSS\*/|<!--MODULES-->|<script>/\*([A-Z0-9]+)\*/</script>', fill, ui)
