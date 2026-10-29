@@ -90,3 +90,22 @@ test('TE-B-162/166: the bending sheet has steps 0-10, the key, and up to 4 forms
   const flat = solve(DEFAULT), fp = BD.cutPlan(flat.tr, 3.18, { stock: 240, force: flat.force, bentTop: true });
   assert.equal(BD.bendingSheetHTML(flat.tr, fp, flat.res, { b: 3.18 }, { copies: 2 }), null);
 });
+
+test('TE-B-169: the black-and-white build set: one cut guide page, one angle page, steps, templates; numbers agree', () => {
+  for (const st of [DEFAULT, curved]) {
+    const { tr, res, force } = solve(st);
+    const plan = BD.cutPlan(tr, 3.18, { stock: 240, force, bentTop: st === curved });
+    const html = BD.documentHTML(tr, res, { name: 'Test bridge', code: 'abc', b: 3.18, h: 3.18, nTruss: 2, stock: 240, kerf: 1, massNote: '', capNote: '', mat: C.DEFAULT_MAT }, plan, { minimal: true });
+    const n = (html.match(/<section/g) || []).length;
+    assert.match(html, new RegExp(`PAGE 1 OF ${n}<`)); assert.match(html, new RegExp(`PAGE ${n} OF ${n} `));
+    assert.equal((html.match(/CUT GUIDE/g) || []).length, 1); assert.equal((html.match(/END-ANGLE TEMPLATES · ACTUAL SIZE/g) || []).length, 1);
+    assert.match(html, /BUILD STEPS/i); assert.match(html, /LENGTHS X = ±1 MM · ANGLES ±2°/);
+    assert.doesNotMatch(html, /#c0392b|#3a6ea5/, 'black and white');
+    // every item is in the cut guide, at its whole-mm length; every angle it names has its template with the same number
+    plan.items.forEach(it => assert.match(html, new RegExp(`<td class="c"><b>${it.no}</b></td>[\\s\\S]*?<b>${Math.round(it.long)}</b>`)));
+    const used = [...html.matchAll(/(\d+)° (?:FLUSH|MITRE|BEVEL) · (A\d+)/g)];
+    used.forEach(([, deg, id]) => assert.match(html, new RegExp(`>${id}: ${deg}°`), `${id} ${deg}`));
+    // the steps' callouts use the same whole-mm lengths
+    [...html.matchAll(/class="ball"[^>]*>(\d+)<\/span> ([\d.]+)</g)].forEach(([, no, L]) => assert.equal(+L, Math.round(plan.items[no - 1].long)));
+  }
+});
