@@ -50,7 +50,7 @@ const GLABEL = { ...Object.fromEntries(CHOICES.map(ch => ['c_' + ch.key, k => k 
 // a design that slips off the table is not a usable result (TE-066); older rows without slipOK count as not slipping
 const okRow = r => r.envOK && r.edgeOK !== false && r.slipOK !== false;
 // frontier candidates also pass the deflection check (capacity itself is strength only)
-const frontOK = r => okRow(r) && (!(r.D > 0) || !sweepCtx || r.D <= sweepCtx.defl);
+const frontOK = r => okRow(r) && (!(r.D > 0) || !SweepState.ctx() || r.D <= SweepState.ctx().defl);
 function gcolor(i) { return cssv('--g' + ((i % 8) + 1)); }
 function groupsOf(rows) {
   const g = S.groupBy || 'none';
@@ -68,7 +68,7 @@ function frontier(rows, yOf) {
   return f;
 }
 // load multiple (of the factored design load) a design survives on strength AND deflection
-const combined = r => Math.min(r.util > 0 ? 1 / r.util : Infinity, r.D > 0 ? sweepCtx.defl / r.D : Infinity);
+const combined = r => Math.min(r.util > 0 ? 1 / r.util : Infinity, r.D > 0 ? SweepState.ctx().defl / r.D : Infinity);
 
 // ---------- saved sweeps (kept in this browser only)
 const SKEY = 'se310-truss-saved';
@@ -86,11 +86,11 @@ function renderSaved() {
   el.querySelectorAll('button[data-del]').forEach(b => b.addEventListener('click', () => { saved.splice(+b.dataset.del, 1); persistSaved(); renderSaved(); drawTrackers(); }));
 }
 $('saveSweep').addEventListener('click', () => {
-  if (!sweepAll.length) { $('saveMsg').textContent = 'Run a sweep first.'; return; }
-  const name = cleanData(($('cmpName').value || `FS ${sweepCtx.FS} · ${(+sweepCtx.bookKg || 0).toFixed(1)} kg`).slice(0, 40));
-  const trade = frontier(sweepAll).map(r => ({ wood: r.wood, capKg: r.capKg, label: summaryOf(r) }));
-  const cf = frontier(sweepAll, combined).map(r => ({ wood: r.wood, cf: combined(r), label: summaryOf(r) }));
-  saved.push({ name, FS: sweepCtx.FS, bookKg: sweepCtx.bookKg, trade, cf, show: true });
+  if (!SweepState.rows().length) { $('saveMsg').textContent = 'Run a sweep first.'; return; }
+  const name = cleanData(($('cmpName').value || `FS ${SweepState.ctx().FS} · ${(+SweepState.ctx().bookKg || 0).toFixed(1)} kg`).slice(0, 40));
+  const trade = frontier(SweepState.rows()).map(r => ({ wood: r.wood, capKg: r.capKg, label: summaryOf(r) }));
+  const cf = frontier(SweepState.rows(), combined).map(r => ({ wood: r.wood, cf: combined(r), label: summaryOf(r) }));
+  saved.push({ name, FS: SweepState.ctx().FS, bookKg: SweepState.ctx().bookKg, trade, cf, show: true });
   if (saved.length > 12) saved.shift();
   $('saveMsg').textContent = persistSaved() ? `Saved "${name}" in this browser.` : `Saved "${name}" for this visit only (this browser blocks storage).`;
   $('cmpName').value = ''; renderSaved(); drawTrackers();
@@ -162,7 +162,7 @@ const AXES = {
   height: ['height (mm)', r => +r.height], topEnd: ['arch end height Δh (mm)', r => +r.topEnd || 0], botEnd: ['bottom end height Δp (mm)', r => +r.botEnd || 0], panels: ['panels', r => +r.panels], overlap: ['overlap on each desk (mm)', r => r.overlap], curve: ['bottom-chord curve (mm)', r => +r.curve || 0],
   supportOffset: ['support distance from the edge (mm)', r => +r.supportOffset || 0], overall: ['overall length (mm)', r => r.overall], members: ['members', r => r.members],
   tilt3: ['3D tilt (°)', r => r.tilt3 == null ? +S.d3.tilt : +r.tilt3], width3: ['3D bridge width (mm)', r => r.width3 == null ? +S.opts.width : +r.width3],
-  loadX: ['load position (mm)', r => r.loadX == null ? SPAN_MID : +r.loadX], bookKg: ['book mass (kg)', r => r.bookKg == null ? (sweepCtx ? sweepCtx.bookKg : S.load.mBook1 + S.load.mBook2) : +r.bookKg],
+  loadX: ['load position (mm)', r => r.loadX == null ? SPAN_MID : +r.loadX], bookKg: ['book mass (kg)', r => r.bookKg == null ? (SweepState.ctx() ? SweepState.ctx().bookKg : S.load.mBook1 + S.load.mBook2) : +r.bookKg],
 };
 S.axX = AXES[S.axX] ? S.axX : 'wood'; S.axY = AXES[S.axY] ? S.axY : 'capKg';
 S.colorFails = !!S.colorFails; S.clickMode = S.clickMode || 'load'; S.refStep = +S.refStep || 0.5;
@@ -187,26 +187,26 @@ function paintClickMode() { $('refRow').hidden = S.clickMode !== 'refine'; }
 paintClickMode();
 $('zoomReset').addEventListener('click', () => { tradeView = null; drawTrackers(); });
 $('tradeCsv').addEventListener('click', () => {
-  if (!sweepAll.length) { toast('Run a sweep first.', true); return; }
+  if (!SweepState.rows().length) { toast('Run a sweep first.', true); return; }
   const cols = ['idx', 'family', 'pattern', 'panels', 'height', 'curve', 'bottom', 'overlap', 'supportOffset', 'ratio', 'sideAngle', 'vert', 'claw', 'brace', 'loadShape', 'loadX', 'bookKg', 'topEnd', 'botEnd'];
-  const extra = [...new Set(sweepAll.flatMap(r => Object.keys(r).filter(k => /^st_|^fc_/.test(k))))];
+  const extra = [...new Set(SweepState.rows().flatMap(r => Object.keys(r).filter(k => /^st_|^fc_/.test(k))))];
   const outc = ['wood', 'mass', 'D', 'util', 'capKg', 'passes', 'edgeOK', 'envOK', 'refined'];
   const all = cols.concat(extra, outc);
   const esc = v => v == null ? '' : (typeof v === 'number' ? (Number.isFinite(v) ? +v.toPrecision(8) : '') : csvSafe(String(v)).replace(/[",\n]/g, ' '));
-  const csv = infoLines(sweepInfo()).map(l => '# ' + l).concat([all.join(',')], sweepAll.map(r => all.map(k => esc(r[k])).join(','))).join('\n');
+  const csv = infoLines(sweepInfo()).map(l => '# ' + l).concat([all.join(',')], SweepState.rows().map(r => all.map(k => esc(r[k])).join(','))).join('\n');
   saveFile(fileBase() + '_tradeoff.csv', csv);
 });
 function drawTrade() {
   const cv = $('tradeCanvas');
   const sv = shownSaved();
-  if (!sweepAll.length && !sv.length) { emptyCanvas(cv, 'Run a sweep (in the Sweep section above) to fill this chart.'); $('frontTbl').innerHTML = ''; $('tradeLegend').innerHTML = ''; tradePts = null; renderBest(); return; }
+  if (!SweepState.rows().length && !sv.length) { emptyCanvas(cv, 'Run a sweep (in the Sweep section above) to fill this chart.'); $('frontTbl').innerHTML = ''; $('tradeLegend').innerHTML = ''; tradePts = null; renderBest(); return; }
   // new sweep results (or a switch between 2D and 3D results): drop the old zoom so the new cloud is all in view
-  if (drawTrade.ref !== sweepAll || drawTrade.len !== sweepAll.length) { if (drawTrade.ref !== undefined && !sweepAll.some(q => q.refined)) tradeView = null; drawTrade.ref = sweepAll; drawTrade.len = sweepAll.length; }
+  if (drawTrade.ref !== SweepState.rows() || drawTrade.len !== SweepState.rows().length) { if (drawTrade.ref !== undefined && !SweepState.rows().some(q => q.refined)) tradeView = null; drawTrade.ref = SweepState.rows(); drawTrade.len = SweepState.rows().length; }
   const [xl, fx] = AXES[S.axX], [yl, fy] = AXES[S.axY];
   const classic = S.axX === 'wood' && S.axY === 'capKg';
-  const pts = sweepAll.filter(r => Number.isFinite(fx(r)) && Number.isFinite(fy(r)));
+  const pts = SweepState.rows().filter(r => Number.isFinite(fx(r)) && Number.isFinite(fy(r)));
   const groups = groupsOf(pts);
-  const need = sweepCtx ? sweepCtx.bookKg * sweepCtx.FS : (S.load.mBook1 + S.load.mBook2) * S.mat.FS;
+  const need = SweepState.ctx() ? SweepState.ctx().bookKg * SweepState.ctx().FS : (S.load.mBook1 + S.load.mBook2) * S.mat.FS;
   const cur = res.stable ? Object.assign({ wood: res.wood, capKg: res.capKg, D: res.midDefl, util: res.maxUtil, mass: res.massTotal, overall: tr.overall, members: tr.elems.length, overlap: tr.overlap }, design()) : null;
   let xr, yr;
   if (tradeView) { xr = tradeView.x; yr = tradeView.y; }
@@ -255,7 +255,7 @@ function drawTrade() {
   if (dragBox) { ctx.strokeStyle = cssv('--ink'); ctx.setLineDash([3, 3]); ctx.lineWidth = 1; ctx.strokeRect(Math.min(dragBox.x0, dragBox.x1), Math.min(dragBox.y0, dragBox.y1), Math.abs(dragBox.x1 - dragBox.x0), Math.abs(dragBox.y1 - dragBox.y0)); ctx.setLineDash([]); }
   ctx.restore();
   drawTrade.A = A; drawTrade.ranges = { xr, yr };
-  if (sweepAll.length && !sweepAll.some(r => r.passes)) {
+  if (SweepState.rows().length && !SweepState.rows().some(r => r.passes)) {
     ctx.save(); ctx.font = '600 14px Barlow, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = cssv('--bad');
     ctx.fillText('No design in the last sweep passes every check: every dot here fails something.', w / 2, A.P.t + 44);
     ctx.font = '13px Barlow, sans-serif'; ctx.fillText('Try taller trusses, more panels, or turning verticals on, then run the sweep again.', w / 2, A.P.t + 62); ctx.restore();
@@ -303,12 +303,12 @@ function showTip(tip, cv, n, html) {
 // strongest bridge for a wood budget, and the least wood for a book load (both from the designs in the last sweep)
 function renderBest() {
   const el = $('bestOut'); if (!el) return;
-  if (!sweepAll.length) { el.innerHTML = ''; return; }
-  const budget = +$('woodBudget').value, target = +$('loadTarget').value, FS = sweepCtx ? sweepCtx.FS : S.mat.FS, bk = sweepCtx ? sweepCtx.bookKg : S.load.mBook1 + S.load.mBook2;
+  if (!SweepState.rows().length) { el.innerHTML = ''; return; }
+  const budget = +$('woodBudget').value, target = +$('loadTarget').value, FS = SweepState.ctx() ? SweepState.ctx().FS : S.mat.FS, bk = SweepState.ctx() ? SweepState.ctx().bookKg : S.load.mBook1 + S.load.mBook2;
   const ok = r => okRow(r) && Number.isFinite(r.capKg);
   let strong = null, light = null;
-  if (budget > 0) sweepAll.forEach(r => { if (ok(r) && r.passes && r.wood <= budget && (!strong || r.capKg > strong.capKg)) strong = r; });
-  if (target > 0) sweepAll.forEach(r => {
+  if (budget > 0) SweepState.rows().forEach(r => { if (ok(r) && r.passes && r.wood <= budget && (!strong || r.capKg > strong.capKg)) strong = r; });
+  if (target > 0) SweepState.rows().forEach(r => {
     if (!ok(r) || r.capKg < target * FS - 1e-9) return;
     const dAt = r.D * target / (r.bookKg != null ? r.bookKg : bk);   // deflection scales with the load
     if (dAt > S.opts.deflLimit) return;
@@ -342,13 +342,13 @@ function refineAround(r) {
   });
   list = list.filter(c => vars.some(([f]) => Math.abs(c[f] - base[f]) > 1e-9));
   const keyOf = c => vars.map(([f]) => c[f]).join('|') + '|' + [c.panels, c.pattern, c.vert, c.claw, c.brace, c.loadShape, c.loadX, c.bookKg].join('|');
-  const have = new Set(sweepAll.filter(q => q.refined).map(keyOf));
+  const have = new Set(SweepState.rows().filter(q => q.refined).map(keyOf));
   const fresh = list.filter(c => !have.has(keyOf(c)));
   let added = 0;
-  fresh.forEach(c => { const { t2, r2 } = evalCandidate(c); if (!r2.stable) return; const row = makeRow(c, t2, r2); row.refined = true; sweepAll.push(row); added++; });
+  fresh.forEach(c => { const { t2, r2 } = evalCandidate(c); if (!r2.stable) return; const row = makeRow(c, t2, r2); row.refined = true; SweepState.add([row]); added++; });
   // zoom to the new designs
   const [, fx] = AXES[S.axX], [, fy] = AXES[S.axY];
-  const near = sweepAll.filter(q => q.refined || q === r).map(q => [fx(q), fy(q)]).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+  const near = SweepState.rows().filter(q => q.refined || q === r).map(q => [fx(q), fy(q)]).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
   if (near.length > 1) {
     const xs = near.map(q => q[0]), ys = near.map(q => q[1]);
     const dx = (Math.max(...xs) - Math.min(...xs)) || 1, dy = (Math.max(...ys) - Math.min(...ys)) || 1;
@@ -415,7 +415,7 @@ window.addEventListener('mouseup', ev => {
   if (S.clickMode === 'refine' && !n.q.p.refined) refineAround(n.q.p); else loadParams(n.q.p);
 });
 $('tradeCanvas').addEventListener('mouseleave', () => { $('tradeTip').hidden = true; });
-$('refClear').addEventListener('click', () => { sweepAll = sweepAll.filter(q => !q.refined); $('refMsg').textContent = ''; tradeView = null; drawTrackers(); });
+$('refClear').addEventListener('click', () => { SweepState.set(SweepState.rows().filter(q => !q.refined)); $('refMsg').textContent = ''; tradeView = null; drawTrackers(); });
 
 // ---------- 3D chart: three chosen axes, orthographic view, drag to rotate
 S.c3 = Object.assign({ x: 'wood', y: 'height', z: 'capKg', fails: false }, S.c3 || {});
@@ -430,10 +430,10 @@ $('c3Fails').addEventListener('change', () => { S.c3.fails = $('c3Fails').checke
 $('c3Reset').addEventListener('click', () => { c3v.yaw = -0.7; c3v.pitch = 0.45; c3v.zoom = 1; c3v.px = 0; c3v.py = 0; draw3(); });
 function draw3() {
   const cv = $('c3Canvas');
-  if (!sweepAll.length) { emptyCanvas(cv, 'Run a sweep to fill this chart.'); c3v.pts = null; $('c3Legend').innerHTML = ''; return; }
+  if (!SweepState.rows().length) { emptyCanvas(cv, 'Run a sweep to fill this chart.'); c3v.pts = null; $('c3Legend').innerHTML = ''; return; }
   const fx = AXES[S.c3.x][1], fy = AXES[S.c3.y][1], fz = AXES[S.c3.z][1];
-  if (draw3.ref !== sweepAll) { if (draw3.ref !== undefined) { c3v.px = 0; c3v.py = 0; c3v.zoom = 1; } draw3.ref = sweepAll; }
-  const rows = sweepAll.filter(r => (S.c3.fails || r.passes) && [fx(r), fy(r), fz(r)].every(Number.isFinite));
+  if (draw3.ref !== SweepState.rows()) { if (draw3.ref !== undefined) { c3v.px = 0; c3v.py = 0; c3v.zoom = 1; } draw3.ref = SweepState.rows(); }
+  const rows = SweepState.rows().filter(r => (S.c3.fails || r.passes) && [fx(r), fy(r), fz(r)].every(Number.isFinite));
   const { ctx, w, h } = setupCanvas(cv); ctx.clearRect(0, 0, w, h);
   if (!rows.length) { ctx.fillStyle = cssv('--muted'); ctx.textAlign = 'center'; ctx.font = '13px Barlow, sans-serif'; ctx.fillText('No designs to show (tick "Show failing designs"?)', w / 2, h / 2); c3v.pts = null; return; }
   const rng = f => { const v = rows.map(f); let lo = Math.min(...v), hi = Math.max(...v); if (hi - lo < 1e-9) { lo -= 1; hi += 1; } return [lo, hi]; };
