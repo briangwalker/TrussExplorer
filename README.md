@@ -4,9 +4,9 @@
 
 A single-page web app for designing balsa truss bridges for SE 310 Project I (UIUC, Fall 2026): hold two textbooks with a factor of safety of 2 using as little wood as possible. It solves 2D and 3D pin-jointed trusses, sweeps millions of designs, charts wood against capacity, and prints build documents.
 
-Version: v63 (2026-10-28). Live copy: the claude.ai artifact "SE 310 Truss Explorer"; coming soon at briangwalker.com/truss-explorer/.
+Version: v64 (2026-10-28). Live copy: the claude.ai artifact "SE 310 Truss Explorer"; coming soon at briangwalker.com/truss-explorer/.
 
-The app lives in `truss-explorer-src-v58/truss-explorer/`; the paths below are relative to that folder.
+The app lives in `program/`; the paths below are relative to that folder.
 
 ## Build
     python3 build.py      # writes index.html from src/

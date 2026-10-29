@@ -816,6 +816,7 @@ body.hidesame table .samecol { display: none; }
             <button type="button" class="btn ghost sm" id="bigRestore">Load last large search</button>
             <button type="button" class="btn ghost sm" id="saveSweepFile">Save sweep file</button>
             <button type="button" class="btn ghost sm" id="loadSweepFile">Open sweep file…</button>
+            <button type="button" class="btn ghost sm" id="saveSweepTsweep" title="The same sweep in the compact .tsweep format: much smaller, opens in balsaPixel releases">Save compact sweep (.tsweep)</button>
             <span class="note" id="bigMsg"></span>
           </div>
           <span class="hint tdata">For more than 60,000 designs. A pilot of 1,000 random designs runs first so you can check the numbers. The full run starts only after you confirm, keeps the page usable, and can be cancelled.</span>
@@ -834,6 +835,11 @@ body.hidesame table .samecol { display: none; }
               <b>3D ties across the top:</b>
               <label class="check"><input type="radio" name="tiejoint" value="ontop"> On top of both chords, glued flat (strongest)</label>
               <label class="check"><input type="radio" name="tiejoint" value="between"> Butted between the chords</label>
+            </div>
+            <div class="tradectl" id="docBentBox" hidden>
+              <b>Curved top chord:</b>
+              <label class="check"><input type="checkbox" id="docBent"> One stick bent to the curve (adds a full-size bending form, checks and steps)</label>
+              <span class="hint" id="docBentNote" style="flex-basis:100%"></span>
             </div>
             <div class="tradectl">
               <label>Stock stick length (mm) <input type="number" id="docStock" min="50" max="2000" step="1" style="width:90px"></label>
@@ -1034,7 +1040,7 @@ body.hidesame table .samecol { display: none; }
 <div class="fslayer" id="fsLayer" hidden><div class="fsfill" id="fsFill"></div><div class="fsbar" id="fsBar"></div><div class="fsfoot" id="fsFoot"></div>
   <details class="fspanel" id="fsPanel" hidden><summary id="fsPanelName"></summary><div id="fsPanelBody"></div></details></div>
 <button type="button" class="fsexit" id="fsExit" hidden>✕ Leave full screen (Esc)</button>
-<input type="file" id="filePick" accept=".json,application/json" hidden>
+<input type="file" id="filePick" accept=".json,application/json,.tsweep" hidden>
 <div class="dock" id="dock">
   <div class="dockbar">
     <button type="button" class="dockbtn" id="dockBtn" aria-expanded="false" aria-controls="dockMenu" title="More view options, starting bridges and earlier bridges">☰</button>
@@ -1064,6 +1070,7 @@ body.hidesame table .samecol { display: none; }
       <div class="dgrid">
         <button type="button" class="btn ghost sm" data-click="saveBridge">Save bridge file</button><button type="button" class="btn ghost sm" data-click="loadBridge">Open bridge file…</button>
         <button type="button" class="btn ghost sm" data-click="saveSweepFile">Save sweep file</button><button type="button" class="btn ghost sm" data-click="loadSweepFile">Open sweep file…</button>
+        <button type="button" class="btn ghost sm" data-click="saveSweepTsweep" style="grid-column:1/-1" title="The same sweep in the compact .tsweep format: much smaller, opens in balsaPixel releases">Save compact sweep (.tsweep)</button>
         <button type="button" class="btn ghost sm" data-click="dlPy" title="The course TrussFEA script for this design">FEA script (.py)</button><button type="button" class="btn ghost sm" data-click="copyPy">Copy .py text</button>
         <button type="button" class="btn ghost sm" data-click="dlLp" title="Joints, members, loads and limits as CSV files for a linear program">LP data (zip)</button><button type="button" class="btn ghost sm" data-click="dlCsv">Member forces (CSV)</button>
         <button type="button" class="btn acc sm" data-click="openDocs" style="grid-column:1/-1" title="Assembly drawing, part drawings, cut list, build steps and full-size templates">Build documents…</button>

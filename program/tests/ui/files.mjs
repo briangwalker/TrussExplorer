@@ -126,6 +126,28 @@ try {
     check('exports: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
   }
+  // ---------- #179: a sweep saved from ☰ as .tsweep opens again with the same rows and message, through the same Open button
+  {
+    const p = await openPage(b, srv.url); await waitRows(p);
+    await p.evaluate(() => { const d = document.getElementById('s-sweep'); if (d) d.open = true; });
+    await p.click('#runSweep'); await p.waitForFunction(() => (__dbg.rows || []).length > 0 && !document.getElementById('runSweep').disabled && !/Running/.test(document.getElementById('sweepMsg').textContent), null, { timeout: 120000 });
+    const before = await p.evaluate(() => ({ n: __dbg.rows.length, rows: __dbg.rows.map(r => [r.height, r.panels, r.pattern, r.wood, r.capKg, r.util, r.D, r.passes]), msg: document.getElementById('sweepMsg').textContent }));
+    const dl = p.waitForEvent('download'); await p.click('#dockBtn'); await p.click('#dockMenu [data-click="saveSweepTsweep"]');
+    await p.waitForSelector('#saveModal:not([hidden])'); const ext = await p.textContent('#saveExt'); await p.click('#saveGo');
+    const file = path.join(tmp, 'mine.tsweep'); await (await dl).saveAs(file);
+    const bytes = fs.readFileSync(file);
+    check('#179: ☰ Save compact sweep writes a gzip .tsweep', ext === '.tsweep' && bytes[0] === 0x1f && bytes[1] === 0x8b, `${ext}, ${bytes.length} B`);
+    await p.reload(); await waitRows(p);
+    await open(p, 'sweep', file); await p.waitForTimeout(600);
+    const after = await p.evaluate(() => ({ n: __dbg.rows.length, rows: __dbg.rows.map(r => [r.height, r.panels, r.pattern, r.wood, r.capKg, r.util, r.D, r.passes]), msg: document.getElementById('sweepMsg').textContent }));
+    // numbers come back from 32-bit storage to 7 significant digits (docs/formats.md), so compare them to 1 part in a million
+    const same = (x, y) => typeof x === 'number' && typeof y === 'number' ? Math.abs(x - y) <= 1e-6 * Math.max(1, Math.abs(x)) : x === y;
+    const bad = before.rows.findIndex((r, i) => !after.rows[i] || r.some((v, k) => !same(v, after.rows[i][k])));
+    check('#179: the .tsweep opens with the same rows', after.n === before.n && bad < 0, `${before.n} -> ${after.n}${bad >= 0 ? `; row ${bad}: ${JSON.stringify(before.rows[bad])} vs ${JSON.stringify(after.rows[bad])}` : ''}`);
+    check('#179: and the same summary', after.msg.includes(before.msg.slice(0, 40)), after.msg.slice(0, 120));
+    check('#179: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
 } finally {
   await b.close(); srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
 }

@@ -1,7 +1,7 @@
 // File formats (#149): every saved version opens through src/formats.js and comes out as the current version.
 //   node --test tests/formats.test.js
 // Fixtures: tests/formats/fixtures/ (one per older version, plus the current version made by make-fixtures.mjs),
-// tests/Partner_test.bridge.json and the repo's 3024000Sample.sweep.json (both v1), and, when present, Brian's own
+// tests/Partner_test.bridge.json and the repo's samples/3024000Sample.sweep.json (both v1), and, when present, Brian's own
 // files in tests/private/ (git-ignored, rule 8).
 'use strict';
 const test = require('node:test');
@@ -13,7 +13,7 @@ const F = require(path.join(__dirname, '..', 'src', 'formats.js'));
 const FIX = path.join(__dirname, 'formats', 'fixtures');
 const read = f => fs.readFileSync(f, 'utf8');
 const fix = name => read(path.join(FIX, name));
-const REPO = path.resolve(__dirname, '..', '..', '..');
+const REPO = path.resolve(__dirname, '..', '..');
 
 test('every fixture file opens, upgrades to the current version, and passes the check', () => {
   const files = fs.readdirSync(FIX).filter(f => f.endsWith('.json'));
@@ -63,7 +63,7 @@ test('early v1 sweep (ctx without the summary sheet) -> v2', () => {
 });
 
 test('later v1 sweep (the repo sample, 23,917 rows) -> v2', () => {
-  const f = path.join(REPO, '3024000Sample.sweep.json');
+  const f = path.join(REPO, 'samples', '3024000Sample.sweep.json');
   if (!fs.existsSync(f)) return;
   const o = F.open(read(f));
   assert.ok(o.ok); assert.strictEqual(o.from, 1); assert.strictEqual(o.doc.model, '3D', 'from the summary sheet');
@@ -186,4 +186,103 @@ test("Brian's own files in tests/private/ (if present) all open", () => {
     if (o.kind === 'sweep') assert.strictEqual(o.rowsDropped, 0, `${f}: no rows lost`);
     console.log(`# private ${f}: ${o.kind} v${o.from} -> v${o.doc.version}${o.kind === 'sweep' ? `, ${o.doc.rows.length} rows` : ''}${o.warnings.length ? ', warnings ' + o.warnings : ''}`);
   }
+});
+
+// ---------- the compact binary sweep (.tsweep, #179): the same sweep saved both ways opens to the same thing
+const near = (a, b) => typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(a), Math.abs(b)) : JSON.stringify(a) === JSON.stringify(b);
+const regz = async b => new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+const ungz = async b => new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+// what the app saves: the upgraded sweep document (live-search candidate numbers, idx, are not kept)
+function sameSweep(a, b, label) {
+  assert.strictEqual(b.rows.length, a.rows.length, `${label}: row count`);
+  a.rows.forEach((ra, i) => { const rb = b.rows[i];
+    Object.keys(ra).filter(k => k !== 'idx' && ra[k] != null && !Number.isNaN(ra[k])).forEach(k => assert.ok(near(ra[k], rb[k]), `${label}: row ${i} ${k}: ${JSON.stringify(ra[k])} vs ${JSON.stringify(rb[k])}`)); });
+  ['name', 'message', 'mode', 'release', 'solver', 'model', 'savedAt', 'bridgeCode'].forEach(k => assert.deepStrictEqual(b[k] ?? null, a[k] ?? null, `${label}: ${k}`));
+  ['ctx', 'sheet', 'settings', 'bridge'].forEach(k => assert.deepStrictEqual(b[k] ?? null, a[k] ?? null, `${label}: ${k}`));
+}
+
+test('.tsweep: a sweep saved as .tsweep re-opens with the same rows, summary and settings; its .sweep.json still opens', async () => {
+  const json = fix('v2-v61-height-panels.sweep.json'), o = F.open(json);
+  assert.ok(o.ok && o.kind === 'sweep');
+  // the app adds its sweep settings to every file it saves; put some in so the round trip covers them
+  const doc = Object.assign({}, o.doc, { message: o.doc.message || 'Tested 48 designs.', mode: 'sweep', settings: { swOn: { H: true, P: true }, swVals: { swHfrom: '40' }, swSel: { panels: { 4: true, 6: true } }, focus: ['height'] } });
+  const t = await F.toTsweep(JSON.parse(JSON.stringify(doc)));
+  assert.strictEqual(t.dupes, 0);
+  assert.ok(F.isTsweepBytes(t.bytes));
+  const back = await F.openBytes(t.bytes);
+  assert.ok(back.ok, String(back.errors)); assert.deepStrictEqual(back.warnings, []);
+  assert.strictEqual(back.kind, 'sweep'); assert.strictEqual(back.binary, 'tsweep'); assert.strictEqual(back.rowsDropped, 0);
+  sameSweep(doc, back.doc, 'v2 fixture');
+  // and what comes out opens like any sweep document (the app reads both the same way)
+  assert.ok(F.check(back.doc).ok);
+  // the .sweep.json of the same sweep still opens, unchanged
+  const again = F.open(JSON.stringify(doc)); assert.ok(again.ok); assert.strictEqual(again.doc.rows.length, back.doc.rows.length);
+  console.log(`# .tsweep: ${doc.rows.length} rows, ${json.length.toLocaleString()} B as .sweep.json -> ${t.bytes.length.toLocaleString()} B as .tsweep`);
+});
+
+test('.tsweep: the header follows the spec (shared names, fingerprint, hash) and Math\'s reference reader opens it', async () => {
+  const o = F.open(fix('v2-v61-height-panels.sweep.json')), t = await F.toTsweep(o.doc);
+  const raw = await ungz(t.bytes), txt = new TextDecoder().decode(raw), nl1 = txt.indexOf('\n'), nl2 = txt.indexOf('\n', nl1 + 1);
+  assert.strictEqual(txt.slice(0, nl1 + 1), 'TRUSS-EXPLORER-SWEEP 1\n');
+  assert.strictEqual(new TextEncoder().encode(txt.slice(0, nl2 + 1)).length % 8, 0, 'columns start on an 8-byte boundary');
+  const h = JSON.parse(txt.slice(nl1 + 1, nl2));
+  assert.strictEqual(h.format, 'truss-explorer-tsweep'); assert.strictEqual(h.version, 1);
+  ['app', 'release', 'solver', 'model', 'savedAt', 'bridgeCode', 'rules', 'sweep', 'base', 'material', 'fingerprint', 'payloadSha256', 'stats'].forEach(k => assert.ok(k in h, 'header has ' + k));
+  assert.ok(/^sha256:[0-9a-f]{64}$/.test(h.fingerprint));
+  assert.ok(!('FS' in (h.material || {})), 'FS is a rule, not in the fingerprinted material');
+  const ref = path.join(REPO, 'docs', 'math', 'reference', 'tsweep.js');
+  if (fs.existsSync(ref)) {
+    const T = require(ref), d = await T.decode(t.bytes);
+    assert.deepStrictEqual(d.problems, [], 'the reference reader finds no problems');
+    assert.strictEqual(d.header.rows, o.doc.rows.length);
+  }
+});
+
+test('.tsweep: the bytes door refuses or warns as the spec says', async () => {
+  const o = F.open(fix('v2-v61-height-panels.sweep.json')), t = await F.toTsweep(o.doc);
+  const raw = await ungz(t.bytes), txt = new TextDecoder().decode(raw), nl2 = txt.indexOf('\n', txt.indexOf('\n') + 1), headLen = new TextEncoder().encode(txt.slice(0, nl2 + 1)).length;
+  // not gzip, not ours, a newer binary layout, an oversized unzip
+  assert.deepStrictEqual((await F.openBytes(new TextEncoder().encode('{"format":"se310-truss-sweep"}'))).errors, ['not-tsweep']);
+  assert.deepStrictEqual((await F.openBytes(await regz(new TextEncoder().encode('hello\n{}\n')))).errors, ['not-tsweep']);
+  assert.deepStrictEqual((await F.openBytes(await regz(new TextEncoder().encode('TRUSS-EXPLORER-SWEEP 2\n{}\n')))).errors, ['newer-layout']);
+  assert.deepStrictEqual((await F.openBytes(await regz(new Uint8Array(8 * 1024 * 1024)), { maxUnzipped: 1024 * 1024 })).errors, ['too-big']);
+  // a changed number: still opens (results are read-only), with a warning
+  const bad = raw.slice(); bad[headLen + 2] ^= 1;
+  const w = await F.openBytes(await regz(bad)); assert.ok(w.ok); assert.ok(w.warnings.includes('changed-data'));
+  // a changed setting in the fingerprint: warned. withHeader keeps the binary part and swaps the header line.
+  const payload = raw.slice(headLen), hdr = () => JSON.parse(txt.slice(txt.indexOf('\n') + 1, nl2));
+  const withHeader = h => { const hb = new TextEncoder().encode('TRUSS-EXPLORER-SWEEP 1\n' + JSON.stringify(h) + '\n'), all = new Uint8Array(hb.length + payload.length); all.set(hb); all.set(payload, hb.length); return regz(all); };
+  const hs = hdr(); hs.rules.width += 1;
+  const set = await F.openBytes(await withHeader(hs)); assert.ok(set.ok); assert.deepStrictEqual(set.warnings, ['changed-settings']);
+  // a newer header version opens with a warning
+  const hv = hdr(); hv.version = 2; hv.futureField = 1; const nv = await F.openBytes(await withHeader(hv)); assert.ok(nv.ok); assert.ok(nv.tooNew && nv.warnings.includes('newer-version'));
+  // a column that runs past the data, or a row count that doesn't match: refused as damaged
+  const h = hdr(); h.rows += 1;
+  const lie = await withHeader(h);
+  assert.deepStrictEqual((await F.openBytes(lie)).errors, ['damaged']);
+});
+
+test('.tsweep: text in the header is cleaned like any file, and keys cannot reach built-in objects', async () => {
+  const mark = '<img src=x onerror="window.__ran=1">';
+  const doc = { format: 'se310-truss-sweep', version: 2, name: 'S' + mark, message: mark, savedAt: '2026-10-28T00:00:00.000Z', release: 'r', solver: 1, model: '2D', rules: { FS: 2, bookKg: 2.5, deflLimit: 2, minOverlap: 5, width: 60, envelope: 'outer faces' },
+    ctx: { FS: 2 }, bridge: { name: 'B' + mark, mat: { E: 3000 } },
+    rows: [{ pattern: 'pratt' + mark, label: mark, wood: 3000, overall: 300, side: 90, mass: 4, members: 21, capKg: 9, util: 0.5, D: 0.1, passes: true, envOK: true, edgeOK: true, overlap: 50, height: 70, panels: 4, bottom: 'b' + mark }] };
+  const back = await F.openBytes((await F.toTsweep(doc)).bytes);
+  assert.ok(back.ok);
+  const all = JSON.stringify(back.doc);
+  assert.ok(!/[<>]/.test(all), 'no markup survives');
+  assert.strictEqual(({}).polluted, undefined);
+});
+
+test('.tsweep: a result that was also swept (an end offset, the overlap) becomes a grid input, so no design is lost', async () => {
+  const rows = [];
+  for (const te of [0, 5, 10]) for (const ov of [40, 60]) for (const h of [40, 50]) rows.push({ height: h, panels: 4, topEnd: te, overlap: ov, swOv: true, wood: 1000 + h + te + ov, util: 0.5, D: 1, capKg: 3, overall: 300, side: 60, mass: 4, members: 21, passes: true });
+  const t = await F.toTsweep({ rows, bridge: {} });
+  assert.strictEqual(t.rows, rows.length); assert.strictEqual(t.dupes, 0);
+  const back = await F.openBytes(t.bytes);
+  assert.ok(back.ok);
+  assert.deepStrictEqual(back.doc.rows.map(r => [r.height, r.topEnd, r.overlap, r.wood]), rows.map(r => [r.height, r.topEnd, r.overlap, r.wood]));
+  // a real repeat (same inputs, same results) is still stored once
+  const t2 = await F.toTsweep({ rows: rows.concat([Object.assign({}, rows[0])]), bridge: {} });
+  assert.strictEqual(t2.dupes, 1);
 });

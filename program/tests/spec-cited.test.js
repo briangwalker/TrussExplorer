@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const P = 'truss-explorer-src-v58/truss-explorer/';
+const P = 'program/';
 const ids = new Set(['UI-A3', 'UI-W5', 'UI-H5', 'ART-M2']);
 let decide;
 test.before(async () => { ({ decide } = await import(pathToFileURL(path.join(__dirname, 'tools', 'spec-cited.mjs')).href)); });
