@@ -1225,6 +1225,7 @@ function renderDocDialog() {
   $('docBentNote').innerHTML = !curves ? '' : !bck ? 'Off: the curved top chord is cut as straight pieces, joint to joint.'
     : bck.tooTight ? `<b style="color:var(--bad)">✕ Too tight for one stick:</b> bent to this curve the chord reaches ${Math.round(bck.worstUse * 100)}% of its strength at the design load. Untick this for straight pieces, or flatten the curve.`
     : `Tightest radius ${bck.Rmin.toFixed(0)} mm: ${bck.mustSoak ? `<b>soak or steam it</b> and let it dry on the bending form (bent dry, the wood stretches ${(bck.strain * 100).toFixed(2)}%; it breaks at ${(bck.strainLimit * 100).toFixed(2)}%)` : 'it can be bent dry'}. Once dried to shape it uses up to ${Math.round(bck.worstUse * 100)}% of its strength at the design load. The documents add a bending form, the checks and the steps.`;
+  $('docNest').checked = !!S.doc.nest;
   $('docBendRow').hidden = !(bck && !bck.tooTight); $('docBendN').value = bendCopies();
   $('docStock').value = S.doc.stock; $('docKerf').value = S.doc.kerf; $('docSteps').checked = S.doc.steps; $('docTpl').checked = S.doc.tpl; $('docColour').checked = S.doc.colour; $('docDash').checked = S.doc.dash;
   // view with joint numbers
@@ -1300,8 +1301,9 @@ $('docGo').addEventListener('click', () => {
   saveFile(fileBase() + '_build_documents.html', html);
 });
 // TE-B-169: the minimum build set in black and white (steps, a one-page cut guide, end-angle templates, full-size templates)
+$('docNest').addEventListener('change', () => { S.doc.nest = $('docNest').checked; save(); });
 $('docMini').addEventListener('click', () => {
-  const html = BuildDoc.documentHTML(tr, res, Object.assign(docMeta(), { code: fingerprint(bridgeState()) }), docPlan(), { minimal: true });
+  const html = BuildDoc.documentHTML(tr, res, Object.assign(docMeta(), { code: fingerprint(bridgeState()) }), docPlan(), { minimal: true, nest: !!S.doc.nest });
   saveFile(fileBase() + '_build_set_bw.html', html);
 });
 // ---------- bridge and sweep files, to share with partners (and, later, to publish)
