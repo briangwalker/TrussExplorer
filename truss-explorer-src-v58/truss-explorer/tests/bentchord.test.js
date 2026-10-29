@@ -98,7 +98,7 @@ test('TE-B-169: the black-and-white build set: one cut guide page, one angle pag
     const html = BD.documentHTML(tr, res, { name: 'Test bridge', code: 'abc', b: 3.18, h: 3.18, nTruss: 2, stock: 240, kerf: 1, massNote: '', capNote: '', mat: C.DEFAULT_MAT }, plan, { minimal: true });
     const n = (html.match(/<section/g) || []).length;
     assert.match(html, new RegExp(`PAGE 1 OF ${n}<`)); assert.match(html, new RegExp(`PAGE ${n} OF ${n} `));
-    assert.equal((html.match(/CUT GUIDE/g) || []).length, 1); assert.equal((html.match(/END-ANGLE TEMPLATES · ACTUAL SIZE/g) || []).length, 1);
+    assert.equal((html.match(/<h2>CUT GUIDE/g) || []).length, 1); assert.equal((html.match(/END-ANGLE TEMPLATES · ACTUAL SIZE/g) || []).length, 1);
     assert.match(html, /BUILD STEPS/i); assert.match(html, /LENGTHS X = ±1 MM · ANGLES ±2°/);
     assert.doesNotMatch(html, /#c0392b|#3a6ea5/, 'black and white');
     // every item is in the cut guide, at its whole-mm length; every angle it names has its template with the same number
@@ -106,6 +106,30 @@ test('TE-B-169: the black-and-white build set: one cut guide page, one angle pag
     const used = [...html.matchAll(/(\d+)° (?:FLUSH|MITRE|BEVEL) · (A\d+)/g)];
     used.forEach(([, deg, id]) => assert.match(html, new RegExp(`>${id}: ${deg}°`), `${id} ${deg}`));
     // the steps' callouts use the same whole-mm lengths
-    [...html.matchAll(/class="ball"[^>]*>(\d+)<\/span> ([\d.]+)</g)].forEach(([, no, L]) => assert.equal(+L, Math.round(plan.items[no - 1].long)));
+    [...html.matchAll(/class="ball"[^>]*>(\d+)<\/span> ([\d.]+)</g)].forEach(([, no, L]) => assert.equal(+L, Math.round(plan.items[no - 1].long)));    // TE-B-171: page 1 is the assembly (3D view, side view with TYP and angles); TYP is not in the cut guide; cut from stock
+    assert.match(html, /3D VIEW \(NOT TO SCALE\)/); assert.match(html, /CUT FROM STOCK/);
+    const guide = html.slice(html.indexOf('<h2>CUT GUIDE'), html.indexOf('<h2>CUT FROM STOCK'));
+    assert.doesNotMatch(guide, /TYP/);
+    const nested = BD.documentHTML(tr, res, { name: 'Test bridge', b: 3.18, nTruss: 2, mat: C.DEFAULT_MAT }, plan, { minimal: true, nest: true });
+    assert.match(nested, /CUT FROM STOCK[^<]*NESTED/);
+    const sticks = h => +(/(\d+) STICKS OF 240 MM/.exec(h) || [])[1];
+    assert.ok(sticks(nested) <= sticks(html), `${sticks(nested)} <= ${sticks(html)}`);
   }
+});
+
+test('#312: at a bent chord joint, a member is cut to the curve\'s tangent, not to one panel', () => {
+  const { tr, force } = solve(curved);
+  const plan = BD.cutPlan(tr, 3.18, { stock: 240, force, bentTop: true });
+  plan.bendAt.forEach(n => {
+    const tops = tr.elems.map((e, k) => ({ e, k })).filter(({ e }) => e.type === 'top' && (e.i === n || e.j === n));
+    const dir = ({ e }) => { const o = tr.nodes[e.i === n ? e.j : e.i], p = tr.nodes[n], L = Math.hypot(o[0] - p[0], o[1] - p[1]); return [(o[0] - p[0]) / L, (o[1] - p[1]) / L]; };
+    const [d1, d2] = tops.map(dir), tg = [d1[0] - d2[0], d1[1] - d2[1]], tl = Math.hypot(...tg), t0 = [tg[0] / tl, tg[1] / tl];
+    plan.pieces.filter(q => !q.bent).forEach(q => [[q.nodes[0], q.cut0], [q.nodes[1], q.cut1]].forEach(([m, c]) => {
+      if (m !== n || !c || c.kind !== 'flush') return;
+      const k = q.members.find(x => tr.elems[x].i === n || tr.elems[x].j === n), e = tr.elems[k], o = tr.nodes[e.i === n ? e.j : e.i], p = tr.nodes[n];
+      const u = [(o[0] - p[0]), (o[1] - p[1])], ul = Math.hypot(...u);
+      const theta = Math.acos(Math.min(1, Math.abs((u[0] * t0[0] + u[1] * t0[1]) / ul))) * 180 / Math.PI;
+      assert.ok(Math.abs(c.ang - (90 - theta)) < 0.01, `joint ${n}: ${c.ang} vs ${90 - theta}`);
+    }));
+  });
 });
