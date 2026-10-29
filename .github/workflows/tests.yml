@@ -47,7 +47,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: theme-screenshots
-          path: truss-explorer-src-v58/truss-explorer/tests/shots/shell-theme-*.png
+          path: program/tests/shots/shell-theme-*.png
           if-no-files-found: ignore
       - name: Keep the screenshots when something fails
         if: failure()
