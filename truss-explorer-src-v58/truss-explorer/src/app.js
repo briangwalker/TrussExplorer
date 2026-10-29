@@ -1225,6 +1225,7 @@ function renderDocDialog() {
   $('docBentNote').innerHTML = !curves ? '' : !bck ? 'Off: the curved top chord is cut as straight pieces, joint to joint.'
     : bck.tooTight ? `<b style="color:var(--bad)">✕ Too tight for one stick:</b> bent to this curve the chord reaches ${Math.round(bck.worstUse * 100)}% of its strength at the design load. Untick this for straight pieces, or flatten the curve.`
     : `Tightest radius ${bck.Rmin.toFixed(0)} mm: ${bck.mustSoak ? `<b>soak or steam it</b> and let it dry on the bending form (bent dry, the wood stretches ${(bck.strain * 100).toFixed(2)}%; it breaks at ${(bck.strainLimit * 100).toFixed(2)}%)` : 'it can be bent dry'}. Once dried to shape it uses up to ${Math.round(bck.worstUse * 100)}% of its strength at the design load. The documents add a bending form, the checks and the steps.`;
+  $('docBendRow').hidden = !(bck && !bck.tooTight); $('docBendN').value = bendCopies();
   $('docStock').value = S.doc.stock; $('docKerf').value = S.doc.kerf; $('docSteps').checked = S.doc.steps; $('docTpl').checked = S.doc.tpl; $('docColour').checked = S.doc.colour; $('docDash').checked = S.doc.dash;
   // view with joint numbers
   const v = BuildDoc.sideSVG(tr, plan, { labels: false, b, color: S.doc.colour ? 'part' : 'mono', dash: S.doc.dash });
@@ -1277,6 +1278,15 @@ $('docJoints').addEventListener('change', ev => {
   else if (f === 'split') cur.split = Math.max(5, Math.min(95, +t.value || 50));
   if (cur.end === 'mitre' && cur.through === undefined) cur.through = null;
   S.doc.over[n] = cur; save(); renderDocDialog();
+});
+// TE-B-162: the bending sheet on its own (steps + 1:1 forms). Default one form per truss; the box sets more (spares).
+function bendCopies() { return Math.max(1, Math.min(8, Math.round(+S.doc.bendN || +S.load.nTruss || 2))); }
+$('docBendN').addEventListener('change', () => { S.doc.bendN = Math.max(1, Math.min(8, Math.round(+$('docBendN').value || 1))); save(); renderDocDialog(); });
+$('docBendGo').addEventListener('click', () => {
+  const plan = docPlan(), mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
+  const html = BuildDoc.bendingSheetHTML(tr, plan, res, { mat, name: S.name || 'Design', code: fingerprint(bridgeState()), b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2,
+    info: (() => { const fi = fileInfo(); return `${fi.release} · ${fi.model} · bridge code ${fi.bridgeCode}`; })() }, { copies: bendCopies() });
+  if (html) saveFile(fileBase() + '_bending_sheet.html', html);
 });
 $('docGo').addEventListener('click', () => {
   const plan = docPlan(), mat = Object.assign({}, C.DEFAULT_MAT, S.mat);

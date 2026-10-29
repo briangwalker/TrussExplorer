@@ -533,7 +533,9 @@ function bendForm(tr, piece, b) {
   // Catmull-Rom through the joints, sampled finely
   const at = (i, s) => { const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(m - 1, i + 2)], s2 = s * s, s3 = s2 * s;
     return [0, 1].map(d => 0.5 * ((2 * p1[d]) + (-p0[d] + p2[d]) * s + (2 * p0[d] - 5 * p1[d] + 4 * p2[d] - p3[d]) * s2 + (-p0[d] + 3 * p1[d] - 3 * p2[d] + p3[d]) * s3)); };
-  const pts = [], at0 = [0]; for (let i = 0; i + 1 < m; i++) for (let j = 0; j < 24; j++) pts.push(at(i, j / 24)); pts.push(P[m - 1]);
+  // the two end panels are drawn straight (the stick is trimmed there, and a spline through a short end panel can loop)
+  const lin = (i, s) => [P[i][0] + (P[i + 1][0] - P[i][0]) * s, P[i][1] + (P[i + 1][1] - P[i][1]) * s];
+  const pts = [], at0 = [0]; for (let i = 0; i + 1 < m; i++) for (let j = 0; j < 24; j++) pts.push((i === 0 || i === m - 2) && m > 3 ? lin(i, j / 24) : at(i, j / 24)); pts.push(P[m - 1]);
   for (let i = 1; i < pts.length; i++) at0.push(at0[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
   const nrm = i => { const a2 = pts[Math.max(0, i - 1)], c2 = pts[Math.min(pts.length - 1, i + 1)]; return perp(unit(sub(c2, a2))); };
   const off = d => pts.map((p, i) => add(p, mul(nrm(i), d)));
@@ -820,6 +822,97 @@ function documentHTML(tr, res, meta, plan, opt) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name)} · build documents</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>${html}${tplPages}</body></html>`;
 }
 
-const api = { bentCheck, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
+// ===== The bending sheet (#282, TE-B-162): a work instruction for bending the top chord, built to Brian's Work Instruction
+// Axioms (2026-10-28): numbered steps with no boxes, a picture for every step so it can be done without reading, ALL CAPS on
+// the printed pages, a key in the free space, and the 1:1 bending form, printed `copies` times (spares: a bend dries ~12 h).
+// Steps and limits from the Physics Consultant (#282, TE-B-128, TE-B-162). meta: { name, info, code, mat }.
+const BEND_INK = '#8c5e22';   // section lines in the logo colour (axioms: WI 1); Graphics sets the final colour and logo
+function bendIcons() {
+  const L = (d, w) => `<path d="${d}" fill="none" stroke="#111" stroke-width="${w || 1.6}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const T = (x, y, s, sz, a) => `<text x="${x}" y="${y}" font-size="${sz || 9}" font-family="Arial" font-weight="bold" text-anchor="${a || 'middle'}" fill="#111">${s}</text>`;
+  const stick = (x0, x1, y) => `<rect x="${x0}" y="${y - 2.5}" width="${x1 - x0}" height="5" fill="#e8c38a" stroke="#111" stroke-width="1.2"/>`;
+  const arc = 'M10 46 Q60 4 110 46';
+  const pin = (x, y) => `<circle cx="${x}" cy="${y}" r="2.2" fill="#c0392b"/><line x1="${x}" y1="${y}" x2="${x}" y2="${y - 9}" stroke="#111" stroke-width="1.2"/>`;
+  return {
+    print: `<rect x="14" y="6" width="44" height="52" fill="#fff" stroke="#111" stroke-width="1.4"/>${L('M20 44 h30 M20 41 v6 M50 41 v6', 1.4)}${T(35, 38, '50', 8)}${L('M64 12 l40 40', 3)}${T(96, 20, '100%', 9)}${L('M70 50 h44', 1)}${T(92, 60, 'WAX PAPER', 7)}`,
+    cut: `${stick(14, 106, 32)}${L('M14 20 v24 M106 20 v24', 1.2)}${L('M14 16 h14 M14 16 l4 -3 M14 16 l4 3 M106 16 h-14 M106 16 l-4 -3 M106 16 l-4 3', 1.2)}${T(22, 12, '+10-15', 8)}${T(98, 12, '+10-15', 8)}${T(60, 54, 'CUT LONG', 9)}`,
+    weigh: `<rect x="28" y="38" width="64" height="14" rx="2" fill="#ddd" stroke="#111" stroke-width="1.4"/>${stick(32, 88, 33)}${T(60, 49, '0.00 g', 9)}${L('M60 18 v8', 1.2)}${T(60, 14, 'WRITE IT DOWN', 8)}`,
+    soak: `${L('M10 24 q0 30 30 30 h20 q30 0 30 -30', 1.8)}${L('M14 34 h72', 1)}${stick(20, 80, 40)}${T(50, 14, '15-30 MIN', 9)}${L('M98 40 l8 -12 l8 12 M100 52 c0 -6 4 -6 4 -12 M108 52 c0 -6 4 -6 4 -12', 1.2)}${T(106, 60, '1-3 MIN', 8)}`,
+    pin: `${L(arc, 1)}<path d="${arc}" fill="none" stroke="#e8c38a" stroke-width="5"/>${pin(60, 21)}${pin(44, 30)}${pin(76, 30)}${L('M52 12 l-10 6 M68 12 l10 6', 1)}${T(60, 9, '1', 9)}${T(60, 58, 'CROWN FIRST', 9)}`,
+    creak: `${stick(18, 102, 36)}${L('M56 30 l4 6 l-4 6 l4 6', 1.6)}${L('M40 16 l40 30 M80 16 l-40 30', 2.2)}${T(60, 58, 'CREAKS? RE-WET, SLOWER', 8)}`,
+    check: `${L(arc, 1)}<path d="M10 44 Q60 2 110 44" fill="none" stroke="#e8c38a" stroke-width="5"/>${L('M34 25 l-3 -5 M60 20 l0 -6 M86 25 l3 -5', 1.4)}${T(60, 58, 'GAP ≤ 0.5', 9)}`,
+    dry: `<circle cx="38" cy="32" r="18" fill="#fff" stroke="#111" stroke-width="1.6"/>${L('M38 32 v-11 M38 32 l8 5', 1.6)}${T(38, 60, '8-12 H', 9)}${L('M74 18 h30 v24 h-30 z M78 24 h22 M78 30 h22 M78 36 h22', 1.2)}${L('M70 14 l38 34', 2.4)}`,
+    dryw: `<rect x="28" y="38" width="64" height="14" rx="2" fill="#ddd" stroke="#111" stroke-width="1.4"/>${stick(32, 88, 33)}${T(60, 49, '±2%', 9)}${T(60, 14, 'SAME AS STEP 3', 8)}`,
+    trim: `<path d="M14 44 Q60 10 106 44" fill="none" stroke="#e8c38a" stroke-width="5"/>${L('M14 44 Q60 10 106 44', 1)}${L('M18 32 v18 M102 32 v18', 2)}${T(60, 58, 'TRIM TO LENGTH', 9)}${T(60, 30, '≤ 1', 8)}`,
+    pair: `${stick(16, 104, 22)}${stick(16, 104, 38)}${T(60, 58, 'SAME WEIGHT, SAME TIME', 8)}${T(110, 34, '=', 14)}`,
+  };
+}
+function bendingSheetHTML(tr, plan, res, meta, opt) {
+  opt = opt || {}; meta = meta || {};
+  const b = meta.b || 3.18, copies = Math.max(1, Math.min(8, Math.round(+opt.copies || 1)));
+  const bentPieces = plan.pieces.filter(q => q.bent);
+  if (!bentPieces.length) return null;
+  const ck = bentCheck(tr, plan, res, meta.mat || { b, h: meta.h || b });
+  const ic = bendIcons(), U = s => String(s).toUpperCase();
+  const code = `WI-BEND-${esc(meta.code || '')}`.replace(/-$/, '');
+  const head = (pg, n) => `<div class="hd"><b>${U('Bend the top chord')}</b><span>${code} · ${U(esc(meta.name || 'Design'))} · PAGE ${pg} OF ${n}</span></div>`;
+  const foot = `<div class="ft">DESIGNED BY BRIAN G. WALKER AND TRUSS EXPLORER: A CORPORATE AI AGENT TEAM${meta.info ? ` · ${U(esc(meta.info))}` : ''}</div>`;
+  const items = [...new Set(bentPieces.map(q => q.item))];
+  const per = it => plan.items.find(i => i.no === it);
+  const lens = items.map(it => `ITEM ${it}: ${Math.round(per(it).long)} MM`).join(' · ');
+  const nSticks = bentPieces.length * (meta.nTruss || 2);
+  const steps = [
+    ['print', 'PRINT THE FORMS AT 100% (ACTUAL SIZE). CHECK THE 50 MM BAR. TAPE TO A PIN BOARD, WAX PAPER ON TOP.'],
+    ['cut', `PICK STRAIGHT-GRAIN, DENSE STICKS. CUT EACH 10-15 MM LONG AT EACH END (${lens}).`],
+    ['weigh', 'WEIGH EACH STICK DRY. WRITE THE MASS DOWN.'],
+    ['soak', 'SOAK IN HOT TAP WATER 15-30 MIN (WEIGHED DOWN), OR STEAM 1-3 MIN ALONG THE WHOLE CURVE. OVEN MITT.'],
+    ['pin', 'PIN AT THE CROWN FIRST, THEN OUT TO EACH END. PINS BESIDE THE STICK, NEVER THROUGH IT, SIDES ALTERNATING EVERY 15-20 MM.'],
+    ['creak', 'IF IT CREAKS: STOP, RE-WET, GO SLOWER. A CRACK = A NEW STICK.'],
+    ['check', 'IT LIES ON THE LINE: GAP 0.5 MM MAX. PENCIL THE JOINT TICKS ONTO THE STICK WHILE PINNED.'],
+    ['dry', 'DRY PINNED AT ROOM TEMPERATURE 8-12 H. NO HEATER, NO HOT DRYER.'],
+    ['dryw', 'DRY = MASS BACK WITHIN 2% OF STEP 3.'],
+    ['trim', 'UNPIN. WITHIN 1 MM OF THE LINE IS FINE. TRIM BOTH ENDS TO LENGTH.'],
+    ['pair', 'BEND EACH PAIR (FRONT AND BACK TRUSS) FROM STICKS OF SIMILAR WEIGHT, AT THE SAME TIME.'],
+  ];
+  const stepHTML = steps.map(([k, s], i) => `<div class="st"><div class="n">${i + 1}</div><svg viewBox="0 0 120 62">${ic[k]}</svg><p>${s}</p></div>`).join('');
+  const key = `<div class="key"><b>KEY</b><ul>
+    <li>DO THE WHOLE ROUTINE ON A SCRAP OF THE SAME STOCK FIRST.</li>
+    <li>START THE EVENING BEFORE THE BUILD: IT DRIES OVERNIGHT.</li>
+    <li>${copies} FORM${copies > 1 ? 'S' : ''} PRINTED FOR ${nSticks} STICK${nSticks > 1 ? 'S' : ''}${copies * items.length > nSticks ? ' + SPARES' : ''}.</li>
+    <li>${ck.mustSoak ? `BENT DRY IT CRACKS: ${(ck.strain * 100).toFixed(2)}% STRETCH VS ${(ck.strainLimit * 100).toFixed(2)}% (RADIUS ${Math.round(ck.Rmin)} MM).` : 'THIS CURVE CAN BE BENT DRY.'}</li>
+    ${ck.tooTight ? '<li style="color:#c0392b">TOO TIGHT FOR ONE STICK: USE STRAIGHT PIECES.</li>' : `<li>ONCE DRY, UP TO ${Math.round(ck.worstUse * 100)}% OF ITS STRENGTH AT THE DESIGN LOAD.</li>`}
+    <li>TOLERANCE: X = ±1 MM. FORM DRAWN EXACT; 50 MM BAR ±0.5.</li></ul></div>`;
+  const pages = [`<section class="pg">${head(1, 1 + copies * items.length)}<div class="steps">${stepHTML}${key}</div>${foot}</section>`];
+  let pg = 1;
+  items.forEach(it => {
+    const q = bentPieces.find(p2 => p2.item === it), F = bendForm(tr, q, b);
+    const X0 = Math.min(...F.xs) - 14, X1 = Math.max(...F.xs) + 14, Y0 = Math.min(...F.ys) - 16, Y1 = Math.max(...F.ys) + 16, w = X1 - X0, h = Y1 - Y0;
+    const pl = a2 => a2.map(z => `${z[0].toFixed(2)},${(Y1 - z[1]).toFixed(2)}`).join(' ');
+    const mid = (Math.min(...F.xs) + Math.max(...F.xs)) / 2;
+    const svg = `<svg width="${w}mm" height="${h + 18}mm" viewBox="${X0} 0 ${w} ${h + 18}">
+      <polyline points="${pl(F.up)}" fill="none" stroke="#000" stroke-width=".3"/><polyline points="${pl(F.dn)}" fill="none" stroke="#000" stroke-width=".3"/>
+      <line x1="${mid}" y1="2" x2="${mid}" y2="${h - 2}" stroke="#555" stroke-width=".25" stroke-dasharray="3 1.5 .6 1.5"/>
+      ${F.ticks.map((tk, i) => `<line x1="${tk.a[0]}" y1="${Y1 - tk.a[1]}" x2="${tk.c[0]}" y2="${Y1 - tk.c[1]}" stroke="#000" stroke-width=".45"/>${i === 0 || i === F.ticks.length - 1 ? `<text x="${tk.a[0]}" y="${Y1 - tk.a[1] - 1.2}" font-size="3" text-anchor="middle" font-family="Arial" font-weight="bold">END</text>` : ''}`).join('')}
+      ${F.pins.map(pn => `<circle cx="${pn[0]}" cy="${Y1 - pn[1]}" r=".9" fill="none" stroke="#000" stroke-width=".35"/>`).join('')}
+      <g stroke="#000" stroke-width=".35"><line x1="${X0 + 6}" y1="${h + 8}" x2="${X0 + 56}" y2="${h + 8}"/><line x1="${X0 + 6}" y1="${h + 6}" x2="${X0 + 6}" y2="${h + 10}"/><line x1="${X0 + 56}" y1="${h + 6}" x2="${X0 + 56}" y2="${h + 10}"/></g>
+      <text x="${X0 + 31}" y="${h + 14}" font-size="3.2" text-anchor="middle" font-family="Arial" font-weight="bold">50 ±0.5</text></svg>`;
+    for (let c = 0; c < copies; c++) {
+      pg++;
+      pages.push(`<section class="pg">${head(pg, 1 + copies * items.length)}<div class="form"><div class="fn"><b>BENDING FORM ${c + 1} OF ${copies}${items.length > 1 ? ` · ITEM ${it}` : ''}</b> · ACTUAL SIZE · CUT ${Math.round(per(it).long)} MM ALONG THE CURVE, +10-15 EACH END, TRIM AFTER DRYING · TICKS = JOINTS · O = PIN, BESIDE THE STICK · MIRRORED ALONG THE DOTTED LINE</div>${svg}</div>${foot}</section>`);
+    }
+  });
+  const css = `@page{size:letter landscape;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#111;background:#ddd}
+    .pg{width:263mm;height:199mm;margin:8mm auto;background:#fff;padding:4mm 6mm;display:flex;flex-direction:column;page-break-after:always;break-after:page;overflow:hidden}
+    .hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:.7mm solid ${BEND_INK};padding-bottom:1.5mm;margin-bottom:3mm;font-size:9pt}.hd b{font-size:15pt;letter-spacing:.04em}
+    .ft{margin-top:auto;border-top:.5mm solid ${BEND_INK};padding-top:1mm;font-size:6.5pt;text-align:center;letter-spacing:.05em}
+    .steps{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);gap:2.5mm 4mm;flex:1;min-height:0}
+    .st{position:relative;display:flex;flex-direction:column;min-height:0}.st .n{position:absolute;left:0;top:-1mm;font-size:22pt;font-weight:bold;color:${BEND_INK}}
+    .st svg{flex:1;min-height:0;width:100%;margin-left:7mm;width:calc(100% - 7mm)}.st p{margin:.5mm 0 0;font-size:7pt;font-weight:bold;line-height:1.25}
+    .key{border-left:.7mm solid ${BEND_INK};padding-left:2.5mm;font-size:7pt}.key ul{margin:1mm 0 0;padding-left:3.5mm}.key li{margin-bottom:.8mm}
+    .form{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}.fn{font-size:8pt;margin-bottom:3mm;text-align:center}
+    @media print{body{background:#fff}.pg{margin:0}}`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name || 'Design')} · bending sheet</title><style>${css}</style></head><body>${pages.join('')}</body></html>`;
+}
+const api = { bentCheck, bendingSheetHTML, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.BuildDoc = api;
 })(typeof window !== 'undefined' ? window : globalThis);
