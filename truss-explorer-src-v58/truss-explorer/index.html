@@ -2397,6 +2397,11 @@ function pieceOutline(q, L, b) {
   return { tl, bl, tr, br };
 }
 function nestPlan(parts, stock, kerf, b, nest) {
+  // first fit and best fit (the stick with the least room left), decreasing; keep whichever needs fewer sticks
+  const a = nestPack(parts, stock, kerf, b, nest, false), c = nestPack(parts, stock, kerf, b, nest, true);
+  return c.length < a.length ? c : a;
+}
+function nestPack(parts, stock, kerf, b, nest, bestFit) {
   const deg = s => Math.round(Math.atan2(s, b) * R2D);
   const orient = o => { const len = Math.max(o.tr, o.br); return [o, { tl: o.bl, bl: o.tl, tr: o.br, br: o.tr }, { tl: len - o.tr, bl: len - o.br, tr: len - o.tl, br: len - o.bl }, { tl: len - o.br, bl: len - o.tr, tr: len - o.bl, br: len - o.tl }]
     .map(v => { const mm = Math.min(v.tl, v.bl); return { tl: v.tl - mm, bl: v.bl - mm, tr: v.tr - mm, br: v.br - mm }; }); };
@@ -2413,7 +2418,7 @@ function nestPlan(parts, stock, kerf, b, nest) {
         const x = last.x + last.o.tr - o.tl + kerf, end = x + Math.max(o.tr, o.br);
         if (end <= stock + 1e-9) best = { B, o, x, end, shared: true };
       });
-      if (!best) { const x = B.end + kerf, end = x + len; if (end <= stock + 1e-9) best = { B, o: p.o, x, end, shared: false }; }
+      if (!best || (bestFit && !best.shared)) { const x = B.end + kerf, end = x + len; if (end <= stock + 1e-9 && (!best || end > best.end)) best = { B, o: p.o, x, end, shared: false }; }
     });
     if (best) { best.B.cuts.push(Object.assign({}, p, { o: best.o, x: best.x, shared: best.shared })); best.B.end = best.end; }
     else bars.push({ cuts: [Object.assign({}, p, { x: 0, shared: false })], end: len });
@@ -2608,23 +2613,34 @@ function sideSVG(tr, plan, o) {
       const side = dot(nv, sub(m, cen)) >= 0 ? 1 : -1;
       const lt = o.round ? `${Math.round(q.long)}${o.typ && o.typ(q.item) ? ' TYP' : ''}` : f1(q.long);
       if (o.dims) out.push(dimLine(a, c, side * (b + 4), lt, Y));
-      // TE-B-171: the cut angle at each angled end, drawn like the angle templates (dashed square line, cut line, arc)
-      if (o.angles) [[q.nodes[0], q.cut0], [q.nodes[1], q.cut1]].forEach(([n, cut]) => {
-        if (!cut || ['through', 'end', 'free', 'square', 'splice', 'lap'].includes(cut.kind) || Math.abs(cut.ang || 0) < 0.5) return;
-        const k = q.members.find(m2 => tr.elems[m2].i === n || tr.elems[m2].j === n); if (k == null) return;
-        const e = tr.elems[k], pn = tr.nodes[n], w = unit(sub(tr.nodes[e.i === n ? e.j : e.i], pn)), nw = perp(w);
-        const A = add(add(pn, mul(nw, b / 2)), mul(w, cut.eA || 0)), B = add(sub(pn, mul(nw, b / 2)), mul(w, cut.eB || 0)), M = mul(add(A, B), 0.5);
-        const cu = unit(sub(A, B)), ext = 5, r = 4.2, P = z => `${z[0].toFixed(2)},${Y(z[1]).toFixed(2)}`;
-        const c1 = add(M, mul(cu, ext)), c2 = sub(M, mul(cu, ext)), s1 = add(M, mul(nw, ext)), s2 = sub(M, mul(nw, ext));
-        const sgn = dot(cu, nw) >= 0 ? 1 : -1, ra = add(M, mul(nw, sgn * r)), rb = add(M, mul(cu, r));
-        const lp = add(M, mul(unit(add(mul(nw, sgn), cu)), r + 2.6));
-        out.push(`<g stroke="#000" fill="none"><line x1="${s1[0]}" y1="${Y(s1[1])}" x2="${s2[0]}" y2="${Y(s2[1])}" stroke-width=".18" stroke-dasharray=".8 .6"/><line x1="${c1[0]}" y1="${Y(c1[1])}" x2="${c2[0]}" y2="${Y(c2[1])}" stroke-width=".3"/><path d="M${P(ra)} A${r} ${r} 0 0 ${crs(nw, cu) * sgn > 0 ? 0 : 1} ${P(rb)}" stroke-width=".2"/></g><text x="${lp[0].toFixed(2)}" y="${(Y(lp[1]) + 1).toFixed(2)}" font-size="2.6" text-anchor="middle" font-family="Arial" font-weight="bold" paint-order="stroke" stroke="#fff" stroke-width=".7">${Math.round(cut.ang)}°</text>`);
-      });
+
       else { const tp = add(m, mul(nv, 5)); let ang = Math.atan2(d[1], d[0]) * R2D; if (ang > 90) ang -= 180; if (ang < -90) ang += 180; out.push(`<text x="${tp[0]}" y="${Y(tp[1])}" font-size="3.3" text-anchor="middle" transform="rotate(${-ang} ${tp[0]} ${Y(tp[1])})" font-family="Arial, sans-serif">${f1(q.long)}</text>`); }
       if (o.balloons) {
         const bp = add(m, mul(nv, -side * (b + 7))), r = 2.9;
         out.push(`<line x1="${m[0]}" y1="${Y(m[1])}" x2="${bp[0]}" y2="${Y(bp[1])}" stroke="#111" stroke-width=".2"/><circle cx="${bp[0]}" cy="${Y(bp[1])}" r="${r}" fill="${o.color === 'part' ? colOf(q.item) : '#fff'}" stroke="#111" stroke-width=".3"/><text x="${bp[0]}" y="${Y(bp[1]) + 1.15}" font-size="3.2" font-weight="bold" text-anchor="middle" fill="${o.color === 'part' ? '#fff' : '#111'}" font-family="Arial, sans-serif">${q.item}</text>`);
       }
+    });
+  }
+  // TE-B-171: the cut angle at each angled end, drawn like the angle templates (dashed square line, cut line, arc):
+  // once per item, on the parts this view shows (the assembly view and every build-step picture)
+  if (o.angles) { const seenA = new Set();
+    plan.pieces.forEach(q => {
+      if (o.highlight && !q.members.some(k => o.highlight.has(k) && !(o.grey && o.grey.has(k)))) return;
+      if (seenA.has(q.item)) return; seenA.add(q.item);
+        const as = typeof o.angles === 'number' ? o.angles : 1;   // bigger marks on the small build-step pictures
+        [[q.nodes[0], q.cut0, 0], [q.nodes[1], q.cut1, 1]].forEach(([n, cut, end]) => {
+        if (!cut || ['through', 'end', 'free', 'square', 'splice', 'lap'].includes(cut.kind) || Math.abs(cut.ang || 0) < 0.5) return;
+        let pn, w;
+        if (q.pts) { pn = q.pts[end]; w = unit(sub(q.pts[1 - end], pn)); }   // a piece cut at an arch crossing (#298) ends there, not at a joint
+        else { const k = q.members.find(m2 => tr.elems[m2].i === n || tr.elems[m2].j === n); if (k == null) return; const e = tr.elems[k]; pn = tr.nodes[n]; w = unit(sub(tr.nodes[e.i === n ? e.j : e.i], pn)); }
+        const nw = perp(w);
+        const A = add(add(pn, mul(nw, b / 2)), mul(w, cut.eA || 0)), B = add(sub(pn, mul(nw, b / 2)), mul(w, cut.eB || 0)), M = mul(add(A, B), 0.5);
+        const cu = unit(sub(A, B)), ext = 5 * as, r = 4.2 * as, P = z => `${z[0].toFixed(2)},${Y(z[1]).toFixed(2)}`;
+        const c1 = add(M, mul(cu, ext)), c2 = sub(M, mul(cu, ext)), s1 = add(M, mul(nw, ext)), s2 = sub(M, mul(nw, ext));
+        const sgn = dot(cu, nw) >= 0 ? 1 : -1, ra = add(M, mul(nw, sgn * r)), rb = add(M, mul(cu, r));
+        const lp = add(M, mul(unit(add(mul(nw, sgn), cu)), r + 2.6 * as));
+        out.push(`<g stroke="#000" fill="none"><line x1="${s1[0]}" y1="${Y(s1[1])}" x2="${s2[0]}" y2="${Y(s2[1])}" stroke-width="${.18 * as}" stroke-dasharray="${.8 * as} ${.6 * as}"/><line x1="${c1[0]}" y1="${Y(c1[1])}" x2="${c2[0]}" y2="${Y(c2[1])}" stroke-width="${.3 * as}"/><path d="M${P(ra)} A${r} ${r} 0 0 ${crs(nw, cu) * sgn > 0 ? 0 : 1} ${P(rb)}" stroke-width="${.2 * as}"/></g><text x="${lp[0].toFixed(2)}" y="${(Y(lp[1]) + as).toFixed(2)}" font-size="${2.6 * as}" text-anchor="middle" font-family="Arial" font-weight="bold" paint-order="stroke" stroke="#fff" stroke-width="${.7 * as}">${Math.round(cut.ang)}°</text>`);
+      });
     });
   }
   if (o.dims) {
@@ -2911,7 +2927,7 @@ function documentHTML(tr, res, meta, plan, opt) {
     order.map(([ty, title]) => {
       const ks = tr.elems.map((e, k) => e.type === ty ? k : -1).filter(k => k >= 0); if (!ks.length) return '';
       const hi = new Set(ks), gr = new Set(done); ks.forEach(k => done.add(k));
-      const vv = sideSVG(tr, plan, { highlight: new Set([...hi, ...gr]), grey: gr, b, color: colourMode === 'part' ? 'part' : HI, dash });
+      const vv = sideSVG(tr, plan, { highlight: new Set([...hi, ...gr]), grey: gr, b, color: colourMode === 'part' ? 'part' : HI, dash, angles: mini ? 2.4 : false });
       const its = {}; plan.pieces.filter(q => q.members.some(k => hi.has(k))).forEach(q => { its[q.item] = (its[q.item] || 0) + 1; });
       const spl = ty === 'bot' || ty === 'top' ? splices.filter(s => s.type === ty) : [];
       const onT = !gr.size && sideT ? ` (template ${sideT})` : '';
@@ -3012,10 +3028,10 @@ function documentHTML(tr, res, meta, plan, opt) {
     if (!cx && meta.ties && meta.ties.count) for (let i = 0; i < meta.ties.count; i++) parts.push({ item: 'T', o: { tl: 0, bl: 0, tr: meta.ties.len, br: meta.ties.len } });
     const nb = nestPlan(parts, stock, kerf, b, !!opt.nest), plainN = opt.nest ? nestPlan(parts, stock, kerf, b, false).length : nb.length;
     const barRow = (B, i) => { const pc = B.cuts.map(c => { const o = c.o, x = c.x, len = Math.max(o.tr, o.br);
-        return `<polygon points="${x + o.tl},0 ${x + o.tr},0 ${x + o.br},${b} ${x + o.bl},${b}" fill="#fff" stroke="#000" stroke-width=".25"/>${c.shared ? `<line x1="${x + o.tl}" y1="-1.2" x2="${x + o.bl}" y2="${b + 1.2}" stroke="#000" stroke-width=".5"/>` : ''}<text x="${x + len / 2}" y="-1" font-size="2.6" text-anchor="middle" font-family="Arial" font-weight="bold">${c.item}</text>`; }).join('');
-      return `<div class="sr"><span>${i + 1}${B.over ? ' TOO LONG' : ''}</span><svg width="${stock + 2}mm" height="${b + 5}mm" viewBox="-1 -4 ${stock + 2} ${b + 5}"><rect x="0" y="0" width="${stock}" height="${b}" fill="#eee" stroke="#999" stroke-width=".2"/>${pc}</svg></div>`; };
-    const PER = 15, stockPages = [];
-    for (let s0 = 0; s0 < nb.length; s0 += PER) stockPages.push(`<h2>CUT FROM STOCK${nb.length > PER ? ` (${s0 / PER + 1} OF ${Math.ceil(nb.length / PER)})` : ''} · ${opt.nest ? 'NESTED' : 'ONE CUT PER END'} · ACTUAL SIZE <span class="note">${nb.length} STICKS OF ${stock} MM, ${kerf} MM SAW KERF.${opt.nest ? ` LIKE ANGLES BACK TO BACK: ONE CUT (BOLD LINE) MAKES TWO ENDS; FLIP THE PIECE AS DRAWN. ${plainN - nb.length > 0 ? `SAVES ${plainN - nb.length} STICK${plainN - nb.length > 1 ? 'S' : ''} (OFFCUTS, NOT BRIDGE MASS).` : 'SAVES OFFCUTS, NOT BRIDGE MASS.'}` : ' NESTED OPTION: TICK "NEST LIKE ANGLES" IN BUILD DOCUMENTS.'} NUMBERS = ITEMS. PRINTED AT 100% YOU CAN LAY A STICK ON EACH ROW.</span></h2>${nb.slice(s0, s0 + PER).map((B, i) => barRow(B, s0 + i)).join('')}`);
+        return `<polygon points="${x + o.tl},0 ${x + o.tr},0 ${x + o.br},${b} ${x + o.bl},${b}" fill="#fff" stroke="#000" stroke-width=".25"/>${c.shared ? (() => { const sx = (o.bl - o.tl) / b, xm = x - kerf / 2, e = 1.2 / Math.hypot(1, sx); return `<line x1="${(xm + o.tl - e * sx).toFixed(2)}" y1="${-e}" x2="${(xm + o.bl + e * sx).toFixed(2)}" y2="${b + e}" stroke="#000" stroke-width=".5"/>`; })() : ''}<text x="${x + len / 2}" y="-.8" font-size="2.5" text-anchor="middle" font-family="Arial" font-weight="bold">${c.item}</text>`; }).join('');
+      return `<div class="sr"><span>${i + 1}${B.over ? ' TOO LONG' : ''}</span><svg width="${stock + 2}mm" height="${b + 4.2}mm" viewBox="-1 -3.2 ${stock + 2} ${b + 4.2}"><rect x="0" y="0" width="${stock}" height="${b}" fill="#eee" stroke="#999" stroke-width=".2"/>${pc}</svg></div>`; };
+    const PER = Math.max(8, Math.floor(150 / (b + 4.6))), stockPages = [];   // as many sticks as fit the page
+    for (let s0 = 0; s0 < nb.length; s0 += PER) stockPages.push(`<h2>CUT FROM STOCK${nb.length > PER ? ` (${s0 / PER + 1} OF ${Math.ceil(nb.length / PER)})` : ''} · ${opt.nest ? 'NESTED' : 'ONE CUT PER END'} · ACTUAL SIZE <span class="note">${nb.length} STICKS OF ${stock} MM, ${kerf} MM SAW KERF.${opt.nest ? ` LIKE ANGLES BACK TO BACK: ONE CUT (BOLD LINE) MAKES TWO ENDS; FLIP THE PIECE AS DRAWN. ${nb.reduce((s, B) => s + B.cuts.filter(c => c.shared).length, 0)} SHARED CUTS${plainN - nb.length > 0 ? `, ${plainN - nb.length} STICK${plainN - nb.length > 1 ? 'S' : ''} SAVED` : ''} (OFFCUTS, NOT BRIDGE MASS).` : ' NESTED OPTION: TICK "NEST LIKE ANGLES" IN BUILD DOCUMENTS.'} NUMBERS = ITEMS. PRINTED AT 100% YOU CAN LAY A STICK ON EACH ROW.</span></h2>${nb.slice(s0, s0 + PER).map((B, i) => barRow(B, s0 + i)).join('')}`);
     // end-angle templates at 1:1: the stick (b wide) square to a reference line, and the cut line at the angle, extended as a knife guide
     const [cw, ch] = [[60, 40], [46, 32], [38, 27], [32, 23], [27, 20]].find(([w, h]) => Math.floor(251 / (w + 3)) * Math.floor(140 / (h + 3)) >= angs.length) || [27, 20];
     const angSVG = a => { const t = Math.tan(a.deg * Math.PI / 180), xe = cw * 0.62, yc = ch * 0.56, half = b / 2, ext = ch * 0.3;
@@ -3049,7 +3065,7 @@ function documentHTML(tr, res, meta, plan, opt) {
       .tb{border-collapse:collapse;width:100%;font-size:8pt;margin-bottom:2.5mm}.tb td{border:.3mm solid #000;padding:.8mm 2mm}.tb .big{font-size:13pt;font-weight:bold;width:35%}
       .cg{border-collapse:collapse;width:100%}.cg th,.cg td{border:.25mm solid #000;padding:.2mm 1.5mm;line-height:1.15;text-align:left;vertical-align:middle}.cg th{font-size:7pt}.cg .c{text-align:center}.cg2{display:grid;grid-template-columns:1fr 1fr;gap:3mm;align-items:start}.cg svg{display:block}
       .asm{display:grid;grid-template-columns:1fr;grid-template-rows:52mm 1fr;gap:2mm;height:135mm;margin-bottom:2mm}.asm figure{margin:0;display:flex;flex-direction:column;min-height:0}.asm svg{flex:1;min-height:0;width:100%}.asm figcaption{font-size:7pt;font-weight:bold}
-      .sr{display:flex;align-items:center;gap:2mm;margin:.4mm 0}.sr span{width:6mm;font-size:7pt;font-weight:bold;text-align:right}.sr svg{flex:none}
+      .sr{display:flex;align-items:center;gap:2mm;margin:.2mm 0}.sr span{width:6mm;font-size:7pt;font-weight:bold;text-align:right}.sr svg{flex:none}
       .ag{display:flex;flex-wrap:wrap;gap:3mm;margin-bottom:2mm}.ag svg{border:.2mm solid #999}
       .steps{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:3mm;height:calc(100% - 8mm)}
       .step{border:none;border-top:.4mm solid #000;padding:1.5mm 1mm 1mm;position:relative;display:flex;flex-direction:column;overflow:hidden}
