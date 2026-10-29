@@ -485,7 +485,7 @@ function partDetail(it, b, colour) {
   if (Math.abs(it.long - it.short) > 0.05) s += dim(longTop ? botE[0] : top[0], longTop ? botE[1] : top[1], 23, `${f1(it.short)} short point`);
   // enlarged ends (×6) with the cut angle
   const end = (cut, which, ox) => {
-    const k = 6, seg = 9;
+    const seg = 9, run = Math.abs(z(cut.eA) - z(cut.eB)), k = Math.min(6, 54 / (seg + run));   // a steep cut (77°) stays inside the card
     const loc = which === 0 ? [[pts[0][0], b / 2], [pts[3][0], -b / 2]] : [[pts[1][0], b / 2], [pts[2][0], -b / 2]];
     const ref = which === 0 ? Math.min(loc[0][0], loc[1][0]) : Math.max(loc[0][0], loc[1][0]);
     const T = p => [(p[0] - ref) * k * (which === 0 ? 1 : 1), p[1] * k];
@@ -546,7 +546,9 @@ function bendForm(tr, piece, b) {
 }
 function documentHTML(tr, res, meta, plan, opt) {
   opt = opt || {};
-  const b = meta.b || 3.18, nT = meta.nTruss || 2, colourMode = opt.colour === false ? 'mono' : 'part', dash = !!opt.dash;
+  const mini = !!opt.minimal;   // TE-B-169: the black-and-white minimum build set
+  if (mini) opt = Object.assign({}, opt, { steps: true, templates: true, colour: false, dash: false });
+  const b = meta.b || 3.18, nT = meta.nTruss || 2, colourMode = opt.colour === false ? 'mono' : 'part', dash = !!opt.dash, HI = mini ? '#000' : '#c0392b';
   const today = new Date().toLocaleDateString();
   // 3D: every member the model adds between the trusses, numbered after the side-truss items
   const d3 = meta.d3 && meta.d3.m3 ? meta.d3 : null;
@@ -690,8 +692,12 @@ function documentHTML(tr, res, meta, plan, opt) {
     // 3D: one full-size template per different cross-frame (stand the trusses on it), and the top plane
     if (cx) {
       const m3 = d3.m3, full = (vv, cap) => { const [bx, by, bw, bh] = vv.box, h2 = bh + 14; return `<figure class="ftpl"><svg width="${bw}mm" height="${h2}mm" viewBox="${bx} ${by} ${bw} ${h2}">${vv.svg.replace(/fill="#e9e9e9"/g, 'fill="none"')}${scale(bx, by + h2)}</svg><figcaption>${cap}</figcaption></figure>`; };
-      const ft = frames.map(g => { const vv = view3(m3, cx, { view: 'end', station: g.stations[0], balloons: true, colour: colourMode === 'part' ? 'part' : 'mono', b }); return vv ? full(vv, `Cross-frame, station${g.stations.length > 1 ? 's' : ''} ${g.stations.map(s => s + 1).join(', ')} · full size`) : ''; }).join('');
-      tplMark('frames'); tpls.push(`<p class="note">Full-size cross-frame templates · print at 100% and check the 50 mm bar. Stand the two trusses on these (front truss on the left) to set the spacing${cx.tilt ? ' and the lean' : ''}; build each frame flat on its template.</p><div class="ftpls">${ft}</div>`);
+      // full-size frames, packed onto as many pages as they need (a page of frames used to spill onto the next sheet)
+      const fts = frames.map(g => { const vv = view3(m3, cx, { view: 'end', station: g.stations[0], balloons: true, colour: colourMode === 'part' ? 'part' : 'mono', b }); return vv ? { w: vv.box[2], h: vv.box[3] + 22, html: full(vv, `Cross-frame, station${g.stations.length > 1 ? 's' : ''} ${g.stations.map(s => s + 1).join(', ')} · full size`) } : null; }).filter(Boolean);
+      const fpages = []; let cur = [], rowW = 0, rowH = 0, usedH = 0;
+      fts.forEach(f => { if (rowW && rowW + 8 + f.w > 245) { usedH += rowH + 8; rowW = 0; rowH = 0; } if (cur.length && usedH + Math.max(rowH, f.h) > 170) { fpages.push(cur); cur = []; usedH = 0; rowW = 0; rowH = 0; } cur.push(f.html); rowW += (rowW ? 8 : 0) + f.w; rowH = Math.max(rowH, f.h); });
+      if (cur.length) fpages.push(cur);
+      fpages.forEach((pg, i) => { tplMark('frames'); tpls.push(`<p class="note">Full-size cross-frame templates${fpages.length > 1 ? ` (${i + 1} of ${fpages.length})` : ''} · print at 100% and check the 50 mm bar. Stand the two trusses on these (front truss on the left) to set the spacing${cx.tilt ? ' and the lean' : ''}; build each frame flat on its template.</p><div class="ftpls">${pg.join('')}</div>`); });
       const pv = view3(m3, cx, { view: 'plan', balloons: true, colour: colourMode === 'part' ? 'part' : 'mono', b });
       if (pv) { const [bx, by, bw, bh] = pv.box, ptiles = []; for (let tx = bx; tx < bx + bw - 1; tx += tw - 10) ptiles.push(tx);
         ptiles.forEach((tx, i) => tplMark('plan') || tpls.push(`<p class="note">Full-size top plane (from above) · tile ${i + 1} of ${ptiles.length} · print at 100%. Lay it under the finished frame to place the ties and bracing.</p><svg width="${tw}mm" height="${bh + 14}mm" viewBox="${tx} ${by} ${tw} ${bh + 14}">${pv.svg}${scale(tx, by + bh + 14)}</svg>`)); }
@@ -718,7 +724,7 @@ function documentHTML(tr, res, meta, plan, opt) {
       ? [['top', 'Lay the arch (top chord) on the template: it runs through where it crosses the bottom chord'], ['bot', 'Butt the bottom-chord pieces to the arch\'s faces at the red circles, double-glued'], ['end', 'Add the end posts'], ['vert', 'Glue in the verticals'], ['diag', 'Glue in the diagonals'], ['brace', 'Add the edge braces'], ['claw', 'Add the claws']]
       : [['bot', 'Lay the bottom chord'], ['top', 'Add the top chord'], ['end', 'Add the end posts'], ['vert', 'Glue in the verticals'], ['diag', 'Glue in the diagonals'], ['brace', 'Add the edge braces'], ['claw', 'Add the claws']];
     const done = new Set(); let stepNo = 0;
-    const callOf = its => Object.entries(its).map(([no, c]) => `<div class="part"><b>${c}×</b> ${ball(+no)} ${f1(allItems[no - 1].long)}</div>`).join('');
+    const callOf = its => Object.entries(its).map(([no, c]) => `<div class="part"><b>${c}×</b> ${ball(+no)} ${mini ? Math.round(allItems[no - 1].long) : f1(allItems[no - 1].long)}</div>`).join('');
     const box = (callout, vv, title) => `<div class="step"><div class="sn">${++stepNo}</div><div class="callout">${callout}</div><svg viewBox="${vv.box.join(' ')}">${vv.svg}</svg><p>${title}</p></div>`;
     const steps = [];
     const textStep = html => `<div class="step"><div class="sn">${++stepNo}</div><div style="margin:11mm 2mm 0;font-size:9.5pt;line-height:1.35">${html}</div></div>`;
@@ -731,13 +737,13 @@ function documentHTML(tr, res, meta, plan, opt) {
     // cut and label: from the cut list, before any gluing (#302)
     const nCut = allItems.reduce((s, it) => s + qty(it), 0);
     steps.push(textStep(`<b>Cut and label every part</b> before gluing: ${nCut} pieces in ${allItems.length} items, from the cut list (long point, angles) and the cutting plan (which stick each comes from). Write the item number on each piece in pencil and keep each item together.${bent ? ' The bent top-chord sticks are made the day before (next step).' : ''}`));
-    if (bent) { const vv = sideSVG(tr, plan, { highlight: new Set(bentPieces.flatMap(q => q.members)), b, color: colourMode === 'part' ? 'part' : '#c0392b', dash });
+    if (bent) { const vv = sideSVG(tr, plan, { highlight: new Set(bentPieces.flatMap(q => q.members)), b, color: colourMode === 'part' ? 'part' : HI, dash });
       const its = {}; bentPieces.forEach(q => { its[q.item] = (its[q.item] || 0) + 1; });
       steps.push(box(callOf(its), vv, `${bent.tooTight ? '<span style="color:#c0392b">Too tight for one stick: use straight pieces instead (Bent top chord sheet).</span> ' : ''}The day before: ${bent.mustSoak ? 'soak or steam the top-chord sticks, pin them beside the bending form and let them dry overnight' : 'bend the top-chord sticks on the bending form'} (Bent top chord sheet)`)); }
     order.map(([ty, title]) => {
       const ks = tr.elems.map((e, k) => e.type === ty ? k : -1).filter(k => k >= 0); if (!ks.length) return '';
       const hi = new Set(ks), gr = new Set(done); ks.forEach(k => done.add(k));
-      const vv = sideSVG(tr, plan, { highlight: new Set([...hi, ...gr]), grey: gr, b, color: colourMode === 'part' ? 'part' : '#c0392b', dash });
+      const vv = sideSVG(tr, plan, { highlight: new Set([...hi, ...gr]), grey: gr, b, color: colourMode === 'part' ? 'part' : HI, dash });
       const its = {}; plan.pieces.filter(q => q.members.some(k => hi.has(k))).forEach(q => { its[q.item] = (its[q.item] || 0) + 1; });
       const spl = ty === 'bot' || ty === 'top' ? splices.filter(s => s.type === ty) : [];
       const onT = !gr.size && sideT ? ` (template ${sideT})` : '';
@@ -751,25 +757,25 @@ function documentHTML(tr, res, meta, plan, opt) {
     const splK = [...new Set(tensK.concat(postsT))], splItems = [...new Set(splK.map(itemOf).filter(v => v != null))].sort((x, y) => x - y);
     const tSplices = splices.filter(s => s.tension);
     if (splItems.length || tSplices.length) {
-      const vv = sideSVG(tr, plan, { highlight: new Set(splK), grey: new Set(tr.elems.map((e, k) => k).filter(k => !splK.includes(k))), b, color: colourMode === 'part' ? 'part' : '#c0392b', dash });
+      const vv = sideSVG(tr, plan, { highlight: new Set(splK), grey: new Set(tr.elems.map((e, k) => k).filter(k => !splK.includes(k))), b, color: colourMode === 'part' ? 'part' : HI, dash });
       const its = {}; splItems.forEach(no => { its[no] = plan.pieces.filter(q => q.item === no && q.members.some(k => splK.includes(k))).length; });
       steps.push(box(callOf(its), { box: vv.box, svg: vv.svg + (tSplices.length ? spliceMarks(vv.Y) : '') }, `Splint ${splItems.length ? `both end joints of the members in most tension (items ${splItems.join(', ')}${postsT.length ? '; the end posts hang the arch ends in tension' : ''})` : ''}${splItems.length && tSplices.length ? ' and ' : ''}${tSplices.length ? 'the splices marked "+ splint"' : ''}: glue a stick offcut across each joint on one face, double-glued, overlapping well onto both pieces`));
     }
-    if (stopItem) { const vv = sideSVG(tr, plan, { b, color: '#c8c8c8' }); steps.push(box(callOf({ [stopItem.no]: stops.length }), { box: vv.box, svg: vv.svg + markSVG(tr, marks, stops, vv.Y, b, colourMode === 'part' ? colOf(stopItem.no) : '#c0392b') }, 'Glue an edge stop under each corner joint, square to the bottom chord: it hangs down the table\'s face')); }
+    if (stopItem) { const vv = sideSVG(tr, plan, { b, color: '#c8c8c8' }); steps.push(box(callOf({ [stopItem.no]: stops.length }), { box: vv.box, svg: vv.svg + markSVG(tr, marks, stops, vv.Y, b, colourMode === 'part' ? colOf(stopItem.no) : HI) }, 'Glue an edge stop under each corner joint, square to the bottom chord: it hangs down the table\'s face')); }
     if (cx) {
       const m3 = d3.m3, built = new Set(), ofKind = (...ks) => cx.parts.filter(q => ks.includes(q.kind));
       const endSt = new Set([0, m3.frames.length - 1]);
       const frameParts = s => { const vv = view3(m3, cx, { view: 'end', station: s }); return vv ? vv.els.filter(e => e.side === 'cross').map(e => e.k) : []; };
       const step3 = (parts, view, opts, title) => {
         if (!parts.length) return; const ks = new Set(parts.map(q => q.k));
-        const vv = view3(m3, cx, Object.assign({ view, hi: new Set([...ks, ...built]), grey: new Set(built), colour: colourMode === 'part' ? 'part' : '#c0392b', dash, b }, opts)); if (!vv) return;
+        const vv = view3(m3, cx, Object.assign({ view, hi: new Set([...ks, ...built]), grey: new Set(built), colour: colourMode === 'part' ? 'part' : HI, dash, b }, opts)); if (!vv) return;
         const its = {}; parts.forEach(q => { its[q.item] = (its[q.item] || 0) + 1; }); ks.forEach(k => built.add(k));
         steps.push(box(callOf(its), vv, title));
       };
-      const sideAll = sideSVG(tr, plan, { b, color: colourMode === 'part' ? 'part' : '#c0392b', dash });
+      const sideAll = sideSVG(tr, plan, { b, color: colourMode === 'part' ? 'part' : HI, dash });
       steps.push(box('', sideAll, `Build the second truss on the same full-size template${sideT ? ` (${sideT})` : ''}, then lay it on the first: every joint should line up${cx.sameTrusses ? '' : ' (the 3D model has different front and back trusses: check the 3D sheets)'}`));
       const endK = new Set([...endSt].flatMap(frameParts));
-      const fe = frames.find(g => g.stations.includes(0)), fv0 = fe ? view3(m3, cx, { view: 'end', station: 0, colour: colourMode === 'part' ? 'part' : '#c0392b', b }) : null;
+      const fe = frames.find(g => g.stations.includes(0)), fv0 = fe ? view3(m3, cx, { view: 'end', station: 0, colour: colourMode === 'part' ? 'part' : HI, b }) : null;
       if (fv0) steps.push(box('', fv0, `Stand both trusses upright, ${f1(Math.abs(m3.nodes[m3.frames[0].b + m3.n][1] - m3.nodes[m3.frames[0].b][1]))} mm apart at the bottom (centre to centre), on the full-size cross-frame templates${frameT ? ` (${frameT})` : ''}${cx.tilt ? `, leaning ${f1(cx.tilt)}° inward` : ''}. Weight or pin them so they cannot move`));
       step3(cx.parts.filter(q => endK.has(q.k)), 'end', { station: 0 }, 'Glue the end frames first (ties and sway diagonals at the first and last station). Check each end is square on the template before the glue sets');
       step3(ofKind('tieTop', 'tieMid').filter(q => !built.has(q.k)), 'plan', {}, `Add the remaining top ties, working from the ends to the middle${cx.onTop ? ', glued flat on top of both chords' : ''}${planT ? `; lay the top-plane template (${planT}) under the frame to place them` : ''}`);
@@ -786,6 +792,80 @@ function documentHTML(tr, res, meta, plan, opt) {
     }
     if (!cx) steps.push(`<div class="step"><div class="sn">${++stepNo}</div><p style="margin-top:12mm;font-size:11pt">Let the cement dry completely (see the cement's label; overnight is safest). No load at all before test day: store the trusses flat with nothing on them.</p></div>`);
     for (let s0 = 0; s0 < steps.length; s0 += 4) sheet('Build steps', `<h2 style="margin:0 0 4px">Build steps <span class="note">(${cx ? 'one truss first; then the 3D frame' : `one truss; build ${nT === 2 ? 'the second' : 'the others'} the same way, then join them with the cross-ties`})</span></h2><div class="steps">${steps.slice(s0, s0 + 4).join('')}</div>`);
+  }
+  // ===== TE-B-169: the minimum build set in black and white (Brian's Work Instruction Axioms, UI-B1-B5): the build steps,
+  // a one-page cut guide, a one-page end-angle template sheet, then the full-size templates. Every picture and number
+  // comes from the same plan, so they always match. Precision rule from the Math Consultant (TE-B-169, 00:25).
+  if (mini) {
+    const U = s => String(s).toUpperCase(), code = `WI-BUILD-${esc(meta.code || '')}`.replace(/-$/, '');
+    const Fs = it => it.kind === 'stop' ? [] : isX(it) ? it.pieces.map(q => q.F || 0) : it.pieces.flatMap(q => q.members.map(k => res && res.members && res.members[k] ? res.members[k].F : 0));
+    const tolOf = it => { const f = Fs(it); if (!f.length || Math.max(...f.map(Math.abs)) < 0.1) return 'REF'; return Math.min(...f) < -0.1 ? '+1/−0' : '±1'; };
+    const sqr = c => !c || ['through', 'end', 'free', 'square', 'splice', 'lap'].includes(c.kind) || Math.abs(c.ang || 0) < 0.5;
+    // angle templates: one per distinct whole-degree angle (bevels apart), labelled with every item end that uses it
+    const angs = [];
+    allItems.forEach(it => it.cuts.forEach((c, e) => { if (sqr(c)) return; const deg = Math.round(c.ang), bev = c.kind === 'bevel';
+      let a = angs.find(x => x.deg === deg && x.bev === bev); if (!a) { a = { deg, bev, id: `A${angs.length + 1}`, uses: [], items: [] }; angs.push(a); } a.uses.push(`${it.no}/${e + 1}`); if (!a.items.includes(it.no)) a.items.push(it.no); }));
+    const angId = c => { const a = angs.find(x => x.deg === Math.round(c.ang) && x.bev === (c.kind === 'bevel')); return a ? a.id : ''; };
+    const endTxt = c => c.kind === 'through' ? 'RUNS THROUGH' : sqr(c) ? 'SQUARE' : `${Math.round(c.ang)}° ${c.kind === 'bevel' ? 'BEVEL' : c.kind === 'mitre' ? 'MITRE' : 'FLUSH'} · ${angId(c)}`;
+    // the piece's outline from its own end offsets (length to scale, width drawn 3 mm so the angles show)
+    const shape = it => { const q = it.pieces[0], z = v => v == null ? 0 : v, c0 = q.cut0 || {}, c1 = q.cut1 || {}, L = q.L;
+      const pts = [[z(c0.eA), b / 2], [L - z(c1.eB), b / 2], [L - z(c1.eA), -b / 2], [z(c0.eB), -b / 2]];
+      const x0 = Math.min(...pts.map(p => p[0])), x1 = Math.max(...pts.map(p => p[0])), sx = 44 / Math.max(1, x1 - x0);
+      return `<svg width="${SW}mm" height="3.6mm" viewBox="-1 -1.8 46 3.6" preserveAspectRatio="none"><polygon points="${pts.map(p => `${((p[0] - x0) * sx).toFixed(2)},${(p[1] > 0 ? -1.4 : 1.4)}`).join(' ')}" fill="#fff" stroke="#000" stroke-width=".3"/></svg>`; };
+    const two = allItems.length > 24, SW = two ? 20 : 46;   // a long list goes in two columns so it stays on one page
+    const bentNo = new Set(plan.pieces.filter(q => q.bent).map(q => q.item));
+    const rows = allItems.map(it => { const n = qty(it), Lr = Math.round(it.long);
+      return `<tr><td class="c"><b>${it.no}</b></td><td>${bentNo.has(it.no) ? 'TOP CHORD (BENT)' : U(lab(it))}</td><td class="c">${n}</td><td class="c"><b>${Lr}</b>${n > 1 ? ' TYP' : ''}${bentNo.has(it.no) ? '<br>+10-15 EACH END, BENT' : ''}</td><td>${endTxt(it.cuts[0])}</td><td>${endTxt(it.cuts[1])}</td><td class="c">${bentNo.has(it.no) ? 'TRIM TO FORM' : tolOf(it)}</td><td>${shape(it)}</td></tr>`; });
+    const fz = two ? (rows.length > 40 ? 5.6 : 6.4) : rows.length > 20 ? 6.8 : rows.length > 14 ? 7.5 : 8.5;
+    const thead = `<tr><th>ITEM</th><th>PART</th><th>QTY</th><th>LENGTH MM</th><th>END 1</th><th>END 2</th><th>TOL MM</th><th>SHAPE</th></tr>`, half = Math.ceil(rows.length / 2);
+    const tables = two ? `<div class="cg2"><table class="cg" style="font-size:${fz}pt">${thead}${rows.slice(0, half).join('')}</table><table class="cg" style="font-size:${fz}pt">${thead}${rows.slice(half).join('')}</table></div>` : `<table class="cg" style="font-size:${fz}pt">${thead}${rows.join('')}</table>`;
+    const tolBlock = 'LENGTHS X = ±1 MM · ANGLES ±2° · COMPRESSION PARTS +1/−0: SAND TO FIT, GAP 0.5 MM MAX · REF = FIT BY EYE';
+    const titleBox = `<table class="tb"><tr><td class="big" rowspan="2">${U(esc(meta.name || 'Design'))}</td><td>BALSA ${b} × ${meta.h || b} MM · ${nT} TRUSSES</td><td>${today}</td></tr><tr><td colspan="2">${meta.info ? U(esc(meta.info)) : ''}</td></tr><tr><td colspan="3"><b>TOLERANCES:</b> ${tolBlock}</td></tr></table>`;
+    const cutPage = `${titleBox}<h2>CUT GUIDE <span class="note">${allItems.reduce((s, it) => s + qty(it), 0)} PIECES · LENGTHS ARE THE LONG POINT, WHOLE MM · A1, A2…: END-ANGLE TEMPLATES (NEXT PAGE) · SHAPE: LENGTH TO SCALE</span></h2>
+      ${tables}
+      <p class="note">MEASURE THE LONG POINT, MARK THE ANGLE FROM ITS TEMPLATE, CUT ON THE WASTE SIDE. LAY EVERY PIECE ON THE FULL-SIZE TEMPLATE: JOINTS WITHIN 0.5 MM. +1/−0 = CUT TO THE NUMBER OR UP TO 1 MM LONG, THEN SAND TO FIT, NEVER SHORT.</p>`;
+    // end-angle templates at 1:1: the stick (b wide) square to a reference line, and the cut line at the angle, extended as a knife guide
+    const [cw, ch] = [[60, 40], [46, 32], [38, 27], [32, 23], [27, 20]].find(([w, h]) => Math.floor(251 / (w + 3)) * Math.floor(140 / (h + 3)) >= angs.length) || [27, 20];
+    const angSVG = a => { const t = Math.tan(a.deg * Math.PI / 180), xe = cw * 0.62, yc = ch * 0.56, half = b / 2, ext = ch * 0.3;
+      const P = y => xe + (y - yc) * t;   // the cut line: x at height y
+      const top = yc - half, bot = yc + half, ux = Math.sin(a.deg * Math.PI / 180), uy = Math.cos(a.deg * Math.PI / 180);
+      const r = Math.min(9, ch * 0.28), arc = `M${xe} ${yc - r} A${r} ${r} 0 0 0 ${(xe - r * ux).toFixed(2)} ${(yc - r * uy).toFixed(2)}`;
+      return `<svg width="${cw}mm" height="${ch}mm" viewBox="0 0 ${cw} ${ch}">
+        <polygon points="3,${top} ${P(top).toFixed(2)},${top} ${P(bot).toFixed(2)},${bot} 3,${bot}" fill="#fff" stroke="#000" stroke-width=".25"/>
+        <line x1="${xe}" y1="${yc - ext}" x2="${xe}" y2="${yc + ext}" stroke="#000" stroke-width=".2" stroke-dasharray="1 .8"/>
+        <line x1="${(xe + ext * ux).toFixed(2)}" y1="${(yc + ext * uy).toFixed(2)}" x2="${(xe - ext * ux).toFixed(2)}" y2="${(yc - ext * uy).toFixed(2)}" stroke="#000" stroke-width=".4"/>
+        <path d="${arc}" fill="none" stroke="#000" stroke-width=".2"/>
+
+        <text x="2" y="4" font-size="3.4" font-family="Arial" font-weight="bold">${a.id}: ${a.deg}°${a.bev ? ' BEVEL (THROUGH THE THICKNESS)' : ''}</text>
+        <text x="2" y="${ch - 1.5}" font-size="2.6" font-family="Arial">ITEM${a.items.length > 1 ? 'S' : ''} ${a.items.join(', ')}</text></svg>`; };
+    const bar50 = `<svg width="60mm" height="9mm" viewBox="0 0 60 9"><g stroke="#000" stroke-width=".35"><line x1="5" y1="3" x2="55" y2="3"/><line x1="5" y1="1" x2="5" y2="5"/><line x1="55" y1="1" x2="55" y2="5"/></g><text x="30" y="8.4" font-size="3" text-anchor="middle" font-family="Arial" font-weight="bold">50 ±0.5 MM</text></svg>`;
+    const angPage = `<h2>END-ANGLE TEMPLATES · ACTUAL SIZE <span class="note">PRINT AT 100% (ACTUAL SIZE), NEVER "FIT TO PAGE". CHECK THE 50 MM BAR. LAY THE STICK ON THE OUTLINE, CUT ALONG THE SOLID LINE. DASHED = SQUARE.</span></h2>
+      ${angs.length ? `<div class="ag">${angs.map(angSVG).join('')}</div>` : '<p>EVERY END ON THIS BRIDGE IS SQUARE: NO ANGLE TEMPLATES NEEDED.</p>'}${bar50}`;
+    const stepBodies = sheets.filter(s => s.title === 'Build steps').map(s => s.body.replace(/red circles/g, 'circles').replace(/red marks/g, 'marks').replace(/\bred\b/g, 'bold'));
+    const bodies = [cutPage, angPage, ...stepBodies], nPg = bodies.length + tpls.length;
+    const head = pg => `<div class="hd">${TE_MARK_BW}<b>BUILD THE BRIDGE</b><span>BRIANGWALKER.COM · ${code} · ${U(esc(meta.name || 'Design'))} · PAGE ${pg} OF ${nPg}</span></div>`;
+    const foot = `<div class="ft">DESIGNED BY BRIAN G. WALKER AND TRUSS EXPLORER: A CORPORATE AI AGENT TEAM</div>`;
+    const pages = bodies.map((h, i) => `<section class="pg">${head(i + 1)}<div class="content">${h}</div>${foot}</section>`).join('')
+      + tpls.map((h, i) => `<section class="sheet tpl"><p class="pgno">${code} · ${U(esc(meta.name || 'Design'))} · PAGE ${bodies.length + i + 1} OF ${nPg} · TEMPLATE T${i + 1} OF ${tpls.length} · BRIAN G. WALKER AND TRUSS EXPLORER</p>${h}</section>`).join('');
+    const css = `@page{size:letter landscape;margin:8mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#000;margin:0;background:#ddd}
+      .pg{width:263mm;height:199mm;margin:8mm auto;background:#fff;padding:4mm 6mm;display:flex;flex-direction:column;page-break-after:always;break-after:page;overflow:hidden;text-transform:uppercase}
+      .hd{display:flex;align-items:center;gap:3mm;border-bottom:.7mm solid #000;padding-bottom:1.5mm;margin-bottom:2.5mm;font-size:9pt}.hd svg{flex:none}.hd b{font-size:15pt;letter-spacing:.04em}.hd span{margin-left:auto}
+      .ft{margin-top:auto;border-top:.5mm solid #000;padding-top:1mm;font-size:7pt;text-align:center;letter-spacing:.05em}
+      .content{flex:1;min-height:0;overflow:hidden}h2{font-size:11pt;margin:0 0 2mm}.note{font-size:7.5pt;font-weight:normal}
+      .tb{border-collapse:collapse;width:100%;font-size:8pt;margin-bottom:2.5mm}.tb td{border:.3mm solid #000;padding:.8mm 2mm}.tb .big{font-size:13pt;font-weight:bold;width:35%}
+      .cg{border-collapse:collapse;width:100%}.cg th,.cg td{border:.25mm solid #000;padding:.2mm 1.5mm;line-height:1.15;text-align:left;vertical-align:middle}.cg th{font-size:7pt}.cg .c{text-align:center}.cg2{display:grid;grid-template-columns:1fr 1fr;gap:3mm;align-items:start}.cg svg{display:block}
+      .ag{display:flex;flex-wrap:wrap;gap:3mm;margin-bottom:2mm}.ag svg{border:.2mm solid #999}
+      .steps{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:3mm;height:calc(100% - 8mm)}
+      .step{border:none;border-top:.4mm solid #000;padding:1.5mm 1mm 1mm;position:relative;display:flex;flex-direction:column;overflow:hidden}
+      .step svg{width:100%;flex:1 1 0;min-height:0;height:1px}.step p{margin:0;font-weight:bold;font-size:8.5pt}
+      .sn{position:absolute;left:0;top:1mm;font-size:20pt;line-height:1;font-weight:bold;color:#000}
+      .callout{margin-left:11mm;display:flex;flex-wrap:wrap;gap:2mm;padding:1mm 0;font-size:8.5pt}
+      .ball{display:inline-block;border:.25mm solid #000;border-radius:50%;width:4.4mm;height:4.4mm;text-align:center;font-size:7pt;line-height:4.2mm;background:#fff;font-weight:bold}
+      .sheet{width:263mm;height:199mm;margin:8mm auto;background:#fff;padding:3mm;overflow:hidden;page-break-after:always;break-after:page}
+      .tpl{height:auto;min-height:199mm}.pgno{font-size:8pt;font-weight:bold;margin:0 0 1mm;text-align:right}.tpl svg{display:block;margin:0 auto}
+      .ftpls{display:flex;flex-wrap:wrap;gap:8mm;align-items:flex-end}.ftpl{margin:0}
+      @media print{body{background:#fff}.pg,.sheet{margin:0}}`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name || 'Design')} · build set (black and white)</title><style>${css}</style></head><body>${pages.replace(/#c0392b|#3a6ea5|#0b6e4f/g, '#000').replace(/\b(red|green) (ticks|circles|marks)/g, '$2')}</body></html>`;
   }
   const total = sheets.length + tpls.length;
   // every printed page carries its number (#157): the sheets in their title blocks, the templates in their header

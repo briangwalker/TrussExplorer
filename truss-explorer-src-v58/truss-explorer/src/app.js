@@ -1288,14 +1288,21 @@ $('docBendGo').addEventListener('click', () => {
     info: (() => { const fi = fileInfo(); return `${fi.release} · ${fi.model} · bridge code ${fi.bridgeCode}`; })() }, { copies: bendCopies() });
   if (html) saveFile(fileBase() + '_bending_sheet.html', html);
 });
-$('docGo').addEventListener('click', () => {
-  const plan = docPlan(), mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
-  const meta = { mat, name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 240, kerf: +S.doc.kerf,
+function docMeta() {
+  const mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
+  return { mat, name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 240, kerf: +S.doc.kerf,
     ties: S.opts.crossTies ? { count: tr.deckNodes.length, len: +S.opts.width || 60 } : null, d3: doc3D(),
     massNote: `bridge mass ${res.massTotal.toFixed(1)} g`, capNote: `${res.capKg.toFixed(1)} kg of books (needs ${((S.load.mBook1 + S.load.mBook2) * S.mat.FS).toFixed(1)} kg)`,
     scaleNote: 'Templates: 1:1', info: (() => { const fi = fileInfo(); return `${fi.release} · ${fi.model} · bridge code ${fi.bridgeCode} · FS ${fi.rules.FS}, books ${fi.rules.bookKg} kg, envelope on outer faces`; })() };
-  const html = BuildDoc.documentHTML(tr, res, meta, plan, { steps: S.doc.steps, templates: S.doc.tpl, colour: S.doc.colour, dash: S.doc.dash });
+}
+$('docGo').addEventListener('click', () => {
+  const html = BuildDoc.documentHTML(tr, res, docMeta(), docPlan(), { steps: S.doc.steps, templates: S.doc.tpl, colour: S.doc.colour, dash: S.doc.dash });
   saveFile(fileBase() + '_build_documents.html', html);
+});
+// TE-B-169: the minimum build set in black and white (steps, a one-page cut guide, end-angle templates, full-size templates)
+$('docMini').addEventListener('click', () => {
+  const html = BuildDoc.documentHTML(tr, res, Object.assign(docMeta(), { code: fingerprint(bridgeState()) }), docPlan(), { minimal: true });
+  saveFile(fileBase() + '_build_set_bw.html', html);
 });
 // ---------- bridge and sweep files, to share with partners (and, later, to publish)
 const FILE_VER = 2;   // 2 (v61): the analysis model, 3D setup and build-document settings travel with the bridge; every file says which release made it
