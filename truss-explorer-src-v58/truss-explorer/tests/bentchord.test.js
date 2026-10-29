@@ -74,3 +74,16 @@ test('a bent stick longer than the stock is spliced at a joint, each piece still
   assert.ok(plan.splices.some(s => s.type === 'top'));
   assert.ok(bent.every(q => q.long <= 120 + 1));
 });
+
+test('TE-B-162: the bending sheet has the 11 steps, the key and one 1:1 form per copy', () => {
+  const { tr, res, force } = solve(curved);
+  const plan = BD.cutPlan(tr, 3.18, { stock: 240, force, bentTop: true });
+  const html = BD.bendingSheetHTML(tr, plan, res, { name: 't', code: 'abc', b: 3.18, nTruss: 2, mat: C.DEFAULT_MAT }, { copies: 4 });
+  assert.equal((html.match(/class="st"/g) || []).length, 11);
+  assert.match(html, /KEY/);
+  assert.equal((html.match(/MIRRORED ALONG THE DOTTED LINE/g) || []).length, 4);
+  assert.match(html, /PAGE 5 OF 5/);
+  // a flat top chord has no sheet
+  const flat = solve(DEFAULT), fp = BD.cutPlan(flat.tr, 3.18, { stock: 240, force: flat.force, bentTop: true });
+  assert.equal(BD.bendingSheetHTML(flat.tr, fp, flat.res, { b: 3.18 }, { copies: 2 }), null);
+});
