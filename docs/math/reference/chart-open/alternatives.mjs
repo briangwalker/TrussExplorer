@@ -2,7 +2,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 // Run from the repo root after building the page:  node docs/math/reference/chart-open/<this file>.mjs [app dir]
-const APP = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../truss-explorer-src-v58/truss-explorer');
+const APP = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../program');
 const H = await import(path.join(APP, 'tests/ui/harness.mjs'));
 const b = await H.browser(), p = await b.newPage({ viewport: { width: 1440, height: 900 } });
 await p.setContent('<canvas id=c width=1200 height=600></canvas>');

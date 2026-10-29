@@ -2,7 +2,7 @@
 // Checks for modal.js against #207's acceptance checks. Run from the repo root: node docs/math/reference/modal.test.js
 const assert = require('assert'), path = require('path');
 const M = require('./modal.js');
-const APP = path.resolve(__dirname, '../../../truss-explorer-src-v58/truss-explorer');
+const APP = path.resolve(__dirname, '../../../program');
 const C = require(path.join(APP, 'src/core.js')), L = require(path.join(APP, 'tests/lib.js'));
 
 // 0. Jacobi on a known matrix
