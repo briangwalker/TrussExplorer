@@ -75,14 +75,17 @@ test('a bent stick longer than the stock is spliced at a joint, each piece still
   assert.ok(bent.every(q => q.long <= 120 + 1));
 });
 
-test('TE-B-162: the bending sheet has the 11 steps, the key and one 1:1 form per copy', () => {
+test('TE-B-162/166: the bending sheet has steps 0-10, the key, and up to 4 forms on one page with the no-pins panel', () => {
   const { tr, res, force } = solve(curved);
   const plan = BD.cutPlan(tr, 3.18, { stock: 240, force, bentTop: true });
   const html = BD.bendingSheetHTML(tr, plan, res, { name: 't', code: 'abc', b: 3.18, nTruss: 2, mat: C.DEFAULT_MAT }, { copies: 4 });
   assert.equal((html.match(/class="st"/g) || []).length, 11);
-  assert.match(html, /KEY/);
-  assert.equal((html.match(/MIRRORED ALONG THE DOTTED LINE/g) || []).length, 4);
-  assert.match(html, /PAGE 5 OF 5/);
+  assert.match(html, /KEY/); assert.match(html, /NO PINS\?/); assert.match(html, /BRIANGWALKER\.COM/);
+  assert.equal((html.match(/>FORM \d/g) || []).length, 4);
+  assert.match(html, /PAGE 2 OF 2/); assert.doesNotMatch(html, /PAGE 3/);
+  assert.equal((html.match(/>TRIM</g) || []).length, 8, 'two end-cut lines per form');
+  // 5 forms take a second form page
+  assert.match(BD.bendingSheetHTML(tr, plan, res, { b: 3.18, mat: C.DEFAULT_MAT }, { copies: 5 }), /PAGE 3 OF 3/);
   // a flat top chord has no sheet
   const flat = solve(DEFAULT), fp = BD.cutPlan(flat.tr, 3.18, { stock: 240, force: flat.force, bentTop: true });
   assert.equal(BD.bendingSheetHTML(flat.tr, fp, flat.res, { b: 3.18 }, { copies: 2 }), null);
