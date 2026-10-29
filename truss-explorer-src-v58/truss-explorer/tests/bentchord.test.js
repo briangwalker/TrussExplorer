@@ -133,3 +133,21 @@ test('#312: at a bent chord joint, a member is cut to the curve\'s tangent, not 
     }));
   });
 });
+
+test('#332: on a symmetric truss, mirror members share an item number (bisector cuts at chord kinks)', () => {
+  // BDT-004's shape (catenary arch through a flat bottom chord, 4 Pratt panels) and the default bridge. Some other shapes
+  // still pick their end joints' 'runs through' member by order, not mirrored (follow-up on #332).
+  const bdt004 = Object.assign({}, DEFAULT, { height: 30, panels: 4, overall: 296.8, topShape: 'catenary', topEnd: -27, pattern: 'pratt', diagLeft: ['P', 'P'], vertLeft: [true, true], overlap: 48.4, deskEnds: 'feet' });
+  for (const st of [DEFAULT, bdt004]) {
+    const { tr, force } = solve(st);
+    const plan = BD.cutPlan(tr, 3.18, { stock: 240, force });
+    const xs = tr.nodes.map(p => p[0]), mid = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const mir = n => tr.nodes.findIndex(q => Math.abs(q[0] - (2 * mid - tr.nodes[n][0])) < 0.05 && Math.abs(q[1] - tr.nodes[n][1]) < 0.05);
+    plan.pieces.forEach(q => {
+      if (q.pts) return;
+      const m0 = mir(q.nodes[0]), m1 = mir(q.nodes[1]); if (m0 < 0 || m1 < 0) return;
+      const twin = plan.pieces.find(p2 => !p2.pts && ((p2.nodes[0] === m0 && p2.nodes[1] === m1) || (p2.nodes[0] === m1 && p2.nodes[1] === m0)));
+      if (twin) assert.equal(twin.item, q.item, `${q.type} ${q.nodes} vs ${twin.nodes}`);
+    });
+  }
+});

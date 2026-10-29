@@ -120,13 +120,24 @@ function cutPlan(tr, b, cfg) {
       // curve's TANGENT there (the bisector of the two chord members), not one panel's chord; across a stick the curve
       // departs from its tangent by b²/8R ≈ 0.01 mm (Physics, Math, TE-B-171)
       const run = cont[n] && cont[n].has(t.k) && cont[n].size === 2 ? j.m.find(q => q.k !== t.k && cont[n].has(q.k)) : null;
-      const tl = run ? unit(sub(t.dir, run.dir)) : t.dir;   // along the through member, from the joint
+      // #332 (Math): at a kink of a chord built from straight pieces (no straight continuation), cut to the BISECTOR of the
+      // two chord pieces too, so mirror members get mirror cuts (it was the first chord piece by member order)
+      const kinkMate = !run && isChord(tr.elems[t.k]) ? j.m.find(q => q.k !== t.k && tr.elems[q.k].type === tr.elems[t.k].type && dot(q.dir, t.dir) > -Math.cos(0.5 * D2R)) : null;
+      const tl = run ? unit(sub(t.dir, run.dir)) : kinkMate ? unit(sub(t.dir, kinkMate.dir)) : t.dir;   // along the through member, from the joint
       const side = Math.sign(crs(tl, u)) || 1;
       const face = add(p, mul(perp(tl), side * b / 2));
       const theta = Math.acos(Math.min(1, Math.abs(dot(u, tl))));
       if (theta < 2 * D2R) { ends[key] = { kind: 'free', eA: 0, eB: 0, ang: 0 }; return; }
       const eA = edge(b / 2, face, tl), eB = edge(-b / 2, face, tl);
       // a member meeting the chord at under 20°: a flush cut would leave a long thin feather, so butt it square (#155)
+      // #332 item 5: a member meeting the chord at under 20° would be butted square and float off the joint (a gap of up to
+      // ~10 mm). If another member at this joint meets it at 20° or more, cut it flush to THAT member's face instead.
+      if (!over[n] && r.end !== 'square' && theta < 20 * D2R) {
+        const alt = others.filter(q => q.k !== t.k).map(q => ({ q, th: Math.acos(Math.min(1, Math.abs(dot(u, q.dir)))) })).filter(x => x.th >= 20 * D2R).sort((x, y) => y.th - x.th)[0];
+        if (alt) { const tl2 = alt.q.dir, side2 = Math.sign(crs(tl2, u)) || 1, face2 = add(p, mul(perp(tl2), side2 * b / 2));
+          ends[key] = { kind: 'flush', eA: edge(b / 2, face2, tl2), eB: edge(-b / 2, face2, tl2), ang: 90 - alt.th * R2D, against: alt.q.k };
+          note(n, `member ${k} cut flush to member ${alt.q.k} (it meets the chord at only ${(theta * R2D).toFixed(0)}°)`); return; }
+      }
       if (r.end === 'square' || (!over[n] && theta < 20 * D2R)) { const e2 = Math.max(eA, eB); ends[key] = { kind: 'square', eA: e2, eB: e2, ang: 0, against: t.k }; if (r.end !== 'square') note(n, `member ${k} butted square (meets at ${(theta * R2D).toFixed(0)}°)`); }
       else ends[key] = { kind: 'flush', eA, eB, ang: 90 - theta * R2D, against: t.k };
     });
@@ -367,6 +378,12 @@ function crossPlan(m3, r3, b, opt) {
 // a view of the 3D frame as SVG, in its own 2D coordinates (v up): 'plan' (top plane from above, x right, back truss up),
 // 'bottom' (bottom plane, seen from above through the deck) or 'end' (one cross-frame, y right, z up).
 // o: { station, hi: Set of cross part k (coloured), grey: Set (drawn grey), balloons, colour: 'part'|'mono'|css, dims, b }
+// #332: the splint symbol: a short stick laid across the joint at end p of the member p->q
+function splintIcon(p, q, Y, b) {
+  const u = unit(sub(q, p)), c = add(p, mul(u, 3.2)), n = perp(u), a1 = add(add(c, mul(u, -3.6)), mul(n, b / 2 + 0.9)), a2 = add(add(c, mul(u, 3.6)), mul(n, b / 2 + 0.9));
+  const w = 1.3, nn = mul(n, w);
+  return `<polygon points="${[a1, a2, add(a2, nn), add(a1, nn)].map(z => `${z[0].toFixed(2)},${Y(z[1]).toFixed(2)}`).join(' ')}" fill="#000"/>`;
+}
 function view3(m3, cx, o) {
   o = o || {};
   const n = m3.n, b = o.b || 3.18, top = new Set(m3.top), bot = new Set(m3.bottom);
@@ -395,8 +412,25 @@ function view3(m3, cx, o) {
   const ends3 = e => { const P = m3.nodes[e.i], Q = m3.nodes[e.j], part = partOf[e.k]; if (!part) return [P, Q];
     const u = V.unit(V.sub(Q, P)), s0 = (part.cut0.eA + part.cut0.eB) / 2, s1 = (part.cut1.eA + part.cut1.eB) / 2;
     return [P.map((v, i) => v + u[i] * s0), Q.map((v, i) => v - u[i] * s1)]; };
-  els.slice().sort((a, c) => (a.side === 'cross') - (c.side === 'cross')).forEach(e => {
+  // #332: a cross part seen in its own plane is drawn with its real end cuts (the same as the cut guide); stacking follows
+  // the build: side trusses, then braces and sway diagonals, then ties on top (lower parts show dashed where covered)
+  const layer = e => e.side !== 'cross' ? 0 : ['tieTop', 'tieMid'].includes((partOf[e.k] || {}).kind) ? 2 : 1;
+  const cutPoly = e => { const part = partOf[e.k]; if (!part || part.cut0.eA == null || part.cut1.eA == null) return null;
+    const P = m3.nodes[e.i], Q = m3.nodes[e.j], u = V.unit(V.sub(Q, P)), pn = part.view === 'plan view' ? [0, 0, 1] : [1, 0, 0], w = V.unit(V.cross(pn, u)), h = b / 2;
+    const at = (X, s, o2) => X.map((v, i) => v + u[i] * s + w[i] * o2);
+    const poly = [at(P, part.cut0.eA, h), at(Q, -part.cut1.eB, h), at(Q, -part.cut1.eA, -h), at(P, part.cut0.eB, -h)].map(pr);
+    const area = Math.abs(poly.reduce((s, p2, i) => { const q2 = poly[(i + 1) % 4]; return s + p2[0] * q2[1] - q2[0] * p2[1]; }, 0)) / 2;
+    return area > 0.5 * b * Math.hypot(...sub(poly[1], poly[0])) * 0.5 ? poly : null; };
+  const hidden = [];
+  els.slice().sort((a, c) => layer(a) - layer(c)).forEach(e => {
     const [P3, Q3] = ends3(e), p = pr(P3), q = pr(Q3), d = sub(q, p);
+    const cp = cutPoly(e);
+    if (cp) { const part = partOf[e.k]; if (part && o.hi && !o.hi.has(e.k) && !(o.grey && o.grey.has(e.k))) return;
+      const gr = (o.grey && o.grey.has(e.k)) || (o.hi && !o.hi.has(e.k)), col = gr ? '#c8c8c8' : o.colour === 'part' ? colOf(part.item) : o.colour === 'mono' ? '#fff' : (o.colour || '#c0392b');
+      const pts2 = cp.map(z => `${z[0].toFixed(2)},${Y(z[1]).toFixed(2)}`).join(' ');
+      out.push(`<polygon points="${pts2}" fill="${col}" stroke="${gr ? '#bbb' : '#111'}" stroke-width=".2" opacity="${layer(e) === 2 ? 1 : 0.95}"/>`);
+      if (o.view === 'plan' && layer(e) < 2) hidden.push(pts2);
+      return; }
     if (Math.hypot(...d) < 1e-6) { out.push(`<rect x="${p[0] - b / 2}" y="${Y(p[1]) - b / 2}" width="${b}" height="${b}" fill="#d9d9d9" stroke="#111" stroke-width=".2"/>`); return; }
     const nv = mul(perp(unit(d)), b * Math.sqrt(e.side === 'cross' ? 1 : (e.n || 1)) / 2);
     const part = partOf[e.k], hi = part && (!o.hi || o.hi.has(e.k)), gr = !part || (o.grey && o.grey.has(e.k)) || (part && o.hi && !o.hi.has(e.k));
@@ -404,8 +438,13 @@ function view3(m3, cx, o) {
     const col = !part ? '#e3e3e3' : gr ? '#c8c8c8' : o.colour === 'part' ? colOf(part.item) : o.colour === 'mono' ? '#fff' : (o.colour || '#c0392b');
     const poly = [add(p, nv), add(q, nv), sub(q, nv), sub(p, nv)].map(z => `${z[0]},${Y(z[1])}`).join(' ');
     out.push(`<polygon points="${poly}" fill="${col}" stroke="${gr && part ? '#bbb' : '#111'}" stroke-width=".2" opacity="${hi ? 0.95 : 0.8}"/>`);
+    if (o.view === 'plan' && layer(e) < 2) hidden.push(poly);
     if (o.dash && part && hi) { const da = dashOf(part.item); if (da) out.push(`<line x1="${p[0]}" y1="${Y(p[1])}" x2="${q[0]}" y2="${Y(q[1])}" stroke="#111" stroke-width=".55" stroke-dasharray="${da}"/>`); }
   });
+  // pieces under the ties: their outlines again, dashed, so they read as hidden where a tie covers them
+  if (o.view === 'plan' && els.some(e => layer(e) === 2)) hidden.forEach(pts2 => out.push(`<polygon points="${pts2}" fill="none" stroke="#111" stroke-width=".15" stroke-dasharray=".8 .6"/>`));
+  // splint icons (#332): a short stick across each end of the parts that need a splint
+  if (o.splint) els.forEach(e => { if (!o.splint.has(e.k)) return; const p = pr(m3.nodes[e.i]), q = pr(m3.nodes[e.j]); out.push(splintIcon(p, q, Y, b) + splintIcon(q, p, Y, b)); });
   const cen = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
   if (o.balloons) {
     const done = new Set();
@@ -476,6 +515,7 @@ function angleMarks(tr, plan, b, Y, o) {
         [[q.nodes[0], q.cut0, 0], [q.nodes[1], q.cut1, 1]].forEach(([n, cut, end]) => {
         if (!cut || ['through', 'end', 'free', 'square', 'splice', 'lap'].includes(cut.kind) || Math.abs(cut.ang || 0) < 0.5) return;
         let pn, w;
+        if (o.maxX != null && (q.pts ? q.pts[end] : tr.nodes[n])[0] > o.maxX) return;   // mirrored: angles on the left half only
         if (q.pts) { pn = q.pts[end]; w = unit(sub(q.pts[1 - end], pn)); }   // a piece cut at an arch crossing (#298) ends there, not at a joint
         else { const k = q.members.find(m2 => tr.elems[m2].i === n || tr.elems[m2].j === n); if (k == null) return; const e = tr.elems[k]; pn = tr.nodes[n]; w = unit(sub(tr.nodes[e.i === n ? e.j : e.i], pn)); }
         const nw = perp(w);
@@ -533,7 +573,9 @@ function sideSVG(tr, plan, o) {
   if (o.labels) {
     // an item is labelled once: identical parts are obvious from the parts list and the balloon
     const done = new Set();
-    plan.pieces.forEach(q => {
+    // a mirrored truss (#332): each item is labelled on its LEFT-most piece, so the right half carries no balloons
+    const midX = q => { const a2 = q.pts ? q.pts[0] : tr.nodes[q.nodes[0]], c2 = q.pts ? q.pts[1] : tr.nodes[q.nodes[1]]; return (a2[0] + c2[0]) / 2; };
+    (o.mirror ? plan.pieces.slice().sort((p1, p2) => midX(p1) - midX(p2)) : plan.pieces).forEach(q => {
       if (o.highlight && !q.members.some(k => o.highlight.has(k))) return;
       if (done.has(q.item)) return; done.add(q.item);
       const a = q.pts ? q.pts[0] : tr.nodes[q.nodes[0]], c = q.pts ? q.pts[1] : tr.nodes[q.nodes[1]], m = mul(add(a, c), 0.5), d = unit(sub(c, a)), nv = perp(d);
@@ -557,6 +599,9 @@ function sideSVG(tr, plan, o) {
     if (!moved) break; }
   balloons.forEach(({ m, bp, item }) => out.push(`<line x1="${m[0]}" y1="${Y(m[1])}" x2="${bp[0]}" y2="${Y(bp[1])}" stroke="#111" stroke-width=".2"/><circle cx="${bp[0]}" cy="${Y(bp[1])}" r="${r}" fill="${o.color === 'part' ? colOf(item) : '#fff'}" stroke="#111" stroke-width=".3"/><text x="${bp[0]}" y="${Y(bp[1]) + 1.15 * bs}" font-size="${3.2 * bs}" font-weight="bold" text-anchor="middle" fill="${o.color === 'part' ? '#fff' : '#111'}" font-family="Arial, sans-serif">${item}</text>`));
   if (o.angles) out.push(angleMarks(tr, plan, b, Y, o));
+  if (o.splint) o.splint.forEach(k => { const e = tr.elems[k]; if (!e) return; const p = tr.nodes[e.i], q = tr.nodes[e.j]; out.push(splintIcon(p, q, Y, b) + splintIcon(q, p, Y, b)); });
+  if (o.mirror) { const cxm = (Math.min(...xs) + Math.max(...xs)) / 2, top = Math.max(...ys) + 6, bot = Math.min(...ys, 0) - 4;
+    out.push(`<line x1="${cxm}" y1="${Y(top)}" x2="${cxm}" y2="${Y(bot)}" stroke="#000" stroke-width=".25" stroke-dasharray="4 1.5 .8 1.5"/><text x="${cxm + 1.5}" y="${Y(top) + 1}" font-size="${2.8 * bs}" font-family="Arial" font-weight="bold">MIRRORED ALONG THE DOTTED LINE</text>`); }
   if (o.dims) {
     const lo = Math.min(...xs), hi = Math.max(...xs), top = Math.max(...ys), bot = Math.min(...ys, 0);
     const fm = v => o.round ? String(Math.round(v)) : f1(v);
@@ -661,6 +706,9 @@ function documentHTML(tr, res, meta, plan, opt) {
   const angs = [];
   allItems.forEach(it => it.cuts.forEach((c, e) => { if (sqr(c)) return; const deg = Math.round(c.ang), bev = c.kind === 'bevel';
     let a = angs.find(x => x.deg === deg && x.bev === bev); if (!a) { a = { deg, bev, id: `A${angs.length + 1}`, uses: [], items: [] }; angs.push(a); } a.uses.push(`${it.no}/${e + 1}`); if (!a.items.includes(it.no)) a.items.push(it.no); }));
+  // a truss that is its own mirror image about the centre line (#332): number and label one half only
+  const midXs = (Math.min(...tr.nodes.map(p => p[0])) + Math.max(...tr.nodes.map(p => p[0]))) / 2;
+  const mirror = mini && tr.nodes.every(p => tr.nodes.some(q2 => Math.abs(q2[0] - (2 * midXs - p[0])) < 0.05 && Math.abs(q2[1] - p[1]) < 0.05));
   const angIdOf = c => { const a = angs.find(x => x.deg === Math.round(c.ang) && x.bev === (c.kind === 'bevel')); return a ? a.id : ''; };
   // a curved top chord built as one bent stick (#282): its checks, sheet, form and steps
   const bentPieces = plan.pieces.filter(q => q.bent), bent = bentPieces.length ? bentCheck(tr, plan, res, meta.mat || { b, h: meta.h || b }) : null;
@@ -790,7 +838,7 @@ function documentHTML(tr, res, meta, plan, opt) {
   if (opt.templates) {
     const tw = 240, th = 160, xs = tr.nodes.map(p => p[0]), ys = tr.nodes.map(p => p[1]);
     const X0 = Math.min(...xs) - 6, X1 = Math.max(...xs) + 6, Y0 = Math.min(...ys, ...stops.map(s => s.y0)) - (mini && crossings.length ? 13 : 6), Y1 = Math.max(...ys) + (mini ? 10 : 6), hgt = Math.min(th, Y1 - Y0 + 24);
-    const edges = (mini ? cutShapes(tr, plan, b).map(s => `<polygon points="${s.poly.map(z2 => `${z2[0].toFixed(2)},${(Y1 - z2[1]).toFixed(2)}`).join(' ')}" fill="none" stroke="#000" stroke-width=".25"/><line x1="${s.a[0]}" y1="${Y1 - s.a[1]}" x2="${s.c[0]}" y2="${Y1 - s.c[1]}" stroke="#666" stroke-width=".12" stroke-dasharray="1 1"/>`).join('') + angleMarks(tr, plan, b, y => Y1 - y, { angles: 0.9, every: true, angId: c => angIdOf(c) })
+    const edges = (mini ? cutShapes(tr, plan, b).map(s => `<polygon points="${s.poly.map(z2 => `${z2[0].toFixed(2)},${(Y1 - z2[1]).toFixed(2)}`).join(' ')}" fill="none" stroke="#000" stroke-width=".25"/><line x1="${s.a[0]}" y1="${Y1 - s.a[1]}" x2="${s.c[0]}" y2="${Y1 - s.c[1]}" stroke="#666" stroke-width=".12" stroke-dasharray="1 1"/>`).join('') + angleMarks(tr, plan, b, y => Y1 - y, { angles: 0.9, every: true, angId: c => angIdOf(c), maxX: mirror ? midXs + 0.5 : null }) + (mirror ? `<line x1="${midXs}" y1="${Y1 - Math.max(...ys) - 8}" x2="${midXs}" y2="${Y1 - Math.min(...ys) + 4}" stroke="#000" stroke-width=".25" stroke-dasharray="4 1.5 .8 1.5"/><text x="${midXs + 1.5}" y="${Y1 - Math.max(...ys) - 6}" font-size="3" font-family="Arial" font-weight="bold">MIRRORED ALONG THE DOTTED LINE</text>` : '')
       : drawSegs(tr, plan).map(({ e, a: p, c: q, item }) => { const d = unit(sub(q, p)), nv = mul(perp(d), b * Math.sqrt(e.n || 1) / 2);
       return `<polygon points="${[add(p, nv), add(q, nv), sub(q, nv), sub(p, nv)].map(z => `${z[0]},${Y1 - z[1]}`).join(' ')}" fill="${colourMode === 'part' ? colOf(item) : 'none'}" fill-opacity=".25" stroke="#000" stroke-width=".2"/><line x1="${p[0]}" y1="${Y1 - p[1]}" x2="${q[0]}" y2="${Y1 - q[1]}" stroke="#666" stroke-width=".15" stroke-dasharray="${dash ? dashOf(item) || '1 1' : '1 1'}"/>`; }).join(''))
       + crossMarks(y => Y1 - y, 3)
@@ -848,6 +896,14 @@ function documentHTML(tr, res, meta, plan, opt) {
         splint: `${st(8, 62, 34)}${st(62, 112, 34)}<rect x="44" y="27" width="36" height="4" fill="#fff" stroke="#000" stroke-width="1.6"/>${T(60, 56, 'SPLINT ACROSS THE JOINT', 7)}`,
         cure: `<circle cx="34" cy="30" r="18" fill="#fff" stroke="#000" stroke-width="1.6"/>${L('M34 30 v-11 M34 30 l8 5', 1.6)}${T(34, 60, '8-12 H', 9)}<rect x="74" y="20" width="30" height="20" fill="#ddd" stroke="#000" stroke-width="1.2"/>${T(89, 34, 'KG', 9)}${L('M70 14 l38 32 M108 14 l-38 32', 2.4)}`,
       }; })();
+    // UI #332 item 4: 'no load until test day' as a picture: our bridge with the books to scale on it, crossed out, and the clock
+    const cureBox = html => { const v = sideSVG(tr, plan, { b, color: '#444' }), S2 = tr.design.span || 200, bl = +(tr.design.bookLen || 242), bt = +(tr.design.bookThick || 32);
+      const yTop = v.Y(2 * bt) - 6, x0 = Math.min(v.box[0], S2 / 2 - bl / 2 - 4), x1 = Math.max(v.box[0] + v.box[2], S2 / 2 + bl / 2 + 4) + 60, y0 = Math.min(v.box[1], yTop), h = v.box[1] + v.box[3] - y0;
+      const books = [0, 1].map(i => `<rect x="${S2 / 2 - bl / 2}" y="${v.Y((i + 1) * bt)}" width="${bl}" height="${bt}" fill="#fff" stroke="#000" stroke-width="1"/>`).join('');
+      const X = `<path d="M${S2 / 2 - bl / 2 - 4} ${y0 + 2} L${S2 / 2 + bl / 2 + 4} ${y0 + h - 2} M${S2 / 2 + bl / 2 + 4} ${y0 + 2} L${S2 / 2 - bl / 2 - 4} ${y0 + h - 2}" stroke="#000" stroke-width="4"/>`;
+      const cx2 = x1 - 30, cy2 = y0 + h / 2, R = Math.min(26, h / 2 - 6);
+      const clock = `<circle cx="${cx2}" cy="${cy2}" r="${R}" fill="#fff" stroke="#000" stroke-width="2.5"/><path d="M${cx2} ${cy2} v${-R * 0.65} M${cx2} ${cy2} l${R * 0.45} ${R * 0.3}" stroke="#000" stroke-width="2.5"/><text x="${cx2}" y="${cy2 + R + 14}" font-size="13" text-anchor="middle" font-weight="bold" font-family="Arial">8-12 H</text>`;
+      return box('', { box: [x0, y0, x1 - x0, h + 18], svg: v.svg + books + X + clock }, html); };
     const textStep = (html, icon) => mini && icon ? `<div class="step"><div class="sn">${++stepNo}</div><svg viewBox="0 0 120 62" style="max-height:40mm">${STEP_ICON[icon] || icon}</svg><div style="margin:1mm 2mm 0;font-size:7.6pt;line-height:1.3">${html}</div></div>` : `<div class="step"><div class="sn">${++stepNo}</div><div style="margin:11mm 2mm 0;font-size:9.5pt;line-height:1.35">${html}</div></div>`;
     const tn = a2 => !a2 || !a2.length ? '' : a2.length > 1 ? `T${a2[0] + 1}-T${a2[a2.length - 1] + 1}` : `T${a2[0] + 1}`;
     const sideT = tn(tplOf.side), frameT = tn(tplOf.frames), planT = tn(tplOf.plan), bendT = tn(Object.values(tplOf.bend).flat());
@@ -861,23 +917,24 @@ function documentHTML(tr, res, meta, plan, opt) {
     if (bent) { const vv = sideSVG(tr, plan, { highlight: new Set(bentPieces.flatMap(q => q.members)), b, color: colourMode === 'part' ? 'part' : HI, dash });
       const its = {}; bentPieces.forEach(q => { its[q.item] = (its[q.item] || 0) + 1; });
       steps.push(box(callOf(its), vv, `${bent.tooTight ? '<span style="color:#c0392b">Too tight for one stick: use straight pieces instead (Bent top chord sheet).</span> ' : ''}The day before: ${bent.mustSoak ? 'soak or steam the top-chord sticks, pin them beside the bending form and let them dry overnight' : 'bend the top-chord sticks on the bending form'} (Bent top chord sheet)`)); }
+    const itemOf = k => { const q = plan.pieces.find(p2 => p2.members.includes(k)); return q ? q.item : null; };
+    const tensK = (res && res.members ? res.members.map((m, k) => ({ k, F: m.F })) : []).filter(m => m.F > 0.005).sort((a4, c) => c.F - a4.F).slice(0, 3).map(m => m.k);
+    const postsT = (res && res.members ? res.members.map((m, k) => ({ k, F: m.F })) : []).filter(m => tr.elems[m.k].type === 'end' && m.F > 0.005).map(m => m.k);
+    const splK = [...new Set(tensK.concat(postsT))], splItems = [...new Set(splK.map(itemOf).filter(v => v != null))].sort((x, y) => x - y);
+    const tSplices = splices.filter(s => s.tension);
     order.map(([ty, title]) => {
       const ks = tr.elems.map((e, k) => e.type === ty ? k : -1).filter(k => k >= 0); if (!ks.length) return '';
       const hi = new Set(ks), gr = new Set(done); ks.forEach(k => done.add(k));
-      const vv = sideSVG(tr, plan, { highlight: new Set([...hi, ...gr]), grey: gr, b, color: colourMode === 'part' ? 'part' : HI, dash, angles: mini ? 2.4 : false, cut: mini });
+      const vv = sideSVG(tr, plan, { highlight: new Set([...hi, ...gr]), grey: gr, b, color: colourMode === 'part' ? 'part' : HI, dash, angles: mini ? 2.4 : false, cut: mini, splint: mini ? new Set(ks.filter(k => splK.includes(k))) : null });
       const its = {}; plan.pieces.filter(q => q.members.some(k => hi.has(k))).forEach(q => { its[q.item] = (its[q.item] || 0) + 1; });
       const spl = ty === 'bot' || ty === 'top' ? splices.filter(s => s.type === ty) : [];
       const onT = !gr.size && sideT ? ` (template ${sideT})` : '';
       return box(callOf(its), { box: vv.box, svg: vv.svg + (spl.length ? spliceMarks(vv.Y) : '') + ((ty === 'bot' || ty === 'top') && crossings.length ? crossMarks(vv.Y, 8) : '') }, (ty === 'top' && bent ? 'Glue in the bent top chord, pinned to the curve on the template, joint marks on the joints' : title) + (spl.length ? ` (${spl.length + 1} pieces: butt them at the red marks${spl.some(s => s.tension) ? ', with a splint where marked' : ''})` : '') + onT);
     }).filter(Boolean).forEach(s => steps.push(s));
     // splints (#302, #299; Physics): every joint the documents mark for a splint gets a step. A splint is a stick offcut
-    // glued across the joint on one face, overlapping well onto both pieces.
-    const itemOf = k => { const q = plan.pieces.find(p2 => p2.members.includes(k)); return q ? q.item : null; };
-    const tensK = (res && res.members ? res.members.map((m, k) => ({ k, F: m.F })) : []).filter(m => m.F > 0.005).sort((a4, c) => c.F - a4.F).slice(0, 3).map(m => m.k);
-    const postsT = (res && res.members ? res.members.map((m, k) => ({ k, F: m.F })) : []).filter(m => tr.elems[m.k].type === 'end' && m.F > 0.005).map(m => m.k);
-    const splK = [...new Set(tensK.concat(postsT))], splItems = [...new Set(splK.map(itemOf).filter(v => v != null))].sort((x, y) => x - y);
-    const tSplices = splices.filter(s => s.tension);
-    if (splItems.length || tSplices.length) {
+    // glued across the joint on one face, overlapping well onto both pieces. In the black-and-white set (#332) there's no
+    // separate splint step: the splint icon sits on the joints in the step that glues them.
+    if (!mini && (splItems.length || tSplices.length)) {
       const vv = sideSVG(tr, plan, { highlight: new Set(splK), grey: new Set(tr.elems.map((e, k) => k).filter(k => !splK.includes(k))), b, color: colourMode === 'part' ? 'part' : HI, dash });
       const its = {}; splItems.forEach(no => { its[no] = plan.pieces.filter(q => q.item === no && q.members.some(k => splK.includes(k))).length; });
       steps.push(box(callOf(its), { box: vv.box, svg: vv.svg + (tSplices.length ? spliceMarks(vv.Y) : '') }, `Splint ${splItems.length ? `both end joints of the members in most tension (items ${splItems.join(', ')}${postsT.length ? '; the end posts hang the arch ends in tension' : ''})` : ''}${splItems.length && tSplices.length ? ' and ' : ''}${tSplices.length ? 'the splices marked "+ splint"' : ''}: glue a stick offcut across each joint on one face, double-glued, overlapping well onto both pieces`));
@@ -889,7 +946,7 @@ function documentHTML(tr, res, meta, plan, opt) {
       const frameParts = s => { const vv = view3(m3, cx, { view: 'end', station: s }); return vv ? vv.els.filter(e => e.side === 'cross').map(e => e.k) : []; };
       const step3 = (parts, view, opts, title) => {
         if (!parts.length) return; const ks = new Set(parts.map(q => q.k));
-        const vv = view3(m3, cx, Object.assign({ view, hi: new Set([...ks, ...built]), grey: new Set(built), colour: colourMode === 'part' ? 'part' : HI, dash, b }, opts)); if (!vv) return;
+        const vv = view3(m3, cx, Object.assign({ view, hi: new Set([...ks, ...built]), grey: new Set(built), colour: colourMode === 'part' ? 'part' : HI, dash, b, splint: mini ? new Set(parts.filter(q => (cx.items.find(it => it.no === q.item) || {}).Fmax > 1).map(q => q.k)) : null }, opts)); if (!vv) return;
         const its = {}; parts.forEach(q => { its[q.item] = (its[q.item] || 0) + 1; }); ks.forEach(k => built.add(k));
         steps.push(box(callOf(its), vv, title));
       };
@@ -908,10 +965,10 @@ function documentHTML(tr, res, meta, plan, opt) {
       const second = cx.parts.filter(q => xOnce.has(q.k) && !built.has(q.k));
       if (second.length) step3(second, second.every(q => q.kind === 'sway') ? 'end' : second.some(q => q.kind === 'latBot') && !second.some(q => q.kind === 'latTop') ? 'bottom' : 'plan', {}, 'Last: the second diagonal of each X. Measure the real gap after the first is set and cut to fit; never force a long one in');
       const xSpl = cx.items.filter(it => it.Fmax > 1);
-      if (xSpl.length) steps.push(textStep(`<b>Splint the 3D joints marked "+ splint (over 1 N)"</b> in the 3D joints table: both ends of items ${xSpl.map(it => it.no).join(', ')}. Glue a stick offcut across each joint on one face, overlapping well onto both pieces.`, 'splint'));
-      steps.push(textStep(`Let the cement dry completely before anything is loaded (see the cement's label; overnight is safest). Check the bridge sits flat and square, and against the 3D view in the app. No load at all before test day: store it flat with nothing on it.`, 'cure'));
+      if (xSpl.length && !mini) steps.push(textStep(`<b>Splint the 3D joints marked "+ splint (over 1 N)"</b> in the 3D joints table: both ends of items ${xSpl.map(it => it.no).join(', ')}. Glue a stick offcut across each joint on one face, overlapping well onto both pieces.`, 'splint'));
+      steps.push(mini ? cureBox(`Let the cement dry completely before anything is loaded (see the cement's label; overnight is safest). Check the bridge sits flat and square, and against the 3D view in the app. No load at all before test day: store it flat with nothing on it.`) : textStep(`Let the cement dry completely before anything is loaded (see the cement's label; overnight is safest). Check the bridge sits flat and square, and against the 3D view in the app. No load at all before test day: store it flat with nothing on it.`, 'cure'));
     }
-    if (!cx) steps.push(textStep(`Let the cement dry completely (see the cement's label; overnight is safest). No load at all before test day: store the trusses flat with nothing on them.`, 'cure'));
+    if (!cx) steps.push(mini ? cureBox(`Let the cement dry completely (see the cement's label; overnight is safest). No load at all before test day: store the trusses flat with nothing on them.`) : textStep(`Let the cement dry completely (see the cement's label; overnight is safest). No load at all before test day: store the trusses flat with nothing on them.`, 'cure'));
     for (let s0 = 0; s0 < steps.length; s0 += 4) sheet('Build steps', `<h2 style="margin:0 0 4px">Build steps <span class="note">(${cx ? 'one truss first; then the 3D frame' : `one truss; build ${nT === 2 ? 'the second' : 'the others'} the same way, then join them with the cross-ties`})</span></h2><div class="steps">${steps.slice(s0, s0 + 4).join('')}</div>`);
   }
   // ===== TE-B-169: the minimum build set in black and white (Brian's Work Instruction Axioms, UI-B1-B5): the build steps,
@@ -946,9 +1003,9 @@ function documentHTML(tr, res, meta, plan, opt) {
       return `<svg viewBox="${x0} ${y0} ${Math.max(...xs) - x0 + 4} ${Math.max(...ys) - y0 + 4}">${lines}</svg>`;
     })();
     const qtyOf = {}; allItems.forEach(it => { qtyOf[it.no] = qty(it); });
-    const av = sideSVG(tr, plan, { labels: true, balloons: true, dims: true, b, color: 'mono', round: true, cut: true, big: 1.45, typ: no => (qtyOf[no] || 0) / nT > 1 });
+    const av = sideSVG(tr, plan, { labels: true, balloons: true, dims: true, b, color: 'mono', round: true, cut: true, big: 1.45, mirror, typ: no => (qtyOf[no] || 0) / nT > 1 });
     const asmPage = `<div class="asm"><figure><figcaption>3D VIEW (NOT TO SCALE)</figcaption>${iso}</figure><figure><figcaption>SIDE VIEW OF ONE TRUSS · MM · ITEM BALLOONS · TYP = SAME PART REPEATED · ANGLES FROM A SQUARE CUT</figcaption><svg viewBox="${av.box.join(' ')}">${av.svg}${spliceMarks(av.Y)}${crossMarks(av.Y, 4.6)}</svg></figure></div>
-      ${titleBox}<p class="note">PAGE 2: CUT GUIDE · PAGE 3: CUT FROM STOCK · THEN END-ANGLE TEMPLATES, BUILD STEPS AND FULL-SIZE TEMPLATES.</p>`;
+      ${titleBox}<p class="note">PAGE 2: CUT GUIDE · PAGE 3: CUT FROM STOCK · THEN END-ANGLE TEMPLATES, BUILD STEPS AND FULL-SIZE TEMPLATES.</p><p class="note"><svg width="14mm" height="5mm" viewBox="0 0 28 10" style="vertical-align:middle"><rect x="1" y="5" width="13" height="3.2" fill="#fff" stroke="#000" stroke-width=".5"/><rect x="14" y="5" width="13" height="3.2" fill="#fff" stroke="#000" stroke-width=".5"/><rect x="8" y="2.4" width="12" height="1.6" fill="#000"/></svg> = SPLINT: A SHORT OFFCUT GLUED ACROSS THE JOINT ON ONE FACE, DOUBLE-GLUED, OVERLAPPING WELL ONTO BOTH PIECES. IT IS SHOWN ON THE JOINTS THAT NEED ONE, IN THE STEP THAT GLUES THEM.</p>`;
     const cutPage = `<h2>CUT GUIDE <span class="note">${allItems.reduce((s, it) => s + qty(it), 0)} PIECES · LENGTHS ARE THE LONG POINT, WHOLE MM · A1, A2…: END-ANGLE TEMPLATES</span></h2>
       ${tables}
       <p class="note">MEASURE THE LONG POINT, MARK THE ANGLE FROM ITS TEMPLATE, CUT ON THE WASTE SIDE. LAY EVERY PIECE ON THE FULL-SIZE TEMPLATE: JOINTS WITHIN 0.5 MM. +1/−0 = CUT TO THE NUMBER OR UP TO 1 MM LONG, THEN SAND TO FIT, NEVER SHORT. WHERE A PIECE MEETS A CURVED CHORD, ITS ANGLE IS TO THE CURVE'S TANGENT AT THAT JOINT: A STRAIGHT CUT IS RIGHT.</p>`;
@@ -996,7 +1053,7 @@ function documentHTML(tr, res, meta, plan, opt) {
       .content{flex:1;min-height:0;overflow:hidden}h2{font-size:11pt;margin:0 0 2mm}.note{font-size:7.5pt;font-weight:normal}
       .tb{border-collapse:collapse;width:100%;font-size:8pt;margin-bottom:2.5mm}.tb td{border:.3mm solid #000;padding:.8mm 2mm}.tb .big{font-size:13pt;font-weight:bold;width:35%}
       .cg{border-collapse:collapse;width:100%}.cg th,.cg td{border:.25mm solid #000;padding:.2mm 1.5mm;line-height:1.15;text-align:left;vertical-align:middle}.cg th{font-size:7pt}.cg .c{text-align:center}.cg2{display:grid;grid-template-columns:1fr 1fr;gap:3mm;align-items:start}.cg svg{display:block}
-      .asm{display:grid;grid-template-columns:1fr;grid-template-rows:52mm 1fr;gap:2mm;height:135mm;margin-bottom:2mm}.asm figure{margin:0;display:flex;flex-direction:column;min-height:0}.asm svg{flex:1;min-height:0;width:100%}.asm figcaption{font-size:7pt;font-weight:bold}
+      .asm{display:grid;grid-template-columns:1fr;grid-template-rows:48mm 1fr;gap:2mm;height:126mm;margin-bottom:2mm}.asm figure{margin:0;display:flex;flex-direction:column;min-height:0}.asm svg{flex:1;min-height:0;width:100%}.asm figcaption{font-size:7pt;font-weight:bold}
       .sr{display:flex;align-items:center;gap:2mm;margin:.2mm 0}.sr span{width:6mm;font-size:7pt;font-weight:bold;text-align:right}.sr svg{flex:none}
       .ag{display:flex;flex-wrap:wrap;gap:3mm;margin-bottom:2mm}.ag svg{border:.2mm solid #999}
       .steps{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:3mm;height:calc(100% - 8mm)}
