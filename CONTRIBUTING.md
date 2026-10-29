@@ -63,13 +63,13 @@ Use the same prefix in commit messages and mention the issue number:
 
 If the area has no spec yet, ask its owner on the issue before you build. A decision isn't done until it's in the repo spec and an issue cites it.
 
-The app lives in `truss-explorer-src-v58/truss-explorer/`:
+The app lives in `program/`:
 
 - `src/` holds the source: `core.js` (2D solver), `core3d.js` (3D), `export.js` and `template.js` (.py export), `builddoc.js` (build documents), `formats.js` (every file format and the one way files come in; spec in `docs/formats.md`), `names.js` (generated design names), `sweepstore.js` (a sweep's rows prepared once for the charts: frontier, lightest, ranges; #236, grows into #175), `ui.html` and `app/` (the interface: on `balsaPixel-1.0`, `app.js` is cut into parts `src/app/10-state.js` … `99-door.js`, joined in name order by `build.py`; see `src/app/README.md` for the parts and their owners).
 - **Adding a module:** put `src/yourmodule.js` in, and `build.py` adds it to the page by itself (alphabetically, before `app.js`), with no list to edit. It must stand alone: define one global (like `TrussFormats`) and run nothing at load that needs another module. Only modules whose position matters have their own `<script>/*NAME*/</script>` line in `ui.html`.
 - `index.html` is **built** from `src/`. Never edit it by hand. On `balsaPixel-1.0` it is **not committed** (it's in `.gitignore`): run `python3 build.py` to make it, and don't add it to your commit. On `main` (v61) it is still committed, so a change there commits the rebuilt `index.html`.
-- **Merging `main` forward into `balsaPixel-1.0`:** git stops with a modify/delete conflict on `index.html` every time. Keep it deleted: `git rm truss-explorer-src-v58/truss-explorer/index.html`, then finish the merge.
-- **A `main` fix to `app.js`, merged forward:** `main` still has the unsplit `src/app.js`, so git reports a modify/delete conflict on it. Port the fix by hand into the matching part in `src/app/` (find it with the section comment above the changed lines), keep `src/app.js` deleted (`git rm truss-explorer-src-v58/truss-explorer/src/app.js`), and run `bash tests/run_all.sh` before finishing the merge.
+- **Merging `main` forward into `balsaPixel-1.0`:** git stops with a modify/delete conflict on `index.html` every time. Keep it deleted: `git rm program/index.html`, then finish the merge.
+- **A `main` fix to `app.js`, merged forward:** `main` still has the unsplit `src/app.js`, so git reports a modify/delete conflict on it. Port the fix by hand into the matching part in `src/app/` (find it with the section comment above the changed lines), keep `src/app.js` deleted (`git rm program/src/app.js`), and run `bash tests/run_all.sh` before finishing the merge.
 
 A few rules protect existing work:
 
@@ -82,15 +82,15 @@ A few rules protect existing work:
 
 From the repo root:
 
-    bash truss-explorer-src-v58/truss-explorer/tests/run_all.sh
+    bash program/tests/run_all.sh
 
 This builds the page, then runs the solver checks, a comparison with the course script, and the browser tests. It takes about 6 minutes and ends with `ALL GREEN` when everything passes. Add `--slow` for the very large search tests.
 
-You need Node 22 and Python 3.12 (the versions CI uses). From `truss-explorer-src-v58/truss-explorer/`: `npm ci --ignore-scripts` (the pinned Playwright and axe-core; no install scripts needed), `npx playwright install chromium`, and `pip install -r tests/requirements.txt`. Run the suite the way CI does, `CI=1 bash tests/run_all.sh`, after rebasing on the branch you're targeting, so a green local run means a green CI run.
+You need Node 22 and Python 3.12 (the versions CI uses). From `program/`: `npm ci --ignore-scripts` (the pinned Playwright and axe-core; no install scripts needed), `npx playwright install chromium`, and `pip install -r tests/requirements.txt`. Run the suite the way CI does, `CI=1 bash tests/run_all.sh`, after rebasing on the branch you're targeting, so a green local run means a green CI run.
 
 - **The course script is in `tests/reference/`** (`TrussFEA_Bridge_SE310.py`, by Professor Dong, cleared for this repo), so the comparison runs for everyone and in CI. Don't edit it: it's the reference the 2D solver must match.
 - **Lines marked `KNOWN`** are open issues. They're reported but don't fail the run.
-- **If the regression test says results "changed since v58"**, your change moved some solver numbers. If that's intended, re-record them with `node truss-explorer-src-v58/truss-explorer/tests/regressions.test.js --update` and say why in the pull request. If it isn't, you've found a bug.
+- **If the regression test says results "changed since v58"**, your change moved some solver numbers. If that's intended, re-record them with `node program/tests/regressions.test.js --update` and say why in the pull request. If it isn't, you've found a bug.
 - **New behaviour should come with a test:** a Node test for solver or maths changes, a browser check in `tests/ui/` for interface changes. `run_all.sh` runs every `tests/*.test.js` and every `tests/ui/*.mjs` by itself, so a new test file needs no other edit.
 - **Name the spec rules your PR follows** (Spec first, rulebook rule 3). If it changes the screen (`shell.*`, `ui.html`, the drawing, inputs, charts, 3D or controls parts of `src/app/`, `themes/`) or a file format, say which rules it meets in the description, e.g. `Spec rules met: UI-A3, UI-W5`, or `docs/formats.md (theme section)`, or `Spec: none - <why>`. The **spec-cited** check reminds you (it doesn't block). `tests/specs.test.js` checks the specs themselves and fails if a step marked shipped is missing a hook in the code. Details: `docs/spec-checks.md`.
 

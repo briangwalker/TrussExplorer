@@ -27,7 +27,7 @@ function sheetHTML(sh) {
     <p class="note" style="margin:6px 0 0">Everything else was fixed at: ${escH(sh.fixed)}.${sh.sampled ? ' "Step reached" is how far apart the sampled designs are, on average, in each swept input: the sample covers the whole range, but less finely than the step set.' : ''}</p>`;
 }
 function sheetCSV(sh) {
-  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const q = v => `"${String(v == null ? '' : csvSafe(v)).replace(/"/g, '""')}"`;
   const fi = fileInfo(sweepInfo().model);
   const head = [['Made with', `SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`], ['Bridge code', fi.bridgeCode], ['Run', sh.kind], ['When', sh.when], ['Analysis', sh.analysis], ['Designs tested', sh.tested], ['Designs in the ranges', sh.total], ['Sampled', sh.sampled ? 'yes' : 'no'], ['FS', sh.FS], ['Books (kg)', sh.bookKg], ['Deflection limit (mm)', sh.defl], ['Min overlap (mm)', sh.minOv], ['Fixed inputs', sh.fixed], []];
   const tbl = [['Swept input', 'From', 'To', 'Step set', 'Values', 'Choices', 'Step reached (about)']].concat(sh.rows.map(r => r.list ? [r.name, '', '', '', r.count, r.list.join(' / '), r.eff || 'all'] : [r.name, r.from, r.to, r.step, r.count, '', r.eff != null ? r.eff : r.step]));

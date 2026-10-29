@@ -13,7 +13,7 @@ import fs from 'fs';
 const require = createRequire(import.meta.url);
 const { loadSpecs } = require('./specs.js');
 
-const APP = 'truss-explorer-src-v58/truss-explorer/';
+const APP = 'program/';
 export const SCREEN = [/^src\/shell\.(js|css)$/, /^src\/ui\.html$/, /^src\/app\/(20|30|70|80|90)-[^/]+\.js$/, /^themes\//];
 export const FORMAT = [/^src\/formats\.js$/, /^docs\/formats\.md$/];
 

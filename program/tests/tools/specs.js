@@ -13,8 +13,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const APP = path.resolve(__dirname, '..', '..');            // truss-explorer-src-v58/truss-explorer
-const REPO = path.resolve(APP, '..', '..');                  // repo root
+const APP = path.resolve(__dirname, '..', '..');            // program
+const REPO = path.resolve(APP, '..');                        // repo root
 const DOCS = path.join(REPO, 'docs');
 
 // a rule ID, alone or as a range (UI-D1–D6, UI-W6-W8, UI-D1–UI-D6)

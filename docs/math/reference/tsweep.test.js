@@ -90,7 +90,7 @@ function fromOldSweep(doc) {
   console.log('4. check plan: 300 random rows + every frontier row; 299 rows catch a 1%-wrong file 95% of the time: ok');
 
   // 5. a real sweep
-  const src = process.argv[2] || path.resolve(__dirname, '../../../3024000Sample.sweep.json');
+  const src = process.argv[2] || path.resolve(__dirname, '../../../samples/3024000Sample.sweep.json');
   if (fs.existsSync(src)) {
     const doc = JSON.parse(fs.readFileSync(src, 'utf8')), conv = fromOldSweep(doc), oldBytes = fs.statSync(src).size;
     const t0 = Date.now(), out = await T.encode(conv.header, conv.rows), t1 = Date.now(), dec = await T.decode(out), t2 = Date.now();

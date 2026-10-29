@@ -1,6 +1,6 @@
 # Truss Explorer Art Standard (themes and art assets)
 
-**Version 1.0 · 2026-10-28 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
+**Version 1.0.1 · 2026-10-28 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel **looks and moves**: themes, tokens, materials, pictures, icons, textures and motion. Every rule has a number (`ART-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -45,6 +45,12 @@ A theme is a set of tokens plus per-part looks (UI-T1). These are the tokens a *
 | ART-K12 | `font-ui`, `font-head`, `font-mono`, `font-hand` | text; titles; numbers and LCD; handwriting | Barlow, Barlow Semi Condensed, IBM Plex Mono, — | Barlow Semi Condensed, Kalam, VT323, Kalam |
 | ART-K13 | **Images** (shared themes): `page`, `panel`, `control`, `control-pressed`, `control-end`, `screen`, `screen-key` | textures behind the parts above; `.png`, `.jpg` or `.webp`, file names only | none | `paper.webp`, `photo-balsa.webp`, `photo-balsa.webp`, `photo-top.webp`, `photo-endgrain.webp`, `lcd.png`, `pixelwood.png` |
 | ART-K14 | **Never tokens.** The meaning colours (compression, tension, zero force, pass, fail) and the member-force colours on the drawing are owned by the app code and are the same in every theme except OG (UI-A18, UI-T6). | Reference values in `src/ui.html` today: C `#c23a2b`, T `#2160a8`, 0 `#9aa5af`, pass `#2f7a4b`. Fail must be **magenta + ✕** (decision 2026-10-25), but the app's `--bad` is `#b4232a` (red). That is a bug for Dev Lead: #258. | | |
+
+**Open (TE-B-096 X3): Wireframe `strong`.** Brian's Axioms make brown the action colour, but ART-K6 gives Wireframe slate `#3d4650`. Brian picks one at sign-off, before #221:
+- **(a) Brown:** Wireframe `strong` = `#7a4f1c`, `on-strong` = `#fff` (7.1:1, passes ART-C1). Every theme then shares one action colour.
+- **(b) Named exception ART-K6a:** Wireframe keeps slate `#3d4650` (9.6:1) because it is the plain, colour-free working look; brown stays the action colour in every other theme.
+
+Graphics leans (a): it keeps the Axioms whole and the contrast still passes.
 
 A built-in theme may add private tokens with its own prefix (Notebook + Calculator uses `--nc-*` in the Click-Through and the plain names `--balsa-*`, `--stain*`, `--lcd*` in the kit). Private tokens never appear in a shared theme file.
 
@@ -115,7 +121,7 @@ Pictures are SVG and ship only in **built-in** themes for 1.0 (UI-T3). Every pic
 | ART-H1 | Each category picture is `pictures/<category id>.svg`, viewBox `0 0 300 120`, class `te-catpic`, with `role="img"` and an `aria-label`. Ids: `shape`, `geo`, `sup`, `load`, `sticks`, `mat`, `rules`, `d3`, plus `topchord-note.svg`. | | #129 | live in the Click-Through |
 | ART-H2 | Every part that belongs to an input is a group `<g data-in="key …">` holding the part twice: first a `.hl` copy (the highlighter underlay), then the drawn copy. The page adds class `lit` to the hot input's groups. | `pictures.css`: `.hl` stroke 10, lit = `rgba(255,153,51,.55)` | #129 | live |
 | ART-H3 | Books in `load.svg` are groups `book1`, `book2`; for more books the page stacks copies of the last group, offset `translate(2·n, −9·n)`. The mass label sits outside the book groups and reads "2.5 kg in all". | `g[data-in~="book1"]` | UI-I6, UI-I7 | live |
-| ART-H4 | **Tilt in `d3.svg` is a shear, not a rotation.** Near truss: `data-lean="right"`; far truss: `data-lean="left"`; both `data-lean-origin="center bottom"`, `data-lean-shear="1.34 0.82"`. With T = tan(tilt): right = `matrix(1,0,−1.34·T,1+0.82·T,0,0)`, left = `matrix(1,0,1.34·T,1−0.82·T,0,0)`, `transform-box: fill-box`. Top bracing: `data-lean="in"`, `data-lean-matrix="3.84 2.34 145.8 88.8"` → SVG attribute `matrix(1,0,3.84·T,1−2.34·T,−145.8·T,88.8·T)`. | | UI-I6 (UI's hook rotates today; needs the shear) | planned #215 |
+| ART-H4 | **Tilt in `d3.svg` is a shear, not a rotation.** Near truss: `data-lean="right"`; far truss: `data-lean="left"`; both `data-lean-origin="center bottom"`, `data-lean-shear="1.34 0.82"`. With T = tan(tilt): right = `matrix(1,0,−1.34·T,1+0.82·T,0,0)`, left = `matrix(1,0,1.34·T,1−0.82·T,0,0)`, `transform-box: fill-box`. Top bracing: `data-lean="in"`, `data-lean-matrix="3.84 2.34 145.8 88.8"` → SVG attribute `matrix(1,0,3.84·T,1−2.34·T,−145.8·T,88.8·T)`. | | UI-T4, UI-I6 (ui-spec 1.2, #266, point here) | planned #215 |
 | ART-H5 | Drawing pictures: `pictures/woodpile.svg` and `pictures/books.svg`, class `te-drawpic`, `data-pic="woodpile"` / `"books"`; drawn at the size the drawing sets, viewBox kept and centred. Missing = the built-in shapes. | | UI-T4 | live in the Click-Through |
 | ART-H6 | SVG pictures contain no script, no `on*` attributes, no `foreignObject`, no external `href`, no embedded raster images, and only these fonts: the theme's hand font via class `hand`. | | White Hat TE-B-014 | live |
 
@@ -146,14 +152,14 @@ UI owns **when** something moves (UI-M); this section owns **how**. Every motion
 
 | # | Rule | Values (defaults) | Reduced motion | Source | Status |
 |---|---|---|---|---|---|
-| ART-M1 | **Scene transition** (Truss ↔ Analysis, Notebook + Calculator): the sweep line grows into the calculator and the paper slip zooms back, as **one damped spring** (no stop-then-bounce), with no flashes or black frames; the screen never shows what's behind it. | length **1000 ms**; anticipation 16 %; overshoot 8 %; stiffness 7; smear 1; ghosts 3; gap 0.06; dot delay 150 ms; dot time 1800 ms | 150 ms cross-fade | Brian, Motion Lab 2026-10-26 | planned #143 |
+| ART-M1 | **Scene transition** (Truss ↔ Analysis, Notebook + Calculator): the sweep line grows into the calculator and the paper slip zooms back, as **one damped spring** (no stop-then-bounce), with no flashes or black frames; the screen never shows what's behind it. | length **1000 ms, both directions**; anticipation 16 %; overshoot 8 %; stiffness 7; smear 1; ghosts 3; gap 0.06; dot delay 150 ms; dot time 1800 ms | 150 ms cross-fade | Brian, Motion Lab 2026-10-26; length both ways confirmed by Brian 2026-10-28 (TE-B-102) | planned #143 |
 | ART-M2 | The spring is a damped step response: ζ from the overshoot, `ζ = −ln(os) / √(π² + ln² os)`, ω = stiffness, with a smoothstep tail over the last 8 % so it lands exactly. After landing the screen is clamped so it never pulls back past the edge. | | | Motion Lab `springX` | planned #143 |
-| ART-M3 | **Restless bridge** (how it moves): the whole bridge wiggles; the part about to change shakes more; the ✎ tag pops and stains brown; a handwritten note appears. | mode **warn**; wiggle 50 %; changing part 120 %; shake 1.6 s | no wiggle; the change just happens | Brian, 2026-10-27 | planned #144 |
+| ART-M3 | **Restless bridge** (how it moves; this rule holds the numbers, UI-M2 says when it runs and points here): the whole bridge wiggles; the part about to change shakes more; the ✎ tag pops and stains brown; a handwritten note appears. | mode **warn**; wiggle 50 %; changing part 120 %; shake 1.6 s | no wiggle; the change just happens | Brian, 2026-10-27 | planned #144 |
 | ART-M4 | **Value tags put away** (when the view changes): tags fly to the Drawing window along an arc and shrink. | 650 ms each, 70 ms stagger, arc 70 px, lift 6 px, overshoot 6 %, stiffness 8, size 30 %, spin 14°, fade 70 %, nearest first, reverse on return | instant | Motion Lab | planned #143 |
 | ART-M5 | **Press:** 120 ms ease-out. **Panel open/fold:** 280 ms. | `--t-press`, `--t-panel` | instant | | live |
 | ART-M6 | **Chart dots** plot right to left like a TI-84, in LCD cells; the dot size and the LCD pixel size are separate settings. | dot 6 px; LCD pixel 3 px (choices 2, 3, 4, 6, 8) | dots appear at once | Brian, 2026-10-26 | planned #211 |
 | ART-M7 | **Undo mark:** a hand-drawn red circle, redrawn with a new random wobble on every hover. | | static circle | Brian, 2026-10-27 | live in kit |
-| ART-M8 | **UI-M5 says transitions last under 0.9 s; Brian picked 1000 ms in the Motion Lab.** Until Brian settles it, ART-M1 keeps 1000 ms and the setting goes from 100 to 6000 ms. | | | conflict | needs Brian |
+| ART-M8 | **Settled:** the scene transition lasts 1000 ms in both directions (ART-M1). UI-M5 points to ART-M1 for the length. The 100–6000 ms tuning ships to users (ART-O5). | | | Brian 2026-10-28 (TE-B-102) | settled |
 
 ## ART-O · Theme options (settings inside one theme)
 
@@ -165,7 +171,7 @@ All live under ☰ › Look and controls › Theme (UI-A16). They change looks o
 | ART-O2 | Window look (also picks the slider, ART-W6) | tray · calculator · paper labels · tape labels | tray | live in kit; calculator in the Click-Through |
 | ART-O3 | Favicon | calc-te · calc-ok · calc-smile · end-hand · end-calc · random | calc-te | live in kit |
 | ART-O4 | LCD pixel size; chart dot size | 2–8 px; 2–12 px | 3 px; 6 px | live in kit |
-| ART-O5 | Motion tuning (ART-M1–M4 numbers), with Reset to defaults | | Brian's picks | live in the Motion Lab |
+| ART-O5 | Motion tuning (ART-M1–M4 numbers), with Reset to defaults. Ships to users under ☰ > Look and controls > Theme; 1000 ms is the default, and a click or key during a transition jumps to its end (UI-M5). (Future Vision Lead A2, TE-B-102; Brian can overrule at sign-off.) | | Brian's picks | live in the Motion Lab |
 
 ## ART-A · Asset register
 
@@ -212,11 +218,12 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 |---|---|---|
 | ART-K14 (fail colour) | #258 | `--bad` in `src/ui.html` is red `#b4232a`; the decision is magenta + ✕ |
 | ART-T1, ART-X6 | #221 (and TE-B-026) | self-hosted fonts; drop the Google Fonts `@import` |
-| ART-H4 | #215 | UI's hook rotates; switch to the shear |
-| ART-M8 | needs Brian | 1000 ms vs UI-M5's 0.9 s |
+| ART-H4 | #215 | conflict with UI-T4 closes when #266 (ui-spec 1.2) merges |
+| ART-K6 (Wireframe `strong`) | needs Brian, before #221 | conflict with the Axioms (brown is the action colour): option (a) brown or (b) exception ART-K6a, TE-B-096 X3 |
 | ART-X8 | #134 | waiting on Brian's photos |
 | ART-W2, ART-W4, slider options C and D | #221, after Brian picks | options only |
 
 ## Change log
 
+- **1.0.1 · 2026-10-28** ART-M8 settled: 1000 ms both ways (Brian, TE-B-102); ART-M1 says both directions. ART-M3 holds the restless-bridge numbers, UI-M2 points here (TE-B-099). ART-O5 tuning ships to users (Future Vision Lead A2, TE-B-102). ART-H4 notes ui-spec 1.2 (#266) now points to the shear. Added the Wireframe `strong` choice (TE-B-096 X3) as a conflict row in the coverage table (rule 3 SPEC FIRST f).
 - **1.0 · 2026-10-28** First numbered art standard. Gathers theme 1.0–1.2 (Motion Lab v1–v14), Brian's notes 2026-10-25 to 2026-10-28, the light/heavy rule and the photo/generated wood decision (Decisions rows 50–58), White Hat's limits (TE-B-014), UI's theme boundary (#109, UI-T1–T6), and the Click-Through notes (PIP member colour, books vs wood pile). Follows the Creative Documentation Standard 1.0.
