@@ -2,7 +2,7 @@
 // #109 / #35 (Math Consultant, 2026-10-28): capture the reduced 3D systems a sweep actually solves, count solves per design,
 // then time today's solveLinear against flat dense Cholesky and RCM-reordered banded Cholesky on the same systems.
 // Run from the repo root: node docs/math/reference/solver-speed/bench.js
-const APP = require('path').resolve(__dirname, '../../../../truss-explorer-src-v58/truss-explorer');
+const APP = require('path').resolve(__dirname, '../../../../program');
 const C = require(APP + '/src/core.js'), T3 = require(APP + '/src/core3d.js'), L = require(APP + '/tests/lib.js');
 const orig = C.solveLinear, cap = []; let calls = 0;
 C.solveLinear = (A, b) => { calls++; if (cap.length < 400) cap.push({ A: A.map(r => Float64Array.from(r)), b: Float64Array.from(b) }); return orig(A, b); };

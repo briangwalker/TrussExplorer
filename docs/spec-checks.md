@@ -13,7 +13,7 @@ Both read the specs with one small reader, `tests/tools/specs.js` (plain Node, n
 
 ## 1. Spec cited (the PR check)
 
-A PR **needs a citation** if it changes any of these (paths inside `truss-explorer-src-v58/truss-explorer/`):
+A PR **needs a citation** if it changes any of these (paths inside `program/`):
 
 - **screen:** `src/shell.js`, `src/shell.css`, `src/ui.html`, `src/app/20-inputs.js`, `30-drawing.js`, `70-charts.js`, `80-view3d.js`, `90-controls.js`, anything in `themes/`;
 - **file format:** `src/formats.js`, `docs/formats.md`.
@@ -28,7 +28,7 @@ A rule ID that isn't in any spec (a typo, or a renumbered rule) turns it red eve
 
 **Security:** the description is untrusted text. It reaches the script only through an environment variable and is only matched against patterns, never run. The job has read-only permissions.
 
-Locally: `PR_BODY="Spec rules met: UI-A3" node tests/tools/spec-cited.mjs truss-explorer-src-v58/truss-explorer/src/shell.js`
+Locally: `PR_BODY="Spec rules met: UI-A3" node tests/tools/spec-cited.mjs program/src/shell.js`
 
 ## 2. Specs ↔ code (`tests/specs.test.js`)
 

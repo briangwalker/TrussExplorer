@@ -26,7 +26,7 @@ A hook always has two rules: UI states the hook (`UI-T4`) and Graphics states th
 
 ## 2. The theme package in the repo
 
-Target layout, beside today's `themes/index.json` on balsaPixel-1.0 (path `truss-explorer-src-v58/truss-explorer/themes/`):
+Target layout, beside today's `themes/index.json` on balsaPixel-1.0 (path `program/themes/`):
 
 ```
 themes/

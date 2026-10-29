@@ -1,6 +1,6 @@
 # Truss Explorer file and storage formats
 
-*Architecture Lead, 2026-10-27 (#149). Status: version 1.1 of this spec (folds in the Math, Physics and White Hat reviews on #178 and board TE-B-014). Code: [`src/formats.js`](../truss-explorer-src-v58/truss-explorer/src/formats.js). Tests: [`tests/formats.test.js`](../truss-explorer-src-v58/truss-explorer/tests/formats.test.js) with fixtures in `tests/formats/fixtures/`.*
+*Architecture Lead, 2026-10-27 (#149). Status: version 1.1 of this spec (folds in the Math, Physics and White Hat reviews on #178 and board TE-B-014). Code: [`src/formats.js`](../program/src/formats.js). Tests: [`tests/formats.test.js`](../program/tests/formats.test.js) with fixtures in `tests/formats/fixtures/`.*
 
 Everything the Explorer saves, to a file or in the browser, is listed here with its name, its versions and what changed between them. These layouts become the public database's layout later (#16), so change them only through this page.
 

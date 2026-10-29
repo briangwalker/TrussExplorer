@@ -1,7 +1,7 @@
 // File formats (#149): every saved version opens through src/formats.js and comes out as the current version.
 //   node --test tests/formats.test.js
 // Fixtures: tests/formats/fixtures/ (one per older version, plus the current version made by make-fixtures.mjs),
-// tests/Partner_test.bridge.json and the repo's 3024000Sample.sweep.json (both v1), and, when present, Brian's own
+// tests/Partner_test.bridge.json and the repo's samples/3024000Sample.sweep.json (both v1), and, when present, Brian's own
 // files in tests/private/ (git-ignored, rule 8).
 'use strict';
 const test = require('node:test');
@@ -13,7 +13,7 @@ const F = require(path.join(__dirname, '..', 'src', 'formats.js'));
 const FIX = path.join(__dirname, 'formats', 'fixtures');
 const read = f => fs.readFileSync(f, 'utf8');
 const fix = name => read(path.join(FIX, name));
-const REPO = path.resolve(__dirname, '..', '..', '..');
+const REPO = path.resolve(__dirname, '..', '..');
 
 test('every fixture file opens, upgrades to the current version, and passes the check', () => {
   const files = fs.readdirSync(FIX).filter(f => f.endsWith('.json'));
@@ -63,7 +63,7 @@ test('early v1 sweep (ctx without the summary sheet) -> v2', () => {
 });
 
 test('later v1 sweep (the repo sample, 23,917 rows) -> v2', () => {
-  const f = path.join(REPO, '3024000Sample.sweep.json');
+  const f = path.join(REPO, 'samples', '3024000Sample.sweep.json');
   if (!fs.existsSync(f)) return;
   const o = F.open(read(f));
   assert.ok(o.ok); assert.strictEqual(o.from, 1); assert.strictEqual(o.doc.model, '3D', 'from the summary sheet');

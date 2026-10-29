@@ -1,6 +1,6 @@
 # Math notes
 
-Specs and reference code from the Math Consultant role. Reference code here is for reading and testing, not part of the app build; the app's own versions go into `truss-explorer-src-v58/truss-explorer/src/` through Dev Lead.
+Specs and reference code from the Math Consultant role. Reference code here is for reading and testing, not part of the app build; the app's own versions go into `program/src/` through Dev Lead.
 
 | Doc | What it is |
 |---|---|
