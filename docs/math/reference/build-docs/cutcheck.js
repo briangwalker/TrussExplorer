@@ -48,16 +48,20 @@ for (const [name, S] of cases) {
     const want = b * Math.tan(c.ang * Math.PI / 180);
     if (Math.abs(Math.abs(c.eA - c.eB) - want) > 1e-6) fail(name, `member ${k} at joint ${n}: angle ${c.ang.toFixed(2)}° but edges differ by ${Math.abs(c.eA - c.eB).toFixed(3)} mm (expect ${want.toFixed(3)})`);
   });
+  // pieces cut at an arch crossing (#298) are parts of one member: check them against the crossing, not the member
+  const crossed = new Set((plan.crossings || []).map(c => c.bot));
   // 2. each piece: L is the sum of its members' centre-line lengths; long ≥ short > 0; long - short agrees with the end offsets
   plan.pieces.forEach((q, i) => {
     const sumL = q.members.reduce((s, k) => s + len(tr.nodes[tr.elems[k].i], tr.nodes[tr.elems[k].j]), 0);
-    if (Math.abs(sumL - q.L) > 1e-6) fail(name, `piece ${i} (item ${q.item}): L ${q.L.toFixed(3)} vs members' ${sumL.toFixed(3)}`);
+    if (!q.members.some(k => crossed.has(k)) && Math.abs(sumL - q.L) > 1e-6) fail(name, `piece ${i} (item ${q.item}): L ${q.L.toFixed(3)} vs members' ${sumL.toFixed(3)}`);
     if (!(q.short > 0) || q.long + 1e-9 < q.short) fail(name, `piece ${i}: long ${q.long} short ${q.short}`);
     if (q.long > stock + 1e-6 && q.members.length > 1) fail(name, `piece ${i} (item ${q.item}) is ${q.long.toFixed(1)} mm, over the ${stock} mm stick, though it could be spliced`);
   });
   // 3. splices tile the chord: after splicing, every member of the truss is in exactly one piece
   const seen = new Map(); plan.pieces.forEach(q => q.members.forEach(k => seen.set(k, (seen.get(k) || 0) + 1)));
-  tr.elems.forEach((e, k) => { if (seen.get(k) !== 1) fail(name, `member ${k} is in ${seen.get(k) || 0} pieces`); });
+  tr.elems.forEach((e, k) => { if (crossed.has(k) ? !(seen.get(k) >= 1) : seen.get(k) !== 1) fail(name, `member ${k} is in ${seen.get(k) || 0} pieces`); });
+  // a bottom chord cut at crossings: its pieces still add up to the whole chord (centre to centre)
+  if (crossed.size) { const bot = tr.elems.filter(e => e.type === 'bot').reduce((s2, e) => s2 + len(tr.nodes[e.i], tr.nodes[e.j]), 0), parts = plan.pieces.filter(q => q.type === 'bot').reduce((s2, q) => s2 + q.L, 0); if (Math.abs(bot - parts) > 1e-6) fail(name, `bottom chord pieces add to ${parts.toFixed(2)}, chord is ${bot.toFixed(2)}`); }
   // 4. parts list: pieces sharing an item agree to 0.5 mm; quantities add up
   plan.items.forEach(it => it.pieces.forEach(q => { if (Math.abs(q.long - it.long) > 0.5 + 1e-9 || Math.abs(q.short - it.short) > 0.5 + 1e-9) fail(name, `item ${it.no}: a piece is ${q.long.toFixed(2)}/${q.short.toFixed(2)} vs the listed ${it.long.toFixed(2)}/${it.short.toFixed(2)}`); }));
   const qty = plan.items.reduce((s, it) => s + it.pieces.length * nT * it.n, 0), pcs = plan.pieces.reduce((s, q) => s + q.n, 0) * nT;
