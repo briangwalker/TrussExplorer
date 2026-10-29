@@ -2658,7 +2658,7 @@ function bendForm(tr, piece, b) {
   const len = at0[at0.length - 1];
   const pins = []; for (let s = 8, side = 1; s < len - 4; s += 17, side = -side) { const i = at0.findIndex(v => v >= s); pins.push(add(pts[i], mul(nrm(i), side * (b / 2 + 1.6)))); }
   const ticks = seq.map((n, i) => { const k = i === 0 ? 0 : i === m - 1 ? pts.length - 1 : i * 24, nv = nrm(k); return { n, p: P[i], a: add(P[i], mul(nv, b / 2 + 4)), c: sub(P[i], mul(nv, b / 2 + 4)) }; });
-  return { pts, up: off(b / 2), dn: off(-b / 2), pins, ticks, len, xs: pts.map(p => p[0]), ys: pts.map(p => p[1]) };
+  return { pts, s: at0, up: off(b / 2), dn: off(-b / 2), pins, ticks, len, xs: pts.map(p => p[0]), ys: pts.map(p => p[1]) };
 }
 function documentHTML(tr, res, meta, plan, opt) {
   opt = opt || {};
@@ -2943,24 +2943,28 @@ function documentHTML(tr, res, meta, plan, opt) {
 // the printed pages, a key in the free space, and the 1:1 bending form, printed `copies` times (spares: a bend dries ~12 h).
 // Steps and limits from the Physics Consultant (#282, TE-B-128, TE-B-162). meta: { name, info, code, mat }.
 const BEND_INK = '#8c5e22';   // section lines in the logo colour (axioms: WI 1); Graphics sets the final colour and logo
-function bendIcons() {
+// Graphics (TE-B-162): the TE mark in line art for black-and-white print pages (the colour mark's grain prints grey)
+const TE_MARK_BW = '<svg viewBox="0 0 64 64" width="12mm" height="12mm"><defs><clipPath id="temc"><rect x="5" y="5" width="54" height="54" rx="4"/></clipPath></defs><rect x="3" y="3" width="58" height="58" rx="6" fill="#fff" stroke="#000" stroke-width="3.5"/><path clip-path="url(#temc)" d="M-6 30a40 40 0 0 1 40 40M-6 16a54 54 0 0 1 54 54" fill="none" stroke="#000" stroke-width=".8" opacity=".35"/><g fill="#000"><path d="M11 17h21v7h-7v24h-7v-24h-7z"/><path d="M35 17h18v7h-11v5h7v6.5h-7v5.5h11v7h-18z"/></g></svg>';
+function bendIcons(len) {
   const L = (d, w) => `<path d="${d}" fill="none" stroke="#111" stroke-width="${w || 1.6}" stroke-linecap="round" stroke-linejoin="round"/>`;
   const T = (x, y, s, sz, a) => `<text x="${x}" y="${y}" font-size="${sz || 9}" font-family="Arial" font-weight="bold" text-anchor="${a || 'middle'}" fill="#111">${s}</text>`;
   const stick = (x0, x1, y) => `<rect x="${x0}" y="${y - 2.5}" width="${x1 - x0}" height="5" fill="#e8c38a" stroke="#111" stroke-width="1.2"/>`;
+  // a bent stick: balsa fill with a dark outline on both faces (Graphics: it must not vanish in grey)
+  const bent = d => `<path d="${d}" fill="none" stroke="#111" stroke-width="7.4" stroke-linecap="butt"/><path d="${d}" fill="none" stroke="#e8c38a" stroke-width="5" stroke-linecap="butt"/>`;
   const arc = 'M10 46 Q60 4 110 46';
-  const pin = (x, y) => `<circle cx="${x}" cy="${y}" r="2.2" fill="#c0392b"/><line x1="${x}" y1="${y}" x2="${x}" y2="${y - 9}" stroke="#111" stroke-width="1.2"/>`;
+  const pinO = (x, y, n) => `<circle cx="${x}" cy="${y}" r="2.6" fill="#fff" stroke="#111" stroke-width="1.3"/>${n ? T(x, y - 5, n, 8) : ''}`;
   return {
-    print: `<rect x="14" y="6" width="44" height="52" fill="#fff" stroke="#111" stroke-width="1.4"/>${L('M20 44 h30 M20 41 v6 M50 41 v6', 1.4)}${T(35, 38, '50', 8)}${L('M64 12 l40 40', 3)}${T(96, 20, '100%', 9)}${L('M70 50 h44', 1)}${T(92, 60, 'WAX PAPER', 7)}`,
-    cut: `${stick(14, 106, 32)}${L('M14 20 v24 M106 20 v24', 1.2)}${L('M14 16 h14 M14 16 l4 -3 M14 16 l4 3 M106 16 h-14 M106 16 l-4 -3 M106 16 l-4 3', 1.2)}${T(22, 12, '+10-15', 8)}${T(98, 12, '+10-15', 8)}${T(60, 54, 'CUT LONG', 9)}`,
-    weigh: `<rect x="28" y="38" width="64" height="14" rx="2" fill="#ddd" stroke="#111" stroke-width="1.4"/>${stick(32, 88, 33)}${T(60, 49, '0.00 g', 9)}${L('M60 18 v8', 1.2)}${T(60, 14, 'WRITE IT DOWN', 8)}`,
-    soak: `${L('M10 24 q0 30 30 30 h20 q30 0 30 -30', 1.8)}${L('M14 34 h72', 1)}${stick(20, 80, 40)}${T(50, 14, '15-30 MIN', 9)}${L('M98 40 l8 -12 l8 12 M100 52 c0 -6 4 -6 4 -12 M108 52 c0 -6 4 -6 4 -12', 1.2)}${T(106, 60, '1-3 MIN', 8)}`,
-    pin: `${L(arc, 1)}<path d="${arc}" fill="none" stroke="#e8c38a" stroke-width="5"/>${pin(60, 21)}${pin(44, 30)}${pin(76, 30)}${L('M52 12 l-10 6 M68 12 l10 6', 1)}${T(60, 9, '1', 9)}${T(60, 58, 'CROWN FIRST', 9)}`,
+    scrap: `${stick(10, 60, 40)}${L('M30 34 l4 6 l-4 6', 1.4)}${T(35, 56, 'SCRAP FIRST', 7.5)}<path d="M94 14 a12 12 0 1 0 8 20 a9 9 0 1 1 -8 -20z" fill="#fff" stroke="#111" stroke-width="1.4"/>${T(94, 56, 'NIGHT BEFORE', 7)}`,
+    print: `<rect x="14" y="6" width="44" height="52" fill="#fff" stroke="#111" stroke-width="1.4"/>${L('M20 44 h30 M20 41 v6 M50 41 v6', 1.4)}${T(35, 38, '50 MM', 7)}${L('M64 12 l40 40', 3)}${T(96, 20, '100%', 9)}${L('M70 50 h44', 1)}${T(92, 60, 'WAX PAPER', 7)}`,
+    cut: `${stick(14, 106, 24)}${stick(14, 106, 44)}${T(60, 37, len + ' MM', 8)}${L('M28 16 v34 M92 16 v34', 1)}${L('M14 12 h14 M106 12 h-14', 1.2)}${T(21, 9, '+10-15 MM', 6.5)}${T(99, 9, '+10-15 MM', 6.5)}${T(60, 58, '2 STICKS, SIMILAR WEIGHT', 7.5)}`,
+    weigh: `<rect x="28" y="38" width="64" height="14" rx="2" fill="#ddd" stroke="#111" stroke-width="1.4"/>${stick(32, 88, 33)}${T(60, 49, '0.00 G', 9)}${L('M60 18 v8', 1.2)}${T(60, 14, 'WRITE IT DOWN', 8)}`,
+    soak: `${L('M4 26 q0 26 24 26 h8 q24 0 24 -26', 1.8)}${L('M8 34 h48', 1)}${stick(12, 52, 40)}${T(32, 18, '4A: 15-30 MIN', 7.5)}${T(77, 42, 'OR', 12)}${L('M96 44 l8 -10 l8 10 M98 56 c0 -6 4 -6 4 -12 M106 56 c0 -6 4 -6 4 -12', 1.2)}${T(98, 18, '4B: 1-3 MIN', 7)}`,
+    pin: `${bent(arc)}${pinO(60, 18, '1')}${pinO(43, 33, '2')}${pinO(77, 33, '3')}${pinO(26, 33, '4')}${pinO(94, 33, '5')}${L('M43 44 h17 M43 41 v6 M60 41 v6', 0.9)}${T(52, 56, '15-20 MM', 7)}`,
     creak: `${stick(18, 102, 36)}${L('M56 30 l4 6 l-4 6 l4 6', 1.6)}${L('M40 16 l40 30 M80 16 l-40 30', 2.2)}${T(60, 58, 'CREAKS? RE-WET, SLOWER', 8)}`,
-    check: `${L(arc, 1)}<path d="M10 44 Q60 2 110 44" fill="none" stroke="#e8c38a" stroke-width="5"/>${L('M34 25 l-3 -5 M60 20 l0 -6 M86 25 l3 -5', 1.4)}${T(60, 58, 'GAP ≤ 0.5', 9)}`,
+    check: `${L(arc, 1)}${bent('M10 44 Q60 2 110 44')}${L('M34 25 l-3 -5 M86 25 l3 -5', 1.4)}${L('M64 4 l-6 14', 2.4)}${T(60, 58, 'GAP ≤ 0.5 MM · PENCIL TICKS', 7.5)}`,
     dry: `<circle cx="38" cy="32" r="18" fill="#fff" stroke="#111" stroke-width="1.6"/>${L('M38 32 v-11 M38 32 l8 5', 1.6)}${T(38, 60, '8-12 H', 9)}${L('M74 18 h30 v24 h-30 z M78 24 h22 M78 30 h22 M78 36 h22', 1.2)}${L('M70 14 l38 34', 2.4)}`,
     dryw: `<rect x="28" y="38" width="64" height="14" rx="2" fill="#ddd" stroke="#111" stroke-width="1.4"/>${stick(32, 88, 33)}${T(60, 49, '±2%', 9)}${T(60, 14, 'SAME AS STEP 3', 8)}`,
-    trim: `<path d="M14 44 Q60 10 106 44" fill="none" stroke="#e8c38a" stroke-width="5"/>${L('M14 44 Q60 10 106 44', 1)}${L('M18 32 v18 M102 32 v18', 2)}${T(60, 58, 'TRIM TO LENGTH', 9)}${T(60, 30, '≤ 1', 8)}`,
-    pair: `${stick(16, 104, 22)}${stick(16, 104, 38)}${T(60, 58, 'SAME WEIGHT, SAME TIME', 8)}${T(110, 34, '=', 14)}`,
+    trim: `${bent('M14 42 Q60 8 106 42')}${L('M18 30 v20 M102 30 v20', 2)}${L('M60 25 l14 -14', 0.9)}${T(88, 9, '≤ 1 MM', 8)}${T(60, 60, 'TRIM AT THE END LINES', 7.5)}`,
   };
 }
 function bendingSheetHTML(tr, plan, res, meta, opt) {
@@ -2969,63 +2973,95 @@ function bendingSheetHTML(tr, plan, res, meta, opt) {
   const bentPieces = plan.pieces.filter(q => q.bent);
   if (!bentPieces.length) return null;
   const ck = bentCheck(tr, plan, res, meta.mat || { b, h: meta.h || b });
-  const ic = bendIcons(), U = s => String(s).toUpperCase();
-  const code = `WI-BEND-${esc(meta.code || '')}`.replace(/-$/, '');
-  const head = (pg, n) => `<div class="hd"><b>${U('Bend the top chord')}</b><span>${code} · ${U(esc(meta.name || 'Design'))} · PAGE ${pg} OF ${n}</span></div>`;
-  const foot = `<div class="ft">DESIGNED BY BRIAN G. WALKER AND TRUSS EXPLORER: A CORPORATE AI AGENT TEAM${meta.info ? ` · ${U(esc(meta.info))}` : ''}</div>`;
+  const U = s => String(s).toUpperCase();
   const items = [...new Set(bentPieces.map(q => q.item))];
   const per = it => plan.items.find(i => i.no === it);
-  const lens = items.map(it => `ITEM ${it}: ${Math.round(per(it).long)} MM`).join(' · ');
+  const L0 = Math.round(per(items[0]).long), ic = bendIcons(L0);
+  const PER_PAGE = 4, formPages = items.length * Math.ceil(copies / PER_PAGE), nPg = 1 + formPages;
+  const code = `WI-BEND-${esc(meta.code || '')}`.replace(/-$/, '');
+  const head = pg => `<div class="hd">${TE_MARK_BW}<b>${U('Bend the top chord')}</b><span>BRIANGWALKER.COM · ${code} · ${U(esc(meta.name || 'Design'))} · PAGE ${pg} OF ${nPg}</span></div>`;
+  const foot = `<div class="ft">DESIGNED BY BRIAN G. WALKER AND TRUSS EXPLORER: A CORPORATE AI AGENT TEAM${meta.info ? ` · ${U(esc(meta.info))}` : ''}</div>`;
+  const what = items.length > 1 ? it => `ITEM ${it}` : () => 'BENT TOP CHORD';
+  const lens = items.map(it => `${what(it)}: ${Math.round(per(it).long)} MM`).join(' · ');
   const nSticks = bentPieces.length * (meta.nTruss || 2);
+  // UI (TE-B-162): scrap/evening first; choosing the pair is part of cutting; one action per picture where it matters
   const steps = [
+    ['scrap', 'DO IT ON A SCRAP OF THE SAME STOCK FIRST. START THE EVENING BEFORE: IT DRIES OVERNIGHT.'],
     ['print', 'PRINT THE FORMS AT 100% (ACTUAL SIZE). CHECK THE 50 MM BAR. TAPE TO A PIN BOARD, WAX PAPER ON TOP.'],
-    ['cut', `PICK STRAIGHT-GRAIN, DENSE STICKS. CUT EACH 10-15 MM LONG AT EACH END (${lens}).`],
+    ['cut', `PICK 2 STRAIGHT-GRAIN STICKS OF SIMILAR WEIGHT FOR EACH PAIR (FRONT AND BACK TRUSS). CUT EACH 10-15 MM LONG AT EACH END (${lens}).`],
     ['weigh', 'WEIGH EACH STICK DRY. WRITE THE MASS DOWN.'],
-    ['soak', 'SOAK IN HOT TAP WATER 15-30 MIN (WEIGHED DOWN), OR STEAM 1-3 MIN ALONG THE WHOLE CURVE. OVEN MITT.'],
-    ['pin', 'PIN AT THE CROWN FIRST, THEN OUT TO EACH END. PINS BESIDE THE STICK, NEVER THROUGH IT, SIDES ALTERNATING EVERY 15-20 MM.'],
+    ['soak', 'SOAK IN HOT TAP WATER 15-30 MIN (WEIGHED DOWN) OR STEAM 1-3 MIN ALONG THE WHOLE CURVE (OVEN MITT). DO BOTH STICKS OF A PAIR AT THE SAME TIME.'],
+    ['pin', 'PIN AT THE CROWN FIRST (1), THEN OUT TO EACH END. PINS BESIDE THE STICK, NEVER THROUGH IT, SIDES ALTERNATING EVERY 15-20 MM. NO PINS? SEE PAGE 2.'],
     ['creak', 'IF IT CREAKS: STOP, RE-WET, GO SLOWER. A CRACK = A NEW STICK.'],
-    ['check', 'IT LIES ON THE LINE: GAP 0.5 MM MAX. PENCIL THE JOINT TICKS ONTO THE STICK WHILE PINNED.'],
-    ['dry', 'DRY PINNED AT ROOM TEMPERATURE 8-12 H. NO HEATER, NO HOT DRYER.'],
+    ['check', 'IT LIES ON THE LINE: GAP 0.5 MM MAX. PENCIL THE JOINT TICKS ONTO THE STICK WHILE IT IS HELD.'],
+    ['dry', 'DRY ON THE FORM AT ROOM TEMPERATURE 8-12 H. NO HEATER, NO HOT DRYER.'],
     ['dryw', 'DRY = MASS BACK WITHIN 2% OF STEP 3.'],
-    ['trim', 'UNPIN. WITHIN 1 MM OF THE LINE IS FINE. TRIM BOTH ENDS TO LENGTH.'],
-    ['pair', 'BEND EACH PAIR (FRONT AND BACK TRUSS) FROM STICKS OF SIMILAR WEIGHT, AT THE SAME TIME.'],
+    ['trim', 'TAKE IT OFF. WITHIN 1 MM OF THE LINE IS FINE. TRIM BOTH ENDS AT THE END LINES ON THE FORM.'],
   ];
-  const stepHTML = steps.map(([k, s], i) => `<div class="st"><div class="n">${i + 1}</div><svg viewBox="0 0 120 62">${ic[k]}</svg><p>${s}</p></div>`).join('');
+  const stepHTML = steps.map(([k, s], i) => `<div class="st"><div class="n">${i}</div><svg viewBox="0 0 120 62">${ic[k]}</svg><p>${s}</p></div>`).join('');
   const key = `<div class="key"><b>KEY</b><ul>
-    <li>DO THE WHOLE ROUTINE ON A SCRAP OF THE SAME STOCK FIRST.</li>
-    <li>START THE EVENING BEFORE THE BUILD: IT DRIES OVERNIGHT.</li>
     <li>${copies} FORM${copies > 1 ? 'S' : ''} PRINTED FOR ${nSticks} STICK${nSticks > 1 ? 'S' : ''}${copies * items.length > nSticks ? ' + SPARES' : ''}.</li>
     <li>${ck.mustSoak ? `BENT DRY IT CRACKS: ${(ck.strain * 100).toFixed(2)}% STRETCH VS ${(ck.strainLimit * 100).toFixed(2)}% (RADIUS ${Math.round(ck.Rmin)} MM).` : 'THIS CURVE CAN BE BENT DRY.'}</li>
     ${ck.tooTight ? '<li style="color:#c0392b">TOO TIGHT FOR ONE STICK: USE STRAIGHT PIECES.</li>' : `<li>ONCE DRY, UP TO ${Math.round(ck.worstUse * 100)}% OF ITS STRENGTH AT THE DESIGN LOAD.</li>`}
-    <li>TOLERANCE: X = ±1 MM. FORM DRAWN EXACT; 50 MM BAR ±0.5.</li></ul></div>`;
-  const pages = [`<section class="pg">${head(1, 1 + copies * items.length)}<div class="steps">${stepHTML}${key}</div>${foot}</section>`];
+    <li>TOLERANCE: X = ±1 MM. FORM DRAWN EXACT; 50 MM BAR ±0.5 MM.</li>
+    <li>O = PIN, BESIDE THE STICK. TICKS = JOINTS. HEAVY END LINES = TRIM HERE.</li></ul></div>`;
+  // Physics (TE-B-166): other ways to hold the stick; a plate or lid is a circle, our chord isn't
+  const P = (svg, t, ok) => `<div class="np"><svg viewBox="0 0 60 30">${svg}</svg><p>${ok ? '' : '✗ '}${t}</p></div>`;
+  const S = 'fill="none" stroke="#111" stroke-width="5.2"', S2 = 'fill="none" stroke="#e8c38a" stroke-width="3"', A = 'M4 24 Q30 4 56 24';
+  const stick2 = `<path d="${A}" ${S}/><path d="${A}" ${S2}/>`;
+  const noPins = `<div class="nopin"><b>NO PINS?</b>
+    ${P(`${stick2}<g fill="#111">${[[12, 22, 30], [22, 13.5, 20], [38, 13.5, -20], [48, 22, -30]].map(([x, y, r]) => `<rect x="${x - 2}" y="${y - 6.2}" width="4" height="2.4" transform="rotate(${r} ${x} ${y})"/><rect x="${x - 2}" y="${y + 3.8}" width="4" height="2.4" transform="rotate(${r} ${x} ${y})"/>`).join('')}</g>`, 'BEST: OFFCUT STOPS GLUED TO CARD ON BOTH SIDES, EVERY 15-20 MM.', true)}
+    ${P(`${stick2}<g stroke="#111" stroke-width="1" fill="#fff">${[[16, 16, 35], [30, 9, 0], [44, 16, -35]].map(([x, y, r]) => `<rect x="${x - 2}" y="${y - 6}" width="4" height="12" transform="rotate(${r} ${x} ${y})"/>`).join('')}</g>`, 'TAPE STRAPS OVER THE STICK + STOPS ON THE OUTSIDE OF THE CURVE.', true)}
+    ${P(`<path d="M4 26 Q30 6 56 26 L56 29 L4 29 Z" fill="#fff" stroke="#111" stroke-width="1"/>${stick2}<g fill="none" stroke="#111" stroke-width="1.2">${[[16, 14], [44, 14]].map(([x, y]) => `<path d="M${x - 3} ${y - 7} h6 v12 h-6 z"/>`).join('')}</g>`, 'BINDER CLIPS ON CARD CUT TO THE LINE. CARD UNDER EACH JAW.', true)}
+    ${P(`<circle cx="30" cy="22" r="16" fill="none" stroke="#111" stroke-width="1"/>${stick2}<path d="M24 4 l12 12 M36 4 l-12 12" stroke="#111" stroke-width="2"/>`, 'NOT A PLATE OR LID: A CIRCLE IS 1.6 MM OFF THIS CURVE.', false)}
+  </div>`;
+  const pages = [`<section class="pg">${head(1)}<div class="steps">${stepHTML}${key}</div>${foot}</section>`];
   let pg = 1;
+  const PITCH = 30;   // Physics: at least 25 mm between forms, for stops or clips
   items.forEach(it => {
     const q = bentPieces.find(p2 => p2.item === it), F = bendForm(tr, q, b);
-    const X0 = Math.min(...F.xs) - 14, X1 = Math.max(...F.xs) + 14, Y0 = Math.min(...F.ys) - 16, Y1 = Math.max(...F.ys) + 16, w = X1 - X0, h = Y1 - Y0;
-    const pl = a2 => a2.map(z => `${z[0].toFixed(2)},${(Y1 - z[1]).toFixed(2)}`).join(' ');
+    // Math (TE-B-166): the end marks are the END-CUT lines (trim there), from the piece's own end cuts
+    const n0 = F.pts.length - 1, t0 = unit(sub(F.pts[1], F.pts[0])), t1 = unit(sub(F.pts[n0], F.pts[n0 - 1]));
+    const c0 = q.cut0 || {}, c1 = q.cut1 || {};
+    const e0u = add(F.up[0], mul(t0, c0.eA || 0)), e0d = add(F.dn[0], mul(t0, c0.eB || 0));
+    const e1u = sub(F.up[n0], mul(t1, c1.eB || 0)), e1d = sub(F.dn[n0], mul(t1, c1.eA || 0));
+    const lo = Math.max(c0.eA || 0, c0.eB || 0), hi = F.len - Math.max(c1.eA || 0, c1.eB || 0);
+    const inner = a2 => a2.filter((_, i) => i > 0 && i < n0 && F.s[i] > lo && F.s[i] < hi);
+    const up = [e0u, ...inner(F.up), e1u], dn = [e0d, ...inner(F.dn), e1d];
+    const ext = (p, q2, d) => { const u = unit(sub(q2, p)); return [sub(p, mul(u, d)), add(q2, mul(u, d))]; };
+    const [a0, b0] = ext(e0u, e0d, 4), [a1, b1] = ext(e1u, e1d, 4);
+    const xs = F.xs.concat([a0[0], b0[0], a1[0], b1[0]]), ys = F.ys.concat([a0[1], b0[1], a1[1], b1[1]]);
+    const X0 = Math.min(...xs) - 10, X1 = Math.max(...xs) + 10, Yt = Math.max(...ys) + 9, Yb = Math.min(...ys) - 8, w = X1 - X0, h1 = Yt - Yb;
     const mid = (Math.min(...F.xs) + Math.max(...F.xs)) / 2;
-    const svg = `<svg width="${w}mm" height="${h + 18}mm" viewBox="${X0} 0 ${w} ${h + 18}">
-      <polyline points="${pl(F.up)}" fill="none" stroke="#000" stroke-width=".3"/><polyline points="${pl(F.dn)}" fill="none" stroke="#000" stroke-width=".3"/>
-      <line x1="${mid}" y1="2" x2="${mid}" y2="${h - 2}" stroke="#555" stroke-width=".25" stroke-dasharray="3 1.5 .6 1.5"/>
-      ${F.ticks.map((tk, i) => `<line x1="${tk.a[0]}" y1="${Y1 - tk.a[1]}" x2="${tk.c[0]}" y2="${Y1 - tk.c[1]}" stroke="#000" stroke-width=".45"/>${i === 0 || i === F.ticks.length - 1 ? `<text x="${tk.a[0]}" y="${Y1 - tk.a[1] - 1.2}" font-size="3" text-anchor="middle" font-family="Arial" font-weight="bold">END</text>` : ''}`).join('')}
-      ${F.pins.map(pn => `<circle cx="${pn[0]}" cy="${Y1 - pn[1]}" r=".9" fill="none" stroke="#000" stroke-width=".35"/>`).join('')}
-      <g stroke="#000" stroke-width=".35"><line x1="${X0 + 6}" y1="${h + 8}" x2="${X0 + 56}" y2="${h + 8}"/><line x1="${X0 + 6}" y1="${h + 6}" x2="${X0 + 6}" y2="${h + 10}"/><line x1="${X0 + 56}" y1="${h + 6}" x2="${X0 + 56}" y2="${h + 10}"/></g>
-      <text x="${X0 + 31}" y="${h + 14}" font-size="3.2" text-anchor="middle" font-family="Arial" font-weight="bold">50 ±0.5</text></svg>`;
-    for (let c = 0; c < copies; c++) {
+    const one = (k, dy) => { const Y = y => (Yt - y + dy).toFixed(2), pl = a2 => a2.map(z => `${z[0].toFixed(2)},${Y(z[1])}`).join(' ');
+      return `<polyline points="${pl(up)}" fill="none" stroke="#000" stroke-width=".3"/><polyline points="${pl(dn)}" fill="none" stroke="#000" stroke-width=".3"/>
+      ${F.ticks.slice(1, -1).map(tk => `<line x1="${tk.a[0]}" y1="${Y(tk.a[1])}" x2="${tk.c[0]}" y2="${Y(tk.c[1])}" stroke="#000" stroke-width=".45"/>`).join('')}
+      ${[[a0, b0], [a1, b1]].map(([p, q2]) => `<line x1="${p[0]}" y1="${Y(p[1])}" x2="${q2[0]}" y2="${Y(q2[1])}" stroke="#000" stroke-width=".9"/>`).join('')}
+      <text x="${a0[0] - 1}" y="${Y(a0[1]) - 1.5}" font-size="2.8" text-anchor="end" font-family="Arial" font-weight="bold">TRIM</text><text x="${a1[0] + 1}" y="${Y(a1[1]) - 1.5}" font-size="2.8" font-family="Arial" font-weight="bold">TRIM</text>
+      ${F.pins.map(pn => `<circle cx="${pn[0]}" cy="${Y(pn[1])}" r=".9" fill="none" stroke="#000" stroke-width=".35"/>`).join('')}
+      <text x="${mid + 3}" y="${Y(Math.max(...F.ys)) - 4}" font-size="3.4" font-family="Arial" font-weight="bold">FORM ${k}${items.length > 1 ? ` · ITEM ${it}` : ''}</text>`; };
+    for (let p0 = 0; p0 < copies; p0 += PER_PAGE) {
       pg++;
-      pages.push(`<section class="pg">${head(pg, 1 + copies * items.length)}<div class="form"><div class="fn"><b>BENDING FORM ${c + 1} OF ${copies}${items.length > 1 ? ` · ITEM ${it}` : ''}</b> · ACTUAL SIZE · CUT ${Math.round(per(it).long)} MM ALONG THE CURVE, +10-15 EACH END, TRIM AFTER DRYING · TICKS = JOINTS · O = PIN, BESIDE THE STICK · MIRRORED ALONG THE DOTTED LINE</div>${svg}</div>${foot}</section>`);
+      const k = Math.min(PER_PAGE, copies - p0), H = h1 + (k - 1) * PITCH + 16;
+      const svg = `<svg width="${w}mm" height="${H}mm" viewBox="${X0} 0 ${w} ${H}">
+        <line x1="${mid}" y1="1" x2="${mid}" y2="${H - 15}" stroke="#555" stroke-width=".25" stroke-dasharray="3 1.5 .6 1.5"/>
+        ${Array.from({ length: k }, (_, i) => one(p0 + i + 1, i * PITCH)).join('')}
+        <g stroke="#000" stroke-width=".35"><line x1="${X0 + 4}" y1="${H - 7}" x2="${X0 + 54}" y2="${H - 7}"/><line x1="${X0 + 4}" y1="${H - 9}" x2="${X0 + 4}" y2="${H - 5}"/><line x1="${X0 + 54}" y1="${H - 9}" x2="${X0 + 54}" y2="${H - 5}"/></g>
+        <text x="${X0 + 29}" y="${H - 1.5}" font-size="3.2" text-anchor="middle" font-family="Arial" font-weight="bold">50 ±0.5 MM</text></svg>`;
+      pages.push(`<section class="pg">${head(pg)}<div class="fn"><b>BENDING FORMS ${p0 + 1}-${p0 + k} OF ${copies}</b> · ACTUAL SIZE · ONE STICK PER FORM · CUT ${Math.round(per(it).long)} MM + 10-15 MM EACH END · TRIM AT THE HEAVY END LINES AFTER DRYING · TICKS = JOINTS · O = PIN, BESIDE THE STICK · MIRRORED ALONG THE DOTTED LINE</div><div class="form">${svg}${noPins}</div>${foot}</section>`);
     }
   });
   const css = `@page{size:letter landscape;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#111;background:#ddd}
     .pg{width:263mm;height:199mm;margin:8mm auto;background:#fff;padding:4mm 6mm;display:flex;flex-direction:column;page-break-after:always;break-after:page;overflow:hidden}
-    .hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:.7mm solid ${BEND_INK};padding-bottom:1.5mm;margin-bottom:3mm;font-size:9pt}.hd b{font-size:15pt;letter-spacing:.04em}
-    .ft{margin-top:auto;border-top:.5mm solid ${BEND_INK};padding-top:1mm;font-size:6.5pt;text-align:center;letter-spacing:.05em}
+    .hd{display:flex;align-items:center;gap:3mm;border-bottom:.7mm solid ${BEND_INK};padding-bottom:1.5mm;margin-bottom:3mm;font-size:9pt}.hd svg{flex:none}.hd b{font-size:15pt;letter-spacing:.04em}.hd span{margin-left:auto}
+    .ft{margin-top:auto;border-top:.5mm solid ${BEND_INK};padding-top:1mm;font-size:7pt;text-align:center;letter-spacing:.05em}
     .steps{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);gap:2.5mm 4mm;flex:1;min-height:0}
     .st{position:relative;display:flex;flex-direction:column;min-height:0}.st .n{position:absolute;left:0;top:-1mm;font-size:22pt;font-weight:bold;color:${BEND_INK}}
-    .st svg{flex:1;min-height:0;width:100%;margin-left:7mm;width:calc(100% - 7mm)}.st p{margin:.5mm 0 0;font-size:7pt;font-weight:bold;line-height:1.25}
+    .st svg{flex:1;min-height:0;margin-left:7mm;width:calc(100% - 7mm)}.st p{margin:.5mm 0 0;font-size:7pt;font-weight:bold;line-height:1.25}
     .key{border-left:.7mm solid ${BEND_INK};padding-left:2.5mm;font-size:7pt}.key ul{margin:1mm 0 0;padding-left:3.5mm}.key li{margin-bottom:.8mm}
-    .form{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}.fn{font-size:8pt;margin-bottom:3mm;text-align:center}
+    .fn{font-size:8pt;margin-bottom:2mm;text-align:center}
+    .form{flex:1;display:flex;align-items:center;justify-content:space-between;gap:4mm;min-height:0}
+    .nopin{width:52mm;flex:none;border-left:.7mm solid ${BEND_INK};padding-left:2.5mm;font-size:7pt}.np{margin-top:1.5mm}.np svg{width:30mm;height:15mm;display:block}.np p{margin:.3mm 0 0;font-weight:bold;line-height:1.2}
     @media print{body{background:#fff}.pg{margin:0}}`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name || 'Design')} · bending sheet</title><style>${css}</style></head><body>${pages.join('')}</body></html>`;
 }
