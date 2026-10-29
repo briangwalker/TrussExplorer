@@ -67,7 +67,7 @@ test('TE-063: on a small space the walk visits every design exactly once', () =>
 });
 
 test('TE-066: a design that slips off the table is not on the trade-off frontier', () => {
-  const F = load(['okRow', 'frontOK', 'frontier'], { sweepCtx: { defl: 2.0 } });
+  const F = load(['okRow', 'frontOK', 'frontier'], { SweepState: { ctx: () => ({ defl: 2.0 }) } });   // #255 part B: the charts read the rules through SweepState
   const row = (id, wood, util, D, extra) => Object.assign({ id, wood, util, D, capKg: 5 / util, envOK: true, edgeOK: true, slipOK: true }, extra || {});
   // Math Consultant F1: the slipping design has less wood and more capacity, and used to push "ok" off the line
   assert.equal(F.frontier([row('slips', 900, 0.4, 0.5, { slipOK: false }), row('ok', 1000, 0.5, 0.5)]).map(r => r.id).join(), 'ok');
