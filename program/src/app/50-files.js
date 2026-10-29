@@ -10,7 +10,7 @@ function infoLines(over) {
     `Rules: FS ${r.FS}, books ${r.bookKg} kg, deflection <= ${r.deflLimit} mm, overlap >= ${r.minOverlap} mm, width ${r.width} mm, envelope on outer faces`, `Bridge code: ${fi.bridgeCode}`];
 }
 // the rules a sweep's results were judged by (they can differ from the inputs on screen)
-function sweepInfo() { const c = sweepCtx || {}; return { model: /3D/.test(String(c.sheet && c.sheet.analysis)) ? '3D' : '2D', rules: Object.assign({}, c.FS != null ? { FS: +c.FS } : {}, c.bookKg != null ? { bookKg: +(+c.bookKg).toFixed(3) } : {}, c.defl != null ? { deflLimit: +c.defl } : {}, c.minOv != null ? { minOverlap: +c.minOv } : {}) }; }
+function sweepInfo() { const c = SweepState.ctx() || {}; return { model: /3D/.test(String(c.sheet && c.sheet.analysis)) ? '3D' : '2D', rules: Object.assign({}, c.FS != null ? { FS: +c.FS } : {}, c.bookKg != null ? { bookKg: +(+c.bookKg).toFixed(3) } : {}, c.defl != null ? { deflLimit: +c.defl } : {}, c.minOv != null ? { minOverlap: +c.minOv } : {}) }; }
 // what every saved file says about how its numbers were made
 function fileInfo(model) {
   return { app: 'SE 310 Truss Explorer', release: APP_RELEASE, solver: APP_VER, savedAt: stamp(), model: model || (S.anaMode === '3d' ? '3D' : '2D'), bridgeCode: fingerprint(bridgeState()),
@@ -29,18 +29,18 @@ $('saveBridge').addEventListener('click', () => {
   saveFile(fileBase() + '.bridge.json', JSON.stringify(doc, null, 1));
 });
 $('saveSweepFile').addEventListener('click', () => {
-  if (!sweepAll.length) { toast('Run a sweep first.', true); return; }
+  if (!SweepState.rows().length) { toast('Run a sweep first.', true); return; }
   saveFile(fileBase() + '.sweep.json', JSON.stringify(sweepDoc()));
 });
 // the same sweep as a compact .tsweep (#179; docs/formats.md): the same document, written by formats.js as gzip and binary columns
 function sweepDoc() {
-  const sweepModel = /3D/.test(String(sweepCtx && sweepCtx.sheet && sweepCtx.sheet.analysis)) ? '3D' : '2D';
+  const sweepModel = /3D/.test(String(SweepState.ctx() && SweepState.ctx().sheet && SweepState.ctx().sheet.analysis)) ? '3D' : '2D';
   return Object.assign({ format: 'se310-truss-sweep', version: FILE_VER }, fileInfo(sweepModel), { name: (S.name || 'Design') + ' sweep',
-    message: $('sweepMsg').textContent, ctx: sweepCtx, sheet: sweepCtx && sweepCtx.sheet, mode: sweepMode, settings: { swOn: S.swOn, swVals: S.swVals, swSel: SW, focus: S.focus },
-    bridge: bridgeState(), rows: sweepAll });
+    message: $('sweepMsg').textContent, ctx: SweepState.ctx(), sheet: SweepState.ctx() && SweepState.ctx().sheet, mode: SweepState.mode(), settings: { swOn: S.swOn, swVals: S.swVals, swSel: SW, focus: S.focus },
+    bridge: bridgeState(), rows: SweepState.rows() });
 }
 $('saveSweepTsweep').addEventListener('click', async () => {
-  if (!sweepAll.length) { toast('Run a sweep first.', true); return; }
+  if (!SweepState.rows().length) { toast('Run a sweep first.', true); return; }
   let t; try { t = await TrussFormats.toTsweep(JSON.parse(JSON.stringify(sweepDoc()))); }
   catch (e) { toast(e && e.message === 'no-gzip' ? 'This browser can\'t write .tsweep files. Use Save sweep file instead.' : 'The sweep could not be written as a .tsweep file.', true); return; }
   if (t.dupes) toast(`${t.dupes.toLocaleString()} repeated designs were saved once.`);
@@ -114,8 +114,7 @@ $('filePick').addEventListener('change', async () => {
   if (o.tooNew) toast('That sweep file was made by a newer release of the Explorer, so some settings may be ignored.', true);
   // the spec's checks: the numbers or the settings were changed after saving (it still opens; sweep results are read-only)
   if (o.warnings && (o.warnings.includes('changed-data') || o.warnings.includes('changed-settings'))) toast('That .tsweep file was changed or damaged after it was saved' + (o.warnings.includes('changed-data') ? ' (its results)' : ' (its settings)') + ', so treat its numbers with care.', true);
-  sweepAll = doc.rows; sweepCtx = doc.ctx || sweepCtx; sweepMode = 'file'; pendingSweep = doc;
-  sweepRows = sweepAll.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30);
+  SweepState.set(doc.rows, { ctx: doc.ctx || SweepState.ctx(), mode: 'file', top: doc.rows.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30) }); pendingSweep = doc;
   lastSig = null;
   $('sweepMsg').textContent = `Opened the sweep "${doc.name}" (saved ${new Date(doc.savedAt).toLocaleString()}): ${doc.rows.length.toLocaleString()} designs. ${doc.message || ''}`;
   $('sweepFileBox').hidden = false;
