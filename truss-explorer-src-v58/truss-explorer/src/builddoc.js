@@ -543,6 +543,46 @@ function cutShapes(tr, plan, b) {
   });
   return out;
 }
+// ---------- finished parts (TE-B-187a, #332): the ONE description of every side-truss piece as it is cut.
+// Every picture (side view, templates, step pictures, part drawings) should draw from this, so the pictures and the
+// cut guide can't disagree (Brian's rule). Units: mm, in the truss's own x-y plane. For each piece:
+//   poly   the finished outline after both end cuts: [a-side edge A, c-side edge A, c-side edge B, a-side edge B],
+//          where a and c are the piece's two end joints and edge A is the +normal side (null for a bent or kinked piece;
+//          segs then holds one bar per member, which is all such a piece has today)
+//   ends   [{ node, kind, angle, deg, against, cross }]: the cut at each end exactly as the cut guide gives it; angle is
+//          measured from a square cut (0 = square, 41 = the line across the stick leans 41° off square); deg rounds it
+//          to the whole degree that names its end-angle template (A1, A2... in documentHTML)
+//   item, piece, type, members, nodes, bent, long, short: as in cutPlan
+function finishedParts(tr, plan, b) {
+  const sqr = c => !c || ['through', 'end', 'free', 'square', 'splice', 'lap'].includes(c.kind) || Math.abs(c.ang || 0) < 0.5;
+  const end = (c, n) => ({ node: n, kind: (c && c.kind) || 'free', angle: sqr(c) ? 0 : c.ang, deg: sqr(c) ? 0 : Math.round(c.ang), against: c && c.against != null ? c.against : null, cross: !!(c && c.cross) });
+  return plan.pieces.map((q, i) => {
+    const sh = cutShapes(tr, { pieces: [q] }, b), one = sh.length === 1 && !q.bent ? sh[0] : null;
+    return { piece: i, item: q.item, type: q.type, members: q.members.slice(), nodes: q.nodes.slice(), bent: !!q.bent, long: q.long, short: q.short,
+      poly: one ? one.poly : null, segs: sh.map(x => x.poly), ends: [end(q.cut0, q.nodes[0]), end(q.cut1, q.nodes[1])] };
+  });
+}
+// the checks every drawing must pass (TE-B-187a): returns [] when the parts are drawable as cut. For straight pieces:
+//   'angle'   the outline's end leans a different angle from the cut guide's (more than 0.5°)
+//   'range'   a cut angle outside 0-89.5° (an end leaning past square, as in Brian's screenshot of steps 10-16)
+//   'overlap' a corner of one piece sits inside another piece by more than tol (default 0.25 mm): pieces must meet
+//             face to face, not pass through each other (a lap joint or a piece over a crossing is not in the 2D side truss)
+function checkParts(parts, b, tol) {
+  tol = tol == null ? 0.25 : tol; const out = [];
+  const lean = (p, q, axis) => { const e = unit(sub(p, q)), nrm = perp(axis); return Math.atan2(Math.abs(dot(e, axis)), Math.abs(dot(e, nrm))) * R2D; };
+  parts.forEach(P => {
+    P.ends.forEach(e => { if (!(e.angle >= 0 && e.angle <= 89.5)) out.push({ kind: 'range', piece: P.piece, item: P.item, node: e.node, angle: e.angle }); });
+    if (!P.poly) return;
+    const [A0, C0, C1, A1] = P.poly, axis = unit(sub(add(C0, C1), add(A0, A1)));
+    [[A0, A1, P.ends[0]], [C0, C1, P.ends[1]]].forEach(([p, q, e]) => { const d = lean(p, q, axis); if (Math.abs(d - e.angle) > 0.5) out.push({ kind: 'angle', piece: P.piece, item: P.item, node: e.node, drawn: +d.toFixed(1), guide: +e.angle.toFixed(1) }); });
+  });
+  // corner of one piece inside another: depth = the smallest distance from the corner to the other piece's edges
+  const inside = (pt, poly) => { let sgn = 0; for (let i = 0; i < 4; i++) { const a = poly[i], c = poly[(i + 1) % 4], s = crs(sub(c, a), sub(pt, a)); if (Math.abs(s) < 1e-12) return 0; const t = Math.sign(s); if (sgn && t !== sgn) return 0; sgn = t; }
+    let d = Infinity; for (let i = 0; i < 4; i++) { const a = poly[i], c = poly[(i + 1) % 4], u = unit(sub(c, a)); d = Math.min(d, Math.abs(crs(u, sub(pt, a)))); } return d; };
+  const flat = parts.filter(P => P.poly);
+  flat.forEach(P => flat.forEach(Q => { if (P === Q) return; P.poly.forEach(pt => { const d = inside(pt, Q.poly); if (d > tol) out.push({ kind: 'overlap', piece: P.piece, item: P.item, into: Q.piece, intoItem: Q.item, depth: +d.toFixed(2) }); }); }));
+  return out;
+}
 // side view as SVG. o: { highlight: Set, grey: Set, labels, balloons, b, color: 'part' | 'mono' | css colour, dash: true, dims: true }
 function sideSVG(tr, plan, o) {
   o = o || {};
@@ -1230,6 +1270,6 @@ function bendingSheetHTML(tr, plan, res, meta, opt) {
     @media print{body{background:#fff}.pg{margin:0}}`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name || 'Design')} · bending sheet</title><style>${css}</style></head><body>${pages.join('')}</body></html>`;
 }
-const api = { bentCheck, bendingSheetHTML, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
+const api = { finishedParts, checkParts, bentCheck, bendingSheetHTML, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.BuildDoc = api;
 })(typeof window !== 'undefined' ? window : globalThis);
