@@ -840,6 +840,7 @@ body.hidesame table .samecol { display: none; }
               <b>Curved top chord:</b>
               <label class="check"><input type="checkbox" id="docBent"> One stick bent to the curve (adds a full-size bending form, checks and steps)</label>
               <span class="hint" id="docBentNote" style="flex-basis:100%"></span>
+              <span id="docBendRow" hidden style="flex-basis:100%"><label>Bending forms to print <input type="number" id="docBendN" min="1" max="8" step="1" style="width:4em"></label> <button type="button" class="btn" id="docBendGo">Download bending sheet</button> <span class="hint">steps and 1:1 forms, to print on their own</span></span>
             </div>
             <div class="tradectl">
               <label>Stock stick length (mm) <input type="number" id="docStock" min="50" max="2000" step="1" style="width:90px"></label>
@@ -854,7 +855,7 @@ body.hidesame table .samecol { display: none; }
               <div><svg id="docView" style="width:100%;height:230px;background:#fff;border:1px solid var(--line);border-radius:6px"></svg><div id="docSum" class="note"></div><div class="tablewrap" style="max-height:260px;overflow:auto"><table id="docItems"></table></div></div>
               <div><span class="hint">Each joint: which member is on top (runs through or stays whole), and how the other ends are cut. A mitre splits the corner between two members; the % is the share of the angle taken by the lower-numbered member.</span><div class="tablewrap" style="max-height:420px;overflow:auto"><table id="docJoints"></table></div></div>
             </div>
-            <div class="btns" style="margin-top:10px"><button type="button" class="btn acc" id="docGo">Download build documents</button><button type="button" class="btn ghost" id="docNo">Close</button></div>
+            <div class="btns" style="margin-top:10px"><button type="button" class="btn acc" id="docGo">Download build documents</button><button type="button" class="btn" id="docMini" title="Black and white: steps, a one-page cut guide, end-angle templates and the full-size templates">Download build set (black and white)</button><label class="check" title="Black-and-white set: pieces with the same end angle go back to back on the stick, so one cut makes two ends (saves offcuts, not bridge mass)"><input type="checkbox" id="docNest"> Nest like angles</label><button type="button" class="btn ghost" id="docNo">Close</button></div>
           </div></div>
           <div id="saveModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="saveH"><div class="modalcard" style="max-width:460px">
             <h3 id="saveH" style="margin-top:0">Save as</h3>
