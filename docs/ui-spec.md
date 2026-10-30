@@ -1,15 +1,15 @@
 # Truss Explorer UI Standard
 
-**Version 1.3 · 2026-10-28 · owner: UI Designer · creative sign-off: Brian**
+**Version 1.4 · 2026-10-28 · owner: UI Designer · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel looks and behaves. Every rule has a number (`UI-…`). Build issues, pull requests and reviews cite those numbers.
 
-- **Reference build:** the Click-Through test page (version 17), https://claude.ai/artifact/LcGGba4i1LQ3RBaRkumRSf. It's a clickable wireframe of every rule here. Where this page and the Click-Through disagree, **this page wins**. Tell UI on the board so the Click-Through can be fixed.
+- **Reference build:** the Click-Through test page (version 18), https://claude.ai/artifact/LcGGba4i1LQ3RBaRkumRSf. It's a clickable wireframe of every rule here. Where this page and the Click-Through disagree, **this page wins**. Tell UI on the board so the Click-Through can be fixed.
 - **Background:** the Full-Screen UI Spec (https://claude.ai/artifact/2FRogn4xehALxypnuBB44y), the design canvas (https://claude.ai/artifact/B6wbMfBwERvYGDAALyiWtD), and Brian's Interface & Program Design Axioms. They explain *why*. This page says *what*.
 - **Changing a rule:** UI opens a `ui/` pull request touching only `docs/ui*`, adds a line to the change log at the bottom, and posts a board row naming the changed rule numbers. Dev Lead merges it. Brian's notes on the Click-Through are the usual source of changes.
 - **Checking a build:** see [ui-review-checklist.md](ui-review-checklist.md). A pull request that changes the window layout (`shell.js`, `shell.css`, the drawing, chart or Inputs UI) lists the rules it meets and gets a UI review comment. The review doesn't gate merging; Dev Lead still merges.
 
-Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a menu, list, card or editor that opens from a button and closes again (UI-W8). **Picture** = the full-screen drawing or chart under everything (UI-A3).
+Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a menu, list, card or editor that opens from a button and closes again (UI-W8). **Picture** = the full-screen drawing or chart under everything (UI-A3). **Sheet** = a ☰ page that opens in the middle, one at a time (UI-A16). **Dialog** = a question that needs an answer before going on (UI-W13). **Toast** = a short message that fades (UI-W10). **Tour** = the first-time tour (UI-F); **walkthrough** = the keys and mouse walkthrough (UI-K6). The project-wide words (TE, mainv, alpha …) are in *Truss Explorer Terminology (shared words)*, [10] Admin.
 
 ---
 
@@ -55,6 +55,21 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 | UI-W11 | **Chart key / legend** | **bottom edge, centred; opens folded to icons** (one swatch per group) | swatches with names, plus an **eye** on each to show or hide that group; a hidden group's swatch is crossed out and the key says "N groups hidden · Show all" | swatches only | ▴ KEY |
 | UI-W12 | **Project facts stay visible** | in the results card's full view (▾) and the Pass rules card | The fixed facts of the project are always one click away: span, desk overlap, the envelope, the books' total mass, FS, the material and the rules preset's name (#132). The results strip shows each checked number next to its limit (UI-W2). | | |
 | UI-W13 | **Dialogs say what they'll do** | centre, one at a time | The main button names the action and its size ("Run 3,518,580 designs", never "OK"). Rows in a dialog stay editable until you confirm. Drop-downs of numbers also take a typed value. After a dialog closes, a toast says what changed, offers the next step and Undo (UI-W10). | | |
+| UI-W14 | **Report a bug** | ☰, last row, always shown (not inside a submenu); also ☰ › Help › Report a bug | One click opens a dialog (UI-W13): "Report a bug: TE saves this bridge as a file, then opens a short Google form in a new tab. Attach the file there." It lists exactly what the form link carries: **version, model, bridge code**, and "no name, email or files are sent by the link". Buttons: **Save bridge and open form** · Cancel. After: toast "Saved TE-bug-‹bridge code›.json · attach it to the form". Saving is the normal bridge save (no screen settings, #181); if the file would hold a person's name (#260), the dialog has a ticked *Leave names out* box. On mainv the same button goes in its existing menu; Dev Lead names the spot in the PR. The form's questions are in the note under this table. | | |
+
+**UI-W14 form questions** (Google Form owned by Brian, file upload on; short, in this order; TE-B-132):
+1. *Version, model, bridge code*: filled in by the link; don't change them.
+2. **What were you trying to do?** (one line)
+3. **What did you do?** Steps, one per line.
+4. **What did you expect to happen?**
+5. **What happened instead?**
+6. **How much does it get in your way?** Stops me · Slows me down · Small thing.
+7. **Bridge file**: upload the TE-bug file TE just saved (required).
+8. **Screenshot**: upload (optional).
+
+No name or email question. Uploads take images and `.json` only, with a small size limit (White Hat, TE-B-136). The form's description says: "Reports go to the TE team. Google asks you to sign in to attach files; only Brian sees who sent a report, and it never appears in public issues. Please don't put your name or other personal details in the answers."
+
+The link carries only the release, the model and the 8-character bridge code, never the bridge name, notes or saved data. It opens as a plain link in a new tab, not inside TE (White Hat, TE-B-136).
 
 ## UI-S · Screens
 
@@ -116,7 +131,7 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
   - Ctrl + middle drag zooms;
   - double-click middle goes to the Home view.
 
-  The bindings can be changed in ☰ › Mouse and keys, and the same list shows the keys (UI-K2).
+  The bindings can be changed in ☰ › Look and controls › Mouse and keys, and the same list shows the keys (UI-K5).
 
 ## UI-I · Inputs and limits
 
@@ -164,9 +179,30 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 ## UI-K · Keyboard and screen readers
 
 - **UI-K1** The focus order is the same in every view: top bar, results card, view options, Inputs, the picture, Drawing window, sweep bar, PIP, ⓘ.
-- **UI-K2** F6 jumps window to window, Tab moves inside a window, and Esc returns focus to the opener. *Open, needs Brian (A2 review X1):* F6 is the Home view in v61 and in Brian's Axioms. Until he picks, the Home view also has the Home key and double-click middle (UI-V9).
+- **UI-K2** F6 jumps window to window, Tab moves inside a window, and Esc returns focus to the opener (Brian, 2026-10-28, TE-B-117). The Home view is the Home key, double-click middle (UI-V9) and ⌂ (UI-V6); F6 no longer goes Home, as it did in v61.
 - **UI-K3** Arrow keys move between chart dots: focus previews, Enter loads, P pins.
 - **UI-K4** Each window is a named region, and the drawing has a text twin. Toasts and sweep progress are read politely, at most once every 5 s. The focus ring is a 3 px amber outline that every theme keeps. QA's keyboard script (#218) is the test.
+- **UI-K5 Every binding can be changed** (Brian, TE-B-117). ☰ › Look and controls › Mouse and keys lists every key and mouse binding in UI-K, UI-N, UI-H, UI-V and UI-A15, F6 included, each with its action in words.
+  - Click a row (or Enter), then press the new key or mouse action. If it's already used, the row says so and offers **Swap** · Cancel ("H already clears the screen · Swap").
+  - *Reset to defaults* resets all; each changed row has its own ↺.
+  - Never bindable away: **Esc** always closes or goes back, and **Tab** always moves focus (UI-K2). Browser keys are never taken (#228).
+  - Hints, ☰ rows, the ? cheat sheet (#228) and the walkthrough (UI-K6) always show the person's **current** binding, not the default.
+  - Bindings are saved in this browser, never in bridge files (#181).
+- **UI-K6 Keys and mouse walkthrough** (Brian, TE-B-117). A step-by-step walkthrough of the quality-of-life keys, on the real screen. It's not a table: each step asks the person to **do** the thing and waits for it.
+  - Opens from ☰ › Help › *Keys and mouse walkthrough*, from the ? cheat sheet, and from the last step of the first-time tour ("Try the keys").
+  - One small card at a time, next to what it's about. It shows the step ("3 of 9"), one sentence (UI-A19) with the current binding in a key cap, and **Skip** · **Back**. When the person does it, the card says "Done" and goes on after 1 s; Skip moves on without it.
+  - Steps, in order:
+    1. **F6**: jump to the next window. Tab moves inside it; Esc comes back.
+    2. **H**: clear the screen to tabs; H again brings the windows back (UI-A15).
+    3. **T** and **A**: go to Truss, then Analysis; **←** comes back (UI-N4, UI-N5).
+    4. **Mouse**: wheel to zoom at the pointer; right or middle drag to pan (UI-V9).
+    5. **Turning in 3D**: left drag or Shift + middle drag to orbit; Ctrl + middle drag to zoom (UI-V9).
+    6. **Home view**: Home key, double-click middle, or ⌂ (UI-K2).
+    7. **Chart dots**: arrows move between dots, Enter loads, **P** pins to compare (UI-K3, UI-H3).
+    8. **Esc**: closes the top pop-up and returns focus to its opener (UI-W8).
+    9. **Make them yours**: opens ☰ › Look and controls › Mouse and keys, where every one of these can be changed (UI-K5).
+  - It runs on the person's own bridge, but nothing it changes stays: like the tour, the bridge, view and windows go back when it ends (UI-F2, UI-A20).
+  - **Esc** ends it at any step (and puts things back); the last step has **Done**. It works with the keyboard alone and every card is read by screen readers. With reduced motion the highlight doesn't pulse.
 
 ## UI-F · First-time tour
 
@@ -204,6 +240,16 @@ UI owns **when, where and what stops it**. Graphics owns **how it looks and move
   - ☰ › Look and controls › Theme has the motion tuning (**ART-O5**), with *Reset to defaults*; the transition default is 1000 ms. A saved value outside 100–6000 ms is ignored and 1000 ms is used. Because a click or key always skips to the end (UI-M5), even a slow setting never blocks input (Future Vision Lead, TE-B-102).
 - **UI-M7 The tour reuses the restless bridge.** The first-time tour (UI-F2) uses the same mechanism and the same stop rules, then returns to the student's own settings.
 
+## UI-B · Build documents: easy to follow
+
+The printed build documents are the program's other screen. UI leads their ease of use (Brian, 2026-10-28, TE-B-129 and TE-B-133). The test for all five rules: **someone new to TE can build the bridge by following the steps in order, without asking anyone.** Physics owns the build order and joints, Math the numbers, Graphics the print look; these rules are only about following along.
+
+- **UI-B1 One action per step.** Each numbered step asks for one thing ("Glue the bottom chord to the 1:1 template"), never two joined with "and then". Steps are numbered in build order on every sheet.
+- **UI-B2 Same names everywhere.** A part has the same name and label on every sheet, in the cut list and on the screen (Inputs and the drawing): if the cut list says *B3*, so does the step, the template and the drawing.
+- **UI-B3 The picture is next to its step.** A step's diagram is on the same page, beside or right under it. A step never says "see page 4".
+- **UI-B4 Nothing hidden or clipped.** No text, part card or dimension is covered or cut off, at the printed size and on screen. (#186 is a known miss.)
+- **UI-B5 Every number has its unit**, and lengths say what they measure ("cut to 142 mm, end to end").
+
 ## Coverage: rules that aren't in a build step yet
 
 Every rule above must be cited by a build issue. These weren't, until now:
@@ -215,6 +261,8 @@ Every rule above must be cited by a build issue. These weren't, until now:
 | UI-C2, UI-C3 | #148 | group select; not in the 14 steps |
 | UI-I2–I5 | #87, #131, inside step 8 (#215) | |
 | UI-C5 | #230, #231 | planned |
+| UI-B1–B5 | every PR that changes the build documents (mainv and alpha); review in TE-B-129 | #186 is a known UI-B4 miss |
+| UI-W14 | #115 (stretch for 11-04; on mainv and alpha, TE-B-132) | not one of the 14 steps |
 
 ---
 
@@ -233,14 +281,15 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 | 7 · 3D Look from | #214 | UI-S2, UI-V1–V7, UI-V9 (and #33) |
 | 8 · Inputs screen | #215 | UI-S3, UI-I1–I9, UI-T4 (Tilt shear, ART-H4), UI-W13 |
 | 9 · Empty and in-between states | #216 | UI-A14, UI-S5, UI-S9, UI-D4 |
-| 10 · ☰ and sheets | #217 | UI-A16, UI-W8, UI-W9, UI-A15, UI-A9, UI-N4, UI-A19, UI-A20, UI-W13, UI-V9 (Mouse and keys) |
-| 11 · Keyboard and screen readers | #218 | UI-K1–K4, UI-N5 |
+| 10 · ☰ and sheets | #217 | UI-A16, UI-W8, UI-W9, UI-A15, UI-A9, UI-N4, UI-A19, UI-A20, UI-W13, UI-V9, UI-K5 (the Mouse and keys sheet) |
+| 11 · Keyboard and screen readers | #218 | UI-K1–K5 (F6 windows; rebinding works for every key), UI-N5 |
 | 12 · Phone | #219 | UI-S8 |
-| 13 · First-time tour | #220 | UI-F1–F2, UI-M1–M4, UI-M7 (#144) |
+| 13 · First-time tour | #220 | UI-F1–F2, UI-K6 (keys and mouse walkthrough), UI-M1–M4, UI-M7 (#144) |
 | 14 · Themes and OG | #221 | UI-T1–T6, UI-A18, UI-M5–M6 (#143) |
 
 ## Change log
 
+- **1.4 · 2026-10-28** Brian's F6 decision (TE-B-117): UI-K2 settled (F6 jumps windows; Home view is Home key, double-click middle, ⌂). Added UI-K5 (every binding can be changed, in ☰ › Look and controls › Mouse and keys, the path #228 uses; UI-V9 now says the same) and UI-K6 (keys and mouse walkthrough, step 13). Added UI-W14 (Report a bug button, dialog and form questions; #115, TE-B-132, with White Hat's link and upload limits from TE-B-136). Added sheet, dialog, toast, tour and walkthrough to the words line. Added UI-B1–B5 (build documents easy to follow; TE-B-129). Reference build is Click-Through v18.
 - **1.3 · 2026-10-28** From the Future Vision Lead's A2 review (TE-B-096) and Dev Lead's TE-B-099/102: added the Axioms the build depends on: UI-V9 (Inventor mouse, G1), UI-C6–C8 (chart zoom, reset, 3D fits, G2), UI-W11 home + eyes (X4, G3), UI-W12 project facts (G4), UI-A19 help text (G5), UI-W13 dialogs (G6), UI-I9 widths and columns (G7), UI-S9 long jobs (G8), UI-A20 easy reset (G9). UI-M2 now points to ART-M3 for its numbers; UI-M5 is 1000 ms both ways (Brian; ART-M1). UI-M6 lists the ART-O5 motion tuning beside the off switches (Future Vision Lead A2, TE-B-102). UI-K2 notes the open F6 question (X1, Brian).
 - **1.2 · 2026-10-28** Tilt hook is a shear, not a rotation (UI-T4, UI-I6 → ART-H4; TE-B-083). Build-step table now cites the 8 rules the spec report found uncited (TE-B-086): UI-A1, UI-A2, UI-A9, UI-A17, UI-W4, UI-S1, UI-N4, UI-N5. Step 8 cites UI-T4.
 - **1.1 · 2026-10-28** Added UI-M (motion): the restless bridge's run and stop rules, "That's my bridge" in the state badge (#144), and when scene transitions play (#143). Added the coverage table. Steps 13 and 14 now cite UI-M. Follows the [creative documentation standard](ui-creative-doc-standard.md).
