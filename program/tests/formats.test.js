@@ -286,3 +286,18 @@ test('.tsweep: a result that was also swept (an end offset, the overlap) becomes
   const t2 = await F.toTsweep({ rows: rows.concat([Object.assign({}, rows[0])]), bridge: {} });
   assert.strictEqual(t2.dupes, 1);
 });
+
+// ---------- autoName (#256): the generated name a design got when it was made; never free text
+test('autoName: a generated name is kept; free text or a wrong pattern is dropped with a warning', () => {
+  const base = { format: 'se310-truss-bridge', version: 2, release: 'r', savedAt: '2026-10-30T00:00:00Z', name: 'My bridge', bridge: { name: 'My bridge', panels: 4 } };
+  const good = F.open(JSON.stringify(Object.assign({}, base, { autoName: 'Maple Pratt k3f9', bridge: Object.assign({}, base.bridge, { autoName: 'Maple Pratt k3f9' }) })));
+  assert.ok(good.ok); assert.strictEqual(good.doc.autoName, 'Maple Pratt k3f9'); assert.strictEqual(good.doc.bridge.autoName, 'Maple Pratt k3f9');
+  assert.ok(!good.warnings.includes('bad-value:autoName'));
+  for (const bad of ['Brian\'s bridge', 'maple pratt k3f9', 'Maple Pratt kaei', '<b>Maple</b> Pratt k3f9', 'Maple Pratt k3f9 extra', 42]) {
+    const o = F.open(JSON.stringify(Object.assign({}, base, { autoName: bad, bridge: Object.assign({}, base.bridge, { autoName: bad }) })));
+    assert.ok(o.ok, String(bad)); assert.ok(o.warnings.includes('bad-value:autoName'), String(bad));
+    assert.ok(!('autoName' in o.doc) && !('autoName' in o.doc.bridge), `${bad} dropped`);
+  }
+  // files without it (every v1 and v2 fixture) open as before, with no autoName warning
+  for (const f of fs.readdirSync(FIX).filter(f => f.endsWith('.json'))) { const o = F.open(fix(f)); assert.ok(!o.warnings.includes('bad-value:autoName'), f); }
+});
