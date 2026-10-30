@@ -1,6 +1,6 @@
 # Truss Explorer Art Standard (themes and art assets)
 
-**Version 1.0.2 · 2026-10-28 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
+**Version 1.0.3 · 2026-10-30 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel **looks and moves**: themes, tokens, materials, pictures, icons, textures and motion. Every rule has a number (`ART-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -95,11 +95,12 @@ A theme option chooses one window look; the controls inside a window are made of
 | ART-W3 | **Calculator** | the window is a small calculator; its rows are on the screen | **pixel art only** (UI-T5): pixel-wood keys, 2 px ink border, hard 2 px shadow; pressed = stained and sunk 2 px | **B · calculator**: dotted pixel track, checker range, [ ] keys, pixel-wood value key | live in the Click-Through |
 | ART-W4 | **Tape labels** | wood tray with masking-tape labels | tape labels | **D · tape**: masking tape strip, blue felt-tip range, folded tape flags, push-pin value | option |
 | ART-W5 | Every slider option keeps **three different handle shapes** (two range ends, one value), shows the swept band, and shows UI's limit zones (pink hatch for course rules, grey wall for model limits, UI-I2/I3). | | | | live |
-| ART-W6 | The slider look **follows the window look** (one setting). | | | Graphics' call 2026-10-28 (Brian had no preference) | planned |
+| ART-W6 | The slider look is **its own setting**, picked by the person and **not tied to the window look**: **A** stick in a tray (ART-W1), **B** calculator (ART-W3), **C** paper ruler (ART-W2). Default A. Option D (tape, ART-W4) stays an option until Brian picks it. UI lists the setting under ☰ › Look and controls. In a Calculator window, slider B is still pixel art only (UI-T5); A and C never draw on an LCD. | | | Brian, TE-B-147 item 2 (replaces Graphics' 2026-10-28 call and the A2 on TE-B-142) | planned |
 | ART-W7 | **Sweep window, icons state:** a square ▶ key (36 px), the count, and the fold keys; no words. | | | Brian, 2026-10-28 | live |
 | ART-W8 | **Re-check sheet:** a thick paper block; both choices on one torn scrap with an inked "or", circled in black ink on hover. | | | Brian, 2026-10-27 | live in kit |
 | ART-W9 | **Value tag editor:** the calculator pop-up with a joystick and a move bar (UI-I8 sets its size and behaviour). | | | Brian, 2026-10-27 | live in kit |
 | ART-W10 | **Walkthrough card** (UI-K6) | a small paper note, taped at one corner, beside what it is about; the sentence in Kalam, the step count ("3 of 9") in the UI font | key cap = an inked key outline drawn on the paper, never a balsa stick on paper (ART-P1); on a Calculator window the target's own pixel key lights | highlight = a pencil ring around the target with the ART-M7 wobble, over a `hot` highlighter wash; reduced motion: drawn once, no pulse | planned #220 |
+| ART-W11 | **ⓘ help button** (UI-K6 says where it goes): the round **end of a balsa dowel**, seen end-on: matte, visible end-grain rings, one soft top-left highlight no brighter than the wood (never glossy or glowing), the “i” inked in `--te-ink`. 28 px minimum (UI-A touch target 44 px with the hit area). **Pressed:** it sinks halfway into the page and reads as a half-sphere: it moves 3 px down, its shadow shrinks to a thin line on the top edge, and the highlight goes out (ART-S3). Hover: the ring darkens a little; no glow. Replaces the bright, shiny button. | `data-part="help-button"` | | Graphics' pick (a, dowel end) shipped as a two-way door, All-hands 2026-10-30 item 5a; Brian can swap it | planned |
 
 ## ART-D · The drawing
 
@@ -167,10 +168,11 @@ All live under ☰ › Look and controls › Theme (UI-A16). They change looks o
 | # | Option | Values | Default | Status |
 |---|---|---|---|---|
 | ART-O1 | Wood | photo · generated | photo (dark mode: generated) | live in kit |
-| ART-O2 | Window look (also picks the slider, ART-W6) | tray · calculator · paper labels · tape labels | tray | live in kit; calculator in the Click-Through |
+| ART-O2 | Window look | tray · calculator · paper labels · tape labels | tray | live in kit; calculator in the Click-Through |
 | ART-O3 | Favicon | calc-te · calc-ok · calc-smile · end-hand · end-calc · random | calc-te | live in kit |
 | ART-O4 | LCD pixel size; chart dot size | 2–8 px; 2–12 px | 3 px; 6 px | live in kit |
 | ART-O5 | Motion tuning (ART-M1–M4 numbers), with Reset to defaults. Values are clamped to 100–6000 ms, and anything missing or not a number falls back to 1000 ms (White Hat; UI review of #272). Ships to users under ☰ > Look and controls > Theme; 1000 ms is the default, and a click or key during a transition jumps to its end (UI-M5). (Future Vision Lead A2, TE-B-102; Brian can overrule at sign-off.) | | Brian's picks | live in the Motion Lab |
+| ART-O6 | Slider look (ART-W6) | A stick in a tray · B calculator · C paper ruler | A | planned #215 |
 
 ## ART-A · Asset register
 
@@ -204,10 +206,10 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 | 2 · Truss 2D full screen | #209 | ART-D1–D5, ART-S1–S9, ART-W1, ART-C1–C3, ART-I1–I3, ART-M7 |
 | 3 · Sweep bar, results card, PIP | #210 | ART-D2, ART-W7, ART-W3 (results strip) |
 | 4 · Analysis full screen | #211 | ART-M6, ART-C5 |
-| 8 · Inputs screen | #215 | ART-H1–H4, ART-H6, ART-W5, ART-W6 |
+| 8 · Inputs screen | #215 | ART-H1–H4, ART-H6, ART-W5, ART-W6, ART-O6 |
 | 11 · Keyboard and screen readers | #218 | ART-S5, ART-I2 |
 | 13 · First-time tour | #220 | ART-M3, ART-W10 |
-| 14 · Themes and OG | #221 | ART-P1–P6, ART-K1–K15, ART-C1–C4, ART-T1–T3, ART-W1–W9, ART-X1–X7, ART-O1–O5, ART-H5 |
+| 14 · Themes and OG | #221 | ART-P1–P6, ART-K1–K15, ART-C1–C4, ART-T1–T3, ART-W1–W9, ART-W11, ART-X1–X7, ART-O1–O6, ART-H5 |
 | Transitions | #143 | ART-M1, ART-M2, ART-M4, ART-M5 |
 | Restless bridge | #144 | ART-M3 |
 
@@ -224,6 +226,7 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 
 ## Change log
 
+- **1.0.3 · 2026-10-30** ART-W6: the slider look is its own setting with A, B and C, no longer tied to the window look (Brian, TE-B-147 item 2). New ART-O6 (the setting). ART-O2 no longer picks the slider. A and the Motion Lab's “stick in a tray” are the same slider (ART-W1), so there is nothing to merge. New ART-W11: the ⓘ button is a dowel end with a half-sunk pressed look (two-way door, All-hands 2026-10-30 item 5a, TE-B-203). Build steps 8 (#215) and 14 (#221) now cite ART-O6 and ART-W11.
 - **1.0.2 · 2026-10-28** Wireframe `strong` is brown `#7a4f1c` (Brian, TE-B-118, option a); the conflict row is closed and ART-K6a is not needed. New ART-K15: OG is frozen at the v60 look, with its reference (archived Axioms rev 18 and the v60 token sheet) in Drive [30] Art Assets › OG reference (archive). ART-O5 says the 100–6000 ms clamp with a 1000 ms fallback (UI's review of #272). New ART-W10: the walkthrough card's look, which UI-K6 points to (TE-B-138). Step 2 (#209) now cites ART-I3 and ART-M7, and ART-M8 has a coverage row, so the spec report shows 0 uncited rules.
 - **1.0.1 · 2026-10-28** ART-M8 settled: 1000 ms both ways (Brian, TE-B-102); ART-M1 says both directions. ART-M3 holds the restless-bridge numbers, UI-M2 points here (TE-B-099). ART-O5 tuning ships to users (Future Vision Lead A2, TE-B-102). ART-H4 notes ui-spec 1.2 (#266) now points to the shear. Added the Wireframe `strong` choice (TE-B-096 X3) as a conflict row in the coverage table (rule 3 SPEC FIRST f).
 - **1.0 · 2026-10-28** First numbered art standard. Gathers theme 1.0–1.2 (Motion Lab v1–v14), Brian's notes 2026-10-25 to 2026-10-28, the light/heavy rule and the photo/generated wood decision (Decisions rows 50–58), White Hat's limits (TE-B-014), UI's theme boundary (#109, UI-T1–T6), and the Click-Through notes (PIP member colour, books vs wood pile). Follows the Creative Documentation Standard 1.0.
