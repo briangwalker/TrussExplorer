@@ -1,0 +1,1099 @@
+<meta charset="utf-8">
+<title>Truss Explorer · balsaPixel preview</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: drafting-sheet tool — sticky, collapsible control column on the left; drawing + collapsible result sheets on the right; stacks on phones. */
+:root {
+  --bg: #e9edf0; --sheet: #ffffff; --ink: #18212b; --muted: #5b6774; --line: #cfd6dc; --soft: #f2f4f6;
+  --accent: #a8742f; --accent-ink: #ffffff; --accent-soft: #f3e7d4;
+  --comp: #c23a2b; --tens: #2160a8; --zero: #9aa5af; --ok: #2f7a4b; --warn: #b8610d; --bad: #b0177a;
+  --desk: #c9cfd5; --env: rgba(168,116,47,.07); --envline: #c79a5c; --book: rgba(33,96,168,.10);
+  --g1: #2160a8; --g2: #c2662b; --g3: #2f8a5b; --g4: #8a4fb0; --g5: #b0384f; --g6: #1f8a9a; --g7: #8a7a1f; --g8: #5b6774;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f141a; --sheet: #171e26; --ink: #e3e8ed; --muted: #95a1ad; --line: #2c3742; --soft: #1d2630;
+  --accent: #d6a764; --accent-ink: #1a1206; --accent-soft: #33281a;
+  --comp: #f0725f; --tens: #6aa6ee; --zero: #64707c; --ok: #5cc184; --warn: #f0a04b; --bad: #f07cc4;
+  --desk: #34404b; --env: rgba(214,167,100,.07); --envline: #8a6a3e; --book: rgba(106,166,238,.12);
+  --g1: #6aa6ee; --g2: #f0955f; --g3: #5cc184; --g4: #c08ae6; --g5: #f07a8f; --g6: #5cc6d4; --g7: #d6c45a; --g8: #95a1ad; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f141a; --sheet: #171e26; --ink: #e3e8ed; --muted: #95a1ad; --line: #2c3742; --soft: #1d2630;
+  --accent: #d6a764; --accent-ink: #1a1206; --accent-soft: #33281a;
+  --comp: #f0725f; --tens: #6aa6ee; --zero: #64707c; --ok: #5cc184; --warn: #f0a04b; --bad: #f07cc4;
+  --desk: #34404b; --env: rgba(214,167,100,.07); --envline: #8a6a3e; --book: rgba(106,166,238,.12);
+  --g1: #6aa6ee; --g2: #f0955f; --g3: #5cc184; --g4: #c08ae6; --g5: #f07a8f; --g6: #5cc6d4; --g7: #d6c45a; --g8: #95a1ad; color-scheme: dark }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 40px; }
+h1, h2, h3, .lbl { font-family: var(--f-display); }
+h1 { font-size: 1.75rem; font-weight: 700; margin: 0; letter-spacing: .01em; text-wrap: balance; }
+h2 { font-size: 1.15rem; font-weight: 700; margin: 0; letter-spacing: .02em; text-transform: uppercase; }
+h3 { font-size: .95rem; font-weight: 600; margin: 0; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 10px; }
+header.top p { margin: 2px 0 0; color: var(--muted); }
+.tblock { font-family: var(--f-mono); font-size: 12px; color: var(--muted); display: grid; grid-template-columns: auto auto; gap: 0 14px; border: 1px solid var(--line); padding: 6px 10px; background: var(--sheet); }
+.tblock b { color: var(--ink); font-weight: 500; }
+
+.main { display: grid; grid-template-columns: var(--sidew, 360px) 10px minmax(0, 1fr); gap: 6px; align-items: start; }
+.divider { align-self: stretch; cursor: col-resize; border-radius: 4px; position: sticky; top: 10px; height: calc(100vh - 20px); background: linear-gradient(90deg, transparent 4px, var(--line) 4px, var(--line) 6px, transparent 6px); }
+.divider:hover, .divider.drag { background: linear-gradient(90deg, transparent 3px, var(--accent) 3px, var(--accent) 7px, transparent 7px); }
+.main.first { --sidew: 72vw; }
+.main.first .controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-height: none; position: static; align-items: start; }
+.main.first .controls > .grp { border-right: 1px solid var(--line); border-bottom: 0; }
+.main.first .controls .grp .in { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.main.first .controls .hint:not(.val) { display: none; }
+.main.wide { grid-template-columns: minmax(0, 1fr); }
+.main.wide .divider { display: none; }
+.main.wide .controls { display: none; }
+@media (max-width: 900px) { .main, .main.first { grid-template-columns: minmax(0, 1fr); } .divider { display: none; } .main.first .controls { columns: auto; } }
+.controls { background: var(--sheet); border: 1px solid var(--line); display: grid; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 10px); max-height: calc(100vh - 20px); overflow: auto; }
+@media (max-width: 900px) { .controls { position: static; max-height: none; } }
+.grp { border-bottom: 1px solid var(--line); }
+.grp:last-child { border-bottom: 0; }
+.grp > summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
+.grp > summary::-webkit-details-marker { display: none; }
+.grp > summary::after, .sheet > summary::after { content: "−"; font: 600 1.1rem var(--f-mono); color: var(--muted); margin-left: 10px; }
+.grp:not([open]) > summary::after, .sheet:not([open]) > summary::after { content: "+"; }
+.grp > .in { padding: 0 16px 14px; display: grid; gap: 10px; }
+.row { display: grid; gap: 4px; }
+.row .lab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.lbl { font-size: .9rem; font-weight: 600; letter-spacing: .03em; }
+.hint { color: var(--muted); font-size: .82rem; }
+.val { font-family: var(--f-mono); font-size: 13px; }
+.slide { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 8px; align-items: center; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+input[type=number], input[type=text] { width: 100%; font: 13px var(--f-mono); padding: 5px 6px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 3px; }
+input:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { flex: 1 1 auto; border: 0; border-right: 1px solid var(--line); background: var(--soft); color: var(--ink); font: 600 .85rem var(--f-display); letter-spacing: .03em; padding: 7px 8px; cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--sheet); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: grid; justify-items: center; gap: 2px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 4px; padding: 4px 6px 3px; cursor: pointer; font: 500 11px var(--f-mono); min-width: 46px; }
+.chip svg { width: 34px; height: 24px; }
+.chip[aria-pressed="false"] { opacity: .55; }
+.chip:disabled { cursor: not-allowed; opacity: .35; }
+.chip.on { border-color: var(--accent); background: var(--accent-soft); }
+.chip.desk { border-style: dashed; }
+.stk { display: inline-flex; align-items: center; gap: 4px; }
+.stk button { border: 1px solid var(--line); background: var(--soft); color: var(--ink); width: 22px; height: 22px; border-radius: 3px; cursor: pointer; font: 600 13px var(--f-mono); padding: 0; }
+.stk .bund { width: auto; padding: 0 6px; font-size: 11px; }
+.swatch { display:inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: .9rem; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+.sheet { background: var(--sheet); border: 1px solid var(--line); min-width: 0; }
+.sheet > .hd, .sheet > summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.sheet > summary { cursor: pointer; list-style: none; }
+.sheet > summary::-webkit-details-marker { display: none; }
+.sheet > summary h2 { flex: 1 1 auto; }
+.sheet:not([open]) > summary { border-bottom: 0; }
+.sheet .bd { padding: 14px 16px; min-width: 0; }
+.right { display: grid; gap: 16px; min-width: 0; }
+.draw { width: 100%; height: auto; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .82rem; color: var(--muted); align-items: center; }
+.legend i { display: inline-block; width: 18px; height: 4px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+.drawopts { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: .85rem; }
+.drawopts input[type=range] { width: 120px; }
+
+.status { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); }
+@media (max-width: 640px) { .status { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { padding: 12px 16px; border-right: 1px solid var(--line); display: grid; gap: 2px; align-content: start; }
+.stat:last-child { border-right: 0; }
+@media (max-width: 640px) { .stat:nth-child(2) { border-right: 0; } .stat:nth-child(-n+2) { border-bottom: 1px solid var(--line); } }
+.stat .k { font: 600 .78rem var(--f-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.stat .v { font: 500 1.5rem var(--f-mono); font-variant-numeric: tabular-nums; }
+.stat .s { font-size: .8rem; color: var(--muted); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 700 .8rem var(--f-display); letter-spacing: .08em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; border: 1.5px solid currentColor; }
+.pill.ok { color: var(--ok); } .pill.bad { color: var(--bad); } .pill.warn { color: var(--warn); }
+.msgs { display: grid; gap: 4px; margin: 0; padding: 0 16px 12px; list-style: none; font-size: .88rem; }
+.msgs li { padding-left: 14px; position: relative; }
+.msgs li::before { content: ""; position: absolute; left: 0; top: .55em; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.msgs li.bad::before { background: var(--bad); }
+.msgs li.info::before { background: var(--zero); }
+.msgs li.warn::before { background: var(--warn); }
+
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font: 13px var(--f-mono); font-variant-numeric: tabular-nums; }
+th { font: 600 .78rem var(--f-display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: right; padding: 6px 8px; border-bottom: 1.5px solid var(--ink); white-space: nowrap; }
+td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th.l, td.l { text-align: left; }
+tr.hl td { background: var(--accent-soft); }
+tr.fail td { color: var(--bad); font-weight: 500; }
+tr.base td { background: var(--accent-soft); }
+.bar { display: inline-block; width: 54px; height: 6px; background: var(--soft); border: 1px solid var(--line); vertical-align: middle; margin-right: 6px; position: relative; }
+.bar > span { position: absolute; left: 0; top: 0; bottom: 0; }
+.tc-C { color: var(--comp); } .tc-T { color: var(--tens); } .tc-0 { color: var(--zero); }
+.pos { color: var(--ok); } .neg { color: var(--bad); }
+
+.btn { border: 1px solid var(--ink); background: var(--ink); color: var(--sheet); font: 600 .9rem var(--f-display); letter-spacing: .04em; padding: 8px 14px; border-radius: 4px; cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--ink); }
+.btn.acc { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.sm { padding: 3px 10px; font-size: .82rem; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.note { font-size: .85rem; color: var(--muted); }
+textarea.code { width: 100%; min-height: 260px; font: 12px/1.45 var(--f-mono); background: var(--soft); color: var(--ink); border: 1px solid var(--line); padding: 10px; white-space: pre; resize: vertical; }
+.sweepgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px 18px; }
+.trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.trio label { display: grid; gap: 2px; font-size: .75rem; color: var(--muted); }
+.progress { height: 6px; background: var(--soft); border: 1px solid var(--line); }
+.progress > span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+.toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 95; max-width: min(640px, 92vw); font-size: .9rem; background: var(--ink); color: var(--sheet); padding: 9px 16px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.3); pointer-events: none; }
+.toast:empty { display: none; }
+.toast.err { background: var(--bad); color: #fff; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: .88rem; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--f-mono); font-size: 13px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 2.5px solid transparent; background: none; color: var(--muted); font: 600 .9rem var(--f-display); letter-spacing: .04em; text-transform: uppercase; padding: 8px 12px; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.chartbox { position: relative; width: 100%; }
+.sheet .bd > *, [data-panel], .chartbox { min-width: 0; }
+.chartbox canvas { width: 100%; max-width: 100%; height: 320px; display: block; cursor: crosshair; }
+.tip { position: absolute; pointer-events: none; background: var(--sheet); border: 1px solid var(--line); padding: 6px 8px; font: 12px var(--f-mono); box-shadow: 0 2px 8px rgba(0,0,0,.12); white-space: nowrap; z-index: 3; }
+.empty { border: 1px dashed var(--line); padding: 18px; text-align: center; color: var(--muted); font-size: .9rem; }
+.toggleside { display: inline-flex; gap: 6px; align-items: center; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.loadrow{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-end;margin:6px 0;padding:6px;border:1px solid var(--line, #ddd);border-radius:6px}
+.loadrow select,.lf input,.lf select{width:96px;font-size:13px}
+.lf{font-size:12px;display:flex;flex-direction:column;gap:2px}
+.loadrow .btn{margin-left:auto}
+input.bad{outline:2px solid var(--bad)}
+.swblock{border-left:3px solid var(--line,#ccc);padding:2px 0 6px 8px;margin:-4px 0 10px}
+.swblock.on{border-left-color:var(--accent,#b07a2a);background:color-mix(in srgb,var(--accent,#b07a2a) 6%,transparent)}
+.swblock .swbody{display:none;margin-top:6px}.swblock.on .swbody{display:block}
+.swtog{font-size:12px;font-weight:600;cursor:pointer}.swnote{font-size:11px;opacity:.75;margin-left:6px}
+.swblock .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.swblock .trio input{width:100%}
+body:not(.showdata) .tdata{display:none}
+body.compact .hint, body.compact .swnote, body.compact input[type=range]{display:none}
+body.compact .grp .in{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px;align-items:end}
+body.compact .grp .in > .seg, body.compact .grp .in > .swblock, body.compact .grp .in > .two, body.compact .grp .in > .btns,
+body.compact .grp .in > #loadList, body.compact .grp .in > .chips, body.compact .grp .in > label.check, body.compact .grp .in > div:not(.row){grid-column:1/-1}
+body.compact .row{margin:0;gap:2px}body.compact .lbl{font-size:12px}body.compact .grp summary h3{font-size:12px}
+body.compact .slide{display:block}body.compact .slide input[type=number]{width:100%}
+body.compact .swblock{margin:0 0 4px;padding:2px 0 4px 6px}body.compact .seg button{padding:4px 6px;font-size:12px}
+body.compact .two{gap:4px 10px}
+.staleMsg{border:1px solid var(--warn,#c80);background:color-mix(in srgb,var(--warn,#c80) 12%,transparent);padding:8px 10px;border-radius:6px;font-size:13px}
+.staleMsg[hidden]{display:none}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:90;padding:16px}.modal[hidden]{display:none}
+.modalcard{background:var(--sheet,#fff);color:var(--ink);max-width:540px;width:100%;padding:18px 20px;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.3);font-size:14px;line-height:1.5}
+.bigbox{border:1px solid var(--line,#ddd);border-radius:8px;padding:10px 12px;font-size:13px}.bigbox[hidden]{display:none}.bigbox table{border-collapse:collapse;width:100%}.bigbox td{padding:4px 6px;border-top:1px solid var(--line,#ddd);vertical-align:top;white-space:normal;overflow-wrap:anywhere}.bigbox table{table-layout:fixed}.bigbox td:first-child{width:46%;text-align:left}.bigbox{overflow-wrap:anywhere;min-width:0;max-width:100%;box-sizing:border-box}body.showdata .ndata{display:none}
+.pilotBanner{border:1px solid var(--accent,#b07a2a);background:color-mix(in srgb,var(--accent,#b07a2a) 12%,transparent);padding:8px 10px;border-radius:6px;font-size:13px}.pilotBanner[hidden]{display:none}
+.tradectl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:13px;margin-bottom:6px}.tradectl select,.tradectl input{font-size:12px}#refRow[hidden]{display:none}
+#tradeCanvas{cursor:crosshair}
+.keystrip{margin-top:10px;border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 12px;font-size:13px;line-height:1.55;max-width:820px}
+.keystrip .kv{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:4px}.keystrip b.ok{color:var(--ok)}.keystrip b.bad{color:var(--bad)}
+.subh{margin:14px 0 2px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:.8;border-top:1px solid var(--line);padding-top:10px}
+.grp .in > .subh:first-child{border-top:0;padding-top:0;margin-top:0}
+.limits{border:1.5px solid var(--warn);border-radius:8px;padding:8px 10px;margin:8px 0;display:grid;gap:6px}
+.rulechip{font-size:10px;letter-spacing:.04em;text-transform:none;border:1px solid var(--warn);color:var(--warn);border-radius:10px;padding:1px 7px;margin-left:6px}
+.drawwrap{position:relative}
+.dimlab{cursor:pointer}.dimlab:hover rect{stroke:var(--accent);stroke-width:.8}
+.dimpop{position:absolute;z-index:20;background:var(--sheet);color:var(--ink);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.25);padding:10px 12px;font-size:13px;width:250px;display:grid;gap:6px}
+.dimpop[hidden]{display:none}.dimpop .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}.dimpop input[type=number]{width:100%}
+.legend .lg{cursor:pointer}.legend .lg.off{opacity:.35;text-decoration:line-through}
+.flash{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px;transition:outline-color .3s}
+/* sweep switches sit in the input's own label line; the range appears under it only while swept */
+.swchip { font-size: 11px; font-weight: 600; display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px 1px 5px; cursor: pointer; white-space: nowrap; color: var(--muted); }
+.swchip:has(input:checked) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.swchip input { margin: 0; }
+.swblock.inl { border: 0; padding: 0; margin: -4px 0 6px; background: none; }
+.swblock.inl:not(.on) { display: none; }
+.swblock.inl.on { border-left: 3px solid var(--accent); padding: 4px 0 6px 8px; background: color-mix(in srgb, var(--accent) 6%, transparent); }
+body.nohelp .controls .hint:not(.val):not(#loadNote):not(#deskNote):not(#supNote) { display: none; }
+body.compact .grp .in > .swblock:not(.on) { display: none; }
+body.compact .grp .in > .swblock:not(.inl):not(.on) { display: block; grid-column: auto; }
+body.compact .grp .in > .subh { grid-column: 1 / -1; margin: 6px 0 0; }
+body.compact .grp > .in { gap: 6px 10px; padding-bottom: 10px; }
+/* brown checkboxes and radio buttons everywhere */
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
+.status[hidden] { display: none; }
+.drawwrap.adjusting { cursor: grab; touch-action: none; } .drawwrap.adjusting:active { cursor: grabbing; }
+.dimlab.act rect { fill: var(--accent); } .dimlab.act text { fill: var(--accent-ink); }
+.infobtn { position: absolute; right: 8px; bottom: 8px; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--accent); background: var(--sheet); color: var(--accent); font: italic 700 14px Georgia, serif; cursor: pointer; z-index: 15; }
+.infobox { position: absolute; right: 8px; bottom: 38px; width: min(360px, 92%); background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; box-shadow: 0 8px 24px rgba(0,0,0,.25); z-index: 21; }
+.infobox[hidden] { display: none; } .infobox ol { margin: 6px 0; padding-left: 18px; }
+.d3in { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.d3in .chips button { min-width: 30px; font-size: 15px; padding: 2px 6px; }
+.d3in .chips button.sel { outline: 2px solid var(--accent); }
+.d3views { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 10px; }
+.d3views svg { width: 100%; height: 170px; max-height: 60vh; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; display: block; }
+@media (max-width: 700px) { .d3views { grid-template-columns: minmax(0, 1fr); } }
+.dpjoy { display: flex; gap: 12px; align-items: center; }
+.joy { width: 58px; height: 58px; border-radius: 50%; border: 1.5px solid var(--line); background: radial-gradient(circle, var(--soft) 55%, var(--sheet) 56%); position: relative; touch-action: none; cursor: grab; flex: none; }
+.joy::before, .joy::after { content: ''; position: absolute; background: var(--line); }
+.joy::before { left: 50%; top: 6px; bottom: 6px; width: 1px; } .joy::after { top: 50%; left: 6px; right: 6px; height: 1px; }
+.knob { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: var(--accent); box-shadow: 0 2px 6px rgba(0,0,0,.3); transition: transform .12s; z-index: 1; }
+.joy:active .knob { transition: none; }
+.dimpop .chips button { min-width: 30px; padding: 3px 6px; }
+.dock { position: fixed; left: 10px; top: 10px; z-index: 80; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.dockbar { display: flex; align-items: center; gap: 4px; background: var(--accent); padding: 3px; border-radius: 20px; box-shadow: 0 4px 14px rgba(0,0,0,.22); }
+.dockbtn { font: 700 15px/1 var(--f-body); background: transparent; color: var(--accent-ink); border: 0; border-radius: 16px; width: 30px; height: 28px; cursor: pointer; }
+.dockbtn:hover, .dockbtn[aria-expanded="true"] { background: rgba(255,255,255,.18); }
+.vswitch { display: flex; align-items: center; gap: 2px; background: rgba(0,0,0,.22); border-radius: 16px; padding: 2px; }
+.vswitch button { border: 0; background: transparent; color: var(--accent-ink); font: 600 12px/1 var(--f-body); height: 24px; padding: 0 10px; cursor: pointer; border-radius: 14px; opacity: .9; }
+.vswitch button[aria-checked="true"] { background: var(--sheet); color: var(--accent); opacity: 1; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.bridgegrp { display: inline-flex; align-items: center; gap: 1px; border-radius: 14px; }
+.bridgegrp:has(> button[aria-checked="true"]) { background: var(--sheet); box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.bridgegrp:has(> button[aria-checked="true"]) > button { box-shadow: none; }
+.anain { display: inline-flex; background: rgba(0,0,0,.18); border-radius: 10px; padding: 1px; margin-right: 3px; }
+.anain button { height: 18px; padding: 0 6px; font-size: 10.5px; border-radius: 9px; }
+.anain button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
+.bridgegrp:has(> button[aria-checked="true"]) .anain { background: var(--accent-soft); }
+.bridgegrp:has(> button[aria-checked="true"]) .anain button { color: var(--accent); }
+.bridgegrp:has(> button[aria-checked="true"]) .anain button[aria-checked="true"] { color: var(--accent-ink); }
+.dockmenu { background: var(--sheet); color: var(--ink); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.25); padding: 10px 12px; display: grid; gap: 7px; width: 250px; box-sizing: border-box; }
+.dockmenu[hidden] { display: none; }
+.dockmenu select { width: 100%; box-sizing: border-box; }
+.dlab { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+.dnote { font-size: 11px; color: var(--muted); line-height: 1.3; }
+.dsep { height: 1px; background: var(--line); margin: 2px 0; }
+.tsw { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.tsw input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.tsw .track { flex: none; width: 30px; height: 17px; border-radius: 9px; background: var(--line); position: relative; transition: background .15s; }
+.tsw .track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--sheet); box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+.tsw input:checked + .track { background: var(--accent); } .tsw input:checked + .track::after { transform: translateX(13px); }
+.tsw input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+header.top { padding-left: 230px; min-height: 34px; }
+@media (max-width: 640px) { header.top { padding-left: 0; padding-top: 40px; } }
+.backtab { position: fixed; top: 50%; z-index: 39; transform: translateY(-50%); background: var(--accent); color: var(--accent-ink); border: 0; font: 700 13px var(--f-body); padding: 14px 7px; writing-mode: vertical-rl; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.backtab.l { left: 0; border-radius: 0 10px 10px 0; } .backtab.r { right: 0; border-radius: 10px 0 0 10px; }
+.backtab[hidden] { display: none; }
+.main.onlyin { grid-template-columns: minmax(0, 1fr); }
+.main.onlyin .divider, .main.onlyin .right { display: none; }
+.d3views #d3Plan { height: auto; min-height: 120px; }
+.d3views > div[hidden] { display: none; }
+.dpgrip { cursor: move; font: 600 11px var(--f-mono, monospace); color: var(--muted); background: var(--soft); border-radius: 5px; padding: 3px 6px; margin: -4px -6px 2px; touch-action: none; user-select: none; }
+.dpgrip:hover { color: var(--accent); }
+.seg.mini { display: inline-flex; width: auto; } .seg.mini button { font-size: 12px; padding: 4px 8px; }
+.lghint { color: var(--muted); font-size: 12px; }
+.fsrow { display: flex; justify-content: flex-end; padding: 6px 10px 0; }
+.fsOn { position: fixed !important; inset: 0 !important; z-index: 70 !important; overflow: hidden !important; background: var(--bg) !important; padding: 44px 12px 8px !important; margin: 0 !important; max-height: none !important; height: 100vh !important; border-radius: 0 !important; width: auto !important; }
+#inputsPane.fsOn { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; overflow: auto !important; }
+#inputsPane.fsOn .hint:not(.val) { display: none; }
+.fslayer { position: fixed; inset: 0; z-index: 70; background: var(--bg); overflow: hidden; }
+.fslayer[hidden] { display: none; }
+.fsfill { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.fsfill > .chartbox { width: 100% !important; height: 100% !important; }
+.fsfill .chartbox canvas { width: 100% !important; height: 100vh !important; }
+.fsfill > .drawwrap { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 50px 16px 40px; box-sizing: border-box; }
+.fsfill .draw { width: 100%; height: 100%; max-height: none; }
+.fsbar { position: absolute; top: 10px; left: 490px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12px; pointer-events: none; }
+.fsbar > * { pointer-events: auto; background: color-mix(in srgb, var(--sheet) 88%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; margin: 0 !important; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+.fsbar .tradectl, .fsbar .drawopts { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.fsbar label, .fsbar select, .fsbar input, .fsbar .btn { font-size: 12px !important; }
+.fsbar select { max-width: 190px; }
+.fsfoot { position: absolute; left: 10px; bottom: 8px; right: 10px; display: flex; justify-content: center; pointer-events: none; }
+.fsfoot > * { pointer-events: auto; background: color-mix(in srgb, var(--sheet) 88%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; margin: 0 !important; font-size: 12px; }
+.fspanel { position: absolute; right: 10px; top: 52px; max-width: 520px; max-height: calc(100vh - 70px); overflow: auto; background: color-mix(in srgb, var(--sheet) 94%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+.fspanel[hidden] { display: none; } .fspanel summary { cursor: pointer; font-weight: 600; }
+.fspanel .d3in { display: grid; gap: 8px; }
+.fslayer .fsbtn, .fsOn .fsbtn { display: none !important; }
+.fsexit { position: fixed; top: 10px; right: 14px; z-index: 75; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 16px; padding: 6px 14px; font: 600 13px var(--f-body); cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.fsexit[hidden] { display: none; }
+body.fsmode { overflow: hidden; }
+.legend .lg .swatch { width: 18px; height: 16px; border-radius: 4px; position: relative; color: #fff; font-size: 11px; line-height: 16px; text-align: center; vertical-align: -3px; }
+.legend .lg .swatch::after { content: '👁'; filter: grayscale(1) brightness(3); font-size: 11px; }
+.legend .lg.off .swatch::after { content: '⊘'; filter: none; }
+.legend .lg:hover .swatch { outline: 2px solid var(--ink); outline-offset: 1px; }
+.mode3d { display: inline-block; font: 700 11px var(--f-mono, monospace); background: var(--accent); color: var(--accent-ink); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+.dockesc { border: 0; background: var(--sheet); color: var(--accent); font: 700 12px var(--f-body); border-radius: 14px; height: 26px; padding: 0 10px; cursor: pointer; }
+.dockesc[hidden] { display: none; }
+#inputsPane.fsOn { padding-top: 52px !important; }
+#inputsPane.fsOn > .fsrow { display: none; }
+#inputsPane.fsOn > * { max-height: calc(100vh - 64px); overflow: auto; }
+@media (max-width: 900px) { .fsbar { left: 10px; top: 50px; } #inputsPane.fsOn { grid-template-columns: minmax(0, 1fr); } }
+.abpick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .abpick > div { display: grid; gap: 4px; } .abpick select { width: 100%; }
+@media (max-width: 640px) { .abpick { grid-template-columns: 1fr; } }
+#abTbl td.same { color: var(--muted); }
+.nonepassmsg { color: var(--bad); font-weight: 600; border-left: 3px solid var(--bad); padding: 4px 8px; background: color-mix(in srgb, var(--bad) 8%, transparent); }
+.nonepassmsg[hidden] { display: none; }
+#sweepMsg.nonepass .np { color: var(--bad); font-weight: 700; }
+.abdone { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 6px 10px; border-radius: 4px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.abdone[hidden] { display: none; }
+.flashbox { animation: flashbox 1.4s ease-out; } @keyframes flashbox { 0% { box-shadow: 0 0 0 4px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+#abTbl input[type=number] { width: 72px; } #abTbl td { white-space: nowrap; }
+#topD3Slot .chartbox, #topD3Slot .chartbox canvas { height: min(62vh, 520px) !important; }
+/* Axiom: an input box is only as wide as the label above it needs; the rest of the line is free for the next box */
+.controls .two { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; }
+.controls .two > .row { flex: 0 1 auto; width: max-content; min-width: 90px; max-width: 100%; }
+.controls .two > .row input[type=number], .controls .two > .row input[type=text],
+body.compact .controls .grp .in > .row > input[type=number], body.compact .controls .grp .in > .row > input[type=text] { width: 0; min-width: 100%; box-sizing: border-box; }
+.controls .two > .row { min-width: 80px; }
+body.compact .controls .grp .in { display: flex !important; flex-wrap: wrap; align-items: flex-end; gap: 6px 14px; }
+body.compact .controls .grp .in > * { flex: 0 1 auto; min-width: 0; }
+body.compact .controls .grp .in > .row { width: max-content; min-width: 90px; max-width: 100%; }
+body.compact .controls .grp .in > .row .lab { flex-wrap: nowrap; gap: 6px; }
+body.compact .controls .grp .in > .seg, body.compact .controls .grp .in > .swblock, body.compact .controls .grp .in > .two, body.compact .controls .grp .in > .btns,
+body.compact .controls .grp .in > #loadList, body.compact .controls .grp .in > .chips, body.compact .controls .grp .in > label.check, body.compact .controls .grp .in > div:not(.row),
+body.compact .controls .grp .in > .subh, body.compact .controls .grp .in > .limits { flex-basis: 100%; }
+body.compact .controls .grp .in > .swblock:not(.inl):not(.on) { flex-basis: auto; }
+/* full-screen inputs: the groups flow down and across columns like a newspaper, so no column sits half empty */
+#inputsPane.fsOn { display: block !important; column-width: 250px; column-gap: 18px; column-fill: balance; height: 100vh !important; overflow-x: auto !important; overflow-y: hidden !important; }
+#inputsPane.fsOn > * { max-height: none !important; overflow: visible !important; break-inside: auto; }
+#inputsPane.fsOn .grp .in > * { break-inside: avoid; }
+#inputsPane.fsOn .grp > summary { break-after: avoid; }
+/* Inputs-only view: the same newspaper columns as full screen */
+.main.onlyin .controls { display: block !important; column-width: 250px; column-gap: 18px; }
+.main.onlyin .controls > * { break-inside: auto; }
+.main.onlyin .controls .grp .in > * { break-inside: avoid; }
+.main.onlyin .controls > .fsrow { column-span: all; }
+.d3inset { position: absolute; left: 8px; bottom: 8px; display: flex !important; gap: 8px; pointer-events: none; max-width: calc(100% - 16px); }
+.d3inset > div { pointer-events: auto; background: color-mix(in srgb, var(--sheet) 92%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; font-size: 11px; width: 260px; }
+.d3inset > div:last-child { width: 150px; }
+.d3inset svg { height: 110px !important; min-height: 0 !important; aspect-ratio: auto !important; }
+#g-3d .d3in { display: grid; gap: 8px; }
+.sw3d { border-left: 3px solid var(--accent); padding: 4px 8px; display: grid; gap: 4px; background: var(--accent-soft); border-radius: 4px; }
+.sw3row { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; } .sw3row .trio { display: inline-grid; grid-template-columns: repeat(3, 68px); gap: 4px; font-size: 11px; }
+.sw3row .trio input { width: 100%; }
+.kb { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; } .kb select { max-width: 140px; }
+.navcube { position: absolute; top: 6px; right: 6px; width: 120px; height: 104px; z-index: 3; user-select: none; cursor: grab; }
+.navcube[hidden], .navpad[hidden] { display: none; }
+.navcube text { font: 600 7px var(--f-mono, monospace); fill: var(--ink); pointer-events: none; }
+.navcube .face { cursor: pointer; } .navcube .face:hover path { fill: var(--accent-soft); stroke: var(--accent); }
+.navcube .cmp { font: 700 10px var(--f-body); fill: var(--muted); pointer-events: auto; cursor: pointer; } .navcube .cmp:hover { fill: var(--accent); }
+.navcube .ncb { position: absolute; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font-size: 13px; line-height: 1; padding: 0; cursor: pointer; }
+.navcube .ncb:hover, .navpad .ncb:hover { border-color: var(--accent); color: var(--accent); }
+.navcube .home { left: -4px; top: -2px; } .navcube .rl { right: 22px; top: -2px; } .navcube .rr { right: -4px; top: -2px; }
+.navpad { position: absolute; top: 8px; right: 8px; z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 4px; user-select: none; }
+.navpad .pa { fill: var(--muted); cursor: pointer; } .navpad .pa:hover { fill: var(--accent); } .navpad circle.pa { fill: var(--accent); }
+.navpad .pz { display: flex; gap: 4px; } .navpad .ncb { width: 26px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font-size: 15px; line-height: 1; padding: 0; cursor: pointer; }
+.chartbox:has(.navcube) .tip { z-index: 5; }
+#fixTbl td.l { white-space: normal; }
+.resov { position: absolute; inset: 0; pointer-events: none; z-index: 2; font-family: var(--f-mono, monospace); }
+.resov[hidden] { display: none; }
+.resov > div { position: absolute; display: grid; text-align: center; line-height: 1.15; background: color-mix(in srgb, var(--sheet) 80%, transparent); border-radius: 6px; padding: 2px 6px; }
+.resov b { font-size: clamp(12px, 1.6vw, 17px); } .resov span { font-size: 10.5px; color: var(--muted); }
+.resov .tl { left: 8px; top: calc(6px + var(--ovtop, 0px)); text-align: left; } .resov .tc { left: 50%; top: calc(6px + var(--ovtop, 0px)); transform: translateX(-50%); }
+.resov .bc { right: 8px; bottom: 34px; text-align: right; } .resov .bl { left: 8px; bottom: 6px; text-align: left; }
+.chsw { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 2px 0 4px; }
+.chsw .chips { display: none; flex-wrap: wrap; gap: 4px; } .chsw.on .chips { display: flex; }
+.chsw.on { border-left: 3px solid var(--accent); padding: 3px 6px; background: var(--accent-soft); border-radius: 4px; }
+.chsw .swchip { font-size: 11px; }
+body.compact .controls .grp .in > .chsw { flex-basis: 100%; }
+summary.tabsum { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+summary.tabsum .tabs { margin: 0; border: 0; flex: 1 1 auto; }
+summary.tabsum h2 { margin: 0; }
+[data-xp] > h3:first-child { margin-top: 0; }
+#docsHome .modalcard { max-width: none !important; max-height: none !important; box-shadow: none; padding: 0; background: transparent; }
+body.compact .controls .grp .in > .row .slide input[type=number] { width: 0; min-width: 100%; box-sizing: border-box; }
+body.compact .controls .grp .in > .row .slide { display: block; }
+body.compact .controls .swblock .trio, body.compact .controls .sw3row .trio { display: inline-grid; grid-template-columns: repeat(3, minmax(56px, 86px)); }
+body.compact .controls .swblock .trio input { width: 100%; }
+body.compact .controls .seg { display: inline-flex; flex-wrap: wrap; width: auto; max-width: 100%; flex-basis: auto; }
+body.compact .controls .seg button { flex: 0 0 auto; }
+body.compact .controls .grp .in > .seg button { flex: 0 0 auto; }
+body.compact .controls .grp .in > .subh, body.compact .controls .grp .in > .swblock, body.compact .controls .grp .in > .chsw { flex-basis: 100%; }
+.tabgrp { display: inline-flex; align-items: center; gap: 4px; }
+.tradectl select { max-width: 150px; }
+.anabox { display: grid; gap: 4px; } .anabox > details { border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; background: var(--sheet); }
+.anabox summary { cursor: pointer; } .anabox summary .note { margin-left: 6px; }
+.savename { display: grid; gap: 4px; } .saverow { display: flex; align-items: center; gap: 4px; } .saverow input { flex: 1; min-width: 0; } .saverow b { font-family: var(--f-mono, monospace); font-size: 13px; color: var(--muted); }
+.dsec summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; } .dsec summary::-webkit-details-marker { display: none; }
+.dsec summary::after { content: '▸'; } .dsec[open] summary::after { content: '▾'; }
+.dsec { display: grid; gap: 6px; } .dsec[open] { padding-bottom: 4px; }
+.dgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; } .dgrid .btn { width: 100%; padding-left: 6px; padding-right: 6px; }
+.dockmenu { max-height: calc(100vh - 70px); overflow: auto; }
+.sumbtns { display: inline-flex; flex-wrap: wrap; gap: 6px; } .besthd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.btn.tgl[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.fsfill > [data-panel] { width: 100%; height: 100%; overflow: auto; padding: 60px 16px 16px; box-sizing: border-box; }
+#histTbl td.l { white-space: normal; min-width: 120px; }
+body.compact .controls .grp .in, body.compact .controls .two { align-items: flex-start !important; }
+body.compact .controls input[type=number] { max-width: 16ch; }
+/* the bridge view is still (no zoom, pan or turn) until it is full screen, so it cannot be moved by accident */
+#sideSheet .navpad, body:not(.free3d) #sideSheet .navcube { display: none !important; }
+.freebtn { position: absolute; top: 8px; right: 8px; z-index: 4; background: var(--sheet); color: var(--ink); border: 1px solid var(--line); font-weight: 600; }
+.freebtn:hover { border-color: var(--accent); color: var(--accent); }
+.freebtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+body.free3d #sideSheet .freebtn { top: 112px; }
+#fsFill .freebtn, #d3BoxHome .freebtn { display: none; }
+body.free3d #sideSheet #c3d { cursor: grab !important; }
+.allhid { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 4; display: grid; gap: 6px; justify-items: center; text-align: center; max-width: 320px;
+  background: var(--sheet); border: 1px solid var(--accent); border-radius: 10px; padding: 12px 16px; box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: 13px; }
+.allhid b { font-size: 14px; color: var(--accent); } .allhid span { color: var(--muted); }
+body:not(.free3d) #sideSheet #c3d { cursor: default !important; }
+/* picture toggles for the drawing options: white when off, brown when on, the words appear on hover */
+.drawopts label.icotgl { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px; padding: 0; margin: 0; border: 1px solid var(--line); border-radius: 7px; background: var(--sheet); color: var(--ink); cursor: pointer; }
+.drawopts label.icotgl input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.drawopts label.icotgl .icotxt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.drawopts label.icotgl:hover { border-color: var(--accent); color: var(--accent); }
+.drawopts label.icotgl:has(input:checked) { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.drawopts label.icotgl:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.drawopts label.icotgl:has(input:checked) svg rect[fill="var(--sheet)"] { fill: var(--accent); }
+.drawopts:has(label.icotgl) { gap: 6px; }
+.d3labs { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.d3lab { position: absolute; pointer-events: auto; transform: translate(-50%, -50%); font: 500 11px var(--f-mono, monospace); background: var(--sheet); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; cursor: pointer; white-space: nowrap; }
+.d3lab:hover { border-color: var(--accent); color: var(--accent); }
+.d3lab.act { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.chartbox > .dimpop { z-index: 6; }
+.staleMsg.anamix { border-color: var(--warn) !important; font-weight: 600; }
+/* same-value cells in the result tables */
+table .samecol { color: var(--muted); opacity: .5; }
+table th.samecol::after { content: ' ='; font-weight: 700; }
+table td.dit { opacity: .4; }
+body.hidesame table .samecol { display: none; }
+</style>
+<style id="shellCss">/*SHELLCSS*/</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>SE 310 Truss Explorer</h1>
+      <p>Project I balsa bridge. Change the geometry, see every member force and the wood it takes, then export the design as the course FEA script.</p>
+      <div class="keystrip" id="keyStrip"></div>
+    </div>
+    <div class="btns">
+      <div class="tblock" aria-label="Project constants">
+        <span>Clear span</span><b>200 mm</b>
+        <span>Stick</span><b>3.18 × 3.18 mm balsa</b>
+        <span>Load</span><b id="tbLoad">2.50 kg × FS 2.0</b>
+      </div>
+    </div>
+  </header>
+
+  <div class="main" id="main">
+    <!-- ================= CONTROLS ================= -->
+    <aside class="controls" aria-label="Design inputs" id="inputsPane"><div class="fsrow"><button type="button" class="btn ghost sm fsbtn" data-fs="#inputsPane" title="Show the inputs full screen (Esc to leave)">⛶ Full screen</button></div>
+      <details class="grp" id="g-design" open>
+        <summary><h3>Design</h3></summary>
+        <div class="in">
+          <div class="row">
+            <div class="lab"><span class="lbl">Design name</span></div>
+            <input type="text" id="name" value="Design A" maxlength="40">
+          </div>
+          <div class="row">
+            <div class="lab"><span class="lbl">Truss family</span></div>
+            <div class="seg" id="family">
+              <button type="button" data-v="grid">Panel grid</button>
+              <button type="button" data-v="warren">Warren (no verticals)</button>
+            </div>
+          </div>
+          <span class="hint">The books sit on the top chord. They are wider than the 75 mm bridge, so they can't sit between the two side trusses.</span>
+        </div>
+      </details>
+
+      <details class="grp" id="g-geom" open>
+        <summary><h3>Geometry</h3></summary>
+        <div class="in">
+          <div class="row">
+            <div class="lab"><span class="lbl">h · height at mid-span</span><span class="hint">top chord above the desk · max 100 mm</span></div>
+            <div class="slide"><input type="range" id="heightR" min="0" max="100" step="1"><input type="number" id="height" min="0" max="120" step="1"></div>
+          </div>
+          <div class="row" id="topRow">
+            <div class="lab"><span class="lbl">Top chord</span><span class="hint">flat, or an arch from Δh at the desk edges up to h at mid-span</span></div>
+            <div class="seg" id="topShape">
+              <button type="button" data-v="flat">Flat</button><button type="button" data-v="parabola">Parabola</button><button type="button" data-v="arc">Arc</button><button type="button" data-v="catenary">Catenary</button>
+            </div>
+          </div>
+          <div class="row" id="topEndRow">
+            <div class="lab"><span class="lbl">Δh · top chord at the desk edges</span><span class="hint">0 = lands on the table corner · below 0 = presses on the inside face of the table edge</span></div>
+            <div class="slide"><input type="range" id="topEndR" min="-30" max="100" step="1"><input type="number" id="topEnd" min="-50" max="100" step="0.5"></div>
+          </div>
+          <div class="row">
+            <div class="lab"><span class="lbl">Bottom chord</span><span class="hint">between the desk edges</span></div>
+            <div class="seg" id="bottom">
+              <button type="button" data-v="flat">Flat</button>
+              <button type="button" data-v="parabola">Parabola</button>
+              <button type="button" data-v="arc">Arc</button>
+              <button type="button" data-v="catenary">Catenary</button>
+            </div>
+            <div id="curveRow" class="row">
+              <div class="lab"><span class="lbl">p · bottom chord at mid-span (mm)</span><span class="hint">− sags below the deck (max 50) · + arches up</span></div>
+              <div class="slide"><input type="range" id="curveR" min="-50" max="100" step="1"><input type="number" id="curve" min="-60" max="120" step="1"></div>
+            </div>
+          <div class="row" id="botEndRow">
+            <div class="lab"><span class="lbl">Δp · bottom chord at the desk edges</span><span class="hint">0 = on the table corner · below 0 = presses on the inside face of the table edge</span></div>
+            <div class="slide"><input type="range" id="botEndR" min="-30" max="100" step="1"><input type="number" id="botEnd" min="-50" max="100" step="0.5"></div>
+          </div>
+          </div>
+          <div class="row">
+            <div class="lab"><span class="lbl">Panels across the span</span><span class="hint" id="memberCount"></span></div>
+            <div class="slide"><input type="range" id="panelsR" min="2" max="12" step="1"><input type="number" id="panels" min="2" max="12" step="1"></div>
+          </div>
+          <div class="row">
+            <div class="lab"><span class="lbl">Panel width taper</span><span class="hint">centre ÷ end panel</span></div>
+            <div class="slide"><input type="range" id="ratioR" min="0.5" max="2" step="0.05"><input type="number" id="ratio" min="0.3" max="3" step="0.05"></div>
+            <span class="hint val" id="widthList"></span>
+          </div>
+          <div class="row" id="sideRow">
+            <div class="lab"><span class="lbl">Angle of the sides</span><span class="hint">90° = vertical end posts</span></div>
+            <div class="slide"><input type="range" id="sideAngleR" min="30" max="90" step="1"><input type="number" id="sideAngle" min="20" max="90" step="1"></div>
+            <div class="seg" id="sideLean">
+              <button type="button" data-v="in">Lean in (top shorter)</button>
+              <button type="button" data-v="out">Lean out (top longer)</button>
+            </div>
+            <span class="hint" id="sideNote"></span>
+          </div>
+          <div class="row">
+            <div class="lab"><span class="lbl">Panels on each desk</span></div>
+            <div class="seg" id="deskMode">
+              <button type="button" data-v="match">Same width as span panels</button>
+              <button type="button" data-v="length">Set the overlap</button>
+            </div>
+            <div class="slide"><input type="range" id="deskPanelsR" min="0" max="4" step="1"><input type="number" id="deskPanels" min="0" max="6" step="1"></div>
+            <span class="lbl" style="margin-top:6px">Foot style: how each end meets the desk</span>
+            <div class="seg" id="deskEnds">
+              <button type="button" data-v="truss">Full truss</button>
+              <button type="button" data-v="noEndPost">No end post</button>
+              <button type="button" data-v="feet">Feet only</button>
+            </div>
+            <div id="overlapRow" class="row">
+              <div class="lab"><span class="lbl">Overlap onto each desk</span><span class="hint">foot length · 0–50 mm</span></div>
+              <div class="slide"><input type="range" id="overlapR" min="0" max="50" step="1"><input type="number" id="overlap" min="0" max="50" step="1"></div>
+            </div>
+            <span class="hint" id="deskNote"></span>
+          </div>
+          <div class="row">
+            <div class="lab"><span class="lbl">Book length</span><span class="hint">along the bridge, centred</span></div>
+            <div class="slide"><input type="range" id="bookLenR" min="100" max="300" step="1"><input type="number" id="bookLen" min="20" max="400" step="1"></div>
+          </div>
+          <div class="row">
+            <div class="lab"><span class="lbl">Book width (mm)</span><span class="hint">across the bridge (y) · 209 mm · the book is 242 × 209 × 32 mm, 32 mm thick in z</span></div>
+            <div class="slide"><input type="number" id="bookWidth" step="1" min="1" max="400"></div>
+          </div>
+          <div class="row">
+            <div class="lab"><span class="lbl">Book thickness (mm)</span><span class="hint">z · 32 mm</span></div>
+            <div class="slide"><input type="number" id="bookThick" step="1" min="1" max="120"></div>
+          </div>
+          <div class="row">
+            <div class="lab"><span class="lbl">Book on a curved top</span><span class="hint">a hardcover is rigid: on an arch it touches only the highest joints</span></div>
+            <div class="seg" id="bookContact"><button type="button" data-v="rigid">Rests on the highest joints</button><button type="button" data-v="spread">Spread over every deck joint</button></div>
+          </div>
+          <div class="row"><div class="lab"><span class="lbl">Loads on the deck</span><span class="hint" id="loadNote"></span></div></div>
+          <div id="loadList"></div>
+          <div class="seg" id="addLoad">
+            <button type="button" data-v="uniform">+ Uniform</button>
+            <button type="button" data-v="partial">+ Partial</button>
+            <button type="button" data-v="ramp">+ Ramp</button>
+            <button type="button" data-v="point">+ Point</button>
+            <button type="button" data-v="book">Back to the book</button>
+          </div>
+          <div id="swAnchorX"></div>
+          <span class="hint">Positions are mm from the left desk edge (span 200 mm). Each weight is relative to the total book mass (Book 1 + Book 2), so the mass stays the same as you change the shape. A point load is split between the two deck joints around it so that it keeps its force and moment. Editing the list replaces the single book; "Back to the book" restores it.</span>
+        </div>
+      </details>
+
+      <details class="grp" id="supGrp" open>
+        <summary><h3>Supports</h3></summary>
+        <div class="in">
+          <div class="seg" id="supportMode">
+            <button type="button" data-v="all">Every desk joint can bear</button>
+            <button type="button" data-v="one">One joint per side</button>
+          </div>
+          <div class="seg" id="claw">
+            <button type="button" data-v="off">No claws</button>
+            <button type="button" data-v="on">Claws at both ends</button>
+          </div>
+          <label class="check"><input type="checkbox" id="edgeBear"> Ends bear on the table edge: the edge stops an arch spreading (pushes inward only)</label>
+          <div class="seg" id="brace">
+            <button type="button" data-v="off">No edge braces</button>
+            <button type="button" data-v="on">Inside-edge braces</button>
+          </div>
+          <div class="two">
+            <div class="row"><span class="lbl">Table top thickness (mm)</span><input type="number" id="tableThick" step="1" min="0" max="80"></div>
+            <div class="row"><span class="lbl">Brace depth below the top (mm)</span><input type="number" id="braceDepth" step="1" min="1" max="50"></div>
+            <div class="row" hidden><span class="lbl">Brace friction stiffness (N/mm)</span><input type="number" id="fricK" step="0.5" min="0"></div>
+            <div class="row"><span class="lbl">Table–balsa friction μ</span><input type="number" id="fricMu" step="0.05" min="0" max="2" title="Measure it: put a balsa block on a piece of the table surface and tilt it until the block just starts to slide. μ = tan(angle)."></div>
+          </div>
+          <span class="hint"><b>Claw:</b> a stick from the bottom-chord joint at each desk edge down the table edge to the underside of the table top, hooked under it. It can only pull the bridge down, so it carries load only when something tries to lift an end. It needs a joint at the desk edge, and the table top can't be thicker than the 50 mm allowed below the deck. <b>Inside-edge brace:</b> a joint pressed against the inside face of each table edge, held by a vertical stick from the desk-edge joint and a diagonal from the first joint inside the span. The face pushes it sideways, like the abutment of an arch. Friction gives some vertical hold: it holds rigidly up to μ × the face force; past that the joint slides and friction keeps pushing back with μ × the face force. Supports on the table top can only hold sideways by friction too (μ × the downward push). <b>Measuring μ:</b> tilt a piece of the table surface with a balsa block on it until the block starts to slide; μ = tan(tilt angle).</span>
+          <div class="row">
+            <div class="lab"><span class="lbl">Support distance from the desk edge</span><span class="hint val" id="supNote"></span></div>
+            <div class="slide"><input type="range" id="supportOffsetR" min="0" max="50" step="1"><input type="number" id="supportOffset" min="0" max="50" step="1"></div>
+          </div>
+          <span class="hint">0 mm = right at the desk edge; the right side mirrors it. With full-truss desk panels, the support point gets its own vertical and diagonal so the load can reach it. The pin sits at the left main joint. It only stops the model sliding sideways; under vertical loads its sideways force is zero. "Every desk joint can bear" adds rollers at the other bottom joints on the desks; any that would have to pull the bridge down are dropped, because the rules don't allow fastening it to the table.</span>
+        </div>
+      </details>
+
+      <details class="grp" id="diagGrp" open>
+        <summary><h3>Diagonals</h3></summary>
+        <div class="in">
+          <div class="seg" id="pattern">
+            <button type="button" data-v="pratt">Pratt</button>
+            <button type="button" data-v="howe">Howe</button>
+            <button type="button" data-v="altP">Alt ↘↗</button>
+            <button type="button" data-v="altH">Alt ↗↘</button>
+            <button type="button" data-v="x">X</button>
+          </div>
+          <div class="row">
+            <div class="lab"><span class="lbl">Per panel</span><span class="hint">left half; right half mirrors</span></div>
+            <div class="chips" id="diagChips"></div>
+            <span class="hint">Tap a panel to cycle: down toward mid-span, up toward mid-span, X, none. The dashed chip is the panel resting on the desk.</span>
+          </div>
+        </div>
+      </details>
+
+      <details class="grp" id="vertGrp" open>
+        <summary><h3>Verticals</h3></summary>
+        <div class="in">
+          <div class="seg" id="vertPreset">
+            <button type="button" data-v="all">All</button>
+            <button type="button" data-v="none">None</button>
+            <button type="button" data-v="alt">Every other</button>
+          </div>
+          <div class="chips" id="vertChips"></div>
+          <span class="hint">End posts (the sides) are always included. Tap a joint to toggle its vertical. "Edge" is the joint at the desk edge; "Desk" covers the other joints on the desks.</span>
+        </div>
+      </details>
+
+      <details class="grp" id="stickGrp" open>
+        <summary><h3>Sticks (doubling up)</h3></summary>
+        <div class="in">
+          <span class="hint">Set one member's sticks with − and + in the member table. To sweep them, tick a Sweep box below: by member type, or for the members you mark with ◎ in the member table. Each focused member is swept on its own (with its mirror image), so 3 focused members at 1–3 sticks is 27 combinations.</span>
+          <div id="stickAnchor" class="row"><span class="lbl">By member type</span></div>
+          <div id="focusList" class="row"><span class="lbl">Focused members</span><div id="focusChips" class="chips"></div></div>
+        </div>
+      </details>
+
+      <details class="grp" id="loadGrp">
+        <summary><h3>Load, supports, material</h3></summary>
+        <div class="in">
+          <div class="two">
+            <div class="row"><span class="lbl">Book 1 (kg)</span><input type="number" id="mBook1" step="0.01" min="0"></div>
+            <div class="row"><span class="lbl">Book 2 (kg)</span><input type="number" id="mBook2" step="0.01" min="0"></div>
+            <div class="row"><span class="lbl">Factor of safety</span><input type="number" id="FS" step="0.1" min="1"></div>
+            <div class="row"><span class="lbl">Side trusses</span><input type="number" id="nTruss" step="1" min="1" max="4"></div>
+            <div class="row"><span class="lbl">Bridge width (mm)</span><input type="number" id="width" step="1" min="20" max="120"></div>
+            <div class="row"><span class="lbl">Deflection limit (mm)</span><input type="number" id="deflLimit" step="0.1" min="0"></div>
+            <div class="row"><span class="lbl">Min. overlap on desk (mm)</span><input type="number" id="minOverlap" step="1" min="0"></div>
+            <div class="row"><span class="lbl">E (MPa)</span><input type="number" id="E" step="100" min="100"></div>
+            <div class="row"><span class="lbl">Density (kg/m³)</span><input type="number" id="rho" step="5" min="50"></div>
+            <div class="row"><span class="lbl">σ tension (MPa)</span><input type="number" id="sigT" step="0.1" min="0.1"></div>
+            <div class="row"><span class="lbl">σ crushing (MPa)</span><input type="number" id="sigC" step="0.1" min="0.1"></div>
+            <div class="row"><span class="lbl">Stick b (mm)</span><input type="number" id="bS" step="0.01" min="0.5"></div>
+            <div class="row"><span class="lbl">Stick h (mm)</span><input type="number" id="hS" step="0.01" min="0.5"></div>
+          </div>
+          <label class="check"><input type="checkbox" id="crossTies"> Count deck cross-ties in wood and mass</label>
+          <span class="hint">Defaults are the course values. The books press down evenly along their length; each deck joint takes the part of the book between it and the midpoints to its neighbours. The course script's M counts only the two side trusses; cross-ties are an estimate of one tie per deck joint across the bridge width.</span>
+          <button type="button" class="btn ghost" id="resetMat">Reset to course values</button>
+        </div>
+      </details>
+<details class="grp" id="g-3d" open><summary><h3>4 · 3D bracing</h3></summary><div class="in">
+          <span class="hint">Used when the analysis switch at the top is on 3D: the two side trusses, the ties between them and this bracing are solved together.</span>
+          <div class="two"><div class="row"><span class="lbl">Tilt in y (°, + leans in)</span><input type="number" id="tilt3d" step="1" min="-30" max="30"></div><div class="row"><span class="lbl">Bridge width (mm)</span><input type="number" id="width3d" step="1" min="20" max="120"></div></div>
+          <label class="check"><input type="checkbox" id="botTies3d"> Bottom ties</label>
+          <div class="imperf3"><label class="check" title="A real bridge is never perfectly straight or square, so its bracing always carries a little force. Off: the perfect model, as before."><input type="checkbox" id="imperf3d"> Imperfection loads (bowed chords, out of plumb)</label>
+            <span class="trio" id="imperfVals"><label>bow α<input type="number" id="impAlpha" step="0.005" min="0" max="0.2" title="Sideways push at each interior joint of a compression chord, as a fraction of the chord force (1 to 2% is the usual bracing rule)"></label><label>sway β<input type="number" id="impBeta" step="0.001" min="0" max="0.1" title="Sideways push at each loaded joint, as a fraction of its vertical load"></label><label><select id="impDir" title="Which way the chords bow"><option value="1">bow out</option><option value="-1">bow in</option></select></label></span></div>
+          <div class="sw3d"><b style="font-size:12px">Sweep the 3D inputs</b> <span class="hint" style="margin:0">(only when the analysis is 3D)</span>
+            <div class="sw3row"><label class="check"><input type="checkbox" id="swOnY"> Tilt (°)</label><span class="trio"><label>from<input type="number" id="swY0" value="-20" step="1"></label><label>to<input type="number" id="swY1" value="20" step="1"></label><label>step<input type="number" id="swYs" value="5" step="1"></label></span></div>
+            <div class="sw3row"><label class="check"><input type="checkbox" id="swOnW"> Width (mm)</label><span class="trio"><label>from<input type="number" id="swW0" value="50" step="1"></label><label>to<input type="number" id="swW1" value="75" step="1"></label><label>step<input type="number" id="swWs" value="5" step="1"></label></span></div>
+            <label class="check"><input type="checkbox" id="swOnU"> Bottom ties: try with and without</label>
+          </div>
+          <div class="d3in">
+            <div><b>Top plane (xy)</b> <span class="hint">lateral bracing per panel, left half; the right half mirrors</span>
+              <div class="chips" id="d3Top"></div>
+              <div class="btns"><button type="button" class="btn ghost sm" data-pre="top:S">all single</button><button type="button" class="btn ghost sm" data-pre="top:X">all X</button><button type="button" class="btn ghost sm" data-pre="top:N">none</button></div></div>
+            <div><b>Bottom plane (xy)</b> <span class="hint">lateral bracing per panel</span>
+              <div class="chips" id="d3Bot"></div>
+              <div class="btns"><button type="button" class="btn ghost sm" data-pre="bot:S">all single</button><button type="button" class="btn ghost sm" data-pre="bot:X">all X</button><button type="button" class="btn ghost sm" data-pre="bot:N">none</button></div></div>
+            <div><b>Cross-frames (zy)</b> <span class="hint">at each station, left half; click a frame to see it in the end view</span>
+              <div class="chips" id="d3Frames"></div>
+              <div class="btns"><button type="button" class="btn ghost sm" data-pre="frame:ends">ends only</button><button type="button" class="btn ghost sm" data-pre="frame:D">every station</button><button type="button" class="btn ghost sm" data-pre="frame:X">every station X</button><button type="button" class="btn ghost sm" data-pre="frame:N">none</button></div></div>
+          </div>
+          <span class="hint">Click a chip to change it. Lateral bracing: · none, ╱ single, ╲ the other way, ✕ both. Cross-frames: · none, ⟋ / ⟍ one diagonal, ✕ both, K a K-brace from mid-width of the top tie.</span>
+          <div id="brace3Sweep"><label class="check"><input type="checkbox" id="swOnZ"> Sweep bracing sets (3D analysis only)</label> <div class="chips" id="swBrace3"></div>
+            <span class="hint">Each set is a whole bracing scheme. "As set" uses the chips above. Sweeps only try these when the analysis switch at the top is on 3D.</span></div>
+          <span class="hint">x runs along the bridge, y across it, z up. The two side trusses are your 2D design, placed at ± half the bridge width (set under Load, supports, material) and tilted in y. Cross-ties join every top joint, and the bracing and sway diagonals tie the two trusses into a box. This is a 3D pin-jointed model, so without bracing in the top and bottom planes and cross-frames the box can rack sideways and is reported unstable. Real glued joints are a little stiffer than that. The book load is split between the two trusses. Claws and edge braces are not in the 3D model yet. Left drag rotates, right (or middle) drag pans, the wheel zooms (Inventor style); double-click the middle button or press F6 for the home view. Hover a member to see its force.</span>
+        </div></details>
+    </aside>
+    <div class="divider" id="divider" role="separator" aria-orientation="vertical" title="Drag to resize the inputs · double-click to reset"></div>
+
+    <!-- ================= RESULTS ================= -->
+    <div class="right">
+      <section class="sheet" aria-label="Side view and summary" id="sideSheet">
+        <div class="hd">
+          <h2 id="viewTitle">Side view</h2>
+          <span class="seg mini" id="topViewSeg" hidden title="What the drawing shows while the analysis is 3D"><button type="button" data-v="3d">3D bridge</button><button type="button" data-v="2d">2D side view</button></span>
+          <span id="statusPill"></span><button type="button" class="btn ghost sm fsbtn" data-fs="#sideSheet" title="Show the bridge drawing full screen (Esc to leave)">⛶ Full screen</button>
+        </div>
+        <div class="bd">
+          <div id="topD3Slot"></div><div id="d3Facts" class="note" style="line-height:1.6" hidden></div><div hidden><span id="d3Status"></span><button type="button" id="reset3d"></button></div><div id="d3BoxHome" hidden><div class="d3topnote note" id="d3TopNote" hidden>The 3D bridge is shown in the drawing at the top while the analysis switch is on 3D.</div><div class="chartbox" style="height:420px"><canvas id="c3d" style="height:420px;cursor:grab" aria-label="3D view of the bridge"></canvas><div class="tip" id="d3Tip" hidden></div><div class="d3views d3inset" id="d3Views"><div><b>Plan (xy, from above)</b><svg id="d3Plan"></svg></div><div><b>End view (zy) · <span id="d3SecLab"></span></b><svg id="d3Sec"></svg></div></div></div></div><div class="drawwrap" id="drawWrap"><svg class="draw" id="draw" role="img" aria-label="Truss side view with member forces"></svg><div class="dimpop" id="dimPop" hidden></div>
+            <button type="button" class="infobtn" id="infoBtn" aria-label="How to use the drawing">i</button>
+            <div class="infobox" id="infoBox" hidden><b>How to change the bridge here</b>
+              <ol><li>Click any <b>✎ label</b> to change that value.</li>
+              <li><b>Drag up</b> to make it bigger, <b>down</b> to make it smaller.</li>
+              <li><b>Drag right</b> to try a wider range of values in the sweep, <b>left</b> for a narrower one.</li>
+              <li><b>Scroll</b> to make the sweep's steps bigger or smaller.</li>
+              <li>Rather type it? Use the boxes in the editor, or pull its round joystick.</li>
+              <li>Click <b>Done</b> or press Esc when you're finished.</li></ol>
+              <b>Moving the view:</b> open the bridge full screen (⛶) to zoom, pan or turn it; here it stays still so a scroll can't move it by accident.</div></div>
+          <span class="hint">The ✎ labels on the drawing are inputs: click one to change it right there. Swept variables show their range as dotted (low) and dashed (high) outlines.</span>
+          <div class="legend" style="margin-top:8px">
+            <span><i style="background:var(--comp)"></i>Compression</span>
+            <span><i style="background:var(--tens)"></i>Tension</span>
+            <span><i style="background:var(--zero)"></i>Zero force</span>
+            <span><i style="background:transparent;border-top:2px dashed var(--muted);height:0"></i>Deformed shape</span>
+            <span><i style="background:var(--bad);height:8px;opacity:.35"></i>Fails a check</span>
+            <span><i style="background:var(--book);border:1px solid var(--tens);height:8px"></i>Books</span>
+          </div>
+          <div class="drawopts" style="margin-top:8px">
+            <label class="check"><input type="checkbox" id="showDims"> Input labels</label>
+            <label class="check"><input type="checkbox" id="resOnDraw"> Results on the drawing</label><label class="check"><input type="checkbox" id="showForces"> Member forces</label><label class="check"><input type="checkbox" id="d3ShowPlan"> Plan view (3D)</label><label class="check"><input type="checkbox" id="d3ShowSec"> End view (3D)</label>
+            <label class="check"><input type="checkbox" id="showGhosts"> Sweep ranges</label>
+            <label class="check"><input type="checkbox" id="showIds"> Node numbers</label>
+            <label class="check"><input type="checkbox" id="showElems"> Member numbers</label>
+            <label class="check"><input type="checkbox" id="showDef"> Deformed shape</label>
+            <label class="check">Scale ×<input type="range" id="defScale" min="5" max="200" step="5"><span class="val" id="defScaleV"></span></label>
+          </div>
+        </div>
+        <div class="btns" style="padding:0 16px"><button type="button" class="btn ghost sm" id="hideStats">Hide results ▾</button></div>
+        <div class="status" id="stats"></div>
+        <ul class="msgs" id="msgs"></ul>
+      </section>
+
+
+
+      <details class="sheet" id="s-members" open>
+        <summary><h2>Member forces</h2></summary>
+        <div class="bd">
+          <div class="btns" style="margin-bottom:10px">
+            <button type="button" class="btn ghost sm" id="resetSticks">All members to 1 stick</button>
+            <button type="button" class="btn ghost sm" id="copyCsv">Copy table</button>
+            <button type="button" class="btn ghost sm" id="dlCsv">Download CSV</button>
+          </div>
+          <dl class="kv" id="facts" style="margin:0 0 12px"></dl>
+          <p class="hint" style="margin:0 0 8px">Sticks: use − and + to double up a member (its mirror twin changes with it). Area, stiffness, tension and crushing capacity grow with the stick count. Buckling grows n× for sticks glued in a row; at 4 sticks you can pick a 2×2 bundle instead (16× one stick). Tap a member in the drawing to find its row.</p>
+          <div id="tbl3Box" hidden style="margin-bottom:14px"><h3 style="margin:0 0 4px;font-size:14px">3D model: every member</h3><p class="hint" id="tbl3Note" style="margin:0 0 8px"></p><div class="tablewrap" style="max-height:420px;overflow:auto"><table id="tbl3"></table></div><h3 style="margin:12px 0 4px;font-size:14px">One side truss (2D): set sticks here</h3></div><div class="tablewrap"><table id="tbl"></table></div>
+          <p class="note" style="margin:10px 0 0">Forces are under the factored design load (FS already applied), so a member is fine while its use stays under 100%. Use = |F| ÷ the smaller of Euler P<sub>cr</sub> and crushing capacity σ<sub>c</sub>A in compression, or F ÷ σ<sub>t</sub>A in tension. The course script only reports buckling; the crushing and tension checks are extra. The project rules ask you to hand-check member forces, so try a joint or two by hand before you trust this.</p>
+        </div>
+      </details>
+
+      <details class="sheet" id="s-sweep" open>
+        <summary class="tabsum" id="sweepSum"><h2>Sweep: compare trusses</h2><span class="sumbtns" id="sweepBtns"></span><span class="note" id="sweepCount"></span></summary>
+        <div class="bd" style="display:grid;gap:14px">
+          <div class="sweepgrid" hidden>
+            <div class="row"><div class="lab"><span class="lbl">Factor of safety</span><span class="val" id="swFSv"></span></div>
+              <input type="range" id="swFS" min="1" max="12" step="0.5"></div>
+            <div class="row"><div class="lab"><span class="lbl">Total book mass (kg)</span><span class="val" id="swBookv"></span></div>
+              <input type="range" id="swBook" min="0.5" max="10" step="0.1"></div>
+          </div>
+          <span class="hint" hidden style="margin-top:-6px">These two sliders change the current design too (same values as in Load, supports, material). Raise the factor of safety until the sweep has to work to find a passing design.</span>
+          <div id="swSummary" class="note tdata" style="line-height:1.6"></div>
+          <span class="hint tdata">To sweep a variable, tick "Sweep" under it in the inputs on the left and set its range there. Factor of safety, book mass, loads, desk panels, desk ends, supports, claws and material always come from the inputs. Curve shape is a parabola if Flat is selected. Doubled-up members are not swept.</span>
+          <div class="sweepgrid" hidden>
+            <div class="row"><span class="lbl">Height (mm)</span>
+              <div class="trio"><label>from<input type="number" id="swH0" value="0"></label><label>to<input type="number" id="swH1" value="100"></label><label>step<input type="number" id="swHs" value="5"></label></div></div>
+            <div class="row"><span class="lbl">Taper (centre ÷ end)</span>
+              <div class="trio"><label>from<input type="number" id="swR0" value="1" step="0.05"></label><label>to<input type="number" id="swR1" value="1" step="0.05"></label><label>step<input type="number" id="swRs" value="0.1" step="0.05"></label></div></div>
+            <div class="row"><span class="lbl">Side angle (°, lean in)</span>
+              <div class="trio"><label>from<input type="number" id="swA0" value="90"></label><label>to<input type="number" id="swA1" value="90"></label><label>step<input type="number" id="swAs" value="10"></label></div></div>
+            <div class="row"><span class="lbl">Bottom-chord curve (mm, − sag / + arch)</span>
+              <div class="trio"><label>from<input type="number" id="swD0" value="-50"></label><label>to<input type="number" id="swD1" value="50"></label><label>step<input type="number" id="swDs" value="10"></label></div></div>
+            <div class="row"><span class="lbl">Support distance from edge (mm)</span>
+              <div class="trio"><label>from<input type="number" id="swS0" value="0"></label><label>to<input type="number" id="swS1" value="0"></label><label>step<input type="number" id="swSs" value="10"></label></div></div>
+            <div class="row"><span class="lbl">Overlap onto desk (mm)</span>
+              <div class="trio"><label>from<input type="number" id="swO0" value="10"></label><label>to<input type="number" id="swO1" value="50"></label><label>step<input type="number" id="swOs" value="10"></label></div>
+              <label class="check"><input type="checkbox" id="swVaryOv"> Vary the overlap (desk panels set by overlap)</label></div>
+            <div class="row"><span class="lbl">Panel counts</span><div class="chips" id="swPanels"></div></div>
+            <div class="row"><span class="lbl">Patterns</span><div class="chips" id="swPatterns"></div></div>
+            <div class="row"><span class="lbl">Verticals (grid)</span><div class="chips" id="swVerts"></div><div class="chips" id="swClaw"></div><div class="chips" id="swBrace"></div><div class="chips" id="swLoad"></div><div class="chips" id="swStick"></div>
+              <div class="trio"><label>from<input type="number" id="swQ0" value="-15" step="1"></label><label>to<input type="number" id="swQ1" value="0" step="1"></label><label>step<input type="number" id="swQs" value="5" step="0.5"></label></div>
+              <div class="trio"><label>from<input type="number" id="swT0" value="0" step="1"></label><label>to<input type="number" id="swT1" value="20" step="1"></label><label>step<input type="number" id="swTs" value="5" step="0.5"></label></div>
+              <div class="trio"><label>from<input type="number" id="swX0" value="40" step="5"></label><label>to<input type="number" id="swX1" value="160" step="5"></label><label>step<input type="number" id="swXs" value="20" step="5"></label></div>
+              <div class="trio"><label>from<input type="number" id="swM0" value="1.5" step="0.1"></label><label>to<input type="number" id="swM1" value="4" step="0.1"></label><label>step<input type="number" id="swMs" value="0.5" step="0.1"></label></div>
+              <div class="trio"><label>from<input type="number" id="swK0" value="1" step="1" min="1" max="4"></label><label>to<input type="number" id="swK1" value="2" step="1" min="1" max="4"></label><label>step<input type="number" id="swKs" value="1" step="1"></label></div>
+              <div class="trio"><label>from<input type="number" id="swF0" value="1" step="1" min="1" max="4"></label><label>to<input type="number" id="swF1" value="3" step="1" min="1" max="4"></label><label>step<input type="number" id="swFs" value="1" step="1"></label></div>
+              <span class="hint tdata">Curve shape (parabola if Flat is selected), desk panels, desk ends, support mode, book length, load and material come from the current settings. Doubled-up members are not swept. Curve 0 means a flat bottom chord. The edge check (minimum overlap on each desk) counts as a check like any other.</span></div>
+          </div>
+          <div class="btns">
+            <button type="button" class="btn ghost" id="abOpen" title="Pick two bridges; everything that differs between them becomes the sweep">Sweep between two bridges…</button><button type="button" class="btn acc" id="runSweep">Run sweep</button>
+            <span class="note tdata" id="sweepMsg"></span><div class="nonepassmsg" id="nonePass" hidden>No design in this range passes every check. Try taller trusses, more panels, or turning verticals on.</div><div class="abdone" id="abDone" hidden></div>
+          </div>
+          <div class="staleMsg" hidden>Inputs changed since the last sweep, so the results and charts below are out of date. <button type="button" class="btn ghost sm staleRun">Re-run sweep</button></div>
+          <label class="check" style="font-size:13px"><input type="checkbox" id="autoRerun"> Re-run automatically when the sweep has at most <input type="number" id="autoLimit" min="1" step="50" style="width:80px;display:inline-block"> designs</label>
+          <div class="btns">
+            <button type="button" class="btn ghost" id="bigSearch">Large search (pilot first)</button>
+            <label class="note">Max designs per run <input type="number" id="bigCap" min="1000" step="10000" style="width:120px;display:inline-block"></label>
+            <button type="button" class="btn ghost sm" id="bigCancel" hidden>Cancel</button>
+            <button type="button" class="btn ghost sm" id="bigRestore">Load last large search</button>
+            <button type="button" class="btn ghost sm" id="saveSweepFile">Save sweep file</button>
+            <button type="button" class="btn ghost sm" id="loadSweepFile">Open sweep file…</button>
+            <button type="button" class="btn ghost sm" id="saveSweepTsweep" title="The same sweep in the compact .tsweep format: much smaller, opens in balsaPixel releases">Save compact sweep (.tsweep)</button>
+            <span class="note" id="bigMsg"></span>
+          </div>
+          <span class="hint tdata">For more than 60,000 designs. A pilot of 1,000 random designs runs first so you can check the numbers. The full run starts only after you confirm, keeps the page usable, and can be cancelled.</span>
+          <div id="sweepFileBox" class="pilotBanner" hidden></div>
+          <div id="bigBox" class="bigbox" hidden></div>
+          <div id="docModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="docH"><div class="modalcard" style="max-width:980px;max-height:92vh;overflow:auto">
+            <h3 id="docH" style="margin-top:0">Build documents</h3>
+            <p class="note" style="margin:0 0 8px">A printable document for building this design (in 3D analysis: the whole 3D bridge, with every tie and brace): an assembly drawing (dimensioned, with a parts list), a part drawing for every different cut, a cut list with angles, a cutting plan and the joints, numbered build steps, and full-size templates to lay the sticks on. Every sheet fits one US-letter landscape page. Open the downloaded file in a browser and print it (or save it as a PDF). Print the templates at 100%, actual size.</p>
+            <div class="tradectl">
+              <b>Joints by default:</b>
+              <label class="check"><input type="radio" name="jstyle" value="through"> Chords run through; others cut flush to them</label>
+              <label class="check"><input type="radio" name="jstyle" value="square"> Chords run through; others cut square (90°)</label>
+              <label class="check"><input type="radio" name="jstyle" value="mitre"> Two-member corners mitred; others flush</label>
+            </div>
+            <div class="tradectl" id="docTieBox" hidden>
+              <b>3D ties across the top:</b>
+              <label class="check"><input type="radio" name="tiejoint" value="ontop"> On top of both chords, glued flat (strongest)</label>
+              <label class="check"><input type="radio" name="tiejoint" value="between"> Butted between the chords</label>
+            </div>
+            <div class="tradectl" id="docBentBox" hidden>
+              <b>Curved top chord:</b>
+              <label class="check"><input type="checkbox" id="docBent"> One stick bent to the curve (adds a full-size bending form, checks and steps)</label>
+              <span class="hint" id="docBentNote" style="flex-basis:100%"></span>
+            </div>
+            <div class="tradectl">
+              <label>Stock stick length (mm) <input type="number" id="docStock" min="50" max="2000" step="1" style="width:90px"></label>
+              <label>Saw kerf (mm) <input type="number" id="docKerf" min="0" max="10" step="0.1" style="width:70px"></label>
+              <label class="check"><input type="checkbox" id="docSteps"> Build steps</label>
+              <label class="check"><input type="checkbox" id="docTpl"> Full-size templates</label>
+              <label class="check"><input type="checkbox" id="docColour"> Colour by part</label>
+              <label class="check"><input type="checkbox" id="docDash"> Line pattern by part (for black-and-white printing)</label>
+              <button type="button" class="btn ghost sm" id="docResetJ">Clear joint overrides</button>
+            </div>
+            <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;align-items:start">
+              <div><svg id="docView" style="width:100%;height:230px;background:#fff;border:1px solid var(--line);border-radius:6px"></svg><div id="docSum" class="note"></div><div class="tablewrap" style="max-height:260px;overflow:auto"><table id="docItems"></table></div></div>
+              <div><span class="hint">Each joint: which member is on top (runs through or stays whole), and how the other ends are cut. A mitre splits the corner between two members; the % is the share of the angle taken by the lower-numbered member.</span><div class="tablewrap" style="max-height:420px;overflow:auto"><table id="docJoints"></table></div></div>
+            </div>
+            <div class="btns" style="margin-top:10px"><button type="button" class="btn acc" id="docGo">Download build documents</button><button type="button" class="btn ghost" id="docNo">Close</button></div>
+          </div></div>
+          <div id="saveModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="saveH"><div class="modalcard" style="max-width:460px">
+            <h3 id="saveH" style="margin-top:0">Save as</h3>
+            <label class="savename"><span>File name</span><span class="saverow"><input type="text" id="saveName" spellcheck="false"><b id="saveExt"></b></span></label>
+            <label class="check" style="margin-top:8px"><input type="checkbox" id="saveAsDesign"> Also use this as the design name</label>
+            <div class="btns" style="margin-top:12px"><button type="button" class="btn acc" id="saveGo">Save</button><button type="button" class="btn ghost" id="saveNo">Cancel</button><span class="note">Enter saves · Esc cancels</span></div></div></div>
+          <div id="saveFbModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="saveFbH"><div class="modalcard" style="max-width:520px">
+            <h3 id="saveFbH" style="margin-top:0">No download?</h3>
+            <p id="saveFbText"></p>
+            <textarea id="saveFbArea" class="code" readonly hidden style="min-height:140px"></textarea>
+            <div class="btns" style="margin-top:12px"><button type="button" class="btn acc" id="saveFbCopy">Copy contents</button><button type="button" class="btn ghost" id="saveFbRetry">Try again</button><button type="button" class="btn ghost" id="saveFbClose">Close</button></div></div></div>
+          <div id="fixModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="fixH"><div class="modalcard" style="max-width:720px;max-height:92vh;overflow:auto">
+            <h3 id="fixH" style="margin-top:0">Closest stable bridge</h3><p class="note" id="fixMsg" style="margin:0 0 8px"></p>
+            <div class="tablewrap"><table id="fixTbl"></table></div>
+            <div class="btns" style="margin-top:10px"><button type="button" class="btn ghost" id="fixNo">Close</button></div></div></div>
+          <div id="abModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="abH"><div class="modalcard" style="max-width:760px;max-height:92vh;overflow:auto">
+            <h3 id="abH" style="margin-top:0">Sweep between two bridges</h3>
+            <p class="note" style="margin:0 0 10px">Pick a Bridge A and a Bridge B. You can change any row's range below, or untick it to keep that input fixed. Everything that differs between them becomes the sweep, split into the same number of steps; everything they share stays fixed. Bridges that are close give a small, fine search; bridges far apart give a wide one.</p>
+            <div class="abpick">
+              <div><b>Bridge A</b><select id="abSrcA"></select><span class="note" id="abSumA"></span></div>
+              <div><b>Bridge B</b><select id="abSrcB"></select><span class="note" id="abSumB"></span></div>
+            </div>
+            <div class="tradectl" style="margin:10px 0">
+              <label>Steps between A and B <input type="number" id="abSteps" min="1" max="200" step="1" value="10" style="width:70px"></label>
+              <label>Extend past each end by <input type="number" id="abExt" min="0" max="100" step="5" value="0" style="width:60px"> % of the gap</label>
+              <label>Fixed inputs come from <select id="abBase"><option value="A">Bridge A</option><option value="B">Bridge B</option></select></label>
+            </div>
+            <div class="tablewrap"><table id="abTbl"></table></div>
+            <p class="note" id="abTotal" style="margin:8px 0"></p>
+            <div class="btns"><button type="button" class="btn acc" id="abGo" title="Set your truss system to be the sweep">Set up this sweep</button><button type="button" class="btn ghost" id="abRun" title="Set your truss system to be the sweep, then run it">Set up and run</button><button type="button" class="btn ghost" id="abNo">Cancel</button></div>
+            <input type="file" id="abFile" accept=".json,application/json" hidden>
+          </div></div>
+          <div id="bigModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="bigModalH"><div class="modalcard"><h3 id="bigModalH" style="margin-top:0">Run the full search?</h3><p id="bigModalText"></p><div class="btns"><button type="button" class="btn acc" id="bigGo">Run full search</button><button type="button" class="btn ghost" id="bigNo">Cancel</button></div></div></div>
+          <div class="progress" aria-hidden="true"><span id="sweepBar"></span></div>
+          <div class="besthd"><h3 style="margin:0">Best results on top</h3><label class="note">show <select id="bestN"><option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="30">30</option></select></label><span class="note">the passing designs that use the least wood</span></div>
+          <div class="tablewrap"><table id="sweepTbl"></table></div>
+        </div>
+      </details>
+
+      <details class="sheet" id="s-track" open>
+        <summary class="tabsum"><h2>Analysis</h2><button type="button" class="btn ghost sm datatgl" id="toggleData" aria-pressed="false">Show data and notes</button><div class="tabs" role="tablist" id="trackTabs">
+            <span class="tabgrp"><button type="button" role="tab" data-t="trade" aria-selected="true">Trade-off chart</button><span class="seg mini tdim2" title="Flat 2D chart, or a 3D chart with a third axis"><button type="button" data-v="trade">2D</button><button type="button" data-v="c3">3D</button></span></span>
+            <button type="button" role="tab" data-t="hist" aria-selected="false">Design history</button>
+            <button type="button" role="tab" data-t="curve" aria-selected="false">Required-wood curve</button>
+          </div><button type="button" class="btn ghost sm" id="logHere" title="Add the bridge on screen to the design history, to compare later">+ Log design</button><button type="button" class="btn ghost sm fsbtn" data-fs="#trackBody" title="Show the whole Analysis section full screen (Esc to leave)">⛶ Full screen</button></summary>
+        <div class="bd" style="display:grid;gap:12px" id="trackBody">
+          <div class="btns">
+            <label class="check">Group by
+              <select id="groupBy" style="font:13px var(--f-mono);padding:4px;background:var(--soft);color:var(--ink);border:1px solid var(--line);border-radius:3px">
+                <option value="none">nothing</option><option value="overlap">overlap (foot length)</option><option value="curve">bottom-chord curve</option>
+                <option value="height">height</option><option value="panels">panels</option><option value="pattern">pattern</option>
+                <option value="supportOffset">support distance</option><option value="sideAngle">side angle</option><option value="ratio">taper</option><option value="topEnd">arch end height Δh</option><option value="botEnd">bottom end height Δp</option><option value="claw">claws</option><option value="brace">edge braces</option><option value="loadShape">load shape</option><option value="loadX">load position</option><option value="bookKg">book mass</option><option value="c_deskEnds">foot style</option><option value="c_supportMode">supports</option><option value="c_topShape">top chord shape</option><option value="c_bottom">bottom chord shape</option><option value="c_edgeBear">ends bear on the edge</option><option value="brace3">bracing set (3D)</option><option value="tilt3">3D tilt</option><option value="width3">3D width</option><option value="ties3">bottom ties (3D)</option>
+              </select></label>
+            <input type="text" id="cmpName" placeholder="Name this sweep, e.g. FS 2" style="max-width:220px">
+            <button type="button" class="btn ghost sm" id="saveSweep">Save sweep to compare</button>
+            <span class="note" id="saveMsg"></span>
+          </div>
+          <div id="savedList" class="chips"></div>
+          <div class="anabox">
+            <details id="sheetBox"><summary><b>Sweep data sheet</b> <span class="note">what was run, the ranges and steps</span></summary>
+              <div id="sheetBody"></div><div class="btns" style="margin-top:6px"><button type="button" class="btn ghost sm" id="sheetCsv">Download the sheet (CSV)</button></div></details>
+            <details id="rulesBox"><summary><b>Re-check the pass rules</b> <span class="note">change a limit and re-score these results, no re-run</span></summary>
+              <div class="tradectl" style="margin-top:6px">
+                <label>FS <input type="number" id="rcFS" step="0.1" min="0.1" style="width:70px"></label>
+                <label>Books (kg) <input type="number" id="rcBook" step="0.1" min="0.1" style="width:76px"></label>
+                <label>Deflection ≤ (mm) <input type="number" id="rcDefl" step="0.1" min="0.01" style="width:70px"></label>
+                <label>Overlap ≥ (mm) <input type="number" id="rcOv" step="1" min="0" style="width:64px"></label>
+                <label class="check"><input type="checkbox" id="rcInputs" checked> also set these as the project limits</label>
+                <button type="button" class="btn acc sm" id="rcGo" title="Score every design in these results again with the rules above">Re-check results</button>
+              </div>
+              <span class="hint" style="margin:0">Exact and instant: member forces and deflection scale with the load, so a new FS or book mass, deflection limit or overlap minimum needs no new solve.</span>
+              <p class="note" id="rcMsg" style="margin:4px 0 0"></p></details>
+          </div>
+          <div class="pilotBanner" id="pilotBanner" hidden>Low-fidelity pilot: these charts show only 1,000 random designs. Check the audit in the Sweep section, then run the full search.</div>
+          <div class="staleMsg" hidden>These charts show the last sweep, run before your latest input changes. <button type="button" class="btn ghost sm staleRun">Re-run sweep</button></div>
+          
+          <p class="note tdata" style="margin:0"><b>Capacity</b> is the book load at which the first member reaches its strength limit. Member forces scale in proportion to the load, so capacity = book mass × FS ÷ (highest use), where "highest use" is measured under the design load (books × FS). The safety factor is therefore already inside the number: a design passes the strength check when capacity ≥ books × FS (the orange line). Deflection is not part of capacity.</p>
+
+          <div data-panel="trade">
+            <p class="note tdata" style="margin:0 0 8px">Every stable design from the last sweep that also meets the envelope, edge and deflection checks. The line joins the designs that no other such design beats on both wood and capacity. Its slope is the wood it costs to buy more load. Hover a dot to see it; click to load it.</p>
+            <div class="tradectl">
+              <label>X <select id="axX"></select></label>
+              <label>Y <select id="axY"></select></label>
+              <label class="check" title="Colour failing designs by group too (as rings)"><input type="checkbox" id="colorFails"> Colour fails</label>
+              <button type="button" class="btn ghost sm tgl" id="refineTgl" aria-pressed="false" title="On: a click on a dot adds designs around it (instead of loading it), and clicks never move the view">＋ Add designs on click</button><select id="clickMode" hidden><option value="load">loads it</option><option value="refine">adds designs around it</option></select>
+              <span id="refRow" class="tradectl" style="margin:0"><label>step (mm) <input type="number" id="refStep" list="refSteps" step="any" min="0.01" max="20" style="width:84px"></label>
+                <datalist id="refSteps"><option value="2"></option><option value="1"></option><option value="0.5"></option><option value="0.25"></option><option value="0.1"></option><option value="0.05"></option></datalist>
+                <button type="button" class="btn ghost sm" id="refClear">Clear refined</button></span>
+              <span class="seg mini" id="tradeDrag" title="What a drag on the chart does. The mouse wheel always zooms around the pointer."><button type="button" data-v="box" title="Drag a box to zoom">Box zoom</button><button type="button" data-v="pan" title="Drag to move the chart">Move</button></span><button type="button" class="btn ghost sm" id="zoomReset">Reset zoom</button>
+              <button type="button" class="btn ghost sm" id="tradeCsv" title="Download the chart data as a CSV file">CSV</button>
+            </div>
+            <span class="hint">Drag a box on the chart to zoom in. "Add designs around it" makes designs a few steps either side of the one you click (height, and any curve, overlap or support distance you are sweeping), in fractions of a mm. Pick a step or type your own.</span>
+            <span class="note" id="refMsg"></span>
+            <div class="chartbox"><canvas id="tradeCanvas" aria-label="Scatter of wood used against load capacity"></canvas><div class="tip" id="tradeTip" hidden></div></div>
+            <div class="legend" id="tradeLegend" style="margin-top:6px"></div>
+            <div class="tradectl" style="margin-top:8px"><b>Find:</b>
+              <label>Wood budget (mm) <input type="number" id="woodBudget" step="50" min="0" style="width:100px"></label>
+              <label>Book load to carry (kg) <input type="number" id="loadTarget" step="0.1" min="0" style="width:90px"></label></div>
+            <div id="bestOut" class="note" style="display:grid;gap:4px"></div>
+            <div class="tablewrap tdata" style="margin-top:10px"><table id="frontTbl"></table></div>
+          </div>
+
+          <div data-panel="hist" hidden>
+            <p class="note" style="margin:0 0 8px">Every bridge you have had, newest first. It fills itself: a copy is saved before every reset, preset or file load, and about 15 seconds after you stop changing things. Pick a row as the base (the radio button) to compare the others with it: how much wood changed for each 1% change in capacity. "Load" takes you back to that bridge.</p>
+            <div class="btns" style="margin-bottom:10px">
+              <button type="button" class="btn acc sm" id="logDesign">Log current design</button>
+              <button type="button" class="btn ghost sm" id="clearLog">Clear history</button>
+              <span class="note" id="histMsg"></span>
+            </div>
+            <div class="tablewrap"><table id="histTbl"></table></div>
+          </div>
+
+          <div data-panel="c3" hidden>
+            <div class="tradectl">
+              <label>X <select id="c3X"></select></label>
+              <label>Y <select id="c3Y"></select></label>
+              <label>Z <select id="c3Z"></select></label>
+              <label class="check" title="Show designs that fail a check, in grey"><input type="checkbox" id="c3Fails"> Fails</label>
+              <button type="button" class="btn ghost sm" id="c3Reset">Reset view</button>
+            </div>
+            <span class="hint">Mouse as set in ☰ → Mouse and keys (left drag rotates, right drag pans, the wheel zooms by default); the cube snaps to views. Colour follows "Group by" above. Hover a point to see it; click to load it. Uses the designs from the last sweep or large search.</span>
+            <div class="chartbox" style="height:440px"><canvas id="c3Canvas" style="height:440px;cursor:grab" aria-label="3D scatter of the swept designs"></canvas><div class="tip" id="c3Tip" hidden></div></div>
+            <div class="legend" id="c3Legend" style="margin-top:6px"></div>
+          </div>
+
+          <div data-panel="curve" hidden>
+            <p class="note" style="margin:0 0 6px"><b>How to read it:</b> each line is one group of designs. For every load level along the bottom, the dot is the <b>least wood any design in that group needs to still pass</b> at that load. Flat stretches mean the same design keeps working; a jump means a heavier design is needed; a line that stops means nothing in that group can carry more. Pick the load you want to be safe at, then the lowest line there is the cheapest way to get it.</p>
+            <div class="row" style="max-width:520px">
+              <span class="lbl">Load levels (% of the book load, with FS still applied)</span>
+              <input type="text" id="curveLevels" value="100, 125, 150, 175, 200, 250, 300, 400">
+            </div>
+            <p class="note tdata" style="margin:6px 0 8px">For each level, the least wood among the swept designs that still pass every check (strength and deflection) at that load. Uses the last sweep's designs, so widen the sweep to explore more.</p>
+            <div class="chartbox"><canvas id="curveCanvas" aria-label="Least wood needed at each load level"></canvas><div class="tip" id="curveTip" hidden></div></div>
+            <div class="legend" id="curveLegend" style="margin-top:6px"></div>
+            <div class="tablewrap tdata" style="margin-top:10px"><table id="curveTbl"></table></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="sheet" id="s-export" open hidden>
+        <summary class="tabsum"><h2>Export</h2><div class="tabs" role="tablist" id="expTabs">
+            <button type="button" role="tab" data-x="bridge" aria-selected="true">Bridge file</button>
+            <button type="button" role="tab" data-x="fea" aria-selected="false">Course FEA script</button>
+            <button type="button" role="tab" data-x="lp" aria-selected="false">LP data</button>
+            <button type="button" role="tab" data-x="docs" aria-selected="false">Build documents</button>
+          </div></summary>
+        <div class="bd" style="display:grid;gap:10px">
+          <div data-xp="bridge"><h3>Bridge file</h3>
+          <p class="note" style="margin:0">Save this design as a file to send to your partners. Opening it loads every setting: shape, desks and supports, loads, material, sticks and sweep settings.</p>
+          <div class="btns">
+            <button type="button" class="btn acc" id="saveBridge">Save bridge file</button>
+            <button type="button" class="btn ghost" id="loadBridge">Open bridge file…</button>
+            <span class="note" id="fileMsg"></span>
+          </div>
+          </div>
+          <div data-xp="fea" hidden><h3>Course FEA script</h3>
+          <p class="note" style="margin:0">This writes <b>TrussFEA_Bridge_SE310.py</b> with only Section 1 (the problem definition), the book masses, the material block and the plot title and limits filled in for the current design. The solver is the course code, unchanged. Supports that lift off are left out of DispCon and noted in a comment. Run it with Python to get the official table and plot for the report.</p>
+          <div class="btns">
+            <button type="button" class="btn acc" id="dlPy">Download .py (zipped)</button>
+            <button type="button" class="btn ghost" id="copyPy">Copy .py text</button>
+            
+          </div>
+          <details>
+            <summary class="note" style="cursor:pointer">Show the generated file</summary>
+            <textarea class="code" id="pyOut" readonly spellcheck="false"></textarea>
+          </details>
+          </div>
+          <div data-xp="lp" hidden><h3 style="margin-top:8px">Data for a linear program</h3>
+          <p class="note" style="margin:0">The current design's joints, members, loads, force limits and equilibrium coefficients as CSV files, with a README that explains every column. Setting up the LP from them is up to you.</p>
+          <div class="btns">
+            <button type="button" class="btn acc" id="dlLp">Download LP data (zipped)</button>
+            
+          </div>
+</div>
+          <div data-xp="docs" hidden><div id="docsHome"><p class="note">Make the design stable to build its documents.</p></div><button type="button" id="openDocs" hidden></button></div>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<span class="toast" id="toast" role="status"></span>
+<div class="fslayer" id="fsLayer" hidden><div class="fsfill" id="fsFill"></div><div class="fsbar" id="fsBar"></div><div class="fsfoot" id="fsFoot"></div>
+  <details class="fspanel" id="fsPanel" hidden><summary id="fsPanelName"></summary><div id="fsPanelBody"></div></details></div>
+<button type="button" class="fsexit" id="fsExit" hidden>✕ Leave full screen (Esc)</button>
+<input type="file" id="filePick" accept=".json,application/json,.tsweep" hidden>
+<div class="dock" id="dock">
+  <div class="dockbar">
+    <button type="button" class="dockbtn" id="dockBtn" aria-expanded="false" aria-controls="dockMenu" title="More view options, starting bridges and earlier bridges">☰</button>
+    <div class="vswitch" id="viewSwitch" role="radiogroup" aria-label="What to show">
+      <button type="button" role="radio" data-view="inputs">Inputs</button>
+      <button type="button" role="radio" data-view="both">Both</button>
+      <span class="bridgegrp"><button type="button" role="radio" data-view="bridge">Bridge</button><span class="anain" id="anaSwitch" role="radiogroup" aria-label="Analysis model" title="2D: one side truss, carrying half the load. 3D: both trusses with the ties, bracing and cross-frames; the bracing wood counts."><button type="button" role="radio" data-ana="2d">2D</button><button type="button" role="radio" data-ana="3d">3D</button></span></span>
+      <span class="bridgegrp"><button type="button" role="radio" data-view="analysis" title="The Analysis section full screen: trade-off chart, history and required-wood curve">Analysis</button><span class="anain" id="chartDimDock" title="Trade-off chart: flat 2D or 3D with a third axis"><button type="button" data-cd="trade">2D</button><button type="button" data-cd="c3">3D</button></span></span>
+    </div>
+    <button type="button" class="dockesc" id="dockEsc" hidden title="Leave full screen (Esc)">✕ Esc</button>
+  </div>
+  <div class="dockmenu" id="dockMenu" hidden>
+    <label class="tsw"><input type="checkbox" id="swCompact"><span class="track"></span>Condensed inputs</label>
+    <label class="tsw"><input type="checkbox" id="swHelp"><span class="track"></span>Show help text</label>
+    <div class="dsep"></div>
+    <span class="dlab">Start from a simple bridge</span>
+    <select id="presetSel"><option value="">choose…</option></select>
+    <label class="tsw"><input type="checkbox" id="presetSweep"><span class="track"></span>Also reset the sweep</label>
+    <div class="dsep"></div>
+    <span class="dlab">Go back to an earlier bridge</span>
+    <select id="backupSel"></select>
+    <span class="dnote">A copy is kept before every reset or file load, and about 15 seconds after your changes. They stay in this browser.</span>
+    <div class="dsep"></div>
+    <button type="button" class="btn ghost sm" id="findStableMenu" title="Search small changes to this bridge for the closest one that is stable and passes">Find the closest stable bridge…</button>
+    <div class="dsep"></div>
+    <details class="dsec" open><summary class="dlab">Import and export</summary>
+      <div class="dgrid">
+        <button type="button" class="btn ghost sm" data-click="saveBridge">Save bridge file</button><button type="button" class="btn ghost sm" data-click="loadBridge">Open bridge file…</button>
+        <button type="button" class="btn ghost sm" data-click="saveSweepFile">Save sweep file</button><button type="button" class="btn ghost sm" data-click="loadSweepFile">Open sweep file…</button>
+        <button type="button" class="btn ghost sm" data-click="saveSweepTsweep" style="grid-column:1/-1" title="The same sweep in the compact .tsweep format: much smaller, opens in balsaPixel releases">Save compact sweep (.tsweep)</button>
+        <button type="button" class="btn ghost sm" data-click="dlPy" title="The course TrussFEA script for this design">FEA script (.py)</button><button type="button" class="btn ghost sm" data-click="copyPy">Copy .py text</button>
+        <button type="button" class="btn ghost sm" data-click="dlLp" title="Joints, members, loads and limits as CSV files for a linear program">LP data (zip)</button><button type="button" class="btn ghost sm" data-click="dlCsv">Member forces (CSV)</button>
+        <button type="button" class="btn acc sm" data-click="openDocs" style="grid-column:1/-1" title="Assembly drawing, part drawings, cut list, build steps and full-size templates">Build documents…</button>
+      </div><span class="note" id="menuFileMsg"></span></details>
+    <details class="dsec"><summary class="dlab">Mouse and keys</summary>
+    
+    <label class="kb">Left click, empty spot (2D) <select id="kbClick"><option value="home">Home view</option><option value="none">Nothing</option></select></label>
+    <label class="kb">Rotate (3D) <select id="kbRot"><option value="left">Left drag</option><option value="middle">Middle drag</option><option value="right">Right drag</option></select></label>
+    <label class="kb">Pan <select id="kbPan"><option value="right">Right drag</option><option value="middle">Middle drag</option><option value="shiftleft">Shift + left drag</option><option value="left">Left drag</option></select></label>
+    <label class="kb">Zoom <select id="kbWheel"><option value="normal">Wheel up = closer</option><option value="reverse">Wheel up = farther</option></select></label>
+    <label class="tsw"><input type="checkbox" id="kbNav"><span class="track"></span>Show the view cube and pad</label>
+    <button type="button" class="btn ghost sm" id="kbReset">Reset to Inventor defaults</button>
+    <span class="dnote">Always: Shift + middle drag orbits · Ctrl + middle drag zooms · double-click middle, F6 or Home = home view · arrow keys rotate (3D) or pan (2D) · Shift + arrows pan · + / − zoom. Click a view first so it gets the keys.</span>
+    </details>
+    <span hidden><button type="button" id="toggleCompact"></button><button type="button" id="toggleFirst"></button><button type="button" id="toggleHelp"></button><button type="button" id="toggleSide"></button></span>
+  </div>
+</div>
+<button type="button" class="backtab" id="backTab" hidden></button>
+<script>/*CORE*/</script>
+<script>/*CORE3D*/</script>
+<script>/*EXPORT*/</script>
+<script>/*TEMPLATE*/</script>
+<script>/*BUILDDOC*/</script>
+<!--MODULES-->
+<script>/*APP*/</script>
+<script>/*SHELL*/</script>

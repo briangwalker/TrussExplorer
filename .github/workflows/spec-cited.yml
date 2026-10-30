@@ -1,0 +1,31 @@
+# Spec first (rulebook rule 3, #253): a pull request that changes the screen or a file format names the spec rules it
+# follows in its description (rule IDs from docs/*-spec.md, docs/formats.md, or "Spec: none - <why>").
+# NOT a required check: a red mark here is a reminder and blocks nothing. Making it required is Brian's call (A4).
+# The check: program/tests/tools/spec-cited.mjs (docs: docs/spec-checks.md).
+name: spec-cited
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+permissions:
+  contents: read
+concurrency:
+  group: spec-cited-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  spec-cited:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # the description is untrusted text: it reaches the script only as an environment variable, never inside a command
+      - name: Does the description name the spec rules this PR follows?
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node program/tests/tools/spec-cited.mjs

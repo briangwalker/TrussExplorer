@@ -1,6 +1,6 @@
 # Truss Explorer file and storage formats
 
-*Architecture Lead, 2026-10-27 (#149). Status: version 1.1 of this spec (folds in the Math, Physics and White Hat reviews on #178 and board TE-B-014). Code: [`src/formats.js`](../truss-explorer-src-v58/truss-explorer/src/formats.js). Tests: [`tests/formats.test.js`](../truss-explorer-src-v58/truss-explorer/tests/formats.test.js) with fixtures in `tests/formats/fixtures/`.*
+*Architecture Lead, 2026-10-27 (#149). Status: version 1.1 of this spec (folds in the Math, Physics and White Hat reviews on #178 and board TE-B-014). Code: [`src/formats.js`](../program/src/formats.js). Tests: [`tests/formats.test.js`](../program/tests/formats.test.js) with fixtures in `tests/formats/fixtures/`.*
 
 Everything the Explorer saves, to a file or in the browser, is listed here with its name, its versions and what changed between them. These layouts become the public database's layout later (#16), so change them only through this page.
 
@@ -11,7 +11,7 @@ Everything the Explorer saves, to a file or in the browser, is listed here with 
 3. **Upgrades don't guess.** A value an old file never recorded is set to `null`, not invented. (Example: a v1 bridge doesn't say 2D or 3D; the upgrade leaves it unknown and the app works it out from the saved wood, as it did before.)
 4. **Newer files open with a warning.** A file whose version is higher than the app knows opens as far as possible, says "made by a newer release", and keeps fields it doesn't understand. (The binary `.tsweep` is the exception; see below.)
 5. **Unknown fields are kept.** Upgrading copies everything and only adds or renames what the step names.
-6. **Everything from outside goes through one door:** `TrussFormats.open(text)`: parse, clean (text can't become markup, prototype keys dropped, string length capped), detect, upgrade, check. Nothing in `app.js` parses a file itself. White Hat reviews this door (#125).
+6. **Everything from outside goes through one door:** `TrussFormats.open(text)`: parse, clean (text can't become markup, every string is one line with control characters turned into spaces, prototype keys dropped, string length capped), detect, upgrade, check. Nothing in `app.js` parses a file itself. White Hat reviews this door (#125).
 7. **Stored keys are never renamed.** Browser storage keys and IndexedDB stores (table at the end) keep their names forever; old contents are converted on load instead.
 8. **No personal details in any file** (Standing Instructions rule 8): no user names, emails or grades. `name` is the design's or sweep's own name.
 9. **Bumping a version:** add the upgrade step and a fixture of the old version, raise `KINDS[kind].current` in `formats.js` (app.js reads `FILE_VER` from it), run `node tests/formats/make-fixtures.mjs` to make the new current-version fixtures, update this page, and bump `APP_VER` too if saved results change meaning.
@@ -22,7 +22,7 @@ Everything the Explorer saves, to a file or in the browser, is listed here with 
 |---|---|---|---|---|
 | Bridge | `.bridge.json` | `se310-truss-bridge` (also accepted: `truss-explorer-bridge`) | 2 (v61) | in the app |
 | Sweep | `.sweep.json` | `se310-truss-sweep` (also accepted: `truss-explorer-sweep`) | 2 (v61) | in the app |
-| Compact sweep | `.tsweep` (gzip, binary) | header `truss-explorer-tsweep`; magic line `TRUSS-EXPLORER-SWEEP 1` | header 1, layout 1 | proposal ([docs/math/sweep-file-format.md](math/sweep-file-format.md)); in the app with #179 |
+| Compact sweep | `.tsweep` (gzip, binary) | header `truss-explorer-tsweep`; magic line `TRUSS-EXPLORER-SWEEP 1` | header 1, layout 1 | in the app (#179): ☰ › Save compact sweep; opens through either Open button. Layout spec: [docs/math/sweep-file-format.md](math/sweep-file-format.md) |
 | Material | `.material.json` | `truss-explorer-material` | 1 (draft) | checked by `formats.js`; nothing writes it yet (#150) |
 | Theme | `.theme.json` | `truss-explorer-theme` | 1 (draft) | balsaPixel themes (#108); a theme from outside the app is data only (see below) |
 
@@ -101,6 +101,29 @@ Specified by the Math Consultant in [docs/math/sweep-file-format.md](math/sweep-
 3. **Units.** Its `material` block is in solver units (`rho` in kg/mm³), like a bridge file; a material file is SI (kg/m³).
 4. **Fingerprint** = `{ solver, model, base, material, width, envelope }`. Only the four rescalable rules stay outside it (see the shared header).
 5. **The bytes door** (#179, for White Hat #125): `openBytes(buf)` checks the magic line, gunzips with a **cap on the unzipped size**, checks `rows` against every column length, and passes the header JSON through the same `cleanData` as every other file, since `sweep.dims` holds strings that reach the screen.
+
+### How the app writes and reads it (#179)
+
+`formats.js` holds the codec (ported from Math's reference) with two entry points:
+
+- **`toTsweep(sweepDoc)`** takes the same document a `.sweep.json` holds and returns `{ bytes, rows, dupes }`. *Save sweep file* still writes `.sweep.json` (older releases and main can read only that); *Save compact sweep (.tsweep)* writes this. On the course sample sweep (23,917 designs) it's 18.1 MB → 0.67 MB.
+- **`openBytes(bytes)`** is the bytes door. It returns what `open()` returns for a sweep (`kind: 'sweep'`, a version-2 sweep document, rows through `cleanRows`), plus `binary: 'tsweep'`, so the app opens both kinds the same way. The file picker sends any file starting with the gzip bytes (`1f 8b`) here; no JSON file starts with them.
+
+What the app puts in the file:
+
+| Spec part | What the app writes |
+|---|---|
+| `sweep.dims` | Every input key the rows carry (anything that isn't a result), with the values the rows use, numbers ascending. `sampling` is `{ "method": "rows", "tested": n }`: the stored rows are exactly the designs tried. A design that appears twice is stored once (`dupes`). |
+| `base`, `material` | The bridge without its material, name, sweep settings or swept inputs; the material without `FS` (a rule, so outside the fingerprint). |
+| `rules` | The rules the results were judged by: the sweep's own `ctx` wins over the screen's. |
+| Spec columns | `wood`, `use` (= `util`), `defl` (= `D`), `overlap`, `flags`, `gov` (0, not recorded yet), `idx`. |
+| The app's own columns | Named `x.<row key>`, so other readers skip them (spec: unknown columns are skipped). Numbers are `f32`; true/false are `u8` with `"coded": "bool"` (0 not set, 1 false, 2 true); text is `u8` with `"coded": "list"` and its `values` (0 not set). `x.order` keeps the rows' order. They carry `capKg`, `mass`, `overall`, `members`, `side`, `passes` and the shape names, so a reopened sweep shows exactly what was saved. A reader using **other** rules still works pass/fail out from the spec columns, as the spec says. |
+| `explorer` | The app's own sweep fields: `message`, `ctx`, `sheet`, `mode`, `settings` and the full `bridge`, so *Also load its bridge and sweep settings* works as it does for `.sweep.json`. |
+
+Numbers come back from 32-bit storage rounded to 7 significant digits (whole numbers exactly). The live Large search's candidate number (`idx` on a row) isn't kept.
+
+Opening: the magic line (an unknown layout is refused: `newer-layout`), gunzip capped at 512 MB (`too-big`), the row count and every column's bounds (`damaged`), the data hash and the fingerprint checked on the header exactly as saved (`changed-data` / `changed-settings` are **warnings**: the sweep still opens, since sweep results are read-only, and the app says so), then `cleanData` on the header before anything from it is used; keys `__proto__`, `constructor` and `prototype` are never set. A newer header `version` opens with `newer-version`. SHA-256 uses the browser's own when the page has it, else a small plain version in `formats.js` (tested against Node's).
+
 
 ## Material file (draft, #150)
 

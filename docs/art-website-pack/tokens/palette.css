@@ -1,0 +1,27 @@
+/* Truss Explorer art pack: palette tokens (art-spec 1.0.2, ART-K). Graphics Designer, 2026-10-28.
+   Copy only what you use. Brown is the action colour in every current theme (TE-B-118). */
+:root{
+  /* Notebook + Calculator (the alpha's light theme) */
+  --te-page:#fbf8f1;        /* notebook paper */
+  --te-panel:#efdcb4;       /* balsa tray / windows */
+  --te-surface:#fbf8f1; --te-surface-2:#f1e9d6;
+  --te-line:#b48b52;        --te-line-soft:rgba(110,80,40,.25);
+  --te-ink:#23262b;         --te-muted:#4a3520;
+  --te-strong:#8c5e22;      --te-on-strong:#fff8ec;   /* brown action colour */
+  --te-ctl-bg:#ebd09b;      --te-ctl-line:#a9804a;
+  --te-tab:#8a5a2b;
+  --te-accent:#f0b45a;      --te-accent-ink:#2a1a04;  /* highlights, focus ring */
+  --te-hot:rgba(255,210,60,.38);                      /* highlighter yellow */
+  --te-lcd:#c8d2b3;         --te-lcd-ink:#1d2a1e;     /* calculator screen */
+  --te-calc-body:#2a2d33;
+  /* Wireframe (the plain theme) */
+  --tw-page:#f2f4f6; --tw-ink:#1d232a; --tw-strong:#7a4f1c; --tw-on-strong:#fff;
+  /* Fonts */
+  --te-font-head:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --te-font-ui:"Barlow",system-ui,sans-serif;
+  --te-font-hand:"Kalam",cursive;
+  --te-font-mono:"IBM Plex Mono",ui-monospace,monospace;
+  --te-font-lcd:"VT323",ui-monospace,monospace;
+}
+/* Meaning colours belong to the program, not the site's look: C red #c23a2b, T blue #2160a8,
+   zero grey #9aa5af, pass green #2f7a4b, fail magenta + an X mark. Use them only to mean those things. */
