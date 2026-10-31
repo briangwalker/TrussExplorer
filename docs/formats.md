@@ -20,7 +20,7 @@ Everything the Explorer saves, to a file or in the browser, is listed here with 
 
 | Kind | Extension | `format` name(s) | Current version | Status |
 |---|---|---|---|---|
-| Bridge | `.bridge.json` | `se310-truss-bridge` (also accepted: `truss-explorer-bridge`) | 2 (v61) | in the app |
+| Bridge ("truss file") | `.truss` since 1.0.0-alpha (TE-B-256); `.bridge.json` still opens, forever | `se310-truss-bridge` (also accepted: `truss-explorer-bridge`) | 2 (v61) | in the app |
 | Sweep | `.sweep.json` | `se310-truss-sweep` (also accepted: `truss-explorer-sweep`) | 2 (v61) | in the app |
 | Compact sweep | `.tsweep` (gzip, binary) | header `truss-explorer-tsweep`; magic line `TRUSS-EXPLORER-SWEEP 1` | header 1, layout 1 | in the app (#179): ☰ › Save compact sweep; opens through either Open button. Layout spec: [docs/math/sweep-file-format.md](math/sweep-file-format.md) |
 | Material | `.material.json` | `truss-explorer-material` | 1 (draft) | checked by `formats.js`; nothing writes it yet (#150) |

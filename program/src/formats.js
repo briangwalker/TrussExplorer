@@ -35,7 +35,9 @@ function cleanRows(rows) {
 // ---------- the formats
 // names: every name this kind has ever been written under (first = the one written today). current: the version written today.
 const KINDS = {
-  bridge:   { names: ['se310-truss-bridge', 'truss-explorer-bridge'], current: 2, ext: '.bridge.json' },
+  // a bridge (truss) file is saved as .truss since 1.0.0-alpha (Brian, TE-B-256); .bridge.json files keep opening forever (rule 4i).
+  // The extension never decides what a file is: detect() reads its 'format' field.
+  bridge:   { names: ['se310-truss-bridge', 'truss-explorer-bridge'], current: 2, ext: '.truss', also: ['.bridge.json'] },
   sweep:    { names: ['se310-truss-sweep', 'truss-explorer-sweep'], current: 2, ext: '.sweep.json' },
   material: { names: ['truss-explorer-material'], current: 1, ext: '.material.json', draft: true },
   theme:    { names: ['truss-explorer-theme'], current: 1, ext: '.theme.json', draft: true },
@@ -453,5 +455,7 @@ async function openBytes(input, opts) {
 }
 
 const api = { KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain };
+// what the Open buttons offer: every kind in the app (drafts aside), the old names, and plain JSON (TE-B-256)
+api.ACCEPT = [...new Set(Object.values(KINDS).filter(k => !k.draft).flatMap(k => [k.ext].concat(k.also || [])).concat(['.json', 'application/json']))].join(',');
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussFormats = api;
 })(typeof window !== 'undefined' ? window : globalThis);
