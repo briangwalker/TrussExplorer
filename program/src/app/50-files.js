@@ -13,12 +13,13 @@ function infoLines(over) {
 function sweepInfo() { const c = sweepCtx || {}; return { model: /3D/.test(String(c.sheet && c.sheet.analysis)) ? '3D' : '2D', rules: Object.assign({}, c.FS != null ? { FS: +c.FS } : {}, c.bookKg != null ? { bookKg: +(+c.bookKg).toFixed(3) } : {}, c.defl != null ? { deflLimit: +c.defl } : {}, c.minOv != null ? { minOverlap: +c.minOv } : {}) }; }
 // what every saved file says about how its numbers were made
 function fileInfo(model) {
-  return { app: 'SE 310 Truss Explorer', release: APP_RELEASE, solver: APP_VER, savedAt: stamp(), model: model || (S.anaMode === '3d' ? '3D' : '2D'), bridgeCode: fingerprint(bridgeState()),
+  // autoName (#256, docs/formats.md): the generated name the design got when it was made; it stays when the design is renamed
+  return { app: 'SE 310 Truss Explorer', release: APP_RELEASE, solver: APP_VER, savedAt: stamp(), model: model || (S.anaMode === '3d' ? '3D' : '2D'), bridgeCode: fingerprint(bridgeState()), ...(TrussNames.looksGenerated(S.autoName) ? { autoName: S.autoName } : {}),
     rules: { FS: +S.mat.FS, bookKg: +(S.load.mBook1 + S.load.mBook2).toFixed(3), deflLimit: +S.opts.deflLimit, minOverlap: +S.opts.minOverlap, width: +S.opts.width, envelope: 'outer faces' } };
 }
 // settings that belong to this browser's screen, not to the bridge
 const UI_ONLY = ['openMap', 'hideSame', 'bestN', 'expTab', 'tradeDim', 'topView', 'keys', 'showForces', 'popPos', 'migOv5', 'abSteps', 'abExt', 'anaMode', 'tab', 'wide', 'compact', 'inputsFirst', 'sideW', 'hideHelp', 'hideStats', 'history', 'baseline', 'hideG', 'showIds', 'showElems', 'showDef', 'defScale', 'showDims', 'showGhosts', 'resOnDraw', 'groupBy', 'axX', 'axY', 'colorFails', 'clickMode', 'c3', 'autoRerun', 'autoLimit', 'bigCap', 'woodBudget', 'loadTarget', 'refStep'];
-function bridgeState() { const o = {}; Object.keys(S).forEach(k => { if (!UI_ONLY.includes(k)) o[k] = S[k]; }); o.anaMode = S.anaMode === '3d' ? '3d' : '2d'; return JSON.parse(JSON.stringify(o)); }
+function bridgeState() { const o = {}; Object.keys(S).forEach(k => { if (!UI_ONLY.includes(k)) o[k] = S[k]; }); if (o.autoName == null) delete o.autoName; /* #256: older designs have none, so their bridge codes stay the same */ o.anaMode = S.anaMode === '3d' ? '3d' : '2d'; return JSON.parse(JSON.stringify(o)); }
 function bridgeSummary() {
   const model = S.anaMode === '3d' ? '3D' : '2D';
   return res.stable ? { model, wood: +res.wood.toFixed(1), capKg: +res.capKg.toFixed(2), deflection: +res.midDefl.toFixed(4), passes: !!res.passes, members: tr.elems.length, joints: tr.nodes.length } : { model, stable: false };
@@ -153,7 +154,7 @@ $('presetSel').addEventListener('change', () => {
   const base = JSON.parse(JSON.stringify(DEFAULT));
   UI_ONLY.forEach(k => { delete base[k]; });
   const b = Object.assign(base, q.set);
-  b.name = TrussNames.make(b);   // a preset starts a new design, so it gets a generated name too (#27)
+  b.name = b.autoName = TrussNames.make(b);   // a preset starts a new design, so it gets a generated name too (#27)
   if ($('presetSweep').checked) Object.assign(b, { swOn: { H: true, N: true, P: true }, swVals: {} });
   // the sweep switches not named go off; ranges keep their values unless reset
   if ($('presetSweep').checked) Object.keys(S.swOn).forEach(k => { if (!(k in b.swOn)) b.swOn[k] = false; });
