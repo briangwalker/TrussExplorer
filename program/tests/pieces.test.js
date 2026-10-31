@@ -48,8 +48,8 @@ test('contrast: Wireframe meets ART-C1 (text 4.5:1) and ART-C2 (lines and focus 
 });
 
 test('buttons: stick, icon and chip carry their class, part and slot (UI-T1, ART-S)', () => {
-  has(P.buttonHTML({ label: 'Run sweep' }), /^<button type="button" class="s-b" data-part="button" data-slot="ctl">Run sweep<\/button>$/);
-  has(P.buttonHTML({ kind: 'icon', label: 'Menu', icon: '☰' }), /class="s-ic" data-part="icon-button".*aria-label="Menu".*>☰</);
+  has(P.buttonHTML({ label: 'Run sweep' }), /^<button type="button" class="s-b" data-part="button" data-slot="ctl" data-pc>Run sweep<\/button>$/);
+  has(P.buttonHTML({ kind: 'icon', label: 'Menu', icon: '☰' }), /class="s-ic" data-part="icon-button" data-slot="ctl" data-pc.*aria-label="Menu".*>☰</);
   has(P.buttonHTML({ kind: 'chip', label: 'Sweep h', pressed: true }), /class="te-chip on" data-part="chip".*aria-pressed="true"/);
   has(P.buttonHTML({ label: 'Off', pressed: false }), /aria-pressed="false"/);
   has(P.buttonHTML({ label: 'X', disabled: true }), / disabled>/);
@@ -69,9 +69,9 @@ test('toggle: a switch with aria-checked and its words (ART-S6, UI-A17)', () => 
   assert.throws(() => P.toggleHTML({}), /label/);
 });
 
-test('tabs: one tablist, the picked tab is the only one in the Tab order (UI-S6, UI-K3)', () => {
+test('tabs: one tablist, the picked tab is the only one in the Tab order (UI-S6, UI-K7)', () => {
   const h = P.tabsHTML({ label: 'Analysis', tabs: [{ id: 'wood', label: 'Required wood' }, { id: 'hist', label: 'History' }, { id: 'win', label: 'Winners' }, { id: 'mem', label: 'Members' }], selected: 'hist' });
-  has(h, /role="tablist" data-part="tabs" data-slot="ctl" aria-label="Analysis"/);
+  has(h, /role="tablist" data-part="tabs" data-slot="ctl" data-pc aria-label="Analysis"/);
   assert.strictEqual((h.match(/role="tab"/g) || []).length, 4);
   assert.strictEqual((h.match(/tabindex="0"/g) || []).length, 1);
   has(h, /data-tab-id="hist" id="tab-hist" aria-selected="true" tabindex="0"/);
@@ -86,7 +86,7 @@ test('window: three states W -> I -> T stepped one at a time, never past an end 
 
 test('window: a named region with a title, ‹ › stepper, body and icon toolbar (UI-W1-W7, UI-K4)', () => {
   const h = P.windowHTML({ id: 'inputs', title: 'Inputs', home: 'left', state: 'W', body: '<p>x</p>', icons: [{ ic: 'g0', label: 'Shape', icon: 'S' }] });
-  has(h, /^<section class="s-pan" id="win-inputs" data-win="inputs" data-home="left" data-state="W" data-part="window" data-slot="bg" role="region" aria-label="Inputs">/);
+  has(h, /^<section class="s-pan" id="win-inputs" data-win="inputs" data-home="left" data-state="W" data-part="window" data-slot="bg" data-pc role="region" aria-label="Inputs">/);
   has(h, /data-step="shrink" aria-label="Shrink Inputs to icons">‹</);
   has(h, /data-step="grow" aria-label="Grow Inputs to words and icons" hidden>›</);
   has(h, /<div class="s-bd"><p>x<\/p><\/div>/);
@@ -98,7 +98,7 @@ test('window: a named region with a title, ‹ › stepper, body and icon toolba
 });
 
 test('edge tab: names its window, shown only in the T state (UI-A4, UI-W9)', () => {
-  has(P.edgeTabHTML({ id: 'inputs', title: 'Inputs', home: 'left', state: 'T' }), /^<button type="button" class="tabE l" data-part="edge-tab" data-slot="ctl" data-tab="inputs" aria-controls="win-inputs" aria-label="Show Inputs"[^>]*>Inputs<\/button>$/);
+  has(P.edgeTabHTML({ id: 'inputs', title: 'Inputs', home: 'left', state: 'T' }), /^<button type="button" class="tabE l" data-part="edge-tab" data-slot="ctl" data-pc data-tab="inputs" aria-controls="win-inputs" aria-label="Show Inputs"[^>]*>Inputs<\/button>$/);
   has(P.edgeTabHTML({ id: 'drawing', home: 'right', state: 'W' }), /class="tabE r".* hidden>/);
 });
 
@@ -115,7 +115,7 @@ test('slider: a course rule never clamps, it marks (UI-I2); a model limit stops 
 
 test('slider: track, zones, swept band and three different handles (ART-W1, ART-W5, UI-I1)', () => {
   const s = P.sliderHTML({ key: 'h', label: 'Height h', unit: 'mm', min: 0, max: 140, step: 1, value: 120, from: 60, to: 100, rule: { hi: 100 }, wall: { lo: 20 }, ruleNote: 'Course rule: h ≤ 100 mm' });
-  has(s, /class="te-slider" data-part="slider" data-slot="ctl" data-key="h" data-swept data-over="rule"/);
+  has(s, /class="te-slider" data-part="slider" data-slot="ctl" data-pc data-key="h" data-swept data-over="rule"/);
   has(s, /<span class="trk"/);
   has(s, /class="zone rule" style="left:71.428571%;width:28.571429%" title="Course rule: h ≤ 100 mm"/);
   has(s, /class="zone wall" style="left:0%;width:14.285714%"/);
@@ -129,7 +129,7 @@ test('slider: track, zones, swept band and three different handles (ART-W1, ART-
 
 test('results card: each number next to its limit, verdict in words and a mark (UI-W2, UI-A17, ART-W3)', () => {
   const pass = P.resultsHTML({ verdict: 'pass', checks: [{ label: 'capacity', value: '18.6', op: '>=', limit: '5.0', unit: 'kg', ok: true }, { label: 'sag', value: '0.131', op: '<=', limit: '2', unit: 'mm', ok: true }] });
-  has(pass, /class="res" data-part="results" data-slot="disp" aria-expanded="false" aria-haspopup="dialog"/);
+  has(pass, /class="res" data-part="results" data-slot="disp" data-pc aria-expanded="false" aria-haspopup="dialog"/);
   has(pass, /18\.6 ≥ 5\.0 kg/); has(pass, /0\.131 ≤ 2 mm/);
   has(pass, /class="pill ok" data-part="badge" data-slot="disp">✓ PASSES</);
   const failing = P.resultsHTML({ verdict: 'fail', checks: [{ label: 'capacity', value: '3.9', op: '>=', limit: '5.0', unit: 'kg', ok: false }] });
@@ -141,8 +141,17 @@ test('results card: each number next to its limit, verdict in words and a mark (
 
 test('CSS: the picture is the base layer, inset 0; windows sit on top (UI-A3, #237)', () => {
   has(P.CSS, /#stage \.te-picture\{position:absolute;inset:0;z-index:0\}/);
-  has(P.CSS, /#stage \.s-pan\{position:absolute;[^}]*z-index:76/);
+  has(P.CSS, /#stage \.s-pan:where\(\[data-pc\]\)\{position:absolute;[^}]*z-index:76/);
   assert.doesNotMatch(P.CSS, /--free-/, 'nothing makes the picture shrink around a window');
+});
+
+test('CSS: rules on the shell\'s class names reach only what the pieces built (data-pc; TE-B-235)', () => {
+  for (const cls of ['s-pan', 'tabE', 's-b', 's-ic', 'res']) assert.doesNotMatch(P.CSS, new RegExp(`\\.${cls}(?![\\w-]|:where\\(\\[data-pc\\]\\)|\\[data-pc\\])`), `.${cls} without [data-pc]`);
+  assert.doesNotMatch(P.CSS.replace(/:where\([^)]*\)/g, ''), /\[data-pc\]/, 'the marker is always inside :where() (no specificity), so themes still win');
+  assert.doesNotMatch(P.CSS, /#stage \.(s-ph|stp)\{/, '.s-ph and .stp only inside a pieces window');
+  has(P.CSS, /#stage :where\(\[data-pc\],\[data-pc\] \*\):is\(button,\[role="slider"\],\[tabindex\]\):focus-visible/);
+  for (const h of [P.buttonHTML({ label: 'x' }), P.windowHTML({ id: 'w', home: 'left' }), P.edgeTabHTML({ id: 'w', home: 'left' }), P.sliderHTML({ key: 'k', label: 'k', min: 0, max: 1 }), P.resultsHTML({ verdict: 'pass' }), P.tabsHTML({ tabs: [{ id: 'a', label: 'A' }] }), P.toggleHTML({ label: 't' })])
+    assert.match(h, /^<[a-z]+ [^>]*data-pc/, h.slice(0, 60));
 });
 
 test('CSS: focus ring 3 px accent with 3 px offset (ART-S5, UI-K4); disabled 50 % and desaturated (ART-S4); hover lift (ART-S2)', () => {
@@ -156,7 +165,7 @@ test('CSS: focus ring 3 px accent with 3 px offset (ART-S5, UI-K4); disabled 50 
 test('CSS: text 13 px minimum in the pieces (ART-T2): verdict pill, tabs, pop-up; Wireframe tabs keep an edge (ART-W13)', () => {
   const sizes = [...P.CSS.matchAll(/font:\d+ (\d+)px/g)].map(m => +m[1]);
   assert.ok(sizes.length && sizes.every(n => n >= 13), 'no font under 13 px (ART-T2): ' + sizes.join(','));
-  has(P.CSS, /\.res \.pill\{font:700 13px/);
+  has(P.CSS, /\.res:where\(\[data-pc\]\) \.pill\{font:700 13px/);
   has(P.CSS, /\.te-pop\{[^}]*font:400 13px/);
   has(P.CSS, /\.te-tabs \.tab\{border:1px solid var\(--te-ctl-line\)/);
 });
