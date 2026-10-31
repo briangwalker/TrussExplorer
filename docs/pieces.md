@@ -80,7 +80,7 @@ Building the pieces turned up these questions. The pieces use the stopgap value 
 | G6 | **Stacking on a shared edge.** ANSWERED: UI-W16 (#364): View options then Inputs on the left, 12 px from the edge, 8 px apart; a window that doesn't fit opens one state smaller. | UI | pieces: 12 px edge gap; the stacking itself is the screen's layout (BluePeachDev rows) |
 | G7 | **Where a peek sits.** ANSWERED: UI-W17 (#364): 8 px beside its tab, lined up with the tab's top, inside the stage; closes 400 ms after leaving both. | UI | done in `mountWindow` (tested) |
 | G8 | **The results card's full view.** ANSWERED: UI-W18 (#364): a pop-up under the strip; checks with what governs them, the project facts, two links; 540 px. | UI | the pop-up piece; the content is #210's |
-| G9 | **The gallery page.** ANSWERED: UI-G1–G5 (#364), place from TE-B-230. One open point: the "real theme switch" saves the theme, which UI-G4 forbids (TE-B-240). | UI | built after #356 and #364 merge |
+| G9 | **The gallery page.** ANSWERED: UI-G1–G5 (#364), place from TE-B-230. One open point: the "real theme switch" saves the theme, which UI-G4 forbids (TE-B-251). | UI | built after #356 and #364 merge |
 | G10 | **The restless-bridge stop rule.** ANSWERED: UI-M8 (#364). | UI | not a piece (#144) |
 
 ## Not pieces (who builds them)
