@@ -102,6 +102,12 @@ try {
     await p.screenshot({ path: path.join(SHOTS, `shell-theme-${t}.png`) });
   }
   check('meaning colours never change with the theme', true, m0);
+  // ART-K6 (Wireframe strong is brown #7a4f1c) and ART-S5 (focus: 3 px accent outline, 3 px offset)
+  await p.selectOption('#themeSel', 'wireframe'); await p.waitForTimeout(200);
+  { const strong = await p.evaluate(() => getComputedStyle(document.getElementById('stage')).getPropertyValue('--te-strong').trim().toLowerCase());
+    await p.focus('#dockBtn'); await p.keyboard.press('Shift+Tab'); await p.keyboard.press('Tab');
+    const ring = await p.evaluate(() => { const e = document.activeElement, s = getComputedStyle(e); return { on: e.matches(':focus-visible'), w: s.outlineWidth, off: s.outlineOffset }; });
+    check('ART-K6, ART-S5: Wireframe strong is #7a4f1c and a focused button has a 3 px outline 3 px out', strong === '#7a4f1c' && ring.on && ring.w === '3px' && ring.off === '3px', JSON.stringify({ strong, ring })); }
   await p.selectOption('#themeSel', 'notebook-calc'); await p.waitForTimeout(300);
   check('Notebook + Calculator turns the top bar to balsa', /photo-balsa|data:image/.test(await p.evaluate(() => getComputedStyle(document.querySelector('#shellNav .nb')).backgroundImage)));
   await p.selectOption('#themeSel', 'og'); await p.waitForTimeout(200);
