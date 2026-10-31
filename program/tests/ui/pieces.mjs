@@ -98,7 +98,7 @@ try {
   await p.hover('#run'); await p.waitForTimeout(200);
   check('hover lifts a stick (ART-S2)', /matrix\(1, 0, 0, 1, -1, -2\)/.test(await p.evaluate(() => getComputedStyle(document.getElementById('run')).transform)));
 
-  // ---------- tabs (UI-S6, UI-K3) ----------
+  // ---------- tabs (UI-S6, UI-K7) ----------
   await p.click('#an-hist'); await p.keyboard.press('ArrowRight');
   check('arrow keys move to the next tab and pick it; one tab is in the Tab order', await attr(p, '#an-win', 'aria-selected') === 'true' && await p.evaluate(() => document.activeElement.id === 'an-win' && document.querySelectorAll('[role="tab"][tabindex="0"]').length === 1));
   await p.keyboard.press('End'); await p.keyboard.press('ArrowRight');

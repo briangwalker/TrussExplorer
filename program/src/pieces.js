@@ -113,7 +113,7 @@ function toggleHTML(o) {
     + `${attr('id', o.id)} aria-checked="${!!o.checked}"${attr('disabled', !!o.disabled)}><i aria-hidden="true"></i></button><span>${escH(o.label)}</span></label>`;
 }
 
-// ---------- tabs (UI-S6, UI-K3) ----------
+// ---------- tabs (UI-S6, UI-K7) ----------
 // opts: { label (for the tab list), tabs: [{ id, label }], selected (id), idPrefix }
 // Roving focus: only the picked tab is in the Tab order; arrows, Home and End move between tabs (mountTabs).
 function tabsHTML(o) {
@@ -360,7 +360,7 @@ function mountToggle(el, opts) {
   return on(el, 'click', () => { if (el.disabled) return; const v = el.getAttribute(a) !== 'true'; el.setAttribute(a, String(v)); el.classList.toggle('on', v); if (opts.onChange) opts.onChange(v, el); });
 }
 
-// Tabs: click or arrows pick a tab (roving tabindex; UI-K3). opts.onSelect(id, tabEl).
+// Tabs: click or arrows pick a tab (roving tabindex; UI-K7). opts.onSelect(id, tabEl).
 function mountTabs(list, opts) {
   opts = opts || {};
   const tabs = () => [...list.querySelectorAll('[role="tab"]')];
