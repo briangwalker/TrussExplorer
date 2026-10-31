@@ -98,6 +98,13 @@ function cutPlan(tr, b, cfg) {
         ends[key] = { kind: 'mitre', eA: edge(b / 2, p, c), eB: edge(-b / 2, p, c), ang: 90 - phi / 2 * R2D, share: 50, auto: true };
         note(n, `chords mitred on the bisector (${(180 - phi * R2D).toFixed(0)}° bend)`); return;
       }
+      // TE-B-213 (Physics): a top-chord (arch) end that bears on the table FACE below the deck is cut PLUMB, so its whole end
+      // face presses flat on the face; the plane is the outer face of the end post, so both sit in one plane against it
+      if (tr.elems[k].type === 'top' && p[1] < -0.5 && (tr.supports || []).some(s => s.node === n) && Math.abs(u[0]) > 0.05) {
+        const fx = [p[0] - Math.sign(u[0]) * b / 2, p[1]], vdir = [0, 1], th = Math.acos(Math.min(1, Math.abs(dot(u, vdir))));
+        ends[key] = { kind: 'flush', eA: edge(b / 2, fx, vdir), eB: edge(-b / 2, fx, vdir), ang: 90 - th * R2D, plumb: true };
+        note(n, `top chord end cut plumb: it bears flat on the table face`); return;
+      }
       if (r.through === k || (r.through != null && cont[n] && cont[n].has(r.through) && false)) {
         // this member is the one on top / running through, and it ends here: square, reaching past the joint to cover the others
         ends[key] = { kind: 'end', eA: -b / 2, eB: -b / 2, ang: 0 }; return;
@@ -934,10 +941,13 @@ function documentHTML(tr, res, meta, plan, opt) {
     const postsT = (res && res.members ? res.members.map((m, k) => ({ k, F: m.F })) : []).filter(m => tr.elems[m.k].type === 'end' && m.F > 0.005).map(m => m.k);
     const splK = [...new Set(tensK.concat(postsT))], splItems = [...new Set(splK.map(itemOf).filter(v => v != null))].sort((x, y) => x - y);
     const tSplices = splices.filter(s => s.tension);
+    // TE-B-213 (Physics): in the black-and-white set a splint goes on BOTH ends of every member in real tension (over 5 N
+    // at the test load, e.g. the 16 N tension diagonals); lighter or compression joints bear or glue without one
+    const SPLINT_N = 5, splMini = new Set((res && res.members ? res.members.map((m, k) => ({ k, F: m.F })) : []).filter(m => m.F > SPLINT_N).map(m => m.k));
     order.map(([ty, title]) => {
       const ks = tr.elems.map((e, k) => e.type === ty ? k : -1).filter(k => k >= 0); if (!ks.length) return '';
       const hi = new Set(ks), gr = new Set(done); ks.forEach(k => done.add(k));
-      const vv = sideSVG(tr, plan, { highlight: new Set([...hi, ...gr]), grey: gr, b, color: colourMode === 'part' ? 'part' : HI, dash, angles: mini ? 2.4 : false, cut: mini, splint: mini ? new Set(ks.filter(k => splK.includes(k))) : null });
+      const vv = sideSVG(tr, plan, { highlight: new Set([...hi, ...gr]), grey: gr, b, color: colourMode === 'part' ? 'part' : HI, dash, angles: mini ? 2.4 : false, cut: mini, splint: mini ? new Set(ks.filter(k => splMini.has(k))) : null });
       const its = {}; plan.pieces.filter(q => q.members.some(k => hi.has(k))).forEach(q => { its[q.item] = (its[q.item] || 0) + 1; });
       const spl = ty === 'bot' || ty === 'top' ? splices.filter(s => s.type === ty) : [];
       const onT = !gr.size && sideT ? ` (template ${sideT})` : '';
@@ -958,7 +968,7 @@ function documentHTML(tr, res, meta, plan, opt) {
       const frameParts = s => { const vv = view3(m3, cx, { view: 'end', station: s }); return vv ? vv.els.filter(e => e.side === 'cross').map(e => e.k) : []; };
       const step3 = (parts, view, opts, title) => {
         if (!parts.length) return; const ks = new Set(parts.map(q => q.k));
-        const vv = view3(m3, cx, Object.assign({ view, hi: new Set([...ks, ...built]), grey: new Set(built), colour: colourMode === 'part' ? 'part' : HI, dash, b, splint: mini ? new Set(parts.filter(q => (cx.items.find(it => it.no === q.item) || {}).Fmax > 1).map(q => q.k)) : null }, opts)); if (!vv) return;
+        const vv = view3(m3, cx, Object.assign({ view, hi: new Set([...ks, ...built]), grey: new Set(built), colour: colourMode === 'part' ? 'part' : HI, dash, b, splint: mini ? new Set(parts.filter(q => (q.F || 0) > SPLINT_N).map(q => q.k)) : null }, opts)); if (!vv) return;
         const its = {}; parts.forEach(q => { its[q.item] = (its[q.item] || 0) + 1; }); ks.forEach(k => built.add(k));
         steps.push(box(callOf(its), vv, title));
       };
