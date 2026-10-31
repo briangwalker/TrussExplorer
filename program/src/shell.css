@@ -17,7 +17,8 @@ body.shell{padding:0;margin:0;overflow:hidden}
 body.shell .wrap,body.shell #dock>.dockbar,body.shell #backTab,body.shell #fsExit,body.shell #dockEsc,body.shell .fsbtn{display:none!important}
 #stage{position:fixed;inset:0;overflow:hidden;font-family:var(--te-font-ui);color:var(--te-ink);background-color:var(--te-page);background-image:linear-gradient(var(--te-grid) 1px,transparent 1px),linear-gradient(90deg,var(--te-grid) 1px,transparent 1px);background-size:24px 24px}
 #stage .fslayer{background:transparent}
-#stage #fsFill{position:absolute;inset:var(--free-t,56px) var(--free-r,0px) var(--free-b,0px) var(--free-l,0px);transition:inset .18s ease-out}
+/* UI-A3: the picture is the base layer. It always covers the whole stage under the top bar; windows float over it and never move or resize it. */
+#stage #fsFill{position:absolute;inset:56px 0 0 0}
 #stage .fsfill>.drawwrap{padding:12px}
 #stage .fsfill .chartbox canvas{height:100%!important}
 #stage .fsbar,#stage .fsfoot{display:none}
