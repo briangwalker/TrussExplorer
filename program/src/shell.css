@@ -5,7 +5,7 @@
    there apply here unchanged. Meaning colours (--comp, --tens, --zero, --ok, --bad) are never mapped to theme tokens. */
 
 /* ---------- Wireframe: the default tokens ---------- */
-#stage{--te-page:#f2f4f6;--te-grid:rgba(60,70,80,.05);--te-panel:rgba(255,255,255,.94);--te-panel-peek:rgba(255,255,255,.86);--te-surface:#fff;--te-surface-2:#eef0f2;--te-line:#b9c0c8;--te-line-soft:#d5dae0;--te-ink:#1d232a;--te-muted:#4f5964;--te-strong:#7a4f1c;--te-on-strong:#fff;--te-ctl-bg:#fff;--te-ctl-line:#8e98a3;--te-tab:#8a5a2b;--te-accent:#f0b45a;--te-accent-ink:#2a1a04;--te-hot:#fdebd6;--te-font-ui:Barlow,"Segoe UI",system-ui,sans-serif;--te-font-head:"Barlow Semi Condensed","Arial Narrow",sans-serif;--te-font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+#stage{--te-page:#f2f4f6;--te-grid:rgba(60,70,80,.05);--te-panel:rgba(255,255,255,.94);--te-panel-peek:rgba(255,255,255,.86);--te-surface:#fff;--te-surface-2:#eef0f2;--te-line:#b9c0c8;--te-line-soft:#d5dae0;--te-ink:#1d232a;--te-muted:#4f5964;--te-strong:#7a4f1c;--te-on-strong:#fff;--te-ctl-bg:#fff;--te-ctl-line:#7f8893;--te-tab:#8a5a2b;--te-accent:#f0b45a;--te-accent-ink:#2a1a04;--te-hot:#fdebd6;--te-font-ui:Barlow,"Segoe UI",system-ui,sans-serif;--te-font-head:"Barlow Semi Condensed","Arial Narrow",sans-serif;--te-font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
   --f-ui:var(--te-font-ui);--f-head:var(--te-font-head)}
 /* OG: the v61 look. Its tokens come from the page's own colours, so the new windows wear the old palette. */
 #stage[data-theme="og"]{--te-page:var(--bg);--te-grid:transparent;--te-panel:color-mix(in srgb,var(--sheet) 96%,transparent);--te-panel-peek:color-mix(in srgb,var(--sheet) 86%,transparent);--te-surface:var(--sheet);--te-surface-2:var(--soft);--te-line:var(--line);--te-line-soft:var(--line);--te-ink:var(--ink);--te-muted:var(--muted);--te-strong:var(--ink);--te-on-strong:var(--sheet);--te-ctl-bg:var(--sheet);--te-ctl-line:var(--line);--te-tab:var(--accent);--te-accent:var(--accent);--te-accent-ink:var(--accent-ink);--te-hot:var(--accent-soft);--te-font-ui:var(--f-body);--te-font-head:var(--f-display)}
@@ -17,9 +17,10 @@ body.shell{padding:0;margin:0;overflow:hidden}
 body.shell .wrap,body.shell #dock>.dockbar,body.shell #backTab,body.shell #fsExit,body.shell #dockEsc,body.shell .fsbtn{display:none!important}
 #stage{position:fixed;inset:0;overflow:hidden;font-family:var(--te-font-ui);color:var(--te-ink);background-color:var(--te-page);background-image:linear-gradient(var(--te-grid) 1px,transparent 1px),linear-gradient(90deg,var(--te-grid) 1px,transparent 1px);background-size:24px 24px}
 #stage .fslayer{background:transparent}
-/* UI-A3: the picture is the base layer. It always covers the whole stage under the top bar; windows float over it and never move or resize it. */
-#stage #fsFill{position:absolute;inset:56px 0 0 0}
-#stage .fsfill>.drawwrap{padding:12px}
+/* UI-A3: the picture is the base layer. It covers the whole stage; every window, the top bar and the results card too, floats over it
+   and never moves or resizes it. The 2D drawing's default fit starts below the bar (56 + 12 px), but the picture still draws behind it. */
+#stage #fsFill{position:absolute;inset:0}
+#stage .fsfill>.drawwrap{padding:68px 12px 12px}
 #stage .fsfill .chartbox canvas{height:100%!important}
 #stage .fsbar,#stage .fsfoot{display:none}
 #stage button:focus-visible{outline:3px solid var(--te-accent);outline-offset:3px}
