@@ -46,6 +46,10 @@ const KINDS = {
 const NAME_TO_KIND = {}; Object.keys(KINDS).forEach(k => KINDS[k].names.forEach(n => { NAME_TO_KIND[n] = k; }));
 
 const isObj = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+// autoName (#256): only ever a generated name '<Word> <Type> <code>' (src/names.js), never free text, because the public
+// database shows it as the title. The same pattern as TrussNames.looksGenerated, kept here so formats.js stands alone.
+const AUTO_NAME = /^[A-Z][a-z]{1,15} [A-Za-z]{2,15} [0-9bcdfghjkmnpqrstvwxyz]{4}$/;
+const okAutoName = x => typeof x === 'string' && AUTO_NAME.test(x);
 const num = x => x !== '' && x != null && Number.isFinite(+x);
 
 function detect(doc) {
@@ -194,6 +198,7 @@ function check(doc, savedAs) {
     errors.push('binary-format');   // a .tsweep header is only valid inside its gzip, read by the bytes reader (#179)
   }
   if ((savedAs || det.version) >= 2 && (det.kind === 'bridge' || det.kind === 'sweep')) ['release', 'savedAt'].forEach(k => { if (!doc[k]) warnings.push('missing:' + k); });
+  if ((det.kind === 'bridge' || det.kind === 'sweep') && ((doc.autoName != null && !okAutoName(doc.autoName)) || (isObj(doc.bridge) && doc.bridge.autoName != null && !okAutoName(doc.bridge.autoName)))) warnings.push('bad-value:autoName');
   return { ok: errors.length === 0, det, errors, warnings };
 }
 
@@ -212,6 +217,9 @@ function open(input) {
   const up = upgrade(clean), c = check(up.doc, up.from);
   const res = { ok: c.ok, kind: det.kind, doc: up.doc, from: up.from, to: up.to, steps: up.steps, tooNew: det.tooNew, errors: c.errors, warnings: c.warnings };
   if (det.kind === 'sweep' && Array.isArray(up.doc.rows) && up.doc.rows.length > LIMITS.rows) return { ok: false, kind: det.kind, errors: ['too-many-rows'], warnings: [] };
+  // a wrong autoName is dropped, never shown as a title (#256)
+  if (up.doc.autoName != null && !okAutoName(up.doc.autoName)) delete up.doc.autoName;
+  if (isObj(up.doc.bridge) && up.doc.bridge.autoName != null && !okAutoName(up.doc.bridge.autoName)) delete up.doc.bridge.autoName;
   if (det.kind === 'sweep' && Array.isArray(up.doc.rows)) {
     res.rowsIn = up.doc.rows.length; up.doc.rows = cleanRows(up.doc.rows); res.rowsDropped = res.rowsIn - up.doc.rows.length;
     if (!up.doc.rows.length) { res.ok = false; res.errors.push('no-usable-rows'); }

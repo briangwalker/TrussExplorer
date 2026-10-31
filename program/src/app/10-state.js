@@ -46,7 +46,7 @@ const APP_RELEASE = 'balsaPixel 1.0.0-alpha.1';   // SemVer pre-release (board T
 // The starter bridge fits the 300 mm envelope measured on the outer faces (#185, Brian 2026-10-28): 48.4 mm on each desk
 // gives 296.8 mm between end joints and 299.98 mm outside (half a stick, 1.59 mm, shorter at each end than v61's 300 mm).
 const DEFAULT = {
-  name: 'Design A', family: 'grid', height: 70, panels: 4, ratio: 1, sideAngle: 90, sideLean: 'in',
+  name: 'Design A', autoName: null, family: 'grid', height: 70, panels: 4, ratio: 1, sideAngle: 90, sideLean: 'in',
   overall: 296.8, bookLen: 242, loads: null, bookWidth: 209, bookThick: 32, approachDiag: 'P', edgeVert: true, deskVert: true, deskMode: 'length', deskPanels: 1,
   bottom: 'flat', curve: -30, deskEnds: 'truss', supportMode: 'all', topShape: 'flat', topEnd: 0, botEnd: 0, edgeBear: false, showDims: true, showGhosts: true, bookContact: 'rigid', claw: 'off', brace: 'off', tableThick: 30, braceDepth: 20, fricK: 2, fricMu: 0.4, supportOffset: 0, overlap: 48.4, sticks: {}, groupBy: 'none',
   pattern: 'pratt', diagLeft: ['P', 'P'], diagMiddle: 'X', vertPreset: 'all', vertLeft: [true, true],
@@ -61,7 +61,7 @@ const { cleanData, cleanRows } = TrussFormats;   // the import boundary lives in
 let S = JSON.parse(JSON.stringify(DEFAULT));
 var FIRST_VISIT = true;
 try { const saved = cleanData(JSON.parse(localStorage.getItem(KEY) || 'null')); if (saved && saved.panels) { S = Object.assign(S, saved); FIRST_VISIT = false; } } catch (e) {}
-if (FIRST_VISIT) S.name = TrussNames.make(S);   // a new design gets a generated name, e.g. "Maple Pratt k3f9" (#27); it can be renamed
+if (FIRST_VISIT) S.name = S.autoName = TrussNames.make(S);   // a new design gets a generated name, e.g. "Maple Pratt k3f9" (#27); it can be renamed
 if (!S.migOv5) { if (S.opts && +S.opts.minOverlap === 20) S.opts.minOverlap = 5; S.migOv5 = true; }
 // v61: the envelope is checked on the built bridge's outer faces (#133), and how the ties are joined belongs to the bridge
 S.opts = Object.assign({ tieJoint: (S.doc && S.doc.tieJoint) || 'ontop' }, S.opts || {});

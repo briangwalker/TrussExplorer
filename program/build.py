@@ -50,3 +50,14 @@ def fill(m):
     return '<script>' + module(m.group(1).lower() + '.js') + '</script>'
 ui = re.sub(r'/\*SHELLCSS\*/|<!--MODULES-->|<script>/\*([A-Z0-9]+)\*/</script>', fill, ui)
 open(os.path.join(here, 'index.html'), 'w', encoding='utf-8').write(ui); print('built index.html' + (f' (modules: {", ".join(others)})' if others else ''))
+# CSP script hashes (#297, WH-N3): the page is one file of inline <script> blocks, so the website's Content-Security-Policy
+# allows exactly these by hash instead of 'unsafe-inline'. The deploy (#3) reads index.csp.txt from THIS build, never a
+# kept copy, because the hashes change with every build. tests/ui/csp.mjs loads the page under the policy.
+import hashlib, base64
+hashes = [base64.b64encode(hashlib.sha256(m.group(1).encode('utf-8')).digest()).decode('ascii')
+          for m in re.finditer(r'<script>(.*?)</script>', ui, re.S)]
+if re.search(r'<script[^>]+src=', ui): sys.exit('build.py: a <script src=...> would need its own CSP entry (#297)')
+policy = ("default-src 'self'; script-src " + ' '.join(f"'sha256-{h}'" for h in hashes) +
+          "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self';"
+          " worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'")
+open(os.path.join(here, 'index.csp.txt'), 'w', encoding='utf-8').write('# Content-Security-Policy for this build of index.html (#297). Send it as the HTTP header; it changes with every build.\n' + policy + '\n')
