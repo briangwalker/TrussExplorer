@@ -76,12 +76,12 @@ Building the pieces turned up these questions. The pieces use the stopgap value 
 | G2 | **Wireframe's stick states.** ANSWERED: ART-S10 (#357) takes the pieces' values as the rule. | Graphics | done |
 | G3 | **What a pop-up is made of.** ANSWERED: ART-W12 (#357): paper in Notebook, `surface` in Wireframe, 1 px `ctl-line` edge, text 13 px minimum. | Graphics | done |
 | G4 | **How tabs look.** ANSWERED: ART-W13 (#357): a glued stick group in Notebook; in Wireframe, flat segments that each keep a 1 px `ctl-line` edge, the picked one sunk 2 px. | Graphics | done |
-| G5 | **Window widths in the words state** (UI-W1–W7 give homes, not sizes). The shell uses Inputs 400, Drawing 340, Sweep 640, Results 540 px. | UI | `--te-win-w` (320 px); the screen sets its own |
-| G6 | **How windows stack when two share an edge** (View options over Inputs on the left, UI-W3 and UI-W4), and the gap between them. | UI | the screen's layout code (unchanged from step 1) |
-| G7 | **Where the peeking window sits** (UI-W9 says "without covering the tab", not how far from it). | UI | 34 px in from its edge, beside the tab |
-| G8 | **The results card's full view** (UI-W2 ▾ and UI-W12 list what's in it, not its layout). | UI | a pop-up; the content is #210's |
-| G9 | **The gallery page** (TE-B-224, TE-B-227 41a). The location is settled (TE-B-230: `src/gallery.js`, `?gallery=1`); its ui-spec rule is not written yet. | UI | not built yet |
-| G10 | **The restless-bridge stop rule** (how an animation ends and settles), named on TE-B-224 item 4. | UI | not a piece |
+| G5 | **Window widths.** ANSWERED: UI-W15 (ui-spec 1.5, #364): Inputs 400, Drawing 340, View options 640, Sweep 640, full results 540 px, never over 40 % of the stage; icons 52 px; tab 28 px. | UI | pieces: 40 % cap, 52 px icons, 28 px tab; the screen sets each window's `--te-win-w` |
+| G6 | **Stacking on a shared edge.** ANSWERED: UI-W16 (#364): View options then Inputs on the left, 12 px from the edge, 8 px apart; a window that doesn't fit opens one state smaller. | UI | pieces: 12 px edge gap; the stacking itself is the screen's layout (BluePeachDev rows) |
+| G7 | **Where a peek sits.** ANSWERED: UI-W17 (#364): 8 px beside its tab, lined up with the tab's top, inside the stage; closes 400 ms after leaving both. | UI | done in `mountWindow` (tested) |
+| G8 | **The results card's full view.** ANSWERED: UI-W18 (#364): a pop-up under the strip; checks with what governs them, the project facts, two links; 540 px. | UI | the pop-up piece; the content is #210's |
+| G9 | **The gallery page.** ANSWERED: UI-G1–G5 (#364), place from TE-B-230. One open point: the "real theme switch" saves the theme, which UI-G4 forbids (TE-B-240). | UI | built after #356 and #364 merge |
+| G10 | **The restless-bridge stop rule.** ANSWERED: UI-M8 (#364). | UI | not a piece (#144) |
 
 ## Not pieces (who builds them)
 
@@ -106,5 +106,6 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 ## Change log
 
 - **0.1 · 2026-10-31** First set: tokens, picture layer, window and edge tab, stick button, icon button, chip, toggle, tabs, slider, results card, pop-up (#354; TE-B-224, TE-B-227).
+- **0.1.3 · 2026-10-31** ui-spec 1.5 (#364) answers G5–G10. The pieces follow UI-W15 (52 px icons, 28 px tabs, 40 % cap, 12 px edge gap) and UI-W17 (the peek sits 8 px beside its tab, lined up with its top, and closes after 400 ms).
 - **0.1.2 · 2026-10-31** Graphics' review (TE-B-232): pill 13 px (ART-T2); art-spec 1.0.4 values (#357): `ctl-line #7f8893` (#355), course-rule pink from `--rule` as solid stripes (ART-K16), edged Wireframe tabs (ART-W13), 13 px pop-up (ART-W12); two more contrast pairs. G1–G4 answered.
 - **0.1.1 · 2026-10-31** Added the Gaps table: what the pieces needed that no spec says (TE-B-224 item 3).

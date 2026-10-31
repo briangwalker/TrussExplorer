@@ -216,16 +216,16 @@ function resultsHTML(o) {
 // Course-rule pink is a meaning colour like pass and fail (ART-K16): read from the app's --rule, never a --te-* token.
 const CSS = `
 #stage .te-picture{position:absolute;inset:0;z-index:0}
-#stage .s-pan{position:absolute;box-sizing:border-box;background:var(--te-panel);color:var(--te-ink);border:1px solid var(--te-line);border-radius:10px;box-shadow:0 4px 16px rgba(20,30,40,.12);z-index:76;display:flex;flex-direction:column;min-width:0;max-height:calc(100% - 20px)}
+#stage .s-pan{position:absolute;box-sizing:border-box;background:var(--te-panel);color:var(--te-ink);border:1px solid var(--te-line);border-radius:10px;box-shadow:0 4px 16px rgba(20,30,40,.12);z-index:76;display:flex;flex-direction:column;min-width:0;max-height:calc(100% - 24px);max-width:40%}
 #stage .s-pan[hidden]:not(.peek){display:none}
 #stage .s-pan.peek{display:flex;border:2px dashed var(--te-strong);background:var(--te-panel-peek);z-index:79}
-#stage .s-pan[data-home="left"]{left:var(--te-gap,10px);top:var(--te-home-top,60px)}
-#stage .s-pan[data-home="right"]{right:var(--te-gap,10px);top:var(--te-home-top,60px)}
-#stage .s-pan[data-home="top"]{left:var(--te-gap,10px);top:var(--te-home-top,60px)}
-#stage .s-pan[data-home="bottom"]{left:var(--te-gap,10px);bottom:var(--te-gap,10px)}
+#stage .s-pan[data-home="left"]{left:var(--te-gap,12px);top:var(--te-home-top,60px)}
+#stage .s-pan[data-home="right"]{right:var(--te-gap,12px);top:var(--te-home-top,60px)}
+#stage .s-pan[data-home="top"]{left:var(--te-gap,12px);top:var(--te-home-top,60px)}
+#stage .s-pan[data-home="bottom"]{left:var(--te-gap,12px);bottom:var(--te-gap,12px)}
 #stage .s-pan[data-state="W"]{width:var(--te-win-w,320px)}
 #stage .s-pan[data-state="I"]{width:auto}
-#stage .s-pan:is([data-home="left"],[data-home="right"])[data-state="I"]{width:var(--te-win-i,56px)}
+#stage .s-pan:is([data-home="left"],[data-home="right"])[data-state="I"]{width:var(--te-win-i,52px)}
 #stage .s-pan:is([data-home="left"],[data-home="right"])[data-state="I"] .stp{flex-direction:column}
 #stage .s-ph{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border-bottom:1px solid var(--te-line-soft);font:700 13px var(--te-font-head);letter-spacing:.05em;text-transform:uppercase;flex:none;min-height:38px;box-sizing:border-box}
 #stage .s-ph .wt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -241,14 +241,12 @@ const CSS = `
 #stage :is(.s-pan,.te-tabs,.te-slider,.res) [hidden]{display:none}
 #stage .tabE{position:absolute;border:0;background:var(--te-tab);color:var(--te-on-strong);font:700 13px var(--te-font-head);letter-spacing:.06em;text-transform:uppercase;padding:14px 8px;writing-mode:vertical-rl;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);z-index:80}
 #stage .tabE[hidden]{display:none}
+#stage .tabE.l,#stage .tabE.r{width:28px;padding:14px 0;box-sizing:border-box}
 #stage .tabE.l{left:0;top:35%;border-radius:0 10px 10px 0}
 #stage .tabE.r{right:0;top:35%;border-radius:10px 0 0 10px}
-#stage .tabE.t,#stage .tabE.b{writing-mode:horizontal-tb;padding:8px 14px;left:40px}
+#stage .tabE.t,#stage .tabE.b{writing-mode:horizontal-tb;height:28px;padding:0 14px;box-sizing:border-box;left:40px}
 #stage .tabE.t{top:var(--te-home-top,52px);border-radius:0 0 10px 10px}
 #stage .tabE.b{bottom:0;border-radius:10px 10px 0 0}
-#stage .s-pan[data-home="left"].peek{left:34px}
-#stage .s-pan[data-home="right"].peek{right:34px}
-#stage .s-pan[data-home="bottom"].peek{bottom:40px}
 #stage .s-b,#stage .s-ic,#stage .te-chip,#stage .te-tog{box-sizing:border-box;font:600 14px var(--te-font-ui);color:var(--te-ink);background:var(--te-ctl-bg);border:1px solid var(--te-ctl-line);border-radius:6px;cursor:pointer;
   box-shadow:0 2px 0 var(--te-ctl-line),0 3px 6px rgba(20,30,40,.12);transition:transform var(--t-press,120ms) ease-out,box-shadow var(--t-press,120ms) ease-out}
 #stage .s-b{min-height:32px;padding:0 12px;display:inline-flex;align-items:center;gap:6px}
@@ -306,7 +304,25 @@ function mountWindow(win, tab, opts) {
   const id = win.dataset.win, title = win.getAttribute('aria-label') || id;
   let peekT = 0;
   const off = [];
+  // UI-W17: a peek sits 8 px from its own tab, lined up with the tab's top (left/right) or left edge (top/bottom),
+  // kept inside the stage. The window's own inline position is put back when the peek ends.
+  let saved = null;
+  function placePeek() {
+    if (!tab) return;
+    const home = win.dataset.home, P = win.offsetParent || win.parentElement, pw = P.clientWidth, ph = P.clientHeight, GAP = 8;
+    if (!saved) saved = { left: win.style.left, right: win.style.right, top: win.style.top, bottom: win.style.bottom };
+    const t = { l: tab.offsetLeft, t: tab.offsetTop, w: tab.offsetWidth, h: tab.offsetHeight }, w = win.offsetWidth, h = win.offsetHeight;
+    const clampX = x => Math.max(0, Math.min(pw - w, x)), clampY = y => Math.max(0, Math.min(ph - h, y));
+    const pos = { left: 'auto', right: 'auto', top: 'auto', bottom: 'auto' };
+    if (home === 'left') { pos.left = (t.l + t.w + GAP) + 'px'; pos.top = clampY(t.t) + 'px'; }
+    else if (home === 'right') { pos.right = (pw - t.l + GAP) + 'px'; pos.top = clampY(t.t) + 'px'; }
+    else if (home === 'top') { pos.top = (t.t + t.h + GAP) + 'px'; pos.left = clampX(t.l) + 'px'; }
+    else { pos.bottom = (ph - t.t + GAP) + 'px'; pos.left = clampX(t.l) + 'px'; }
+    Object.assign(win.style, pos);
+  }
+  function unplacePeek() { if (saved) { Object.assign(win.style, saved); saved = null; } }
   function paint() {
+    if (!win.classList.contains('peek')) unplacePeek();
     const st = win.dataset.state;
     win.hidden = st === 'T' && !win.classList.contains('peek');
     if (tab) tab.hidden = st !== 'T';
@@ -325,9 +341,9 @@ function mountWindow(win, tab, opts) {
     if (win.classList.contains('peek')) setState('W');   // a click on a peek keeps it open (UI-W9)
   }));
   if (tab) {
-    const unpeek = () => { clearTimeout(peekT); peekT = setTimeout(() => { if (!win.matches(':hover') && !tab.matches(':hover')) { win.classList.remove('peek'); paint(); } }, opts.unpeekMs == null ? 280 : opts.unpeekMs); };
+    const unpeek = () => { clearTimeout(peekT); peekT = setTimeout(() => { if (!win.matches(':hover') && !tab.matches(':hover')) { win.classList.remove('peek'); paint(); } }, opts.unpeekMs == null ? 400 : opts.unpeekMs); };
     off.push(on(tab, 'click', () => { setState('W'); const f = win.querySelector('.s-bd :is(button,input,select,[tabindex="0"])'); if (f) f.focus({ preventScroll: true }); }));
-    off.push(on(tab, 'mouseenter', () => { clearTimeout(peekT); peekT = setTimeout(() => { if (win.dataset.state === 'T') { win.classList.add('peek'); paint(); } }, opts.peekMs == null ? 220 : opts.peekMs); }));
+    off.push(on(tab, 'mouseenter', () => { clearTimeout(peekT); peekT = setTimeout(() => { if (win.dataset.state === 'T') { win.classList.add('peek'); paint(); placePeek(); } }, opts.peekMs == null ? 220 : opts.peekMs); }));
     off.push(on(tab, 'mouseleave', unpeek));
     off.push(on(win, 'mouseleave', () => { if (win.classList.contains('peek')) unpeek(); }));
     off.push(on(win, 'mouseenter', () => clearTimeout(peekT)));

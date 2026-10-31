@@ -70,14 +70,17 @@ try {
   await p.click('#win-inputs [data-step="shrink"]');
   check('‹ shrinks a window to icons: body hidden, icon toolbar shown', await attr(p, '#win-inputs', 'data-state') === 'I' && !(await shown(p, '#win-inputs .s-bd')) && await shown(p, '#win-inputs .s-icons button[aria-label="Shape"]'));
   check('in words, only ‹ shows; in icons, ‹ and › both show (UI-A4)', await p.evaluate(() => getComputedStyle(document.querySelector('#win-view [data-step="grow"]')).display === 'none') && await shown(p, '#win-inputs [data-step="grow"]'));
-  check('the icons state is narrow', +(await rect(p, '#win-inputs')).split(',')[2] <= 60);
+  check('the icons state is one 52 px column (UI-W15)', +(await rect(p, '#win-inputs')).split(',')[2] === 52, await rect(p, '#win-inputs'));
   await p.click('#win-inputs [data-step="shrink"]');
   check('‹ again leaves only the brown edge tab, and focus goes to it', !(await shown(p, '#win-inputs')) && await shown(p, '.tabE[data-tab="inputs"]') && await p.evaluate(() => document.activeElement.dataset.tab === 'inputs'));
   await p.hover('.tabE[data-tab="inputs"]'); await p.waitForTimeout(150);
   const tabBox = (await rect(p, '.tabE[data-tab="inputs"]')).split(',').map(Number), peekBox = (await rect(p, '#win-inputs')).split(',').map(Number);
   check('hovering the tab peeks at the window, without covering the tab (UI-W9)', await shown(p, '#win-inputs.peek') && peekBox[0] >= tabBox[0] + tabBox[2] - 1, `tab ${tabBox} peek ${peekBox}`);
+  check('the peek sits 8 px beside its tab, lined up with the tab\'s top (UI-W17)', Math.abs(peekBox[0] - (tabBox[0] + tabBox[2] + 8)) <= 1 && Math.abs(peekBox[1] - tabBox[1]) <= 1, `tab ${tabBox} peek ${peekBox}`);
+  check('the edge tab is 28 px thick (UI-W15)', tabBox[2] === 28, String(tabBox[2]));
   await p.click('#win-inputs .s-ph .wt');
   check('a click on the peek keeps it open (UI-W9)', await attr(p, '#win-inputs', 'data-state') === 'W' && !(await p.evaluate(() => document.getElementById('win-inputs').classList.contains('peek'))));
+  check('after the peek is kept, the window goes back to its own home (top 220 px here)', (await rect(p, '#win-inputs')).split(',')[1] === '220', await rect(p, '#win-inputs'));
   await p.evaluate(() => W.sweep.setState('T')); await p.click('.tabE[data-tab="sweep"]');
   check('clicking an edge tab opens the window in words and moves focus into it', await attr(p, '#win-sweep', 'data-state') === 'W' && await p.evaluate(() => document.getElementById('win-sweep').contains(document.activeElement)));
   check('every change is reported to the caller (onState), so it can be saved per view (UI-A9)', await p.evaluate(() => log.includes('inputs:I') && log.includes('inputs:T') && log.includes('sweep:W')));
