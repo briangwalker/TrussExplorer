@@ -64,6 +64,23 @@ Tests: **N** = `program/tests/pieces.test.js` (Node), **B** = `program/tests/ui/
 | ART-M5 | Press 120 ms; reduced motion has none | button CSS (`--t-press`) | N: reduced-motion rule |
 | CODE-F1, F5, S1, N3 | One global; builders are pure; text escaped; throw only for programmer errors | all | N: runs under Node; escaping test; refusals |
 
+## Gaps: what the pieces needed that no spec says (TE-B-224 item 3)
+
+Building the pieces turned up these questions. The pieces use the stopgap value shown until the owner writes a rule. A spec rule replaces each stopgap, and the piece then cites that rule.
+
+| # | Gap | Owner | Stopgap in the pieces |
+|---|---|---|---|
+| G1 | **The "pink" of a course rule** (UI-I2, UI-S3, UI-C1, ART-W5 name it; no value anywhere). Is it a meaning colour like fail magenta (fixed in every theme, ART-K14), or a token? It also needs a contrast pair against the slider track. | Graphics (value), UI (meaning) | `#c8288c`, hatched at 45 % |
+| G2 | **Wireframe's stick states.** ART-S1–S3 give the Notebook values (`--nc-*`) but none for Wireframe: no hover shadow, no pressed shadow. | Graphics | lift `translate(-1px,-2px)`; pressed `translateY(2px)` with an inset shadow |
+| G3 | **What a pop-up is made of** (the results card's full view, picker lists, the ⓘ box, UI-W8). By ART-P1 it is temporary, so light (paper), but ART-W has no row for it. | Graphics | the `surface` colour with a soft shadow |
+| G4 | **How tabs look** (UI-S6). Are tabs sticks (ART-S, as Notebook draws them) or something else? ART-S7's glued group would fit. | Graphics | the picked tab is `strong` on `on-strong`; Notebook draws sticks |
+| G5 | **Window widths in the words state** (UI-W1–W7 give homes, not sizes). The shell uses Inputs 400, Drawing 340, Sweep 640, Results 540 px. | UI | `--te-win-w` (320 px); the screen sets its own |
+| G6 | **How windows stack when two share an edge** (View options over Inputs on the left, UI-W3 and UI-W4), and the gap between them. | UI | the screen's layout code (unchanged from step 1) |
+| G7 | **Where the peeking window sits** (UI-W9 says "without covering the tab", not how far from it). | UI | 34 px in from its edge, beside the tab |
+| G8 | **The results card's full view** (UI-W2 ▾ and UI-W12 list what's in it, not its layout). | UI | a pop-up; the content is #210's |
+| G9 | **The gallery page** (TE-B-224, TE-B-227 41a). The location is settled (TE-B-230: `src/gallery.js`, `?gallery=1`); its ui-spec rule is not written yet. | UI | not built yet |
+| G10 | **The restless-bridge stop rule** (how an animation ends and settles), named on TE-B-224 item 4. | UI | not a piece |
+
 ## Not pieces (who builds them)
 
 - **Where each window sits and how they stack** (UI-W1–W7 homes, UI-A2): the screen's layout, Dev Lead (#209–#211). The window piece only says which edge it belongs to.
@@ -87,3 +104,4 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 ## Change log
 
 - **0.1 · 2026-10-31** First set: tokens, picture layer, window and edge tab, stick button, icon button, chip, toggle, tabs, slider, results card, pop-up (#354; TE-B-224, TE-B-227).
+- **0.1.1 · 2026-10-31** Added the Gaps table: what the pieces needed that no spec says (TE-B-224 item 3).
