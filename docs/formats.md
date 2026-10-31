@@ -122,7 +122,9 @@ What the app puts in the file:
 
 Numbers come back from 32-bit storage rounded to 7 significant digits (whole numbers exactly). The live Large search's candidate number (`idx` on a row) isn't kept.
 
-Opening: the magic line (an unknown layout is refused: `newer-layout`), gunzip capped at 512 MB (`too-big`), the row count and every column's bounds (`damaged`), the data hash and the fingerprint checked on the header exactly as saved (`changed-data` / `changed-settings` are **warnings**: the sweep still opens, since sweep results are read-only, and the app says so), then `cleanData` on the header before anything from it is used; keys `__proto__`, `constructor` and `prototype` are never set. A newer header `version` opens with `newer-version`. SHA-256 uses the browser's own when the page has it, else a small plain version in `formats.js` (tested against Node's).
+**Size limits (#296), one set for every door, in `TrussFormats.LIMITS`:** the file itself at most 128 MB, checked before it's read (`too-big`); a `.tsweep` at most 256 MB unzipped; at most 5 million sweep designs in either kind (`too-many-rows`).
+
+Opening: the magic line (an unknown layout is refused: `newer-layout`), gunzip capped at 256 MB (`too-big`), the row count and every column's bounds (`damaged`), the data hash and the fingerprint checked on the header exactly as saved (`changed-data` / `changed-settings` are **warnings**: the sweep still opens, since sweep results are read-only, and the app says so), then `cleanData` on the header before anything from it is used; keys `__proto__`, `constructor` and `prototype` are never set. A newer header `version` opens with `newer-version`. SHA-256 uses the browser's own when the page has it, else a small plain version in `formats.js` (tested against Node's).
 
 
 ## Material file (draft, #150)
