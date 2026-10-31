@@ -204,6 +204,22 @@ function overlapWarning() {
 }
 ['swH0', 'swH1', 'swHs', 'swR0', 'swR1', 'swRs', 'swA0', 'swA1', 'swAs', 'swD0', 'swD1', 'swDs', 'swS0', 'swS1', 'swSs', 'swO0', 'swO1', 'swOs', 'swVaryOv'].forEach(id => $(id).addEventListener('input', updateSweepCount));
 let sweepRows = [], sweepAll = [], sweepBusy = false, sweepCtx = null;
+// ---------- SweepState: the one way to read or replace the sweep's results (#255 part B; #236 step 1)
+// Outside 60-sweep and 85-sweep-sheets, parts never name sweepAll / sweepRows / sweepCtx / sweepMode (tests/sweep-state.test.js).
+// version goes up whenever the rows change, so caches (charts #275-#277) can key on it; on(fn) hears each change.
+// This is also the seam a Web Worker sweep (#35) replaces.
+const SweepState = (() => {
+  let version = 0; const fns = [];
+  const fire = () => { version++; fns.forEach(f => { try { f(version); } catch (e) {} }); };
+  return Object.freeze({
+    rows: () => sweepAll, top: () => sweepRows, ctx: () => sweepCtx, mode: () => sweepMode,
+    get version() { return version; },
+    // replace the results; o may carry top (best rows), ctx (the rules they were judged by) and mode
+    set(rows, o) { o = o || {}; sweepAll = rows; if ('top' in o) sweepRows = o.top; if ('ctx' in o) sweepCtx = o.ctx; if ('mode' in o) sweepMode = o.mode; fire(); },
+    add(rows) { rows.forEach(r => sweepAll.push(r)); if (rows.length) fire(); },   // refined designs join the sweep
+    on(fn) { fns.push(fn); },
+  });
+})();
 function evalCandidate(c, mode) {
   const h = Math.floor(c.panels / 2);
   const keepDiag = !swOn('P') && c.family === 'grid' && c.panels === +S.panels && S.diagLeft.length === h;
@@ -320,7 +336,7 @@ $('runSweep').addEventListener('click', () => {
     }
     $('sweepBar').style.width = (100 * i / list.length).toFixed(1) + '%';
     if (i < list.length) { setTimeout(step, 0); return; }
-    sweepAll = all;
+    SweepState.set(all);
     const passing = all.filter(r => r.passes).sort((a, b) => a.wood - b.wood || a.util - b.util);
     sweepRows = passing.slice(0, 30);
     $('sweepMsg').textContent = `${passing.length.toLocaleString()} of ${list.length.toLocaleString()} pass · ${(all.length - passing.length).toLocaleString()} fail a check · ${unstable.toLocaleString()} unstable. ${passing.length ? `Showing the ${sweepRows.length} that use the least wood. The Wood vs load charts below now use these designs.` : 'No design passes every check.'}${whyText(why, all.length)}`;
@@ -451,7 +467,7 @@ $('bigSearch').addEventListener('click', () => {
     big.running = false; sweepBusy = false;
     if (big.cancel) { $('bigMsg').textContent = 'Pilot cancelled.'; setBigButtons(); return; }
     big.pilot = { Dm, total: Dm.total, n: done, msPer: ms / Math.max(1, done), rows, why, unstable, au, sig };
-    sweepAll = rows; sweepRows = rows.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30);
+    SweepState.set(rows, { top: rows.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30) });
     lastSig = sig; sweepMode = 'pilot';
     $('bigMsg').textContent = ''; renderPilot(); renderSweep(); drawTrackers(); paintBigMode(); setBigButtons(); checkStale();
   });
@@ -477,7 +493,7 @@ function pilot3D(Dm, n, ms2, rows2, why2, unstable2, au, sig, st) {
     if (big.cancel) { $('bigMsg').textContent = 'Pilot cancelled.'; setBigButtons(); return; }
     const ms2per = ms2 / Math.max(1, n), ms3per = st.ms3 / Math.max(1, done);
     big.pilot = { Dm, total: Dm.total, n: done, msPer: ms2per + ms3per, ms2per, ms3per, rows, why, unstable, au, sig, st, rows2d: rows2, unstable2 };
-    sweepAll = rows; sweepRows = rows.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30);
+    SweepState.set(rows, { top: rows.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30) });
     lastSig = sig; sweepMode = 'pilot';
     $('bigMsg').textContent = ''; renderPilot(); renderSweep(); drawTrackers(); paintBigMode(); setBigButtons(); checkStale();
   });
@@ -629,7 +645,7 @@ function runFull(ck) {
     setTimeout(() => { try {
       flushBatch(done - bStart);
       const rows = new Map(); sample.forEach(r => rows.set(r.idx, r)); top.forEach(r => rows.set(r.idx, r)); kept.forEach((r, id) => { if (!rows.has(id)) rows.set(id, r); });
-      sweepAll = [...rows.values()]; sweepRows = top;
+      SweepState.set([...rows.values()], { top });
       const msg = `${big.timeUp ? `Time limit (${big.hrs} h) reached:` : big.cancel ? 'Cancelled after' : 'Full search:'} ${done.toLocaleString()} designs${pick ? ` (random, out of ${P.total.toLocaleString()})` : ''}${Math.ceil(done / B) > 1 ? ` in ${Math.ceil(done / B)} batches` : ''} in ${fmtTime(ms).replace('about ', '')} · ${passN.toLocaleString()} pass · ${(seen - passN).toLocaleString()} fail a check · ${unstable.toLocaleString()} unstable${pre ? ` · ${screened.toLocaleString()} skipped by the 2D pre-screen (failed clearly in 2D; not on the charts)` : ''}.${whyText(why, seen)} The best-trade lines on the charts are exact; the grey cloud is a random ${Math.min(RES, seen).toLocaleString()} of the stable designs.`;
       $('sweepMsg').textContent = msg; $('bigMsg').textContent = '';
       big.running = false; sweepBusy = false; sweepMode = 'full'; lastSig = sig;
@@ -647,7 +663,7 @@ $('bigRestore').addEventListener('click', async () => {
   if (big.running || sweepBusy) return;
   let v = null; try { v = await idbGet('last'); } catch (e) { v = null; }
   if (!v) { $('bigMsg').textContent = 'No large search is saved in this browser yet.'; return; }
-  sweepAll = v.rows; sweepRows = v.top; sweepCtx = v.ctx; lastSig = v.sig; sweepMode = 'full';
+  SweepState.set(v.rows, { top: v.top, ctx: v.ctx, mode: 'full' }); lastSig = v.sig;
   $('sweepMsg').textContent = `Loaded the large search from ${new Date(v.when).toLocaleString()}. ${v.msg}`;
   renderSweep(); drawTrackers(); paintBigMode(); checkStale();
 });
