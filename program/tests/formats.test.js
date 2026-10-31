@@ -286,3 +286,19 @@ test('.tsweep: a result that was also swept (an end offset, the overlap) becomes
   const t2 = await F.toTsweep({ rows: rows.concat([Object.assign({}, rows[0])]), bridge: {} });
   assert.strictEqual(t2.dupes, 1);
 });
+
+// ---------- #296: one set of size limits for every door (White Hat's review of #274)
+test('size limits: a huge text, too many sweep rows (either kind), and a .tsweep header claiming too many rows are refused', async () => {
+  const L = F.LIMITS;
+  assert.ok(L.fileBytes > 0 && L.unzipped > 0 && L.rows > 0 && Object.isFrozen(L));
+  assert.deepStrictEqual(F.open('x'.repeat(L.fileBytes + 1)).errors, ['too-big']);
+  const many = { format: 'se310-truss-sweep', version: 2, release: 'r', savedAt: '2026-10-31T00:00:00Z', rows: new Array(L.rows + 1).fill(0) };
+  assert.deepStrictEqual(F.open(many).errors, ['too-many-rows']);
+  // a .tsweep whose header says more rows than the limit stops before any column is read
+  const o = F.open(fix('v2-v61-height-panels.sweep.json')), t = await F.toTsweep(o.doc);
+  const raw = await ungz(t.bytes), txt = new TextDecoder().decode(raw), nl1 = txt.indexOf('\n'), nl2 = txt.indexOf('\n', nl1 + 1);
+  const h = JSON.parse(txt.slice(nl1 + 1, nl2)); h.rows = L.rows + 1;
+  const head = new TextEncoder().encode('TRUSS-EXPLORER-SWEEP 1\n' + JSON.stringify(h) + '\n'), headLen = new TextEncoder().encode(txt.slice(0, nl2 + 1)).length;
+  const all = new Uint8Array(head.length + raw.length - headLen); all.set(head); all.set(raw.slice(headLen), head.length);
+  assert.deepStrictEqual((await F.openBytes(await regz(all))).errors, ['too-many-rows']);
+});
