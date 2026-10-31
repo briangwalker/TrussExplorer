@@ -491,6 +491,11 @@ function distinctFrames(m3, cx) {
 
 const TL = { top: 'Top chord', bot: 'Bottom chord', end: 'End post', vert: 'Vertical', diag: 'Diagonal', brace: 'Edge brace', claw: 'Claw hook' };
 const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+// the product name, in ONE string (TE-B-246, TE-B-280): the tab title, the classic header and the build documents read it.
+// Shown words only: saved files keep app: 'SE 310 Truss Explorer' (formats.js), so old and new files open the same.
+const PRODUCT_NAME = 'balsaPixel: Truss Explorer';
+// the build-document line (Brian 54c, 15:06, NOT final: it returns to him with the Build Documents Standard, TE-B-154)
+const DOC_LINE = PRODUCT_NAME + ' \u00b7 briangwalker.com';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const cutTxt = c => c.auto && c.kind === 'mitre' ? `${Math.round(c.ang)}° mitre (bend)` : c.kind === 'through' ? 'runs through' : c.kind === 'end' ? 'square, runs past' : c.kind === 'free' ? 'square' : c.kind === 'square' ? 'square (90°)' : c.kind === 'splice' ? 'square, splice at a joint' : c.kind === 'lap' ? 'square, laps the chord' : `${Math.round(c.ang)}° ${c.kind === 'mitre' ? 'mitre' : c.kind === 'bevel' ? 'bevel' : 'flush'}`;
 
@@ -1105,13 +1110,13 @@ function documentHTML(tr, res, meta, plan, opt) {
     // every page after the first shows a small side view, so a loose page can be matched to its bridge at a glance
     const th = sideSVG(tr, plan, { b, color: 'mono' }), thumb = `<svg class="th" viewBox="${th.box.join(' ')}">${th.svg}</svg>`;
     const head = pg => `<div class="hd">${TE_MARK_BW}<b>BUILD THE TRUSS</b>${pg > 1 ? thumb : ''}<span>BRIANGWALKER.COM · ${code} · ${U(esc(meta.name || 'Design'))} · PAGE ${pg} OF ${nPg}</span></div>`;
-    const foot = `<div class="ft">DESIGNED BY BRIAN G. WALKER AND TRUSS EXPLORER: A CORPORATE AI AGENT TEAM</div>`;
+    const foot = `<div class="ft">${esc(DOC_LINE)}</div>`;
     const pages = bodies.map((h, i) => `<section class="pg">${head(i + 1)}<div class="content">${h}</div>${foot}</section>`).join('')
       + tpls.map((h, i) => `<section class="sheet tpl"><p class="pgno">${thumb} ${code} · ${U(esc(meta.name || 'Design'))} · PAGE ${bodies.length + i + 1} OF ${nPg} · TEMPLATE T${i + 1} OF ${tpls.length} · BRIAN G. WALKER AND TRUSS EXPLORER</p>${h}</section>`).join('');
     const css = `@page{size:letter landscape;margin:8mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#000;margin:0;background:#ddd}
       .pg{width:263mm;height:199mm;margin:8mm auto;background:#fff;padding:4mm 6mm;display:flex;flex-direction:column;page-break-after:always;break-after:page;overflow:hidden;text-transform:uppercase}
       .hd .th{height:11mm;width:40mm}.hd b{white-space:nowrap}.hd span{font-size:7.5pt;text-align:right;white-space:nowrap}.pgno .th{height:6mm;width:24mm;vertical-align:middle}.hd{display:flex;align-items:center;gap:3mm;border-bottom:.7mm solid #000;padding-bottom:1.5mm;margin-bottom:2.5mm;font-size:9pt}.hd svg{flex:none}.hd b{font-size:15pt;letter-spacing:.04em}.hd span{margin-left:auto}
-      .ft{margin-top:auto;border-top:.5mm solid #000;padding-top:1mm;font-size:7pt;text-align:center;letter-spacing:.05em}
+      .ft{margin-top:auto;border-top:.5mm solid #000;padding-top:1mm;font-size:7pt;text-align:center;letter-spacing:.05em;text-transform:none}
       .content{flex:1;min-height:0;overflow:hidden}h2{font-size:11pt;margin:0 0 2mm}.note{font-size:7.5pt;font-weight:normal}
       .tb{border-collapse:collapse;width:100%;font-size:8pt;margin-bottom:2.5mm}.tb td{border:.3mm solid #000;padding:.8mm 2mm}.tb .big{font-size:13pt;font-weight:bold;width:35%}
       .cg{border-collapse:collapse;width:100%}.cg th,.cg td{border:.25mm solid #000;padding:.2mm 1.5mm;line-height:1.15;text-align:left;vertical-align:middle}.cg th{font-size:7pt}.cg .c{text-align:center}.cg2{display:grid;grid-template-columns:1fr 1fr;gap:3mm;align-items:start}.cg svg{display:block}
@@ -1207,7 +1212,7 @@ function bendingSheetHTML(tr, plan, res, meta, opt) {
   const PER_PAGE = 4, formPages = items.length * Math.ceil(copies / PER_PAGE), nPg = 1 + formPages;
   const code = `WI-BEND-${esc(meta.code || '')}`.replace(/-$/, '');
   const head = pg => `<div class="hd">${TE_MARK_BW}<b>${U('Bend the top chord')}</b><span>BRIANGWALKER.COM · ${code} · ${U(esc(meta.name || 'Design'))} · PAGE ${pg} OF ${nPg}</span></div>`;
-  const foot = `<div class="ft">DESIGNED BY BRIAN G. WALKER AND TRUSS EXPLORER: A CORPORATE AI AGENT TEAM${meta.info ? ` · ${U(esc(meta.info))}` : ''}</div>`;
+  const foot = `<div class="ft">${esc(DOC_LINE)}${meta.info ? ` · ${U(esc(meta.info))}` : ''}</div>`;
   const what = items.length > 1 ? it => `ITEM ${it}` : () => 'BENT TOP CHORD';
   const lens = items.map(it => `${what(it)}: ${Math.round(per(it).long)} MM`).join(' · ');
   const nSticks = bentPieces.length * (meta.nTruss || 2);
@@ -1281,7 +1286,7 @@ function bendingSheetHTML(tr, plan, res, meta, opt) {
   const css = `@page{size:letter landscape;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#111;background:#ddd}
     .pg{width:263mm;height:199mm;margin:8mm auto;background:#fff;padding:4mm 6mm;display:flex;flex-direction:column;page-break-after:always;break-after:page;overflow:hidden}
     .hd{display:flex;align-items:center;gap:3mm;border-bottom:.7mm solid ${BEND_INK};padding-bottom:1.5mm;margin-bottom:3mm;font-size:9pt}.hd svg{flex:none}.hd b{font-size:15pt;letter-spacing:.04em}.hd span{margin-left:auto}
-    .ft{margin-top:auto;border-top:.5mm solid ${BEND_INK};padding-top:1mm;font-size:7pt;text-align:center;letter-spacing:.05em}
+    .ft{margin-top:auto;border-top:.5mm solid ${BEND_INK};padding-top:1mm;font-size:7pt;text-align:center;letter-spacing:.05em;text-transform:none}
     .steps{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);gap:2.5mm 4mm;flex:1;min-height:0}
     .st{position:relative;display:flex;flex-direction:column;min-height:0}.st .n{position:absolute;left:0;top:-1mm;font-size:22pt;font-weight:bold;color:${BEND_INK}}
     .st svg{flex:1;min-height:0;margin-left:7mm;width:calc(100% - 7mm)}.st p{margin:.5mm 0 0;font-size:7pt;font-weight:bold;line-height:1.25}
@@ -1292,6 +1297,6 @@ function bendingSheetHTML(tr, plan, res, meta, opt) {
     @media print{body{background:#fff}.pg{margin:0}}`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name || 'Design')} · bending sheet</title><style>${css}</style></head><body>${pages.join('')}</body></html>`;
 }
-const api = { finishedParts, checkParts, bentCheck, bendingSheetHTML, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
+const api = { PRODUCT_NAME, DOC_LINE, finishedParts, checkParts, bentCheck, bendingSheetHTML, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.BuildDoc = api;
 })(typeof window !== 'undefined' ? window : globalThis);
