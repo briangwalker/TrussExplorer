@@ -1,6 +1,6 @@
 # Truss Explorer UI Standard
 
-**Version 1.5 · 2026-10-31 · owner: UI Designer · creative sign-off: Brian**
+**Version 1.5.1 · 2026-10-31 · owner: UI Designer · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel looks and behaves. Every rule has a number (`UI-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -208,6 +208,7 @@ The link carries only the release, the model and the 8-character bridge code, ne
     9. **Make them yours**: opens ☰ › Look and controls › Mouse and keys, where every one of these can be changed (UI-K5).
   - It runs on the person's own bridge, but nothing it changes stays: like the tour, the bridge, view and windows go back when it ends (UI-F2, UI-A20).
   - **Esc** ends it at any step (and puts things back); the last step has **Done**. It works with the keyboard alone and every card is read by screen readers. With reduced motion the highlight doesn't pulse.
+- **UI-K7 Tabs and other groups of choices use one Tab stop.** A tab row (UI-S6), a toggle group or a segmented choice is **one** stop in the Tab order: Tab lands on the picked item. ← and → move to the neighbour and pick it, wrapping at the ends; Home and End go to the first and last. Picking a tab shows its view at once (no Enter needed). Screen readers hear the group's name, the item's name and *selected*. (Found in the UI review of the shared pieces, #356: the pieces' tabs already work this way.)
 
 ## UI-F · First-time tour
 
@@ -305,13 +306,14 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 | 8 · Inputs screen | #215 | UI-S3, UI-I1–I9, UI-T4 (Tilt shear, ART-H4), UI-W13 |
 | 9 · Empty and in-between states | #216 | UI-A14, UI-S5, UI-S9, UI-D4 |
 | 10 · ☰ and sheets | #217 | UI-A16, UI-W8, UI-W9, UI-A15, UI-A9, UI-N4, UI-A19, UI-A20, UI-W13, UI-V9, UI-K5 (the Mouse and keys sheet) |
-| 11 · Keyboard and screen readers | #218 | UI-K1–K5 (F6 windows; rebinding works for every key), UI-N5 |
+| 11 · Keyboard and screen readers | #218 | UI-K1–K5 (F6 windows; rebinding works for every key), UI-K7, UI-N5 |
 | 12 · Phone | #219 | UI-S8 |
 | 13 · First-time tour | #220 | UI-F1–F2, UI-K6 (keys and mouse walkthrough), UI-M1–M4, UI-M7, UI-M8 (#144) |
 | 14 · Themes and OG | #221 | UI-T1–T6, UI-A18, UI-M5–M6 (#143) |
 
 ## Change log
 
+- **1.5.1 · 2026-10-31** Added UI-K7 (tabs and choice groups: one Tab stop, arrows move and pick, Home/End). The shared pieces (#356) cited UI-K3 (chart dots) for this; UI-K7 is the rule it meets. Step 11 cites it.
 - **1.5 · 2026-10-31** From the UI Engineer's pieces gaps (TE-B-239, docs/pieces.md) and TE-B-224: added UI-G1–G5 (the gallery page, gap G9; Brian's 41a, TE-B-227; place from TE-B-230), UI-M8 (how each restless moment ends and settles, gap G10), UI-W15 window sizes (G5), UI-W16 stacking on a shared edge (G6), UI-W17 where a peek sits (G7), UI-W18 the results card's full view (G8). UI-A18 now says course-rule pink is a meaning colour (UI's half of G1; the value is Graphics'). Steps 2, 3 and 13 cite the new W and M rules.
 - **1.4 · 2026-10-28** Brian's F6 decision (TE-B-117): UI-K2 settled (F6 jumps windows; Home view is Home key, double-click middle, ⌂). Added UI-K5 (every binding can be changed, in ☰ › Look and controls › Mouse and keys, the path #228 uses; UI-V9 now says the same) and UI-K6 (keys and mouse walkthrough, step 13). Added UI-W14 (Report a bug button, dialog and form questions; #115, TE-B-132, with White Hat's link and upload limits from TE-B-136). Added sheet, dialog, toast, tour and walkthrough to the words line. Added UI-B1–B5 (build documents easy to follow; TE-B-129). Reference build is Click-Through v18.
 - **1.3 · 2026-10-28** From the Future Vision Lead's A2 review (TE-B-096) and Dev Lead's TE-B-099/102: added the Axioms the build depends on: UI-V9 (Inventor mouse, G1), UI-C6–C8 (chart zoom, reset, 3D fits, G2), UI-W11 home + eyes (X4, G3), UI-W12 project facts (G4), UI-A19 help text (G5), UI-W13 dialogs (G6), UI-I9 widths and columns (G7), UI-S9 long jobs (G8), UI-A20 easy reset (G9). UI-M2 now points to ART-M3 for its numbers; UI-M5 is 1000 ms both ways (Brian; ART-M1). UI-M6 lists the ART-O5 motion tuning beside the off switches (Future Vision Lead A2, TE-B-102). UI-K2 notes the open F6 question (X1, Brian).
