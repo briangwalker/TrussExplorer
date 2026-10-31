@@ -69,7 +69,7 @@ test('toggle: a switch with aria-checked and its words (ART-S6, UI-A17)', () => 
   assert.throws(() => P.toggleHTML({}), /label/);
 });
 
-test('tabs: one tablist, the picked tab is the only one in the Tab order (UI-S6, UI-K3)', () => {
+test('tabs: one tablist, the picked tab is the only one in the Tab order (UI-S6, UI-K7)', () => {
   const h = P.tabsHTML({ label: 'Analysis', tabs: [{ id: 'wood', label: 'Required wood' }, { id: 'hist', label: 'History' }, { id: 'win', label: 'Winners' }, { id: 'mem', label: 'Members' }], selected: 'hist' });
   has(h, /role="tablist" data-part="tabs" data-slot="ctl" aria-label="Analysis"/);
   assert.strictEqual((h.match(/role="tab"/g) || []).length, 4);
