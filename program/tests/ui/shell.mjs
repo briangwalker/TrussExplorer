@@ -117,6 +117,22 @@ try {
     await p.screenshot({ path: path.join(SHOTS, `shell-theme-${t}.png`) });
   }
   check('meaning colours never change with the theme', true, m0);
+  // BPD-4 (UI-G3, UI-G4, CODE-F4; TE-B-251): the shell's theme door previews a theme without saving anything
+  await p.selectOption('#themeSel', 'blueprint'); await p.waitForTimeout(300);   // a saved pick to keep
+  { const ls = () => p.evaluate(() => JSON.stringify(localStorage));
+    const door = await p.evaluate(() => { const t = __shell.themes; return { ids: t.map(x => x.id), frozen: Object.isFrozen(t) && t.every(x => Object.isFrozen(x) && Object.keys(x).join() === 'id,name'), fn: typeof __shell.previewTheme }; });
+    const sel = await p.$$eval('#themeSel option', o => o.map(x => x.value));
+    check('__shell.themes: the built-in list (OG too), frozen, ids and names only', door.frozen && door.fn === 'function' && door.ids.join() === sel.join() && door.ids.includes('og'), JSON.stringify(door));
+    const before = await ls(), seen = [];
+    for (const id of door.ids) { await p.evaluate(id => __shell.previewTheme(id), id); await p.waitForTimeout(250); seen.push(await p.evaluate(() => document.getElementById('stage').dataset.theme)); }
+    await p.evaluate(() => __shell.previewTheme('no-such-theme')); await p.waitForTimeout(250); seen.push(await p.evaluate(() => document.getElementById('stage').dataset.theme));
+    await p.waitForTimeout(500);   // layout and the redraw after it have run
+    const after = await ls(), still = await p.evaluate(() => ({ sel: document.getElementById('themeSel').value, saved: __shell.state.theme }));
+    check('previewTheme: the look follows every theme, an unknown id falls back to Wireframe', seen.join() === door.ids.concat('wireframe').join(), seen.join());
+    check('UI-G4: a preview saves nothing (localStorage byte-identical), and leaves #themeSel and the saved theme alone', before === after && still.sel === 'blueprint' && still.saved === 'blueprint', JSON.stringify({ same: before === after, still }));
+    await p.selectOption('#themeSel', 'notebook-calc'); await p.waitForTimeout(300);
+    check('a real pick in #themeSel still saves', await p.evaluate(() => JSON.parse(localStorage.getItem('se310-truss-v5')).shell.theme === 'notebook-calc' && document.getElementById('stage').dataset.theme === 'notebook-calc')); }
+  await p.selectOption('#themeSel', 'wireframe'); await p.waitForTimeout(200);
   // ART-K6 (Wireframe strong is brown #7a4f1c) and ART-S5 (focus: 3 px accent outline, 3 px offset)
   await p.selectOption('#themeSel', 'wireframe'); await p.waitForTimeout(200);
   { const strong = await p.evaluate(() => getComputedStyle(document.getElementById('stage')).getPropertyValue('--te-strong').trim().toLowerCase());
