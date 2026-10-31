@@ -273,13 +273,19 @@ if (!SH_CLASSIC) {
     $('themeSel').value = stage.dataset.theme;
     $('themeNote').textContent = 'Themes change the look only. The meaning colours on the drawing (C red, T blue, zero grey, fails, passes) never change.';
   }
-  function applyTheme(id) {
+  // ONE theme path (Architecture Lead, TE-B-251). opts.save === false is a preview: it changes the look exactly as a pick
+  // does, but leaves S.shell.theme, the saved state and #themeSel alone (the gallery, UI-G3 and UI-G4). layout() never saves.
+  function applyTheme(id, opts) {
+    const keep = !(opts && opts.save === false);
     let css = '';
     if (id !== 'wireframe' && id !== 'og') { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
-    themeStyle.textContent = css; stage.dataset.theme = id; S.shell.theme = id; save();
-    if ($('themeSel')) $('themeSel').value = id;
+    themeStyle.textContent = css; stage.dataset.theme = id;
+    if (keep) { S.shell.theme = id; save(); if ($('themeSel')) $('themeSel').value = id; }
     tagAll(); lastFree = ''; layoutSoon();
   }
+  // the shell's theme door for the gallery (CODE-F4): the built-in list, read-only, and a preview that saves nothing
+  const THEMES = Object.freeze(THEME_LIST.map(t => Object.freeze({ id: t.id, name: t.name })));
+  const previewTheme = id => applyTheme(id, { save: false });
   $('themeSel').addEventListener('change', ev => applyTheme(ev.target.value));
   $('swClassic').addEventListener('change', ev => { if (ev.target.checked) { S.layout = 'classic'; save(); location.reload(); } });
 
@@ -309,6 +315,6 @@ if (!SH_CLASSIC) {
   applyTheme(S.shell.theme); paintThemeSel();
   go(place(), true);
   setTimeout(() => { paintCard(); paintNav(); lastFree = ''; layout(); }, 60);
-  window.__shell = { go, setState, applyTheme, layout, get state() { return S.shell; } };
+  window.__shell = { go, setState, applyTheme, layout, themes: THEMES, previewTheme, get state() { return S.shell; } };
 }
 })();
