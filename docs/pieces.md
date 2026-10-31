@@ -52,12 +52,14 @@ Tests: **N** = `program/tests/pieces.test.js` (Node), **B** = `program/tests/ui/
 | ART-K1–K12 | The token names and Wireframe values | tokens | N: every name, rule and Wireframe value |
 | ART-K6 | Wireframe `strong` is brown `#7a4f1c` | tokens | N |
 | ART-K14 | Meaning colours are never tokens | tokens, results card | N |
-| ART-C1, ART-C2 | Text 4.5 : 1, lines and focus 3 : 1 | tokens (`contrastPairs`) | N: Wireframe pairs. **KNOWN: `ctl-line` on `ctl-bg` is 2.93 : 1 (#355, Graphics).** |
+| ART-C1, ART-C2 | Text 4.5 : 1, lines and focus 3 : 1 | tokens (`contrastPairs`) | N: 13 Wireframe pairs. `ctl-line` is `#7f8893`, 3.59 : 1 (#355, art-spec 1.0.4) |
 | ART-S1 | Default: a stick standing up, with a shadow | button, chip, toggle | B: screenshots; theme look in Notebook |
 | ART-S2 | Hover lifts 1–2 px | button, chip, toggle | N: CSS · B: hover transform |
 | ART-S3, ART-S6 | Pressed sinks, one even colour; picked differs by more than colour | button, chip, toggle | N: CSS · B: pressed sits 2 px lower |
 | ART-S4 | Disabled: 50 %, desaturated, no lift | button | N: CSS · B: computed opacity and filter |
 | ART-S5 | Focus: 3 px accent outline, 3 px offset | every control | N: CSS · B: computed outline |
+| ART-T2 | UI text at least 13 px | every piece's CSS | N: no font under 13 px; pill, tabs, pop-up |
+| ART-K16, ART-S10, ART-W12, ART-W13 | Course-rule pink, Wireframe stick states, pop-up, tabs (art-spec 1.0.4, PR #357) | slider, buttons, pop-up, tabs | N: CSS checks |
 | ART-I2 | An icon button keeps its words for screen readers | icon button | N: an icon button without a label is refused |
 | ART-W1, ART-W5 | Stick-in-a-tray slider; three different handle shapes; swept band; limit zones | slider | N: markup · B: three computed handle shapes |
 | ART-W3 | Results strip | results card (`.res`, the theme draws the bezel) | B: Notebook screenshot |
@@ -70,10 +72,10 @@ Building the pieces turned up these questions. The pieces use the stopgap value 
 
 | # | Gap | Owner | Stopgap in the pieces |
 |---|---|---|---|
-| G1 | **The "pink" of a course rule** (UI-I2, UI-S3, UI-C1, ART-W5 name it; no value anywhere). Is it a meaning colour like fail magenta (fixed in every theme, ART-K14), or a token? It also needs a contrast pair against the slider track. | Graphics (value), UI (meaning) | `#c8288c`, hatched at 45 % |
-| G2 | **Wireframe's stick states.** ART-S1–S3 give the Notebook values (`--nc-*`) but none for Wireframe: no hover shadow, no pressed shadow. | Graphics | lift `translate(-1px,-2px)`; pressed `translateY(2px)` with an inset shadow |
-| G3 | **What a pop-up is made of** (the results card's full view, picker lists, the ⓘ box, UI-W8). By ART-P1 it is temporary, so light (paper), but ART-W has no row for it. | Graphics | the `surface` colour with a soft shadow |
-| G4 | **How tabs look** (UI-S6). Are tabs sticks (ART-S, as Notebook draws them) or something else? ART-S7's glued group would fit. | Graphics | the picked tab is `strong` on `on-strong`; Notebook draws sticks |
+| G1 | **The "pink" of a course rule.** ANSWERED: ART-K16 (art-spec 1.0.4, #357) makes it a meaning colour, `#c8288c` with a `#7a0e52` edge, read from the app's `--rule`; solid 2 px stripes with a 3 px gap. | Graphics | done: `var(--rule, #c8288c)` |
+| G2 | **Wireframe's stick states.** ANSWERED: ART-S10 (#357) takes the pieces' values as the rule. | Graphics | done |
+| G3 | **What a pop-up is made of.** ANSWERED: ART-W12 (#357): paper in Notebook, `surface` in Wireframe, 1 px `ctl-line` edge, text 13 px minimum. | Graphics | done |
+| G4 | **How tabs look.** ANSWERED: ART-W13 (#357): a glued stick group in Notebook; in Wireframe, flat segments that each keep a 1 px `ctl-line` edge, the picked one sunk 2 px. | Graphics | done |
 | G5 | **Window widths in the words state** (UI-W1–W7 give homes, not sizes). The shell uses Inputs 400, Drawing 340, Sweep 640, Results 540 px. | UI | `--te-win-w` (320 px); the screen sets its own |
 | G6 | **How windows stack when two share an edge** (View options over Inputs on the left, UI-W3 and UI-W4), and the gap between them. | UI | the screen's layout code (unchanged from step 1) |
 | G7 | **Where the peeking window sits** (UI-W9 says "without covering the tab", not how far from it). | UI | 34 px in from its edge, beside the tab |
@@ -104,4 +106,5 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 ## Change log
 
 - **0.1 · 2026-10-31** First set: tokens, picture layer, window and edge tab, stick button, icon button, chip, toggle, tabs, slider, results card, pop-up (#354; TE-B-224, TE-B-227).
+- **0.1.2 · 2026-10-31** Graphics' review (TE-B-232): pill 13 px (ART-T2); art-spec 1.0.4 values (#357): `ctl-line #7f8893` (#355), course-rule pink from `--rule` as solid stripes (ART-K16), edged Wireframe tabs (ART-W13), 13 px pop-up (ART-W12); two more contrast pairs. G1–G4 answered.
 - **0.1.1 · 2026-10-31** Added the Gaps table: what the pieces needed that no spec says (TE-B-224 item 3).

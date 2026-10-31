@@ -32,11 +32,12 @@ const TOKENS = [
   ['font-ui', 'ART-K12'], ['font-head', 'ART-K12'], ['font-mono', 'ART-K12'], ['font-hand', 'ART-K12'],
 ].map(([name, rule]) => ({ name, css: '--te-' + name, rule }));
 
-// Wireframe, the default theme: the values in the ART-K table (art-spec 1.0.3). Brown is the action colour (ART-K6, TE-B-118).
+// Wireframe, the default theme: the values in the ART-K table (art-spec 1.0.4, PR #357). Brown is the action colour (ART-K6, TE-B-118);
+// ctl-line #7f8893 clears ART-C2 (#355).
 const WIREFRAME = {
   page: '#f2f4f6', grid: 'rgba(60,70,80,.05)', panel: 'rgba(255,255,255,.94)', 'panel-peek': 'rgba(255,255,255,.86)',
   surface: '#ffffff', 'surface-2': '#eef0f2', line: '#b9c0c8', 'line-soft': '#d5dae0', ink: '#1d232a', muted: '#4f5964',
-  strong: '#7a4f1c', 'on-strong': '#ffffff', 'ctl-bg': '#ffffff', 'ctl-line': '#8e98a3', tab: '#8a5a2b',
+  strong: '#7a4f1c', 'on-strong': '#ffffff', 'ctl-bg': '#ffffff', 'ctl-line': '#7f8893', tab: '#8a5a2b',
   accent: '#f0b45a', 'accent-ink': '#2a1a04', hot: '#fdebd6',
   'mem-hi': 'rgba(240,180,90,.6)', 'mem-hi-ink': '#1d232a', 'mem-dim': '.6', 'mem-hi-flag': '#ffffff',
   'font-ui': 'Barlow,"Segoe UI",system-ui,sans-serif', 'font-head': '"Barlow Semi Condensed","Arial Narrow",sans-serif',
@@ -81,7 +82,8 @@ function contrastPairs(v) {
     { fg: 'ink', bg: 'panel', under: 'page', min: 4.5, rule: 'ART-C1' }, { fg: 'muted', bg: 'surface', min: 4.5, rule: 'ART-C1' },
     { fg: 'ink', bg: 'ctl-bg', min: 4.5, rule: 'ART-C1' }, { fg: 'on-strong', bg: 'strong', min: 4.5, rule: 'ART-C1' },
     { fg: 'on-strong', bg: 'tab', min: 4.5, rule: 'ART-C1' }, { fg: 'accent-ink', bg: 'accent', min: 4.5, rule: 'ART-C1' },
-    { fg: 'ink', bg: 'hot', min: 4.5, rule: 'ART-C1' },
+    { fg: 'ink', bg: 'hot', min: 4.5, rule: 'ART-C1' }, { fg: 'ink', bg: 'surface-2', min: 4.5, rule: 'ART-C1' },
+    { fg: 'muted', bg: 'page', min: 4.5, rule: 'ART-C1' },
     { fg: 'ctl-line', bg: 'ctl-bg', min: 3, rule: 'ART-C2' }, { fg: 'strong', bg: 'surface', min: 3, rule: 'ART-C2' },
   ].map(p => Object.assign(p, { ratio: contrast(v[p.fg], v[p.bg], p.under ? v[p.under] : undefined) }))
     .map(p => Object.assign(p, { ok: p.ratio >= p.min }));
@@ -211,6 +213,7 @@ function resultsHTML(o) {
 // The look of the pieces in Wireframe, using only --te-* tokens and the app's meaning colours (--ok, --bad).
 // Scoped to #stage like everything themed (UI-T1); a theme's own rules are more specific and win.
 // UI-A3: .te-picture is the base layer, inset 0 always; windows are absolute on top and never change its box.
+// Course-rule pink is a meaning colour like pass and fail (ART-K16): read from the app's --rule, never a --te-* token.
 const CSS = `
 #stage .te-picture{position:absolute;inset:0;z-index:0}
 #stage .s-pan{position:absolute;box-sizing:border-box;background:var(--te-panel);color:var(--te-ink);border:1px solid var(--te-line);border-radius:10px;box-shadow:0 4px 16px rgba(20,30,40,.12);z-index:76;display:flex;flex-direction:column;min-width:0;max-height:calc(100% - 20px)}
@@ -226,7 +229,7 @@ const CSS = `
 #stage .s-pan:is([data-home="left"],[data-home="right"])[data-state="I"] .stp{flex-direction:column}
 #stage .s-ph{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border-bottom:1px solid var(--te-line-soft);font:700 13px var(--te-font-head);letter-spacing:.05em;text-transform:uppercase;flex:none;min-height:38px;box-sizing:border-box}
 #stage .s-ph .wt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#stage .s-ph .grip{font:500 12px var(--te-font-mono);color:var(--te-muted)}
+#stage .s-ph .grip{font:500 13px var(--te-font-mono);color:var(--te-muted)}
 #stage .s-pan>.s-bd{overflow:auto;min-height:0;flex:1 1 auto;padding:8px 10px;overscroll-behavior:contain}
 #stage .s-pan>.s-icons{display:none;gap:6px;padding:6px;flex-wrap:wrap}
 #stage .s-pan[data-state="I"]>.s-bd{display:none}
@@ -261,26 +264,27 @@ const CSS = `
 #stage .te-tog{position:relative;width:34px;height:30px;padding:0;flex:none}
 #stage .te-tog i{position:absolute;top:6px;left:10px;width:12px;height:10px;border-radius:2px;background:var(--te-ctl-line)}
 #stage .te-tog[aria-checked="true"] i{top:9px;background:var(--te-on-strong)}
-#stage .te-tabs{display:flex;gap:4px;flex-wrap:wrap}
-#stage .te-tabs .tab{border:1px solid transparent;border-radius:6px;background:transparent;color:var(--te-ink);font:600 13px var(--te-font-ui);padding:4px 10px;cursor:pointer}
-#stage .te-tabs .tab[aria-selected="true"]{background:var(--te-strong);border-color:var(--te-strong);color:var(--te-on-strong)}
+#stage .te-tabs{display:flex;flex-wrap:wrap}
+#stage .te-tabs .tab{border:1px solid var(--te-ctl-line);border-radius:0;margin-left:-1px;background:var(--te-ctl-bg);color:var(--te-ink);font:600 13px var(--te-font-ui);padding:4px 10px;cursor:pointer;transition:transform var(--t-press,120ms) ease-out}
+#stage .te-tabs .tab:first-child{margin-left:0;border-radius:4px 0 0 1px}#stage .te-tabs .tab:last-child{border-radius:0 4px 1px 0}
+#stage .te-tabs .tab[aria-selected="true"]{background:var(--te-strong);border-color:var(--te-strong);color:var(--te-on-strong);transform:translateY(2px);box-shadow:inset 0 3px 4px rgba(0,0,0,.28)}
 #stage .te-slider{position:relative;height:26px;min-width:120px;touch-action:none}
 #stage .te-slider .trk{position:absolute;left:0;right:0;top:11px;height:4px;border-radius:2px;background:var(--te-line)}
 #stage .te-slider .zone{position:absolute;top:6px;height:14px;pointer-events:auto}
-#stage .te-slider .zone.rule{background:repeating-linear-gradient(-45deg,transparent 0 3px,rgba(200,40,140,.45) 3px 5px)}
+#stage .te-slider .zone.rule{background:repeating-linear-gradient(-45deg,transparent 0 3px,var(--rule,#c8288c) 3px 5px)}
 #stage .te-slider .zone.wall{background:var(--te-line-soft);border-left:2px solid var(--te-muted);border-right:2px solid var(--te-muted)}
 #stage .te-slider .band{position:absolute;top:8px;height:10px;background:var(--te-hot);border:1px solid var(--te-strong);border-radius:2px;box-sizing:border-box}
 #stage .te-slider .th{position:absolute;top:3px;width:10px;height:20px;margin-left:-5px;box-sizing:border-box;background:var(--te-ctl-bg);border:2px solid var(--te-strong);cursor:grab}
 #stage .te-slider .th[data-end="from"]{border-right:0;border-radius:3px 0 0 3px}
 #stage .te-slider .th[data-end="to"]{border-left:0;border-radius:0 3px 3px 0}
 #stage .te-slider .th.val{width:16px;margin-left:-8px;border-radius:3px;background:var(--te-strong)}
-#stage .te-slider[data-over="rule"] .th.val{background:#c8288c;border-color:#7a0e52}
+#stage .te-slider[data-over="rule"] .th.val{background:var(--rule,#c8288c);border-color:#7a0e52}
 #stage .res{display:inline-flex;align-items:center;gap:8px;min-height:36px;border:1px solid var(--te-line);border-radius:18px;background:var(--te-surface);color:var(--te-ink);padding:0 8px 0 14px;font:500 13px var(--te-font-mono);cursor:pointer;white-space:nowrap}
 #stage .res .lbl{font-family:var(--te-font-ui);color:var(--te-muted)}
 #stage .res .chk.bad{color:var(--bad,#b0177a)}
-#stage .res .pill{font:700 11px var(--te-font-head);letter-spacing:.08em;border:1.5px solid currentColor;border-radius:10px;padding:1px 7px}
+#stage .res .pill{font:700 13px var(--te-font-head);letter-spacing:.08em;border:1.5px solid currentColor;border-radius:10px;padding:1px 7px}
 #stage .res .pill.ok{color:var(--ok,#2f7a4b)}#stage .res .pill.bad{color:var(--bad,#b0177a)}
-#stage .te-pop{position:absolute;z-index:90;background:var(--te-surface);color:var(--te-ink);border:1px solid var(--te-ctl-line);border-radius:10px;box-shadow:0 12px 40px rgba(20,30,40,.25);padding:10px 12px}
+#stage .te-pop{position:absolute;z-index:90;background:var(--te-surface);color:var(--te-ink);font:400 13px var(--te-font-ui);border:1px solid var(--te-ctl-line);border-radius:10px;box-shadow:0 12px 40px rgba(20,30,40,.25);padding:10px 12px}
 #stage .te-pop[hidden]{display:none}
 @media (prefers-reduced-motion:reduce){#stage :is(.s-b,.s-ic,.te-chip,.te-tog){transition:none}}
 `;

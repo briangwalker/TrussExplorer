@@ -21,7 +21,10 @@ test('tokens: Wireframe strong is brown #7a4f1c (ART-K6, TE-B-118); no meaning c
   const css = P.tokenCSS('wireframe');
   has(css, /^#stage\[data-theme="wireframe"\]\{/);
   assert.doesNotMatch(css, /--(comp|tens|zero|ok|bad)\b/);
-  assert.doesNotMatch(P.CSS, /--te-(comp|tens|zero|ok|bad|pass|fail)\b/, 'pieces read pass/fail only from the app (--ok, --bad)');
+  assert.doesNotMatch(P.CSS, /--te-(comp|tens|zero|ok|bad|pass|fail|rule)\b/, 'pieces read pass/fail only from the app (--ok, --bad)');
+  assert.ok(!P.TOKENS.some(t => t.name === 'rule'), 'course-rule pink is a meaning colour, not a token (ART-K16)');
+  assert.match(P.CSS, /\.zone\.rule\{background:repeating-linear-gradient\(-45deg,transparent 0 3px,var\(--rule,#c8288c\) 3px 5px\)\}/, 'solid 2 px pink stripes, 3 px gap (ART-K16)');
+  assert.strictEqual(P.WIREFRAME['ctl-line'], '#7f8893', 'ART-K7 (art-spec 1.0.4, #355)');
   assert.throws(() => P.tokenCSS('Bad id"'), /theme id/);
   assert.doesNotMatch(P.tokenCSS('x', { ink: 'red;}body{display:none' }), /[;]\}body|\}body/, 'a value cannot close the rule');
 });
@@ -36,7 +39,7 @@ test('contrast: the WCAG formula on known pairs', () => {
 
 test('contrast: Wireframe meets ART-C1 (text 4.5:1) and ART-C2 (lines and focus 3:1)', () => {
   // KNOWN (CODE-T3): pairs with an open issue are printed, not failed. Remove the entry when the issue is fixed.
-  const KNOWN = { 'ctl-line on ctl-bg': '#355' };
+  const KNOWN = {};   // #355 fixed: ctl-line #7f8893 (art-spec 1.0.4, #357)
   const pairs = P.contrastPairs(P.WIREFRAME), key = p => `${p.fg} on ${p.bg}`;
   for (const p of pairs) if (!p.ok && KNOWN[key(p)]) console.log(`KNOWN ${key(p)} ${p.ratio.toFixed(2)} < ${p.min} (${p.rule}) [${KNOWN[key(p)]}]`);
   for (const p of pairs) if (p.ok && KNOWN[key(p)]) assert.fail(`${key(p)} passes now: take it off KNOWN (${KNOWN[key(p)]})`);
@@ -148,4 +151,12 @@ test('CSS: focus ring 3 px accent with 3 px offset (ART-S5, UI-K4); disabled 50 
   has(P.CSS, /:hover:not\(:disabled\):not\(\.on\)\{transform:translate\(-1px,-2px\)/);
   has(P.CSS, /\[aria-pressed="true"\][^{]*\{[^}]*transform:translateY\(2px\)/, 'pressed sinks (ART-S3, ART-S6)');
   has(P.CSS, /prefers-reduced-motion:reduce/);
+});
+
+test('CSS: text 13 px minimum in the pieces (ART-T2): verdict pill, tabs, pop-up; Wireframe tabs keep an edge (ART-W13)', () => {
+  const sizes = [...P.CSS.matchAll(/font:\d+ (\d+)px/g)].map(m => +m[1]);
+  assert.ok(sizes.length && sizes.every(n => n >= 13), 'no font under 13 px (ART-T2): ' + sizes.join(','));
+  has(P.CSS, /\.res \.pill\{font:700 13px/);
+  has(P.CSS, /\.te-pop\{[^}]*font:400 13px/);
+  has(P.CSS, /\.te-tabs \.tab\{border:1px solid var\(--te-ctl-line\)/);
 });
