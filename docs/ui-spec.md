@@ -1,6 +1,6 @@
 # Truss Explorer UI Standard
 
-**Version 1.4 · 2026-10-28 · owner: UI Designer · creative sign-off: Brian**
+**Version 1.5 · 2026-10-31 · owner: UI Designer · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel looks and behaves. Every rule has a number (`UI-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -36,7 +36,7 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 | UI-A17 | **Meaning is never colour alone** | C / T / 0 letters, ✕ for fails, dashes for previews, shape cues for picked members (UI-D5). |
 | UI-A19 | **Help text says how to use it, not how it works** | Write "Drag the ✎ value or type a number", not "The input is bound to the solver's h parameter". One short sentence per hint. Hints can be hidden (☰ › Show help text), never required to use the screen. |
 | UI-A20 | **Easy reset** | ☰ › File has **Start from a simple example** (the built-in presets) and **Go back to an earlier version** (the backups, the same list as Analysis › History). Neither one deletes anything: the current bridge goes into History first. |
-| UI-A18 | **Meaning colours never change** | Compression red, tension blue, zero-force grey, pass green, fail **magenta + ✕**. Grey means zero force only, never "fails". Themes can't change these (UI-T2); OG is the only exception, kept as-is. |
+| UI-A18 | **Meaning colours never change** | Compression red, tension blue, zero-force grey, pass green, fail **magenta + ✕**. Grey means zero force only, never "fails". **Course-rule pink** (a course rule limits this value; UI-I2, UI-S3, UI-C1) is a meaning colour too: the same in every theme, always drawn with its 45° hatch and the rule's name, never alone, and never confused with fail magenta (the value and contrast are Graphics', pieces gap G1). Themes can't change these (UI-T2); OG is the only exception, kept as-is. |
 
 ## UI-W · Windows and where they sit
 
@@ -56,6 +56,11 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 | UI-W12 | **Project facts stay visible** | in the results card's full view (▾) and the Pass rules card | The fixed facts of the project are always one click away: span, desk overlap, the envelope, the books' total mass, FS, the material and the rules preset's name (#132). The results strip shows each checked number next to its limit (UI-W2). | | |
 | UI-W13 | **Dialogs say what they'll do** | centre, one at a time | The main button names the action and its size ("Run 3,518,580 designs", never "OK"). Rows in a dialog stay editable until you confirm. Drop-downs of numbers also take a typed value. After a dialog closes, a toast says what changed, offers the next step and Undo (UI-W10). | | |
 | UI-W14 | **Report a bug** | ☰, last row, always shown (not inside a submenu); also ☰ › Help › Report a bug | One click opens a dialog (UI-W13): "Report a bug: TE saves this bridge as a file, then opens a short Google form in a new tab. Attach the file there." It lists exactly what the form link carries: **version, model, bridge code**, and "no name, email or files are sent by the link". Buttons: **Save bridge and open form** · Cancel. After: toast "Saved TE-bug-‹bridge code›.json · attach it to the form". Saving is the normal bridge save (no screen settings, #181); if the file would hold a person's name (#260), the dialog has a ticked *Leave names out* box. On mainv the same button goes in its existing menu; Dev Lead names the spot in the PR. The form's questions are in the note under this table. | | |
+
+| UI-W15 | **Window sizes** (words state) | — | Each window is as wide as its content needs, up to: Inputs **400 px**, Drawing **340 px**, View options **640 px**, Sweep bar **640 px**, results full view **540 px** (UI-W18), PIP **360 × 240 px**. Never wider than **40 % of the stage**; on a stage under **1100 px** wide, side windows open in the icons state. Icons state: one **52 px** column or row. Tab: **28 px** thick. Heights follow the content, up to the stage height minus 24 px, then the window scrolls inside itself. | | |
+| UI-W16 | **Windows that share an edge stack, never overlap** | — | On one edge, windows stack in this order from the top bar: View options, then Inputs (left); Drawing alone (right). They sit **12 px** from the stage edge with an **8 px** gap between them. If the next one doesn't fit, it opens one state smaller (words → icons → tab). Two windows never overlap; a window never covers the top bar, the results strip or the PIP tab. | | |
+| UI-W17 | **Where a peek sits** | — | A peek (UI-W9) opens beside its own tab, **8 px** from it, lined up with the tab's top and kept inside the stage. It has a 2 px dashed edge in `strong` (the Click-Through look) so it reads as temporary. Moving off both the tab and the peek for **400 ms** closes it. | | |
+| UI-W18 | **The results card's full view** | a pop-up under the results strip, left-aligned to it | Opened by ▾ (UI-W2). Top to bottom: (1) each checked number against its limit, with the member or rule that governs it and PASSES/FAILS; (2) the project facts (UI-W12); (3) links: *Pass rules card* and *Member table*. One column, **540 px** max (UI-W15). It's a pop-up, so an outside click closes it (UI-W8). | | |
 
 **UI-W14 form questions** (Google Form owned by Brian, file upload on; short, in this order; TE-B-132):
 1. *Version, model, bridge code*: filled in by the link; don't change them.
@@ -239,6 +244,13 @@ UI owns **when, where and what stops it**. Graphics owns **how it looks and move
   - ☰ › View and display has *Restless bridge* and *Scene transitions* switches.
   - ☰ › Look and controls › Theme has the motion tuning (**ART-O5**), with *Reset to defaults*; the transition default is 1000 ms. A saved value outside 100–6000 ms is ignored and 1000 ms is used. Because a click or key always skips to the end (UI-M5), even a slow setting never blocks input (Future Vision Lead, TE-B-102).
 - **UI-M7 The tour reuses the restless bridge.** The first-time tour (UI-F2) uses the same mechanism and the same stop rules, then returns to the student's own settings.
+- **UI-M8 How each restless moment ends (it always settles).** A *moment* is one pass of UI-M2 (wiggle, change, note). UI-M3 says what stops the restless bridge for good; this rule says how a single moment ends.
+  - **Normal end:** the wiggle eases out to the exact rest shape within its time (ART-M3), then the note fades after **3 s**. The ✎ stain stays until the next change or the user's first input. The bridge then rests, still, for at least **4 s** of idle before the next moment can start (so moments are at least 10 s apart with UI-M1's 6 s).
+  - **Interrupted before the change (step 2):** any pointer move over the stage, key, scroll or wheel, or a UI-M1 blocker (a pop-up, sheet, sweep or hidden page), stops the wiggle at once. The bridge settles to rest in **150 ms** and **nothing changes**. This is a pause, not a stop: the next moment needs 6 s of idle again (UI-M1).
+  - **Interrupted after the change:** the change stays (it's never undone), the results stay correct for the shown design, and the wiggle and the note stop the same way.
+  - **Never left mid-shape:** whatever ends a moment, the bridge is back at its exact rest geometry. No offset, tilt or stretch is left behind, and the results always match what's drawn.
+  - **Resting by itself:** after **3 minutes** with no user input, moments pause until the user comes back (pointer or key, then 6 s idle). The page hidden or the screen asleep counts as no moments at all.
+  - With reduced motion (UI-M6): no wiggle, the change happens in one step, and the note still shows and fades.
 
 ## UI-B · Build documents: easy to follow
 
@@ -250,13 +262,24 @@ The printed build documents are the program's other screen. UI leads their ease 
 - **UI-B4 Nothing hidden or clipped.** No text, part card or dimension is covered or cut off, at the printed size and on screen. (#186 is a known miss.)
 - **UI-B5 Every number has its unit**, and lengths say what they measure ("cut to 142 mm, end to end").
 
+## UI-G · The gallery page
+
+The gallery is where UI, Graphics, the Future Vision Lead and Brian review the real screen pieces (Brian's decision 41a, TE-B-227). It replaces separate prototypes as the place to judge the look; the Click-Through and the Motion Lab stay as sketch tools. Where it lives in the code is the Architecture Lead's (TE-B-230).
+
+- **UI-G1 What it shows.** Every shared screen piece (the pieces in `docs/pieces.md`) in every state it has: windows in words, icons and tab (UI-A4); controls default, hover, pressed, on/off, disabled and focus; pop-ups open; the results card passing and failing. Each piece is shown in every built-in theme, OG included, and in each window look a theme offers. Each item is labelled with the `UI-`/`ART-` rules it meets. The page ends with a **coverage list**: rules shown, and rules with no piece yet.
+- **UI-G2 How it's reached.** Only by adding `?gallery=1` to the alpha or preview link. No menu item, button, key or link on screen leads to it, and without that exact parameter it does nothing.
+- **UI-G3 Built only from the program's pieces.** Every item is made by the same piece code the program uses (TrussPieces), styled by the real theme files and the real theme switch. Nothing is hand-drawn or copied. A piece that doesn't exist yet shows a plain "not built yet" card naming its rule, so gaps are visible.
+- **UI-G4 It changes nothing.** It reads no bridge or app state, saves nothing (a theme picked inside the gallery isn't remembered), loads nothing from the network, and leaving it (removing `?gallery=1`) shows the program exactly as it was.
+- **UI-G5 Its words** are the Terminology doc's (*Truss Explorer Terminology (shared words)* 1.0, [10] Admin), the same as the program's labels.
+
 ## Coverage: rules that aren't in a build step yet
 
 Every rule above must be cited by a build issue. These weren't, until now:
 
 | Rules | Issue that builds them | Note |
 |---|---|---|
-| UI-M1–M4, UI-M7 | #144, as part of step 13 (#220) | #144 was waiting on UI's stop rules; they're above |
+| UI-M1–M4, UI-M7, UI-M8 | #144, as part of step 13 (#220) | #144 was waiting on UI's stop rules; they're above |
+| UI-G1–G5 | #354's follow-up: the UI Engineer's gallery PR (TE-B-230, TE-B-231) | not one of the 14 steps; reviews happen there |
 | UI-M5, UI-M6 | #143, as part of step 14 (#221) | transitions are theme-specific |
 | UI-C2, UI-C3 | #148 | group select; not in the 14 steps |
 | UI-I2–I5 | #87, #131, inside step 8 (#215) | |
@@ -273,8 +296,8 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 | Step | Issue | Must meet |
 |---|---|---|
 | 1 | #183 (shipped) | UI-A4, UI-A5, UI-A6, UI-A7, UI-W1 |
-| 2 · Truss 2D full screen | #209 | **UI-A3**, UI-A7, UI-A12, UI-A13, UI-A17, UI-A19, UI-S1, UI-D1–D6, UI-W3, UI-W4, UI-W5, UI-W10, UI-V8, UI-V9 |
-| 3 · Sweep bar, results card, PIP | #210 | UI-A2, UI-W2, UI-W12, UI-W6, UI-W7, UI-W8, UI-A11, UI-H5–H8 |
+| 2 · Truss 2D full screen | #209 | **UI-A3**, UI-A7, UI-A12, UI-A13, UI-A17, UI-A19, UI-S1, UI-D1–D6, UI-W3, UI-W4, UI-W5, UI-W10, UI-W15, UI-W16, UI-W17, UI-V8, UI-V9 |
+| 3 · Sweep bar, results card, PIP | #210 | UI-A2, UI-W2, UI-W12, UI-W18, UI-W6, UI-W7, UI-W8, UI-A11, UI-H5–H8 |
 | 4 · Analysis full screen | #211 | **UI-A3**, UI-A1, UI-A7, UI-A17, UI-A8, UI-S4, UI-S6, UI-C1, UI-C4, UI-C6–C8, UI-W11, UI-N1–N3 |
 | 5 · Hover previews, click loads | #212 | UI-A10, UI-A11, UI-H1, UI-H2, UI-H4 |
 | 6 · Compare | #213 | UI-H3, UI-S7 |
@@ -284,11 +307,12 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 | 10 · ☰ and sheets | #217 | UI-A16, UI-W8, UI-W9, UI-A15, UI-A9, UI-N4, UI-A19, UI-A20, UI-W13, UI-V9, UI-K5 (the Mouse and keys sheet) |
 | 11 · Keyboard and screen readers | #218 | UI-K1–K5 (F6 windows; rebinding works for every key), UI-N5 |
 | 12 · Phone | #219 | UI-S8 |
-| 13 · First-time tour | #220 | UI-F1–F2, UI-K6 (keys and mouse walkthrough), UI-M1–M4, UI-M7 (#144) |
+| 13 · First-time tour | #220 | UI-F1–F2, UI-K6 (keys and mouse walkthrough), UI-M1–M4, UI-M7, UI-M8 (#144) |
 | 14 · Themes and OG | #221 | UI-T1–T6, UI-A18, UI-M5–M6 (#143) |
 
 ## Change log
 
+- **1.5 · 2026-10-31** From the UI Engineer's pieces gaps (TE-B-239, docs/pieces.md) and TE-B-224: added UI-G1–G5 (the gallery page, gap G9; Brian's 41a, TE-B-227; place from TE-B-230), UI-M8 (how each restless moment ends and settles, gap G10), UI-W15 window sizes (G5), UI-W16 stacking on a shared edge (G6), UI-W17 where a peek sits (G7), UI-W18 the results card's full view (G8). UI-A18 now says course-rule pink is a meaning colour (UI's half of G1; the value is Graphics'). Steps 2, 3 and 13 cite the new W and M rules.
 - **1.4 · 2026-10-28** Brian's F6 decision (TE-B-117): UI-K2 settled (F6 jumps windows; Home view is Home key, double-click middle, ⌂). Added UI-K5 (every binding can be changed, in ☰ › Look and controls › Mouse and keys, the path #228 uses; UI-V9 now says the same) and UI-K6 (keys and mouse walkthrough, step 13). Added UI-W14 (Report a bug button, dialog and form questions; #115, TE-B-132, with White Hat's link and upload limits from TE-B-136). Added sheet, dialog, toast, tour and walkthrough to the words line. Added UI-B1–B5 (build documents easy to follow; TE-B-129). Reference build is Click-Through v18.
 - **1.3 · 2026-10-28** From the Future Vision Lead's A2 review (TE-B-096) and Dev Lead's TE-B-099/102: added the Axioms the build depends on: UI-V9 (Inventor mouse, G1), UI-C6–C8 (chart zoom, reset, 3D fits, G2), UI-W11 home + eyes (X4, G3), UI-W12 project facts (G4), UI-A19 help text (G5), UI-W13 dialogs (G6), UI-I9 widths and columns (G7), UI-S9 long jobs (G8), UI-A20 easy reset (G9). UI-M2 now points to ART-M3 for its numbers; UI-M5 is 1000 ms both ways (Brian; ART-M1). UI-M6 lists the ART-O5 motion tuning beside the off switches (Future Vision Lead A2, TE-B-102). UI-K2 notes the open F6 question (X1, Brian).
 - **1.2 · 2026-10-28** Tilt hook is a shear, not a rotation (UI-T4, UI-I6 → ART-H4; TE-B-083). Build-step table now cites the 8 rules the spec report found uncited (TE-B-086): UI-A1, UI-A2, UI-A9, UI-A17, UI-W4, UI-S1, UI-N4, UI-N5. Step 8 cites UI-T4.
