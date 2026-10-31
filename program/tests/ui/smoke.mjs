@@ -43,7 +43,7 @@ try {
 
   // 2. saved bridges load and match their saved summaries (2D)
   const bridgeFiles = [path.join(here, '..'), path.join(here, '..', 'private')].filter(d => fs.existsSync(d))
-    .flatMap(d => fs.readdirSync(d).filter(f => f.endsWith('.bridge.json')).map(f => path.join(d, f)));
+    .flatMap(d => fs.readdirSync(d).filter(f => /\.(bridge\.json|truss)$/.test(f)).map(f => path.join(d, f)));
   for (const file of bridgeFiles) {
     const f = path.basename(file), fx = path.dirname(file);
     const j = JSON.parse(fs.readFileSync(file, 'utf8'));

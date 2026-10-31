@@ -886,7 +886,7 @@ body.hidesame table .samecol { display: none; }
             <div class="tablewrap"><table id="abTbl"></table></div>
             <p class="note" id="abTotal" style="margin:8px 0"></p>
             <div class="btns"><button type="button" class="btn acc" id="abGo" title="Set your truss system to be the sweep">Set up this sweep</button><button type="button" class="btn ghost" id="abRun" title="Set your truss system to be the sweep, then run it">Set up and run</button><button type="button" class="btn ghost" id="abNo">Cancel</button></div>
-            <input type="file" id="abFile" accept=".json,application/json" hidden>
+            <input type="file" id="abFile" accept=".truss,.json,application/json" hidden>
           </div></div>
           <div id="bigModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="bigModalH"><div class="modalcard"><h3 id="bigModalH" style="margin-top:0">Run the full search?</h3><p id="bigModalText"></p><div class="btns"><button type="button" class="btn acc" id="bigGo">Run full search</button><button type="button" class="btn ghost" id="bigNo">Cancel</button></div></div></div>
           <div class="progress" aria-hidden="true"><span id="sweepBar"></span></div>
@@ -1041,7 +1041,7 @@ body.hidesame table .samecol { display: none; }
 <div class="fslayer" id="fsLayer" hidden><div class="fsfill" id="fsFill"></div><div class="fsbar" id="fsBar"></div><div class="fsfoot" id="fsFoot"></div>
   <details class="fspanel" id="fsPanel" hidden><summary id="fsPanelName"></summary><div id="fsPanelBody"></div></details></div>
 <button type="button" class="fsexit" id="fsExit" hidden>✕ Leave full screen (Esc)</button>
-<input type="file" id="filePick" accept=".json,application/json,.tsweep" hidden>
+<input type="file" id="filePick" accept=".truss,.bridge.json,.sweep.json,.tsweep,.json,application/json" hidden>
 <div class="dock" id="dock">
   <div class="dockbar">
     <button type="button" class="dockbtn" id="dockBtn" aria-expanded="false" aria-controls="dockMenu" title="More view options, starting bridges and earlier bridges">☰</button>
