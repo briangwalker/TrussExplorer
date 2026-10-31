@@ -2713,8 +2713,11 @@ const partShapes = (tr, plan, b) => finishedParts(tr, plan, b).flatMap(P => P.sh
 // the guard every build document runs (TE-B-187a part 2): a drawn end that differs from the cut guide, an end past square,
 // or a corner more than 1 mm inside another piece (the kinked-chord corners under 1 mm are 'sand to fit', #342) stops
 // the set with a visible box on page 1, so a wrong picture can't be printed quietly.
+// the overlap the guard and parts.test.js allow, in mm: the kinked-chord corners are 0.72-0.88 mm today (Math, TE-B-275);
+// tighten to 0.6 when Math's 'lean' patch (#332) lands
+const PART_OVERLAP_MM = 1.0;
 function partGuard(tr, plan, b) {
-  const bad = checkParts(finishedParts(tr, plan, b), b, 1.0);
+  const bad = checkParts(finishedParts(tr, plan, b), b, PART_OVERLAP_MM);
   return { ok: !bad.length, bad, html: bad.length ? `<div class="partchk" data-partcheck="fail" style="border:1mm solid #000;padding:2mm;margin:2mm 0;font:bold 11pt Arial">DRAWING CHECK FAILED: ${bad.length} PIECE END${bad.length > 1 ? 'S' : ''} IN THE PICTURES ${bad.length > 1 ? 'DO' : 'DOES'} NOT MATCH THE CUT GUIDE (${esc(bad.slice(0, 4).map(x => 'ITEM ' + x.item + ' ' + x.kind.toUpperCase()).join(', '))}). DON'T PRINT. REPORT IT TO THE TEAM.</div>` : '' };
 }
 // side view as SVG. o: { highlight: Set, grey: Set, labels, balloons, b, color: 'part' | 'mono' | css colour, dash: true, dims: true }
@@ -3418,7 +3421,7 @@ function bendingSheetHTML(tr, plan, res, meta, opt) {
     @media print{body{background:#fff}.pg{margin:0}}`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name || 'Design')} · bending sheet</title><style>${css}</style></head><body>${pages.join('')}</body></html>`;
 }
-const api = { finishedParts, checkParts, partGuard, bentCheck, bendingSheetHTML, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
+const api = { finishedParts, checkParts, partGuard, PART_OVERLAP_MM, bentCheck, bendingSheetHTML, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.BuildDoc = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>

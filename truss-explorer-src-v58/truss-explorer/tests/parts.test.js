@@ -49,7 +49,7 @@ test('pieces meet face to face: the default bridge has no overlap at all', () =>
 test('at a kinked chord joint the known overlap stays under 1 mm', () => {
   for (const [name, st] of Object.entries(CASES)) {
     const ov = BD.checkParts(partsOf(st).parts, B).filter(p => p.kind === 'overlap');
-    ov.forEach(p => assert.ok(p.depth <= 1.0, `${name}: item ${p.item} into item ${p.intoItem} by ${p.depth} mm`));
+    ov.forEach(p => assert.ok(p.depth <= BD.PART_OVERLAP_MM, `${name}: item ${p.item} into item ${p.intoItem} by ${p.depth} mm`));
     if (ov.length) console.log(`# KNOWN ${name}: ${ov.length} corners 0.3-${Math.max(...ov.map(p => p.depth))} mm into a kinked chord (#332)`);
   }
 });
