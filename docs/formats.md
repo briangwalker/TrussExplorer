@@ -36,7 +36,7 @@ Written by `fileInfo()` in app.js.
 |---|---|---|
 | `format`, `version` | string, integer | See above. |
 | `app` | string | `"SE 310 Truss Explorer"`. |
-| `release` | string | The release that saved it, for people: `"v61"` on main, `"balsaPixel 1.0-dev"` on the balsaPixel line. **Free text**: never parse it or compare it as a number. `null` after upgrading a v1 file. |
+| `release` | string | The release that saved it, for people: `"v61"` on main, `"1.0.0-alpha.1"` on the balsaPixel line (older alpha files say `"balsaPixel 1.0-dev"` or `"balsaPixel 1.0.0-alpha.1"`). **Free text**: never parse it or compare it as a number. `null` after upgrading a v1 file. |
 | `solver` | integer | `APP_VER`: the solver and saved-data version. This is the number to compare: a different `solver` means results may differ, so offer a re-run. `null` after upgrading a v1 file. |
 | `savedAt` | string | ISO 8601 time, UTC. |
 | `model` | `"2D"` / `"3D"` / null | The analysis model the numbers came from. `null` when an upgraded v1 file didn't say. |
