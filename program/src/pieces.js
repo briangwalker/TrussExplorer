@@ -100,7 +100,7 @@ function buttonHTML(o) {
   if (!o.label) fail('a button needs a label (ART-I2: words for screen readers even when only an icon shows)');
   const cls = k[0] + (o.sm ? ' sm' : '') + (o.pressed ? ' on' : '');
   const face = o.kind === 'icon' ? escH(o.icon || o.label.slice(0, 1)) : (o.icon ? `<span class="te-bi" aria-hidden="true">${escH(o.icon)}</span>` : '') + escH(o.label);
-  return `<button type="button" class="${cls}" data-part="${k[1]}" data-slot="ctl"${attr('id', o.id)}${attr('data-act', o.act)}`
+  return `<button type="button" class="${cls}" data-part="${k[1]}" data-slot="ctl" data-pc${attr('id', o.id)}${attr('data-act', o.act)}`
     + `${o.kind === 'icon' ? attr('aria-label', o.label) : ''}${attr('title', o.title || (o.kind === 'icon' ? o.label : null))}`
     + `${o.pressed != null ? ` aria-pressed="${!!o.pressed}"` : ''}${attr('disabled', !!o.disabled)}>${face}</button>`;
 }
@@ -109,7 +109,7 @@ function buttonHTML(o) {
 // A switch: the stick is pushed in when on, and the words say what it switches. opts: { label, checked, id, disabled }
 function toggleHTML(o) {
   if (!o || !o.label) fail('a toggle needs a label');
-  return `<label class="te-togrow" data-part="toggle-row" data-slot="ctl"><button type="button" role="switch" class="te-tog${o.checked ? ' on' : ''}" data-part="toggle" data-slot="ctl"`
+  return `<label class="te-togrow" data-part="toggle-row" data-slot="ctl" data-pc><button type="button" role="switch" class="te-tog${o.checked ? ' on' : ''}" data-part="toggle" data-slot="ctl" data-pc`
     + `${attr('id', o.id)} aria-checked="${!!o.checked}"${attr('disabled', !!o.disabled)}><i aria-hidden="true"></i></button><span>${escH(o.label)}</span></label>`;
 }
 
@@ -119,7 +119,7 @@ function toggleHTML(o) {
 function tabsHTML(o) {
   if (!o || !Array.isArray(o.tabs) || !o.tabs.length) fail('tabs need a list of { id, label }');
   const sel = o.tabs.some(t => t.id === o.selected) ? o.selected : o.tabs[0].id, pre = o.idPrefix || 'tab';
-  return `<div class="te-tabs" role="tablist" data-part="tabs" data-slot="ctl"${attr('aria-label', o.label)}>`
+  return `<div class="te-tabs" role="tablist" data-part="tabs" data-slot="ctl" data-pc${attr('aria-label', o.label)}>`
     + o.tabs.map(t => `<button type="button" role="tab" class="tab${t.id === sel ? ' on' : ''}" data-part="tab" data-slot="ctl" data-tab-id="${escH(t.id)}"`
       + ` id="${escH(pre + '-' + t.id)}" aria-selected="${t.id === sel}" tabindex="${t.id === sel ? 0 : -1}">${escH(t.label)}</button>`).join('') + '</div>';
 }
@@ -140,16 +140,16 @@ function windowHTML(o) {
   const st = STATES.includes(o.state) ? o.state : 'W', right = o.home === 'right', title = o.title || o.id;
   const shrink = right ? '›' : '‹', grow = right ? '‹' : '›';
   const icons = (o.icons || []).map(x => buttonHTML({ kind: 'icon', label: x.label, icon: x.icon, pressed: x.on, act: x.ic })).join('');
-  return `<section class="s-pan" id="win-${o.id}" data-win="${o.id}" data-home="${o.home}" data-state="${st}" data-part="window" data-slot="bg" role="region" aria-label="${escH(title)}"${st === 'T' ? ' hidden' : ''}>`
+  return `<section class="s-pan" id="win-${o.id}" data-win="${o.id}" data-home="${o.home}" data-state="${st}" data-part="window" data-slot="bg" data-pc role="region" aria-label="${escH(title)}"${st === 'T' ? ' hidden' : ''}>`
     + `<div class="s-ph" data-part="window-title" data-slot="bg"><span class="grip" aria-hidden="true">⋮⋮</span><span class="wt">${escH(title)}</span>`
-    + `<span class="stp" data-part="stepper" data-slot="ctl"><button type="button" class="s-ic sm" data-part="icon-button" data-slot="ctl" data-step="shrink" aria-label="${escH((st === 'W' ? 'Shrink ' : 'Hide ') + title + (st === 'W' ? ' to icons' : ''))}">${shrink}</button>`
-    + `<button type="button" class="s-ic sm" data-part="icon-button" data-slot="ctl" data-step="grow" aria-label="${escH('Grow ' + title + ' to words and icons')}"${st === 'W' ? ' hidden' : ''}>${grow}</button></span></div>`
+    + `<span class="stp" data-part="stepper" data-slot="ctl"><button type="button" class="s-ic sm" data-part="icon-button" data-slot="ctl" data-pc data-step="shrink" aria-label="${escH((st === 'W' ? 'Shrink ' : 'Hide ') + title + (st === 'W' ? ' to icons' : ''))}">${shrink}</button>`
+    + `<button type="button" class="s-ic sm" data-part="icon-button" data-slot="ctl" data-pc data-step="grow" aria-label="${escH('Grow ' + title + ' to words and icons')}"${st === 'W' ? ' hidden' : ''}>${grow}</button></span></div>`
     + `<div class="s-bd">${o.body || ''}</div><div class="s-icons" role="toolbar" aria-label="${escH(title + ' (icons)')}">${icons}</div></section>`;
 }
 function edgeTabHTML(o) {
   if (!o || !HOMES[o.home]) fail('an edge tab needs the window home');
   const title = o.title || o.id;
-  return `<button type="button" class="tabE ${HOMES[o.home]}" data-part="edge-tab" data-slot="ctl" data-tab="${escH(o.id)}" aria-controls="win-${escH(o.id)}" aria-label="${escH('Show ' + title)}" title="${escH('Show ' + title + ' (hover to peek)')}"${o.state === 'T' ? '' : ' hidden'}>${escH(title)}</button>`;
+  return `<button type="button" class="tabE ${HOMES[o.home]}" data-part="edge-tab" data-slot="ctl" data-pc data-tab="${escH(o.id)}" aria-controls="win-${escH(o.id)}" aria-label="${escH('Show ' + title)}" title="${escH('Show ' + title + ' (hover to peek)')}"${o.state === 'T' ? '' : ' hidden'}>${escH(title)}</button>`;
 }
 
 // ---------- the slider (ART-W1, ART-W5, UI-I1-I3) ----------
@@ -181,7 +181,7 @@ function sliderHTML(o) {
   const th = (end, v, name) => `<span class="th${end === 'val' ? ' val' : ''}" data-end="${end}" role="slider" tabindex="0" style="left:${num(pct(v, o))}%"`
     + ` aria-label="${escH(name)}" aria-valuemin="${num(o.min)}" aria-valuemax="${num(o.max)}" aria-valuenow="${num(v)}" aria-valuetext="${escH(num(v) + u)}"></span>`;
   const lo = swept ? Math.min(o.from, o.to) : null, hi = swept ? Math.max(o.from, o.to) : null;
-  return `<div class="te-slider" data-part="slider" data-slot="ctl" data-key="${escH(o.key)}"${swept ? ' data-swept' : ''}${sv.overRule ? ' data-over="rule"' : ''}${sv.atWall ? ` data-wall="${sv.atWall}"` : ''}`
+  return `<div class="te-slider" data-part="slider" data-slot="ctl" data-pc data-key="${escH(o.key)}"${swept ? ' data-swept' : ''}${sv.overRule ? ' data-over="rule"' : ''}${sv.atWall ? ` data-wall="${sv.atWall}"` : ''}`
     + ` data-min="${num(o.min)}" data-max="${num(o.max)}" data-step="${num(o.step || 0)}"`
     + `${o.wall && o.wall.lo != null ? ` data-wall-lo="${num(o.wall.lo)}"` : ''}${o.wall && o.wall.hi != null ? ` data-wall-hi="${num(o.wall.hi)}"` : ''}`
     + `${o.rule && o.rule.lo != null ? ` data-rule-lo="${num(o.rule.lo)}"` : ''}${o.rule && o.rule.hi != null ? ` data-rule-hi="${num(o.rule.hi)}"` : ''}>`
@@ -204,7 +204,7 @@ function resultsHTML(o) {
       return `<span class="chk${c.ok ? '' : ' bad'}" data-ok="${!!c.ok}"${attr('title', c.label)}>${c.label ? `<span class="lbl">${escH(c.label)}</span> ` : ''}`
         + `${escH(c.value)} ${escH(c.ok ? op[0] : op[1])} ${escH(c.limit)}${escH(u)}${c.ok ? '' : ' <span class="x" aria-hidden="true">✕</span>'}</span>`;
     });
-  return `<button type="button" class="res" data-part="results" data-slot="disp"${attr('id', o.id)} aria-expanded="${!!o.expanded}" aria-haspopup="dialog">`
+  return `<button type="button" class="res" data-part="results" data-slot="disp" data-pc${attr('id', o.id)} aria-expanded="${!!o.expanded}" aria-haspopup="dialog">`
     + `<span class="chks">${items.join('<span class="sep" aria-hidden="true"> · </span>')}</span>`
     + `<span class="pill ${V[0]}" data-part="badge" data-slot="disp">${V[1]}</span><span aria-hidden="true">▾</span></button>`;
 }
@@ -212,52 +212,55 @@ function resultsHTML(o) {
 // ---------- CSS ----------
 // The look of the pieces in Wireframe, using only --te-* tokens and the app's meaning colours (--ok, --bad).
 // Scoped to #stage like everything themed (UI-T1); a theme's own rules are more specific and win.
+// Rules on class names the shell also uses (.s-pan, .tabE, .s-b, .s-ic, .res, .s-ph, .stp) reach only elements the pieces
+// built (data-pc), so install() changes nothing the shell drew (BluePeachDev's BPD-3 check, TE-B-235). The marker sits in
+// :where(), which adds no specificity, so a theme's own rules still win over these (UI-T1).
 // UI-A3: .te-picture is the base layer, inset 0 always; windows are absolute on top and never change its box.
 // Course-rule pink is a meaning colour like pass and fail (ART-K16): read from the app's --rule, never a --te-* token.
 const CSS = `
 #stage .te-picture{position:absolute;inset:0;z-index:0}
-#stage .s-pan{position:absolute;box-sizing:border-box;background:var(--te-panel);color:var(--te-ink);border:1px solid var(--te-line);border-radius:10px;box-shadow:0 4px 16px rgba(20,30,40,.12);z-index:76;display:flex;flex-direction:column;min-width:0;max-height:calc(100% - 24px);max-width:40%}
-#stage .s-pan[hidden]:not(.peek){display:none}
-#stage .s-pan.peek{display:flex;border:2px dashed var(--te-strong);background:var(--te-panel-peek);z-index:79}
-#stage .s-pan[data-home="left"]{left:var(--te-gap,12px);top:var(--te-home-top,60px)}
-#stage .s-pan[data-home="right"]{right:var(--te-gap,12px);top:var(--te-home-top,60px)}
-#stage .s-pan[data-home="top"]{left:var(--te-gap,12px);top:var(--te-home-top,60px)}
-#stage .s-pan[data-home="bottom"]{left:var(--te-gap,12px);bottom:var(--te-gap,12px)}
-#stage .s-pan[data-state="W"]{width:var(--te-win-w,320px)}
-#stage .s-pan[data-state="I"]{width:auto}
-#stage .s-pan:is([data-home="left"],[data-home="right"])[data-state="I"]{width:var(--te-win-i,52px)}
-#stage .s-pan:is([data-home="left"],[data-home="right"])[data-state="I"] .stp{flex-direction:column}
-#stage .s-ph{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border-bottom:1px solid var(--te-line-soft);font:700 13px var(--te-font-head);letter-spacing:.05em;text-transform:uppercase;flex:none;min-height:38px;box-sizing:border-box}
-#stage .s-ph .wt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#stage .s-ph .grip{font:500 13px var(--te-font-mono);color:var(--te-muted)}
-#stage .s-pan>.s-bd{overflow:auto;min-height:0;flex:1 1 auto;padding:8px 10px;overscroll-behavior:contain}
-#stage .s-pan>.s-icons{display:none;gap:6px;padding:6px;flex-wrap:wrap}
-#stage .s-pan[data-state="I"]>.s-bd{display:none}
-#stage .s-pan[data-state="I"]>.s-icons{display:flex}
-#stage .s-pan[data-state="I"] .s-ph .wt,#stage .s-pan[data-state="I"] .s-ph .grip{display:none}
-#stage .s-pan[data-state="I"] .s-ph{justify-content:center;padding:5px}
-#stage .s-pan[data-home="left"][data-state="I"]>.s-icons,#stage .s-pan[data-home="right"][data-state="I"]>.s-icons{flex-direction:column;align-items:center}
-#stage .stp{display:inline-flex;gap:4px;flex:none}
-#stage :is(.s-pan,.te-tabs,.te-slider,.res) [hidden]{display:none}
-#stage .tabE{position:absolute;border:0;background:var(--te-tab);color:var(--te-on-strong);font:700 13px var(--te-font-head);letter-spacing:.06em;text-transform:uppercase;padding:14px 8px;writing-mode:vertical-rl;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);z-index:80}
-#stage .tabE[hidden]{display:none}
-#stage .tabE.l,#stage .tabE.r{width:28px;padding:14px 0;box-sizing:border-box}
-#stage .tabE.l{left:0;top:35%;border-radius:0 10px 10px 0}
-#stage .tabE.r{right:0;top:35%;border-radius:10px 0 0 10px}
-#stage .tabE.t,#stage .tabE.b{writing-mode:horizontal-tb;height:28px;padding:0 14px;box-sizing:border-box;left:40px}
-#stage .tabE.t{top:var(--te-home-top,52px);border-radius:0 0 10px 10px}
-#stage .tabE.b{bottom:0;border-radius:10px 10px 0 0}
-#stage .s-b,#stage .s-ic,#stage .te-chip,#stage .te-tog{box-sizing:border-box;font:600 14px var(--te-font-ui);color:var(--te-ink);background:var(--te-ctl-bg);border:1px solid var(--te-ctl-line);border-radius:6px;cursor:pointer;
+#stage .s-pan:where([data-pc]){position:absolute;box-sizing:border-box;background:var(--te-panel);color:var(--te-ink);border:1px solid var(--te-line);border-radius:10px;box-shadow:0 4px 16px rgba(20,30,40,.12);z-index:76;display:flex;flex-direction:column;min-width:0;max-height:calc(100% - 24px);max-width:40%}
+#stage .s-pan:where([data-pc])[hidden]:not(.peek){display:none}
+#stage .s-pan:where([data-pc]).peek{display:flex;border:2px dashed var(--te-strong);background:var(--te-panel-peek);z-index:79}
+#stage .s-pan:where([data-pc])[data-home="left"]{left:var(--te-gap,12px);top:var(--te-home-top,60px)}
+#stage .s-pan:where([data-pc])[data-home="right"]{right:var(--te-gap,12px);top:var(--te-home-top,60px)}
+#stage .s-pan:where([data-pc])[data-home="top"]{left:var(--te-gap,12px);top:var(--te-home-top,60px)}
+#stage .s-pan:where([data-pc])[data-home="bottom"]{left:var(--te-gap,12px);bottom:var(--te-gap,12px)}
+#stage .s-pan:where([data-pc])[data-state="W"]{width:var(--te-win-w,320px)}
+#stage .s-pan:where([data-pc])[data-state="I"]{width:auto}
+#stage .s-pan:where([data-pc]):is([data-home="left"],[data-home="right"])[data-state="I"]{width:var(--te-win-i,52px)}
+#stage .s-pan:where([data-pc]):is([data-home="left"],[data-home="right"])[data-state="I"] .stp{flex-direction:column}
+#stage :where(.s-pan[data-pc]) .s-ph{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border-bottom:1px solid var(--te-line-soft);font:700 13px var(--te-font-head);letter-spacing:.05em;text-transform:uppercase;flex:none;min-height:38px;box-sizing:border-box}
+#stage :where(.s-pan[data-pc]) .s-ph .wt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#stage :where(.s-pan[data-pc]) .s-ph .grip{font:500 13px var(--te-font-mono);color:var(--te-muted)}
+#stage .s-pan:where([data-pc])>.s-bd{overflow:auto;min-height:0;flex:1 1 auto;padding:8px 10px;overscroll-behavior:contain}
+#stage .s-pan:where([data-pc])>.s-icons{display:none;gap:6px;padding:6px;flex-wrap:wrap}
+#stage .s-pan:where([data-pc])[data-state="I"]>.s-bd{display:none}
+#stage .s-pan:where([data-pc])[data-state="I"]>.s-icons{display:flex}
+#stage .s-pan:where([data-pc])[data-state="I"] .s-ph .wt,#stage .s-pan:where([data-pc])[data-state="I"] .s-ph .grip{display:none}
+#stage .s-pan:where([data-pc])[data-state="I"] .s-ph{justify-content:center;padding:5px}
+#stage .s-pan:where([data-pc])[data-home="left"][data-state="I"]>.s-icons,#stage .s-pan:where([data-pc])[data-home="right"][data-state="I"]>.s-icons{flex-direction:column;align-items:center}
+#stage :where(.s-pan[data-pc]) .stp{display:inline-flex;gap:4px;flex:none}
+#stage :is(.s-pan:where([data-pc]),.te-tabs,.te-slider,.res:where([data-pc])) [hidden]{display:none}
+#stage .tabE:where([data-pc]){position:absolute;border:0;background:var(--te-tab);color:var(--te-on-strong);font:700 13px var(--te-font-head);letter-spacing:.06em;text-transform:uppercase;padding:14px 8px;writing-mode:vertical-rl;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);z-index:80}
+#stage .tabE:where([data-pc])[hidden]{display:none}
+#stage .tabE:where([data-pc]).l,#stage .tabE:where([data-pc]).r{width:28px;padding:14px 0;box-sizing:border-box}
+#stage .tabE:where([data-pc]).l{left:0;top:35%;border-radius:0 10px 10px 0}
+#stage .tabE:where([data-pc]).r{right:0;top:35%;border-radius:10px 0 0 10px}
+#stage .tabE:where([data-pc]).t,#stage .tabE:where([data-pc]).b{writing-mode:horizontal-tb;height:28px;padding:0 14px;box-sizing:border-box;left:40px}
+#stage .tabE:where([data-pc]).t{top:var(--te-home-top,52px);border-radius:0 0 10px 10px}
+#stage .tabE:where([data-pc]).b{bottom:0;border-radius:10px 10px 0 0}
+#stage .s-b:where([data-pc]),#stage .s-ic:where([data-pc]),#stage .te-chip,#stage .te-tog{box-sizing:border-box;font:600 14px var(--te-font-ui);color:var(--te-ink);background:var(--te-ctl-bg);border:1px solid var(--te-ctl-line);border-radius:6px;cursor:pointer;
   box-shadow:0 2px 0 var(--te-ctl-line),0 3px 6px rgba(20,30,40,.12);transition:transform var(--t-press,120ms) ease-out,box-shadow var(--t-press,120ms) ease-out}
-#stage .s-b{min-height:32px;padding:0 12px;display:inline-flex;align-items:center;gap:6px}
-#stage .s-b.sm{min-height:28px;font-size:13px;padding:0 10px}
-#stage .s-ic{width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:15px}
-#stage .s-ic.sm{width:28px;height:28px;font-size:13px}
+#stage .s-b:where([data-pc]){min-height:32px;padding:0 12px;display:inline-flex;align-items:center;gap:6px}
+#stage .s-b:where([data-pc]).sm{min-height:28px;font-size:13px;padding:0 10px}
+#stage .s-ic:where([data-pc]){width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+#stage .s-ic:where([data-pc]).sm{width:28px;height:28px;font-size:13px}
 #stage .te-chip{min-height:28px;padding:0 10px;font-size:13px;display:inline-flex;align-items:center}
-#stage :is(.s-b,.s-ic,.te-chip,.te-tog):hover:not(:disabled):not(.on){transform:translate(-1px,-2px);box-shadow:0 3px 0 var(--te-ctl-line),2px 6px 10px rgba(20,30,40,.18)}
-#stage :is(.s-b,.s-ic,.te-chip,.te-tog).on,#stage :is(.s-b,.s-ic,.te-chip)[aria-pressed="true"],#stage .te-tog[aria-checked="true"]{background:var(--te-strong);border-color:var(--te-strong);color:var(--te-on-strong);transform:translateY(2px);box-shadow:inset 0 3px 4px rgba(0,0,0,.28)}
-#stage :is(.s-b,.s-ic,.te-chip,.te-tog):disabled{opacity:.5;filter:saturate(.3);cursor:default;transform:none}
-#stage :is(button,[role="slider"],[tabindex]):focus-visible{outline:3px solid var(--te-accent);outline-offset:3px}
+#stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip,.te-tog):hover:not(:disabled):not(.on){transform:translate(-1px,-2px);box-shadow:0 3px 0 var(--te-ctl-line),2px 6px 10px rgba(20,30,40,.18)}
+#stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip,.te-tog).on,#stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip)[aria-pressed="true"],#stage .te-tog[aria-checked="true"]{background:var(--te-strong);border-color:var(--te-strong);color:var(--te-on-strong);transform:translateY(2px);box-shadow:inset 0 3px 4px rgba(0,0,0,.28)}
+#stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip,.te-tog):disabled{opacity:.5;filter:saturate(.3);cursor:default;transform:none}
+#stage :where([data-pc],[data-pc] *):is(button,[role="slider"],[tabindex]):focus-visible{outline:3px solid var(--te-accent);outline-offset:3px}
 #stage .te-togrow{display:inline-flex;align-items:center;gap:8px;font:500 14px var(--te-font-ui);cursor:pointer}
 #stage .te-tog{position:relative;width:34px;height:30px;padding:0;flex:none}
 #stage .te-tog i{position:absolute;top:6px;left:10px;width:12px;height:10px;border-radius:2px;background:var(--te-ctl-line)}
@@ -277,14 +280,14 @@ const CSS = `
 #stage .te-slider .th[data-end="to"]{border-left:0;border-radius:0 3px 3px 0}
 #stage .te-slider .th.val{width:16px;margin-left:-8px;border-radius:3px;background:var(--te-strong)}
 #stage .te-slider[data-over="rule"] .th.val{background:var(--rule,#c8288c);border-color:#7a0e52}
-#stage .res{display:inline-flex;align-items:center;gap:8px;min-height:36px;border:1px solid var(--te-line);border-radius:18px;background:var(--te-surface);color:var(--te-ink);padding:0 8px 0 14px;font:500 13px var(--te-font-mono);cursor:pointer;white-space:nowrap}
-#stage .res .lbl{font-family:var(--te-font-ui);color:var(--te-muted)}
-#stage .res .chk.bad{color:var(--bad,#b0177a)}
-#stage .res .pill{font:700 13px var(--te-font-head);letter-spacing:.08em;border:1.5px solid currentColor;border-radius:10px;padding:1px 7px}
-#stage .res .pill.ok{color:var(--ok,#2f7a4b)}#stage .res .pill.bad{color:var(--bad,#b0177a)}
+#stage .res:where([data-pc]){display:inline-flex;align-items:center;gap:8px;min-height:36px;border:1px solid var(--te-line);border-radius:18px;background:var(--te-surface);color:var(--te-ink);padding:0 8px 0 14px;font:500 13px var(--te-font-mono);cursor:pointer;white-space:nowrap}
+#stage .res:where([data-pc]) .lbl{font-family:var(--te-font-ui);color:var(--te-muted)}
+#stage .res:where([data-pc]) .chk.bad{color:var(--bad,#b0177a)}
+#stage .res:where([data-pc]) .pill{font:700 13px var(--te-font-head);letter-spacing:.08em;border:1.5px solid currentColor;border-radius:10px;padding:1px 7px}
+#stage .res:where([data-pc]) .pill.ok{color:var(--ok,#2f7a4b)}#stage .res:where([data-pc]) .pill.bad{color:var(--bad,#b0177a)}
 #stage .te-pop{position:absolute;z-index:90;background:var(--te-surface);color:var(--te-ink);font:400 13px var(--te-font-ui);border:1px solid var(--te-ctl-line);border-radius:10px;box-shadow:0 12px 40px rgba(20,30,40,.25);padding:10px 12px}
 #stage .te-pop[hidden]{display:none}
-@media (prefers-reduced-motion:reduce){#stage :is(.s-b,.s-ic,.te-chip,.te-tog){transition:none}}
+@media (prefers-reduced-motion:reduce){#stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip,.te-tog){transition:none}}
 `;
 // Put the CSS on the page once (one <style id="te-pieces">), the way shell.js adds #themeCss. Returns the element.
 function install(doc) {

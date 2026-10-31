@@ -21,7 +21,7 @@ This page holds no rules. The rules live in [ui-spec.md](ui-spec.md) (`UI-…`),
 | Results card | `resultsHTML({ checks, verdict })` | opens its full view with `popups()` | `.res` `results` · `.pill` `badge` |
 | Pop-up | — | `popups(doc).open(pop, opener)` / `.close(pop)` | `.te-pop` |
 
-`TrussPieces.install(document)` puts the pieces' CSS on the page once (`<style id="te-pieces">`). The class names are the ones the built-in themes already style, so Notebook + Calculator applies to the pieces unchanged (checked in the browser test).
+`TrussPieces.install(document)` puts the pieces' CSS on the page once (`<style id="te-pieces">`). It is safe to call on the program page: every element a piece builds carries `data-pc`, and the rules on class names the shell also uses (`.s-pan`, `.tabE`, `.s-b`, `.s-ic`, `.res`, `.s-ph`, `.stp`, the focus ring) reach only those elements. A browser test checks that installing it changes nothing the shell drew, in Wireframe and OG (TE-B-235). The marker sits in `:where()`, so a theme's own rules still win (UI-T1). Call it from the code that uses the pieces, never at load (CODE-F1, TE-B-230). The class names are the ones the built-in themes already style, so Notebook + Calculator applies to the pieces unchanged (checked in the browser test).
 
 **What the pieces never do:** read or write the app's state (`S`, `tr`, `res`), touch storage, or set a meaning colour. Pass and fail come from the app's `--ok` and `--bad` (ART-K14, UI-A18). A screen passes the numbers in; the piece draws them.
 
@@ -109,6 +109,7 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 ## Change log
 
 - **0.1 · 2026-10-31** First set: tokens, picture layer, window and edge tab, stick button, icon button, chip, toggle, tabs, slider, results card, pop-up (#354; TE-B-224, TE-B-227).
+- **0.1.5 · 2026-10-31** `install()` is safe next to the shell: rules on shared class names reach only what the pieces built (`data-pc` inside `:where()`); it's tested on the program page in Wireframe and OG (BluePeachDev's BPD-3 question 1, TE-B-235).
 - **0.1.4 · 2026-10-31** After #356, #357 and #364 merged: the gaps table cites its rules (TE-B-243, TE-B-249). The tab keys cite UI-K7 instead of UI-K3 (UI's review, TE-B-232; #367). The rule map gains UI-W15, UI-W17 and UI-W18.
 - **0.1.3 · 2026-10-31** ui-spec 1.5 (#364) answers G5–G10. The pieces follow UI-W15 (52 px icons, 28 px tabs, 40 % cap, 12 px edge gap) and UI-W17 (the peek sits 8 px beside its tab, lined up with its top, and closes after 400 ms).
 - **0.1.2 · 2026-10-31** Graphics' review (TE-B-232): pill 13 px (ART-T2); art-spec 1.0.4 values (#357): `ctl-line #7f8893` (#355), course-rule pink from `--rule` as solid stripes (ART-K16), edged Wireframe tabs (ART-W13), 13 px pop-up (ART-W12); two more contrast pairs. G1–G4 answered.
