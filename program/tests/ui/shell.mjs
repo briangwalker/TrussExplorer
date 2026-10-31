@@ -27,7 +27,8 @@ try {
   // ---------- Truss place ----------
   check('starts in Truss: the drawing fills the screen', await p.evaluate(() => __shell.state.place === 'truss' && document.getElementById('fsFill').contains(document.getElementById('drawWrap'))));
   check('the Inputs window holds the inputs', await p.evaluate(() => document.getElementById('win-inputs').contains(document.getElementById('inputsPane'))) && await visible(p, '#win-inputs'));
-  check('View options holds the drawing options', await p.evaluate(() => document.getElementById('win-view').contains(document.getElementById('showDims'))));
+  check('UI-W5: the Drawing window holds the drawing toggles and the legend', await p.evaluate(() => { const w = document.getElementById('win-drawing'); return w.contains(document.getElementById('showDims')) && w.contains(document.getElementById('tg-showDims')) && !!w.querySelector('.legend'); }));
+  check('UI-W3: View options in Truss 2D has none of its own tools, so it is not on screen', await p.evaluate(() => !document.getElementById('win-view').contains(document.getElementById('showDims'))) && !(await visible(p, '#win-view')));
   check('the results card shows the verdict', /PASSES|FAILS|UNSTABLE/.test(await p.textContent('#resCard')));
   // UI-A3: the picture is the base layer. It covers the whole stage under the top bar, and the windows float over it.
   const BAR = 56;
@@ -58,18 +59,50 @@ try {
   await p.click('.tabE[data-tab="inputs"]'); await p.waitForTimeout(250);
   check('clicking the tab brings the window back', await st(p, 'inputs') === 'W' && await visible(p, '#win-inputs'));
   await fillSame('opening a window (Inputs from its tab)');
-  { const i0 = await rect(p, '#win-inputs');
-    await p.click('#win-view [data-step="shrink"]'); await p.waitForTimeout(250);
-    const i1 = await rect(p, '#win-inputs');
-    await fillSame(`moving a window (View options to icons moves Inputs ${Math.round(i1.t - i0.t)} px)`); }
   await p.evaluate(() => { const w = document.getElementById('win-drawing'); w.style.right = '200px'; w.style.top = '300px'; });
   await fillSame('moving a window by hand (Drawing)');
   await p.evaluate(() => __shell.layout());
-  const vIcons = await p.locator('#win-view .s-icons [data-ic]').count();
-  check('View options as icons: one toggle per drawing option', vIcons >= 6, vIcons);
-  const was = await p.isChecked('#showIds'); await p.click('#win-view .s-icons [data-ic="showIds"]'); await p.waitForTimeout(200);
-  check('an icon toggle flips its option', (await p.isChecked('#showIds')) === !was && (await p.getAttribute('#win-view .s-icons [data-ic="showIds"]', 'aria-pressed')) === String(!was));
-  await p.click('#win-view .s-icons [data-ic="showIds"]'); await p.click('#win-view [data-step="grow"]');
+
+  // ---------- the Drawing window: built from the window piece (UI-W5, UI-A4, UI-W8, UI-W9, UI-D6, UI-A3; BPD-3) ----------
+  const TG = ['showDims', 'resOnDraw', 'showForces', 'd3ShowPlan', 'd3ShowSec', 'showGhosts', 'showIds', 'showElems', 'showDef'];
+  check('the Drawing window is the window piece, at home on the right edge', await p.evaluate(() => { const w = document.getElementById('win-drawing'); return w.hasAttribute('data-pc') && w.dataset.part === 'window' && w.dataset.home === 'right' && w.getAttribute('role') === 'region'; }));
+  check('it starts as icons in Truss, one per drawing toggle', await st(p, 'drawing') === 'I' && (await p.locator('#win-drawing .s-icons [data-ic]').count()) === TG.length);
+  { const was = await p.isChecked('#showIds'); await p.click('#win-drawing .s-icons [data-ic="showIds"]'); await p.waitForTimeout(200);
+    check('an icon flips its toggle, and the toggle piece follows', (await p.isChecked('#showIds')) === !was && (await p.getAttribute('#win-drawing .s-icons [data-ic="showIds"]', 'aria-pressed')) === String(!was) && (await p.getAttribute('#tg-showIds', 'aria-checked')) === String(!was));
+    await p.click('#win-drawing .s-icons [data-ic="showIds"]'); await p.waitForTimeout(150); }
+  await p.click('#win-drawing [data-step="grow"]'); await p.waitForTimeout(300);
+  { const d = await rect(p, '#win-drawing'), vw = await p.evaluate(() => innerWidth);
+    check('UI-W5: › grows it to words, at the right edge', await st(p, 'drawing') === 'W' && await visible(p, '#tg-showDims') && d.r >= vw - 14 && d.l > vw / 2, JSON.stringify(d)); }
+  await fillSame('opening the Drawing window');
+  check('every drawing option is a toggle piece with its words (the checkbox keeps its id)', await p.evaluate(TG => TG.every(k => { const t = document.getElementById('tg-' + k), c = document.getElementById(k); return t && t.getAttribute('role') === 'switch' && t.hasAttribute('data-pc') && c && c.type === 'checkbox' && t.getAttribute('aria-checked') === String(c.checked) && t.closest('label').textContent.trim().length > 3; }), TG));
+  // every toggle still switches its layer: the checkbox, the app's setting and (in 2D) the drawing all follow
+  const STATE = { showDims: 'S.showDims', resOnDraw: 'S.resOnDraw', showForces: 'S.showForces', d3ShowPlan: 'S.d3.showPlan', d3ShowSec: 'S.d3.showSec', showGhosts: 'S.showGhosts', showIds: 'S.showIds', showElems: 'S.showElems', showDef: 'S.showDef' };
+  const ONLY3D = ['d3ShowPlan', 'd3ShowSec'];
+  for (const k of TG) {
+    const read = () => p.evaluate(([k, path]) => { const S = __dbg.S, v = path.split('.').slice(1).reduce((o, x) => o && o[x], S); return { cb: document.getElementById(k).checked, s: v !== false && v != null && v !== 0 ? !!v : false, draw: document.getElementById('draw').innerHTML.length + ':' + document.getElementById('draw').querySelectorAll('*').length + ':' + (document.getElementById('resOv') ? document.getElementById('resOv').hidden : '-') }; }, [k, STATE[k]]);   // resOnDraw's layer is the #resOv overlay
+    const a = await read(); await p.click('#tg-' + k); await p.waitForTimeout(250); const b = await read();
+    const ok = b.cb === !a.cb && b.s === b.cb && (ONLY3D.includes(k) || a.draw !== b.draw);
+    check(`toggle ${k}: switches its layer`, ok, JSON.stringify({ a, b }));
+    await p.click('#tg-' + k); await p.waitForTimeout(200);
+  }
+  check('UI-D6: no two toggle labels overlap', await p.evaluate(() => { const r = [...document.querySelectorAll('#win-drawing .te-togrow')].map(e => e.getBoundingClientRect()).filter(x => x.width); return r.every((a, i) => r.every((b, j) => i >= j || a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)); }));
+  // UI-W8: windows aren't pop-ups, so a click on the picture leaves the Drawing window open
+  await p.mouse.click(700, 700); await p.waitForTimeout(250);
+  check('UI-W8: a click on the picture leaves the Drawing window open', await st(p, 'drawing') === 'W' && await visible(p, '#win-drawing'));
+  await p.click('#win-drawing [data-step="shrink"]'); await p.waitForTimeout(200);
+  await fillSame('resizing the Drawing window (to icons)');
+  await p.click('#win-drawing [data-step="shrink"]'); await p.waitForTimeout(300);
+  check('UI-W5: › again leaves the tab ◂ DRAWING on the right edge', await st(p, 'drawing') === 'T' && !(await visible(p, '#win-drawing')) && await visible(p, '.tabE[data-tab="drawing"]') && /◂\s*drawing/i.test(await p.textContent('.tabE[data-tab="drawing"]')));
+  await fillSame('closing the Drawing window (to its tab)');
+  await p.hover('.tabE[data-tab="drawing"]'); await p.waitForTimeout(600);
+  { const w = await rect(p, '#win-drawing'), t = await rect(p, '.tabE[data-tab="drawing"]');
+    check('UI-W9, UI-W17: hovering the tab peeks beside it', await p.evaluate(() => document.getElementById('win-drawing').classList.contains('peek')) && await visible(p, '#win-drawing') && w.r <= t.l - 6, JSON.stringify({ w, t })); }
+  await fillSame('a peek (a window moved beside its tab)');
+  await p.mouse.move(700, 700); await p.waitForTimeout(800);
+  check('moving away ends the peek', !(await visible(p, '#win-drawing')));
+  await p.click('.tabE[data-tab="drawing"]'); await p.waitForTimeout(300);
+  check('clicking the tab brings it back in words', await st(p, 'drawing') === 'W' && await visible(p, '#win-drawing'));
+  await p.click('#win-drawing [data-step="shrink"]'); await p.waitForTimeout(200);
   // results
   await p.click('#resCard'); await p.waitForTimeout(250);
   check('the results card opens the full results', await visible(p, '#win-results') && await p.evaluate(() => document.getElementById('win-results').contains(document.getElementById('stats'))));
