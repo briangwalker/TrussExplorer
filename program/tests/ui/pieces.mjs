@@ -2,7 +2,7 @@
 // Checks the behaviour the Node test can't: Brian's render rule (UI-A3, #237), window states and peek, tabs and slider
 // keys, pop-ups closing on an outside click, the focus ring, and that a built-in theme styles the pieces unchanged.
 //   node tests/ui/pieces.mjs   (rule map: docs/pieces.md)
-import { browser, checker, ROOT, SHOTS } from './harness.mjs';
+import { browser, checker, ROOT, SHOTS, serve, openPage, waitRows } from './harness.mjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -98,7 +98,7 @@ try {
   await p.hover('#run'); await p.waitForTimeout(200);
   check('hover lifts a stick (ART-S2)', /matrix\(1, 0, 0, 1, -1, -2\)/.test(await p.evaluate(() => getComputedStyle(document.getElementById('run')).transform)));
 
-  // ---------- tabs (UI-S6, UI-K3) ----------
+  // ---------- tabs (UI-S6, UI-K7) ----------
   await p.click('#an-hist'); await p.keyboard.press('ArrowRight');
   check('arrow keys move to the next tab and pick it; one tab is in the Tab order', await attr(p, '#an-win', 'aria-selected') === 'true' && await p.evaluate(() => document.activeElement.id === 'an-win' && document.querySelectorAll('[role="tab"][tabindex="0"]').length === 1));
   await p.keyboard.press('End'); await p.keyboard.press('ArrowRight');
@@ -155,6 +155,28 @@ try {
     await q.screenshot({ path: path.join(SHOTS, `pieces-${th}.png`) });
     await q.close();
   }
+  // On the real program page: install() must change nothing the shell drew, in Wireframe and in OG (BPD-3's check, TE-B-235)
+  const srv = await serve(undefined, { shell: true });
+  try {
+    const q = await openPage(b, srv.url); await waitRows(q); await q.waitForTimeout(500);
+    const look = () => q.evaluate(() => {
+      const props = ['display', 'position', 'width', 'height', 'top', 'left', 'right', 'bottom', 'max-width', 'padding-top', 'padding-left', 'margin-top', 'background-color', 'background-image',
+        'border-top-width', 'border-top-color', 'border-radius', 'box-shadow', 'transform', 'font-size', 'font-weight', 'color', 'outline-offset', 'z-index', 'white-space'];
+      const els = [...document.querySelectorAll('#stage .s-pan, #stage .tabE, #stage .s-b, #stage .s-ic, #stage .res, #stage .s-ph, #stage .stp, #stage .nb, #stage .nav')].filter(e => !e.hasAttribute('data-pc'));
+      return { n: els.length, s: els.map(e => { const c = getComputedStyle(e); return (e.id || e.className) + '|' + props.map(k => c.getPropertyValue(k)).join(';'); }) };
+    });
+    for (const theme of ['wireframe', 'og']) {
+      await q.evaluate(t => __shell.applyTheme(t), theme); await q.waitForTimeout(300);
+      const before = await look();
+      await q.evaluate(() => { TrussPieces.install(document); document.getElementById('te-pieces').disabled = false; }); await q.waitForTimeout(300);
+      const after = await look();
+      const diff = before.s.filter((x, i) => x !== after.s[i]);
+      check(`install() changes nothing the shell drew (${theme}, ${before.n} elements)`, before.n > 20 && after.n === before.n && diff.length === 0, diff.slice(0, 2).join(' || '));
+      await q.evaluate(() => { document.getElementById('te-pieces').disabled = true; });   // off again before the next theme's 'before'
+    }
+    check('no page errors on the program page', q.errs.length === 0, q.errs.join(' | '));
+    await q.close();
+  } finally { srv.close(); }
 } finally { await b.close(); }
 const bad = check.results.filter(r => !r.ok);
 console.log(`${check.results.length - bad.length}/${check.results.length} pieces checks pass`);
