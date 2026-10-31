@@ -49,7 +49,7 @@ test('pieces meet face to face: the default bridge has no overlap at all', () =>
 test('at a kinked chord joint the known overlap stays under 1 mm', () => {
   for (const [name, st] of Object.entries(CASES)) {
     const ov = BD.checkParts(partsOf(st).parts, B).filter(p => p.kind === 'overlap');
-    ov.forEach(p => assert.ok(p.depth <= 1.0, `${name}: item ${p.item} into item ${p.intoItem} by ${p.depth} mm`));
+    ov.forEach(p => assert.ok(p.depth <= BD.PART_OVERLAP_MM, `${name}: item ${p.item} into item ${p.intoItem} by ${p.depth} mm`));
     if (ov.length) console.log(`# KNOWN ${name}: ${ov.length} corners 0.3-${Math.max(...ov.map(p => p.depth))} mm into a kinked chord (#332)`);
   }
 });
@@ -66,4 +66,37 @@ test('the check catches a drawn angle that differs from the guide, an end past s
   const c = [0, 1, 2, 3].map(i => other.poly[i]).reduce((a, p) => [a[0] + p[0] / 4, a[1] + p[1] / 4], [0, 0]);
   const off = [c[0] - mover.poly[0][0], c[1] - mover.poly[0][1]]; mover.poly = mover.poly.map(p => [p[0] + off[0], p[1] + off[1]]);
   assert.ok(BD.checkParts(R, B).some(p => p.kind === 'overlap'));
+});
+
+// TE-B-187a part 2 (Dev Lead): the pictures draw from this layer, and every build document runs the check.
+const docOf = (st, opt) => { const tr = C.buildTruss(design(st)), res = C.analyze(tr, st.mat, st.load, st.opts), plan = BD.cutPlan(tr, B, { stock: 240, force: k => res.members[k].F });
+  return BD.documentHTML(tr, res, { name: 't', b: B, h: B, nTruss: 2, stock: 240, kerf: 1, massNote: '', capNote: '', mat: C.DEFAULT_MAT }, plan, opt); };
+
+test('the side view draws exactly the finished outlines (no picture works out its own ends)', () => {
+  for (const [name, st] of Object.entries(CASES)) {
+    const { tr, plan, parts } = partsOf(st);
+    const svg = BD.sideSVG(tr, plan, { cut: true, b: B }).svg;
+    const want = parts.flatMap(P => P.shapes).length, got = (svg.match(/<polygon /g) || []).length;
+    assert.equal(got, want, `${name}: ${got} outlines drawn, ${want} finished shapes`);
+    parts.filter(P => P.poly).forEach(P => assert.ok(svg.includes(`${P.poly[0][0].toFixed(2)},`), `${name}: item ${P.item}'s outline is drawn`));
+  }
+});
+
+test('every build document (colour and black and white) passes the drawing check on the test bridges', () => {
+  for (const [name, st] of Object.entries(CASES)) {
+    for (const opt of [{ steps: true, templates: true }, { minimal: true }]) {
+      const html = docOf(st, opt);
+      assert.match(html, /<meta name="te-partcheck" content="ok">/, `${name} ${opt.minimal ? 'B&W' : 'colour'}`);
+      assert.doesNotMatch(html, /DRAWING CHECK FAILED/);
+    }
+  }
+});
+
+test('a plan whose end cut disagrees with its outline stops the set with a visible box', () => {
+  const { tr, plan } = partsOf(DEFAULT);
+  const bad = JSON.parse(JSON.stringify(plan)); const q = bad.pieces.find(p => p.cut0 && Math.abs(p.cut0.ang || 0) > 1 && p.cut0.eA != null);
+  q.cut0.ang += 8;   // the guide's number moves, the outline doesn't
+  const g = BD.partGuard(tr, bad, B);
+  assert.equal(g.ok, false);
+  assert.match(g.html, /DRAWING CHECK FAILED.*DON'T PRINT/);
 });
