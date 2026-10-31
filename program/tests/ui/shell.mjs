@@ -29,27 +29,42 @@ try {
   check('the Inputs window holds the inputs', await p.evaluate(() => document.getElementById('win-inputs').contains(document.getElementById('inputsPane'))) && await visible(p, '#win-inputs'));
   check('View options holds the drawing options', await p.evaluate(() => document.getElementById('win-view').contains(document.getElementById('showDims'))));
   check('the results card shows the verdict', /PASSES|FAILS|UNSTABLE/.test(await p.textContent('#resCard')));
-  { const i = await rect(p, '#win-inputs'), f = await rect(p, '#fsFill'), v = await rect(p, '#win-view');
-    check('the drawing area starts right of the Inputs window and below View options', f.l >= i.r - 1 && f.t >= v.b - 1, JSON.stringify({ inputsR: i.r, fillL: f.l, viewB: v.b, fillT: f.t })); }
+  // UI-A3: the picture is the base layer. It covers the whole stage under the top bar, and the windows float over it.
+  const BAR = 56;
+  const stageBelowBar = () => p.evaluate(bar => { const r = document.getElementById('stage').getBoundingClientRect(); return { l: r.left, t: r.top + bar, r: r.right, b: r.bottom }; }, BAR);
+  const same = (a, b) => !!a && !!b && ['l', 't', 'r', 'b'].every(k => Math.abs(a[k] - b[k]) <= 1);
+  const fill0 = await rect(p, '#fsFill');
+  { const s0 = await stageBelowBar(), i = await rect(p, '#win-inputs');
+    check('UI-A3: the drawing covers the whole stage under the top bar', same(fill0, s0), JSON.stringify({ fill: fill0, stage: s0 }));
+    check('UI-A3: the Inputs window floats over the drawing (not beside it)', fill0.l <= i.l && fill0.r >= i.r, JSON.stringify({ fillL: fill0.l, inputsL: i.l })); }
+  const fillSame = async (what) => { await p.waitForTimeout(300); const f = await rect(p, '#fsFill'); check(`UI-A3: ${what} doesn't move or resize the drawing`, same(f, fill0), JSON.stringify(f)); };
   await p.screenshot({ path: path.join(SHOTS, 'shell-truss.png') });
 
   // three states: W → I → T, the edge tab, peek, and back
   const grps = await p.evaluate(() => document.querySelectorAll('#inputsPane > details.grp').length);
   await p.click('#win-inputs [data-step="shrink"]'); await p.waitForTimeout(250);
+  await fillSame('resizing a window (Inputs to icons)');
   check('‹ shrinks Inputs to icons, one per section', await st(p, 'inputs') === 'I' && (await p.locator('#win-inputs .s-icons [data-ic]').count()) === grps && !(await visible(p, '#inputsPane')));
   check('the icons window is narrow', (await rect(p, '#win-inputs')).w <= 60);
   await p.click('#win-inputs .s-icons [data-ic="g1"]'); await p.waitForTimeout(250);
   check('an icon opens the window at its section', await st(p, 'inputs') === 'W' && await visible(p, '#inputsPane'));
   await p.click('#win-inputs [data-step="shrink"]'); await p.click('#win-inputs [data-step="shrink"]'); await p.waitForTimeout(250);
   check('‹ again leaves a tab on the left edge', await st(p, 'inputs') === 'T' && !(await visible(p, '#win-inputs')) && await visible(p, '.tabE[data-tab="inputs"]'));
-  check('with Inputs as a tab, the drawing takes the room', (await rect(p, '#fsFill')).l < 5);
+  await fillSame('closing a window (Inputs to a tab)');
   await p.hover('.tabE[data-tab="inputs"]'); await p.waitForTimeout(500);
   check('hovering the tab peeks at the window', await p.evaluate(() => document.getElementById('win-inputs').classList.contains('peek')) && await visible(p, '#win-inputs'));
   await p.mouse.move(900, 500); await p.waitForTimeout(700);
   check('moving away ends the peek', !(await visible(p, '#win-inputs')));
   await p.click('.tabE[data-tab="inputs"]'); await p.waitForTimeout(250);
   check('clicking the tab brings the window back', await st(p, 'inputs') === 'W' && await visible(p, '#win-inputs'));
-  await p.click('#win-view [data-step="shrink"]'); await p.waitForTimeout(250);
+  await fillSame('opening a window (Inputs from its tab)');
+  { const i0 = await rect(p, '#win-inputs');
+    await p.click('#win-view [data-step="shrink"]'); await p.waitForTimeout(250);
+    const i1 = await rect(p, '#win-inputs');
+    await fillSame(`moving a window (View options to icons moves Inputs ${Math.round(i1.t - i0.t)} px)`); }
+  await p.evaluate(() => { const w = document.getElementById('win-drawing'); w.style.right = '200px'; w.style.top = '300px'; });
+  await fillSame('moving a window by hand (Drawing)');
+  await p.evaluate(() => __shell.layout());
   const vIcons = await p.locator('#win-view .s-icons [data-ic]').count();
   check('View options as icons: one toggle per drawing option', vIcons >= 6, vIcons);
   const was = await p.isChecked('#showIds'); await p.click('#win-view .s-icons [data-ic="showIds"]'); await p.waitForTimeout(200);
