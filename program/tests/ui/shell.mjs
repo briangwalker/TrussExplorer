@@ -58,6 +58,18 @@ try {
   check('moving away ends the peek', !(await visible(p, '#win-inputs')));
   await p.click('.tabE[data-tab="inputs"]'); await p.waitForTimeout(250);
   check('clicking the tab brings the window back', await st(p, 'inputs') === 'W' && await visible(p, '#win-inputs'));
+  // BPD-7: the Inputs window is the window piece (UI-W4, UI-A4, UI-W15)
+  { const w = await rect(p, '#win-inputs'), vw = await p.evaluate(() => innerWidth);
+    check('UI-W4: the Inputs window is the window piece, at home on the left edge, holding #inputsPane', await p.evaluate(() => { const w = document.getElementById('win-inputs'); return w.hasAttribute('data-pc') && w.dataset.part === 'window' && w.dataset.home === 'left' && w.getAttribute('role') === 'region' && w.contains(document.getElementById('inputsPane')); }) && w.l <= 14);
+    check('UI-W15: Inputs is at most 400 px and never over 40 % of the stage', w.w <= 400 + 0.5 && w.w <= vw * 0.4 + 0.5, JSON.stringify({ w: w.w, vw }));
+    check('UI-A4: one ‹ in the words state (› hidden)', await p.evaluate(() => { const w = document.getElementById('win-inputs'); return !w.querySelector('[data-step="grow"]').offsetParent && !!w.querySelector('[data-step="shrink"]').offsetParent; })); }
+  await p.click('#win-inputs [data-step="shrink"]'); await p.waitForTimeout(200);
+  check('UI-W15: the icons state is one 52 px column', Math.abs((await rect(p, '#win-inputs')).w - 52) <= 1, JSON.stringify(await rect(p, '#win-inputs')));
+  await p.click('#win-inputs [data-step="shrink"]'); await p.waitForTimeout(250);
+  { const t = await rect(p, '.tabE[data-tab="inputs"]');
+    check('UI-W4: the tab reads ▸ INPUTS, on the left edge', /▸\s*inputs/i.test(await p.textContent('.tabE[data-tab="inputs"]')) && t.l <= 1, JSON.stringify(t)); }
+  await fillSame('closing the Inputs window (to its tab)');
+  await p.click('.tabE[data-tab="inputs"]'); await p.waitForTimeout(250);
   await fillSame('opening a window (Inputs from its tab)');
   await p.evaluate(() => { const w = document.getElementById('win-drawing'); w.style.right = '200px'; w.style.top = '300px'; });
   await fillSame('moving a window by hand (Drawing)');
@@ -114,6 +126,9 @@ try {
 
   // ---------- 2D | 3D, Analysis, back ----------
   await p.click('#shellNav [data-sw="t:3"]'); await p.waitForTimeout(1200);
+  { const v = await rect(p, '#win-view'), i = await rect(p, '#win-inputs');
+    const both = await visible(p, '#win-view') && await visible(p, '#win-inputs');
+    check('UI-W16: on the left edge, Inputs stacks under View options with an 8 px gap, never overlapping it', both && Math.abs(i.t - v.b - 8) <= 1 && i.t >= v.b, JSON.stringify({ viewB: v && v.b, inputsT: i && i.t, both })); }
   check('Truss 3D: the analysis model is 3D and the 3D bridge fills the screen', await p.evaluate(() => __dbg.S.anaMode === '3d' && document.getElementById('fsFill').contains(document.getElementById('c3d'))));
   await p.click('#shellNav [data-sw="t:2"]'); await p.waitForTimeout(800);
   check('Truss 2D: back to the side view', await p.evaluate(() => __dbg.S.anaMode === '2d' && document.getElementById('fsFill').contains(document.getElementById('drawWrap'))));
