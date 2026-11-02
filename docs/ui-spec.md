@@ -1,6 +1,6 @@
 # Truss Explorer UI Standard
 
-**Version 1.5.2 · 2026-11-01 · owner: UI Designer · creative sign-off: Brian**
+**Version 1.5.3 · 2026-11-02 · owner: UI Designer · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel looks and behaves. Every rule has a number (`UI-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -18,7 +18,7 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 | # | Rule | What it means on screen |
 |---|---|---|
 | UI-A1 | **Like things have like abilities** | 2D and 3D have the same tools and the same windows. Every chart has the same options window. |
-| UI-A2 | **Same thing, same place** | Run sweep is always in the bottom-left sweep bar. A view's options window sits under the top bar, at the left. The PIP tab and ⓘ are always bottom-right. |
+| UI-A2 | **Same thing, same place** | Run sweep is always in the bottom-left sweep bar. A view's options window sits on the right, directly under the view cube or round pad (UI-W3, UI-W19). The PIP tab and ⓘ are always bottom-right. |
 | UI-A3 | **The picture is the base layer** | The bridge drawing (2D or 3D) or the chart fills the whole stage. Every window floats over it. Opening, closing, resizing or moving a window never moves or resizes the picture. Nothing is laid out as a page section. |
 | UI-A4 | **Every window has three states** | Words + icons → icons only → brown edge tab, stepped by one ‹ button. The top bar and the PIP follow the same rule. |
 | UI-A5 | **☰ is always visible** | Even when the top bar is a tab. |
@@ -44,7 +44,7 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 |---|---|---|---|---|---|
 | UI-W1 | **Top bar** | top left | ☰ · ← · Truss [2D/3D] · Analysis [2D/3D] [last tab] · ‹ | ☰ · ← · the two switches · last tab | ☰ + "› Truss · 2D" |
 | UI-W2 | **Results card** | top centre | numbers only, each shown against the limit it's checked by (Σ · 18.6 ≥ 5.0 kg · 0.131 ≤ 2 mm · m + r = 2j) + PASSES/FAILS pill; ▾ opens the full card as a pop-up | — | — |
-| UI-W3 | **View options** (Analysis options; in 3D Truss its Look-from part moved to the cube, UI-V) | under the top bar, left | tabs, that screen's tools, a count line | tab icons, then tool icons | ▸ named with the open tab |
+| UI-W3 | **View options** (Analysis only; Brian 56a, TE-B-295) | **right edge, directly under the view control** (UI-W19), 8 px gap | the Analysis tabs, that chart's tools (axes, Group by, Colour fails, + Log design, + Add designs on click, CSV) and a count line. **No view controls**: zoom, reset, drag mode, Look from and Home are on the view control (UI-W21). In Truss there is no View options window; its drawing toggles and Scale live in the Drawing window (UI-W5). | tab icons, then tool icons | ◂ named with the open tab |
 | UI-W4 | **Inputs** (fine-tuning) | left edge | steppers and sweep ranges; ⤢ opens the Inputs screen | category icons | ▸ INPUTS |
 | UI-W5 | **Drawing** | **right edge** | toggles (dimensions, forces, numbers, results on drawing, deformed shape, sweep ranges) + the legend | toggle icons | ◂ DRAWING |
 | UI-W6 | **Sweep bar** | bottom left; opens in the **words state** by default | count line ▾ (data sheet, re-check) + progress + Run sweep | ▶ + count | ▴ SWEEP |
@@ -58,11 +58,12 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 | UI-W14 | **Report a bug** | ☰, last row, always shown (not inside a submenu); also ☰ › Help › Report a bug | One click opens a dialog (UI-W13): "Report a bug: TE saves this bridge as a file, then opens a short Google form in a new tab. Attach the file there." It lists exactly what the form link carries: **version, model, bridge code**, and "no name, email or files are sent by the link". Buttons: **Save bridge and open form** · Cancel. After: toast "Saved TE-bug-‹bridge code›.json · attach it to the form". Saving is the normal bridge save (no screen settings, #181); if the file would hold a person's name (#260), the dialog has a ticked *Leave names out* box. On mainv the same button goes in its existing menu; Dev Lead names the spot in the PR. The form's questions are in the note under this table. | | |
 
 | UI-W15 | **Window sizes** (words state) | — | Each window is as wide as its content needs, up to: Inputs **400 px**, Drawing **340 px**, View options **640 px**, Sweep bar **640 px**, results full view **540 px** (UI-W18), PIP **360 × 240 px**. Never wider than **40 % of the stage**; on a stage under **1100 px** wide, side windows open in the icons state. Icons state: one **52 px** column or row. Tab: **28 px** thick. Heights follow the content, up to the stage height minus 24 px, then the window scrolls inside itself. | | |
-| UI-W16 | **Windows that share an edge stack, never overlap** | — | On one edge, windows stack in this order from the top bar: View options, then Inputs (left); the **view control** (UI-W19), then Drawing (right). They sit **12 px** from the stage edge with an **8 px** gap between them. If the next one doesn't fit, it opens one state smaller (words → icons → tab). Two windows never overlap; a window never covers the top bar, the results strip, the PIP tab or the **view control (the 3D view cube or the 2D round pad)**. | | |
+| UI-W16 | **Windows that share an edge stack, never overlap** | — | On one edge, windows stack in this order from the top bar: **Inputs alone** (left); the **view control** (UI-W19), then **View options** (Analysis, UI-W3), then **Drawing** (right). They sit **12 px** from the stage edge with an **8 px** gap between them. If the next one doesn't fit, it opens one state smaller (words → icons → tab). Two windows never overlap; a window never covers the top bar, the results strip, the PIP tab or the **view control (the 3D view cube or the 2D round pad)**. | | |
 | UI-W17 | **Where a peek sits** | — | A peek (UI-W9) opens beside its own tab, **8 px** from it, lined up with the tab's top and kept inside the stage. It has a 2 px dashed edge in `strong` (the Click-Through look) so it reads as temporary. Moving off both the tab and the peek for **400 ms** closes it. | | |
 | UI-W18 | **The results card's full view** | a pop-up under the results strip, left-aligned to it | Opened by ▾ (UI-W2). Top to bottom: (1) each checked number against its limit, with the member or rule that governs it and PASSES/FAILS; (2) the project facts (UI-W12); (3) links: *Pass rules card* and *Member table*. One column, **540 px** max (UI-W15). It's a pop-up, so an outside click closes it (UI-W8). | | |
-| UI-W19 | **The view control's home** (the 3D view cube, UI-V2–V7; or the 2D round pad, UI-V8) | **right edge, top**: first in the right-edge stack (UI-W16), **12 px** from the right edge and **12 px** below the top bar's band, so it sits clear of the top bar, the results strip and the Drawing window | Its box is the cube or pad plus its own buttons (⌂, Look from, + and −). The Drawing window opens **8 px below that box**, never beside or over it. Folding or opening the Drawing window never moves the control. Look from's Side/Top/End list (UI-V7) is a pop-up, so it may open over the Drawing window and closes on an outside click (UI-W8). In Analysis, the round pad takes the same home. If Brian moves View options to the right (TE-B-283 item C), it stacks under the view control too, before Drawing. | — | — |
+| UI-W19 | **The view control's home** (the 3D view cube, UI-V2–V7; or the 2D round pad, UI-V8) | **right edge, top**: first in the right-edge stack (UI-W16), **12 px** from the right edge and **12 px** below the top bar's band, so it sits clear of the top bar, the results strip and the Drawing window | Its box is the cube or pad plus its own buttons (⌂, Look from, + and −). The Drawing window opens **8 px below that box**, never beside or over it. Folding or opening the Drawing window never moves the control. Look from's Side/Top/End list (UI-V7) is a pop-up, so it may open over the Drawing window and closes on an outside click (UI-W8). In Analysis, the round pad takes the same home. View options (Analysis) sits 8 px under it, then Drawing. **The view control is the only thing that changes the view**, apart from the 2D/3D switches in the top bar (Brian 56a, TE-B-295). | — | — |
 | UI-W20 | **The ⋮⋮ grip shows only on what can be moved** (Brian, TE-B-283 item 5) | — | The six-dot grip appears only on a window or pop-up you can drag, and dragging it moves that window. Anything that stays in its home shows no grip. Today the things that move are the ✎ value editor (UI-I8) and the PIP (UI-W7); Inputs, View options, Drawing, the sweep bar, the top bar and the results card have **no grip**. Whether more windows become movable is Brian's call (TE-B-283 item 5); if he says yes, each one that moves gets the grip and the rest still don't. | | |
+| UI-W21 | **What lives on the view control, and what stays in View options** (Brian 56a) | — | **On the view control** (cube in 3D, round pad in 2D, both in Truss and Analysis): pan (pad arrows), zoom **+ / −**, **⌂ Home** (UI-V6; Set and Reset Home stay in ☰), **Reset zoom** (UI-C6, greyed when nothing is zoomed), the **Drag: zoom box / move** switch (2D charts, UI-C6), **Look from** (3D, UI-V7) and the rotate ring (UI-V4). **In View options** (Analysis): the tabs (UI-S6), the axis pickers, Group by, Colour fails, + Log design, + Add designs on click, CSV and the count line. **In the Drawing window** (Truss): the drawing toggles and Scale (the deformed-shape scale), which change what is drawn, not the view. **Mouse and keys** (UI-V9, UI-K) still change the view anywhere on the picture; this rule is about on-screen controls. | | |
 
 **UI-W14 form questions** (Google Form owned by Brian, file upload on; short, in this order; TE-B-132):
 1. *Version, model, bridge code*: filled in by the link; don't change them.
@@ -165,7 +166,7 @@ The link carries only the release, the model and the 8-character bridge code, ne
 - **UI-C2** **Group select (#148).** Drag on empty chart space to box-select (2D and 3D). Shift+drag adds to the group, Shift+click toggles one dot, and Esc clears. The group bar offers Dim others, Hide others, Invert, What do these share? and ✕.
 - **UI-C3** **What do these share?** ranks each input by how alike it is in the group compared with the whole sweep, with a bar for each. The panel opens on the side away from the group.
 - **UI-C4** The chart fills the stage (UI-A3); the key and options float over it (UI-W11).
-- **UI-C6** **2D zoom:** the wheel zooms around the pointer. A **Drag: zoom box / Drag: move** switch sits in the chart options, and **Reset zoom** is always there (greyed when nothing is zoomed).
+- **UI-C6** **2D zoom:** the wheel zooms around the pointer. A **Drag: zoom box / Drag: move** switch and **Reset zoom** (greyed when nothing is zoomed) sit on the round pad (UI-W21).
 - **UI-C7** **New results reset the view:** a finished sweep, a loaded sweep file or a new axis choice resets zoom and pan to fit all the dots. Hovering and picked groups (UI-C2) survive the reset.
 - **UI-C8** **The 3D chart fits its box:** at any angle the whole cube, its axis labels and titles are inside the picture area, never cut off by the screen edge or a window's home.
 - **UI-C5** *(planned, #230, #231)* Numbers stay on the visible edges when zoomed, and the axis titles can always be shown.
@@ -185,7 +186,7 @@ The link carries only the release, the model and the 8-character bridge code, ne
 
 ## UI-K · Keyboard and screen readers
 
-- **UI-K1** The focus order is the same in every view: top bar, results card, view options, Inputs, the picture, Drawing window, sweep bar, PIP, ⓘ.
+- **UI-K1** The focus order is the same in every view: top bar, results card, Inputs, the picture, the view control, View options (Analysis), Drawing window, sweep bar, PIP, ⓘ.
 - **UI-K2** F6 jumps window to window, Tab moves inside a window, and Esc returns focus to the opener (Brian, 2026-10-28, TE-B-117). The Home view is the Home key, double-click middle (UI-V9) and ⌂ (UI-V6); F6 no longer goes Home, as it did in v61.
 - **UI-K3** Arrow keys move between chart dots: focus previews, Enter loads, P pins.
 - **UI-K4** Each window is a named region, and the drawing has a text twin. Toasts and sweep progress are read politely, at most once every 5 s. The focus ring is a 3 px amber outline that every theme keeps. QA's keyboard script (#218) is the test.
@@ -299,9 +300,9 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 | Step | Issue | Must meet |
 |---|---|---|
 | 1 | #183 (shipped) | UI-A4, UI-A5, UI-A6, UI-A7, UI-W1 |
-| 2 · Truss 2D full screen | #209 | **UI-A3**, UI-A7, UI-A12, UI-A13, UI-A17, UI-A19, UI-S1, UI-D1–D6, UI-W3, UI-W4, UI-W5, UI-W10, UI-W15, UI-W16, UI-W17, UI-W19, UI-W20, UI-V8, UI-V9 |
+| 2 · Truss 2D full screen | #209 | **UI-A3**, UI-A7, UI-A12, UI-A13, UI-A17, UI-A19, UI-S1, UI-D1–D6, UI-W3, UI-W4, UI-W5, UI-W10, UI-W15, UI-W16, UI-W17, UI-W19, UI-W20, UI-W21, UI-V8, UI-V9 |
 | 3 · Sweep bar, results card, PIP | #210 | UI-A2, UI-W2, UI-W12, UI-W18, UI-W6, UI-W7, UI-W8, UI-A11, UI-H5–H8 |
-| 4 · Analysis full screen | #211 | **UI-A3**, UI-A1, UI-A7, UI-A17, UI-A8, UI-S4, UI-S6, UI-C1, UI-C4, UI-C6–C8, UI-W11, UI-N1–N3 |
+| 4 · Analysis full screen | #211 | **UI-A3**, UI-A1, UI-A7, UI-A17, UI-A8, UI-S4, UI-S6, UI-C1, UI-C4, UI-C6–C8, UI-W3, UI-W11, UI-W19, UI-W21, UI-N1–N3 |
 | 5 · Hover previews, click loads | #212 | UI-A10, UI-A11, UI-H1, UI-H2, UI-H4 |
 | 6 · Compare | #213 | UI-H3, UI-S7 |
 | 7 · 3D Look from | #214 | UI-S2, UI-V1–V7, UI-V9 (and #33) |
@@ -315,6 +316,7 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 
 ## Change log
 
+- **1.5.3 · 2026-11-02** Brian's 55a and 56a (TE-B-295). 55a is already UI-W20. 56a: View options moves to the right, directly UNDER the view control (UI-A2, UI-W3, UI-W16, UI-W19); the left edge holds Inputs alone; in Truss there's no View options window. New UI-W21 sorts the controls: view controls (pan, zoom, Home, Reset zoom, drag mode, Look from, ring) on the cube/pad; the Analysis tabs and chart tools in View options; drawing toggles and Scale in the Drawing window. UI-C6 and UI-K1 follow. Steps 2 and 4 cite UI-W21.
 - **1.5.2 · 2026-11-01** Brian's alpha check (TE-B-283, gaps A and B): UI-W19 gives the view cube / round pad its home (right edge, top, first in the right stack) and its clearance (the Drawing window opens 8 px below it); UI-W16 adds the view control to its stack and to its never-covers list. UI-W20: the ⋮⋮ grip shows only on what can be moved (today the ✎ editor and the PIP). Gap C (which side View options sits) waits for Brian; UI-W3 is unchanged. Step 2 cites UI-W19 and UI-W20.
 - **1.5.1 · 2026-10-31** Added UI-K7 (tabs and choice groups: one Tab stop, arrows move and pick, Home/End). The shared pieces (#356) cited UI-K3 (chart dots) for this; UI-K7 is the rule it meets. Step 11 cites it.
 - **1.5 · 2026-10-31** From the UI Engineer's pieces gaps (TE-B-239, docs/pieces.md) and TE-B-224: added UI-G1–G5 (the gallery page, gap G9; Brian's 41a, TE-B-227; place from TE-B-230), UI-M8 (how each restless moment ends and settles, gap G10), UI-W15 window sizes (G5), UI-W16 stacking on a shared edge (G6), UI-W17 where a peek sits (G7), UI-W18 the results card's full view (G8). UI-A18 now says course-rule pink is a meaning colour (UI's half of G1; the value is Graphics'). Steps 2, 3 and 13 cite the new W and M rules.
