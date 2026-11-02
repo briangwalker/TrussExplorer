@@ -142,7 +142,7 @@ try {
   const dl = p.waitForEvent('download', { timeout: 8000 }).catch(() => null);
   if (shown) await p.click('#saveGo');
   const d = await dl;
-  check('☰ Save bridge file: the pop-up is on top and the file downloads', top && !!d && d.suggestedFilename().endsWith('.bridge.json'));
+  check('☰ Save bridge file: the pop-up is on top and the file downloads', top && !!d && d.suggestedFilename().endsWith('.truss'));
   await p.evaluate(() => document.querySelectorAll('.modal').forEach(m => { m.hidden = true; }));
 
   // ---------- it remembers ----------
