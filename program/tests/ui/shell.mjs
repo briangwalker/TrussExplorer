@@ -29,27 +29,44 @@ try {
   check('the Inputs window holds the inputs', await p.evaluate(() => document.getElementById('win-inputs').contains(document.getElementById('inputsPane'))) && await visible(p, '#win-inputs'));
   check('View options holds the drawing options', await p.evaluate(() => document.getElementById('win-view').contains(document.getElementById('showDims'))));
   check('the results card shows the verdict', /PASSES|FAILS|UNSTABLE/.test(await p.textContent('#resCard')));
-  { const i = await rect(p, '#win-inputs'), f = await rect(p, '#fsFill'), v = await rect(p, '#win-view');
-    check('the drawing area starts right of the Inputs window and below View options', f.l >= i.r - 1 && f.t >= v.b - 1, JSON.stringify({ inputsR: i.r, fillL: f.l, viewB: v.b, fillT: f.t })); }
+  // UI-A3, UI-A4, UI-W1: the picture is the base layer. It covers the WHOLE stage; every window, the top bar and the results card too, floats over it.
+  const wholeStage = () => p.evaluate(() => { const r = document.getElementById('stage').getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; });
+  const overlaps = (a, b) => !!a && !!b && a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+  const same = (a, b) => !!a && !!b && ['l', 't', 'r', 'b'].every(k => Math.abs(a[k] - b[k]) <= 1);
+  const fill0 = await rect(p, '#fsFill');
+  { const s0 = await wholeStage(), i = await rect(p, '#win-inputs'), bar = await rect(p, '#shellNav'), cardR = await rect(p, '#resCard');
+    check('UI-A3: the drawing covers the whole stage', same(fill0, s0), JSON.stringify({ fill: fill0, stage: s0 }));
+    check('UI-A3, UI-W1: the top bar and the results card float over the drawing (#382)', overlaps(bar, fill0) && overlaps(cardR, fill0) && fill0.t <= bar.t, JSON.stringify({ bar, card: cardR, fillT: fill0.t }));
+    check('the 2D drawing\'s default fit starts below the top bar', await p.evaluate(() => { const d = document.getElementById('draw').getBoundingClientRect(), n = document.getElementById('shellNav').getBoundingClientRect(); return d.top >= n.bottom; }));
+    check('UI-A3: the Inputs window floats over the drawing (not beside it)', fill0.l <= i.l && fill0.r >= i.r, JSON.stringify({ fillL: fill0.l, inputsL: i.l })); }
+  const fillSame = async (what) => { await p.waitForTimeout(300); const f = await rect(p, '#fsFill'); check(`UI-A3: ${what} doesn't move or resize the drawing`, same(f, fill0), JSON.stringify(f)); };
   await p.screenshot({ path: path.join(SHOTS, 'shell-truss.png') });
 
   // three states: W → I → T, the edge tab, peek, and back
   const grps = await p.evaluate(() => document.querySelectorAll('#inputsPane > details.grp').length);
   await p.click('#win-inputs [data-step="shrink"]'); await p.waitForTimeout(250);
+  await fillSame('resizing a window (Inputs to icons)');
   check('‹ shrinks Inputs to icons, one per section', await st(p, 'inputs') === 'I' && (await p.locator('#win-inputs .s-icons [data-ic]').count()) === grps && !(await visible(p, '#inputsPane')));
   check('the icons window is narrow', (await rect(p, '#win-inputs')).w <= 60);
   await p.click('#win-inputs .s-icons [data-ic="g1"]'); await p.waitForTimeout(250);
   check('an icon opens the window at its section', await st(p, 'inputs') === 'W' && await visible(p, '#inputsPane'));
   await p.click('#win-inputs [data-step="shrink"]'); await p.click('#win-inputs [data-step="shrink"]'); await p.waitForTimeout(250);
   check('‹ again leaves a tab on the left edge', await st(p, 'inputs') === 'T' && !(await visible(p, '#win-inputs')) && await visible(p, '.tabE[data-tab="inputs"]'));
-  check('with Inputs as a tab, the drawing takes the room', (await rect(p, '#fsFill')).l < 5);
+  await fillSame('closing a window (Inputs to a tab)');
   await p.hover('.tabE[data-tab="inputs"]'); await p.waitForTimeout(500);
   check('hovering the tab peeks at the window', await p.evaluate(() => document.getElementById('win-inputs').classList.contains('peek')) && await visible(p, '#win-inputs'));
   await p.mouse.move(900, 500); await p.waitForTimeout(700);
   check('moving away ends the peek', !(await visible(p, '#win-inputs')));
   await p.click('.tabE[data-tab="inputs"]'); await p.waitForTimeout(250);
   check('clicking the tab brings the window back', await st(p, 'inputs') === 'W' && await visible(p, '#win-inputs'));
-  await p.click('#win-view [data-step="shrink"]'); await p.waitForTimeout(250);
+  await fillSame('opening a window (Inputs from its tab)');
+  { const i0 = await rect(p, '#win-inputs');
+    await p.click('#win-view [data-step="shrink"]'); await p.waitForTimeout(250);
+    const i1 = await rect(p, '#win-inputs');
+    await fillSame(`moving a window (View options to icons moves Inputs ${Math.round(i1.t - i0.t)} px)`); }
+  await p.evaluate(() => { const w = document.getElementById('win-drawing'); w.style.right = '200px'; w.style.top = '300px'; });
+  await fillSame('moving a window by hand (Drawing)');
+  await p.evaluate(() => __shell.layout());
   const vIcons = await p.locator('#win-view .s-icons [data-ic]').count();
   check('View options as icons: one toggle per drawing option', vIcons >= 6, vIcons);
   const was = await p.isChecked('#showIds'); await p.click('#win-view .s-icons [data-ic="showIds"]'); await p.waitForTimeout(200);
@@ -70,6 +87,8 @@ try {
   await p.click('#shellNav [data-sw="t:2"]'); await p.waitForTimeout(800);
   check('Truss 2D: back to the side view', await p.evaluate(() => __dbg.S.anaMode === '2d' && document.getElementById('fsFill').contains(document.getElementById('drawWrap'))));
   await p.click('#shellNav [data-go="analysis"]'); await p.waitForTimeout(700);
+  { const f = await rect(p, '#fsFill'), s0 = await wholeStage(), c = await rect(p, '#tradeCanvas'), bar = await rect(p, '#shellNav');
+    check('UI-A3: in Analysis the chart covers the whole stage and draws behind the top bar too', same(f, s0) && !!c && c.t <= bar.t && overlaps(bar, c), JSON.stringify({ fill: f, canvas: c })); }
   check('Analysis: the chart fills the screen and its controls are in View options', await p.evaluate(() => __shell.state.place === 'analysis' && document.getElementById('fsFill').contains(document.getElementById('tradeCanvas')) && document.getElementById('win-view').contains(document.getElementById('trackTabs'))));
   check('Inputs start as a tab in Analysis (each place keeps its own layout)', await st(p, 'inputs') === 'T');
   check('Analysis shows how many designs pass', /\d/.test(await p.textContent('#shellNav .vp.on .badge').catch(() => '')));
@@ -102,6 +121,14 @@ try {
     await p.screenshot({ path: path.join(SHOTS, `shell-theme-${t}.png`) });
   }
   check('meaning colours never change with the theme', true, m0);
+  // ART-K6 (Wireframe strong is brown #7a4f1c) and ART-S5 (focus: 3 px accent outline, 3 px offset)
+  await p.selectOption('#themeSel', 'wireframe'); await p.waitForTimeout(200);
+  { const strong = await p.evaluate(() => getComputedStyle(document.getElementById('stage')).getPropertyValue('--te-strong').trim().toLowerCase());
+    const ctlLine = await p.evaluate(() => getComputedStyle(document.getElementById('stage')).getPropertyValue('--te-ctl-line').trim().toLowerCase());
+    check('ART-K7: Wireframe ctl-line is #7f8893 (#383)', ctlLine === '#7f8893', ctlLine);
+    await p.focus('#dockBtn'); await p.keyboard.press('Shift+Tab'); await p.keyboard.press('Tab');
+    const ring = await p.evaluate(() => { const e = document.activeElement, s = getComputedStyle(e); return { on: e.matches(':focus-visible'), w: s.outlineWidth, off: s.outlineOffset }; });
+    check('ART-K6, ART-S5: Wireframe strong is #7a4f1c and a focused button has a 3 px outline 3 px out', strong === '#7a4f1c' && ring.on && ring.w === '3px' && ring.off === '3px', JSON.stringify({ strong, ring })); }
   await p.selectOption('#themeSel', 'notebook-calc'); await p.waitForTimeout(300);
   check('Notebook + Calculator turns the top bar to balsa', /photo-balsa|data:image/.test(await p.evaluate(() => getComputedStyle(document.querySelector('#shellNav .nb')).backgroundImage)));
   await p.selectOption('#themeSel', 'og'); await p.waitForTimeout(200);
@@ -121,7 +148,7 @@ try {
   const dl = p.waitForEvent('download', { timeout: 8000 }).catch(() => null);
   if (shown) await p.click('#saveGo');
   const d = await dl;
-  check('☰ Save bridge file: the pop-up is on top and the file downloads', top && !!d && d.suggestedFilename().endsWith('.bridge.json'));
+  check('☰ Save bridge file: the pop-up is on top and the file downloads', top && !!d && d.suggestedFilename().endsWith('.truss'));
   await p.evaluate(() => document.querySelectorAll('.modal').forEach(m => { m.hidden = true; }));
 
   // ---------- it remembers ----------
