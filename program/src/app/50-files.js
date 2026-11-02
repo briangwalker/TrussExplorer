@@ -27,7 +27,7 @@ function bridgeSummary() {
 const stamp = () => new Date().toISOString();
 $('saveBridge').addEventListener('click', () => {
   const doc = Object.assign({ format: 'se310-truss-bridge', version: FILE_VER }, fileInfo(), { name: S.name || 'Design', summary: bridgeSummary(), bridge: bridgeState() });
-  saveFile(fileBase() + '.bridge.json', JSON.stringify(doc, null, 1));
+  saveFile(fileBase() + TrussFormats.KINDS.bridge.ext, JSON.stringify(doc, null, 1));   // .truss (TE-B-256)
 });
 $('saveSweepFile').addEventListener('click', () => {
   if (!sweepAll.length) { toast('Run a sweep first.', true); return; }
@@ -48,6 +48,7 @@ $('saveSweepTsweep').addEventListener('click', async () => {
   saveFile(fileBase() + '.tsweep', new Blob([t.bytes], { type: 'application/gzip' }));
 });
 let pickFor = null, pendingSweep = null;
+$('filePick').accept = TrussFormats.ACCEPT;   // .truss, .bridge.json, .sweep.json, .tsweep (TE-B-256)
 $('loadBridge').addEventListener('click', () => { pickFor = 'bridge'; $('filePick').value = ''; $('filePick').click(); });
 $('loadSweepFile').addEventListener('click', () => { pickFor = 'sweep'; $('filePick').value = ''; $('filePick').click(); });
 function applyBridge(b) {
