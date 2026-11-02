@@ -228,7 +228,6 @@ if (!SH_CLASSIC) {
     // sweep at the bottom, beside the inputs
     const W = wins.sweep, sl = leftUsed || M, sW = eff('sweep') === 'W' ? Math.max(260, Math.min(WIN.sweep.w, vw - sl - M - rightUsed)) : 'auto';
     Object.assign(W.style, { left: sl + 'px', bottom: M + 'px', top: 'auto', width: typeof sW === 'number' ? sW + 'px' : sW, maxHeight: Math.round(vh * .55) + 'px', right: 'auto' });
-    const sTop = shown('sweep') ? W.getBoundingClientRect().top : vh;
     // the full results under the card
     const RS = wins.results;
     Object.assign(RS.style, { left: Math.max(M, Math.min(cl, vw - WIN.results.w - M)) + 'px', top: (cardB + 6) + 'px', width: Math.min(WIN.results.w, vw - 2 * M) + 'px', maxHeight: (vh - cardB - 16) + 'px', bottom: 'auto', right: 'auto' });
@@ -237,10 +236,8 @@ if (!SH_CLASSIC) {
     if (tabs.drawing) { tabs.drawing.style.top = Math.max(top0, vh * .35) + 'px'; }
     if (tabs.view) { tabs.view.style.left = (S.shell.bar === 'T' ? navR.right + 8 : M + 24) + 'px'; tabs.view.style.top = barB + 'px'; }
     if (tabs.sweep) { tabs.sweep.style.left = (leftUsed || 40) + 'px'; }
-    // the picture fills what the windows leave free
-    const free = { t: vB, l: leftUsed, r: rightUsed, b: shown('sweep') ? Math.max(0, vh - sTop + 8) : 0 };
-    Object.entries(free).forEach(([k, v]) => stage.style.setProperty('--free-' + k, Math.round(v) + 'px'));
-    const sig = JSON.stringify(free) + vw + 'x' + vh;
+    // the picture fills the whole stage (UI-A3): only the page size changes it, never the windows
+    const sig = vw + 'x' + vh;
     if (sig !== lastFree) { lastFree = sig; redrawSoon(); }
   }
   let layT = 0, redT = 0;
