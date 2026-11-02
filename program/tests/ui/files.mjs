@@ -121,7 +121,7 @@ try {
       await p.evaluate(() => document.querySelectorAll('.modal').forEach(m => { m.hidden = true; })); await p.waitForTimeout(300); return fs.readFileSync(f, 'latin1'); };
     const bridge = JSON.parse(await grab('saveBridge')), code = bridge.bridgeCode;
     const outs = { csv: await grab('dlCsv'), py: await grab('dlPy'), lp: await grab('dlLp'), docs: await grab('openDocs', '#docModal:not([hidden])'), sweep: await grab('saveSweepFile') };
-    check('exports: the bridge file has a release, model and bridge code', /^(v\d+|balsaPixel \d+\.\d+)/.test(bridge.release) && bridge.model && /^[0-9a-f]{8}$/.test(code), JSON.stringify({ r: bridge.release, m: bridge.model, code }));
+    check('exports: the bridge file has a release, model and bridge code', /^(v\d+|\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?)$/.test(bridge.release) && bridge.model && /^[0-9a-f]{8}$/.test(code), JSON.stringify({ r: bridge.release, m: bridge.model, code }));
     for (const [k, txt] of Object.entries(outs)) check(`exports: ${k} carries the release and the same bridge code`, txt.includes(bridge.release) && txt.includes(code), txt.slice(0, 120).replace(/\s+/g, ' '));
     check('exports: no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();

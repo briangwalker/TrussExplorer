@@ -41,7 +41,7 @@ const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBo
 // NEVER rename this key: everyone's saved work lives under it. When the saved format changes, convert old data on load instead.
 const KEY = 'se310-truss-v5';
 const APP_VER = 35;   // bumped whenever the solver or the saved data changes
-const APP_RELEASE = 'balsaPixel 1.0.0-alpha.1';   // SemVer pre-release (board TE-B-017); written into every file the app saves (main is the stable v6x line)
+const APP_RELEASE = '1.0.0-alpha.1';   // SemVer pre-release (board TE-B-017); a version only, never the product name (TE-B-246: the product is 'balsaPixel: Truss Explorer'); written into every file the app saves (main is the stable v6x line)
 
 // The starter bridge fits the 300 mm envelope measured on the outer faces (#185, Brian 2026-10-28): 48.4 mm on each desk
 // gives 296.8 mm between end joints and 299.98 mm outside (half a stick, 1.59 mm, shorter at each end than v61's 300 mm).
