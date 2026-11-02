@@ -103,7 +103,17 @@ try {
   check('top bar ‹: icons only (no words)', await p.locator('#shellNav .lab').count() === 0 && await visible(p, '#shellNav .swb'));
   await p.click('#navFold'); await p.waitForTimeout(150);
   check('‹ again: a tab', !(await visible(p, '#shellNav')) && await visible(p, '#navTab'));
-  await p.click('#navTab'); await p.click('#navGrow'); await p.waitForTimeout(150);
+  // BPD-6 (UI-A5, UI-W1, UI-W15, ART-K8): ☰ stays visible in the tab, and the tab sits on the stage's top edge, 28 px thick
+  { const box = await rect(p, '#navTabBox'), stg = await rect(p, '#stage');
+    check('UI-A5, UI-W1: in the tab state ☰ is visible, first in the tab, still called Menu', await visible(p, '#dockBtn') && await p.evaluate(() => { const b = document.getElementById('dockBtn'), t = document.getElementById('navTabBox'); return t.firstElementChild === b && b.getAttribute('aria-label') === 'Menu' && /›\s*Truss · 2D/.test(document.getElementById('navTab').textContent); }));
+    check('UI-W15, ART-K8: the tab touches the stage\'s top edge and is 28 px thick', !!box && Math.abs(box.t - stg.t) <= 1 && Math.abs(box.h - 28) <= 1, JSON.stringify(box)); }
+  await p.click('#dockBtn'); await p.waitForTimeout(200);
+  check('☰ in the tab still opens the menu', await visible(p, '#dockMenu'));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+  if (await visible(p, '#dockMenu')) { await p.click('#dockBtn'); await p.waitForTimeout(150); }
+  await p.click('#navTab'); await p.waitForTimeout(150);
+  check('› brings the bar back in the icons state, with ☰ first in it again', await visible(p, '#shellNav') && await p.locator('#shellNav .lab').count() === 0 && !(await visible(p, '#navTabBox')) && await p.evaluate(() => document.getElementById('shellNav').firstElementChild === document.getElementById('dockBtn')));
+  await p.click('#navGrow'); await p.waitForTimeout(150);
   check('and back to words and icons', await p.locator('#shellNav .lab').count() >= 2);
 
   // ---------- themes ----------
