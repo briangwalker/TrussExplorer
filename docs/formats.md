@@ -20,7 +20,7 @@ Everything the Explorer saves, to a file or in the browser, is listed here with 
 
 | Kind | Extension | `format` name(s) | Current version | Status |
 |---|---|---|---|---|
-| Bridge | `.bridge.json` | `se310-truss-bridge` (also accepted: `truss-explorer-bridge`) | 2 (v61) | in the app |
+| Bridge ("truss file") | `.truss` since 1.0.0-alpha (TE-B-256); `.bridge.json` still opens, forever | `se310-truss-bridge` (also accepted: `truss-explorer-bridge`) | 2 (v61) | in the app |
 | Sweep | `.sweep.json` | `se310-truss-sweep` (also accepted: `truss-explorer-sweep`) | 2 (v61) | in the app |
 | Compact sweep | `.tsweep` (gzip, binary) | header `truss-explorer-tsweep`; magic line `TRUSS-EXPLORER-SWEEP 1` | header 1, layout 1 | in the app (#179): ☰ › Save compact sweep; opens through either Open button. Layout spec: [docs/math/sweep-file-format.md](math/sweep-file-format.md) |
 | Material | `.material.json` | `truss-explorer-material` | 1 (draft) | checked by `formats.js`; nothing writes it yet (#150) |
@@ -36,7 +36,7 @@ Written by `fileInfo()` in app.js.
 |---|---|---|
 | `format`, `version` | string, integer | See above. |
 | `app` | string | `"SE 310 Truss Explorer"`. |
-| `release` | string | The release that saved it, for people: `"v61"` on main, `"balsaPixel 1.0-dev"` on the balsaPixel line. **Free text**: never parse it or compare it as a number. `null` after upgrading a v1 file. |
+| `release` | string | The release that saved it, for people: `"v61"` on main, `"1.0.0-alpha.1"` on the balsaPixel line (older alpha files say `"balsaPixel 1.0-dev"` or `"balsaPixel 1.0.0-alpha.1"`). **Free text**: never parse it or compare it as a number. `null` after upgrading a v1 file. |
 | `solver` | integer | `APP_VER`: the solver and saved-data version. This is the number to compare: a different `solver` means results may differ, so offer a re-run. `null` after upgrading a v1 file. |
 | `savedAt` | string | ISO 8601 time, UTC. |
 | `model` | `"2D"` / `"3D"` / null | The analysis model the numbers came from. `null` when an upgraded v1 file didn't say. |
