@@ -21,7 +21,7 @@ This page holds no rules. The rules live in [ui-spec.md](ui-spec.md) (`UI-…`),
 | Results card | `resultsHTML({ checks, verdict })` | opens its full view with `popups()` | `.res` `results` · `.pill` `badge` |
 | Pop-up | — | `popups(doc).open(pop, opener)` / `.close(pop)` | `.te-pop` |
 
-`TrussPieces.install(document)` puts the pieces' CSS on the page once (`<style id="te-pieces">`). The class names are the ones the built-in themes already style, so Notebook + Calculator applies to the pieces unchanged (checked in the browser test).
+`TrussPieces.install(document)` puts the pieces' CSS on the page once (`<style id="te-pieces">`). It is safe to call on the program page: every element a piece builds carries `data-pc`, and the rules on class names the shell also uses (`.s-pan`, `.tabE`, `.s-b`, `.s-ic`, `.res`, `.s-ph`, `.stp`, the focus ring) reach only those elements. A browser test checks that installing it changes nothing the shell drew, in Wireframe and OG (TE-B-235). The marker sits in `:where()`, so a theme's own rules still win (UI-T1). Call it from the code that uses the pieces, never at load (CODE-F1, TE-B-230). The class names are the ones the built-in themes already style, so Notebook + Calculator applies to the pieces unchanged (checked in the browser test).
 
 **What the pieces never do:** read or write the app's state (`S`, `tr`, `res`), touch storage, or set a meaning colour. Pass and fail come from the app's `--ok` and `--bad` (ART-K14, UI-A18). A screen passes the numbers in; the piece draws them.
 
@@ -40,9 +40,12 @@ Tests: **N** = `program/tests/pieces.test.js` (Node), **B** = `program/tests/ui/
 | UI-W2 | Results card: numbers only, each against its limit, verdict pill, ▾ | results card | N: `18.6 ≥ 5.0 kg`, `3.9 < 5.0 kg ✕`, pills · B: card text |
 | UI-W8 | Outside click closes a pop-up and does nothing else; Esc closes the top one and returns focus | pop-up | B: outside click eaten, next click works, Esc returns focus |
 | UI-W9 | Hover a tab to peek without covering it; click the peek to keep it | window, edge tab | B: peek beside the tab; click keeps it |
+| UI-W15 | Window sizes: 52 px icons, 28 px tab, never over 40 % of the stage, heights up to stage − 24 px | window, edge tab | B: 52 px icons, 28 px tab |
+| UI-W17 | A peek sits 8 px beside its tab, top aligned, inside the stage; closes 400 ms after leaving | window (`mountWindow`) | B: peek position |
+| UI-W18 | The results card's full view is a pop-up | pop-up | B: card opens its pop-up; content is #210's |
 | UI-W12 | Project facts one click away | results card's full view (a pop-up) | B: card opens its pop-up (`aria-expanded`). The facts themselves come from #210. |
 | UI-S6 | Analysis tabs | tabs | N: tablist markup |
-| UI-K3 | Arrow keys move between items | tabs (roving focus) | N: one tab in the Tab order · B: arrows, Home, End, wrap |
+| UI-K7 | Tabs: one Tab stop; arrows move and pick, wrapping; Home and End go to the ends (ui-spec 1.5.1, #367; UI-K3 is for chart dots) | tabs (roving focus) | N: one tab in the Tab order · B: arrows, Home, End, wrap |
 | UI-K4 | Named regions; focus ring kept by every theme | window (`role=region`, `aria-label`), CSS focus ring | N: markup · B: ring |
 | UI-I1 | Swept range shown on the slider with both ends | slider | N: band and ends · B: from can't pass to; band follows |
 | UI-I2 | Course rule: never clamped, turns pink | slider (`data-over="rule"`, pink hatch zone) | N: `sliderValue(120)` = 120, marked · B: End runs to 140, marked |
@@ -66,22 +69,22 @@ Tests: **N** = `program/tests/pieces.test.js` (Node), **B** = `program/tests/ui/
 | ART-M5 | Press 120 ms; reduced motion has none | button CSS (`--t-press`) | N: reduced-motion rule |
 | CODE-F1, F5, S1, N3 | One global; builders are pure; text escaped; throw only for programmer errors | all | N: runs under Node; escaping test; refusals |
 
-## Gaps: what the pieces needed that no spec says (TE-B-224 item 3)
+## Gaps found while building (TE-B-224 item 3): all answered
 
-Building the pieces turned up these questions. The pieces use the stopgap value shown until the owner writes a rule. A spec rule replaces each stopgap, and the piece then cites that rule.
+Building the pieces turned up ten questions no spec answered. Each one now has a spec rule (art-spec 1.0.4, #357; ui-spec 1.5, #364, both merged), and the piece cites that rule. The last column says where the rule is met.
 
-| # | Gap | Owner | Stopgap in the pieces |
+| # | Gap and the rule that answers it | Owner | Where the rule is met |
 |---|---|---|---|
-| G1 | **The "pink" of a course rule.** ANSWERED: ART-K16 (art-spec 1.0.4, #357) makes it a meaning colour, `#c8288c` with a `#7a0e52` edge, read from the app's `--rule`; solid 2 px stripes with a 3 px gap. | Graphics | done: `var(--rule, #c8288c)` |
-| G2 | **Wireframe's stick states.** ANSWERED: ART-S10 (#357) takes the pieces' values as the rule. | Graphics | done |
-| G3 | **What a pop-up is made of.** ANSWERED: ART-W12 (#357): paper in Notebook, `surface` in Wireframe, 1 px `ctl-line` edge, text 13 px minimum. | Graphics | done |
-| G4 | **How tabs look.** ANSWERED: ART-W13 (#357): a glued stick group in Notebook; in Wireframe, flat segments that each keep a 1 px `ctl-line` edge, the picked one sunk 2 px. | Graphics | done |
-| G5 | **Window widths.** ANSWERED: UI-W15 (ui-spec 1.5, #364): Inputs 400, Drawing 340, View options 640, Sweep 640, full results 540 px, never over 40 % of the stage; icons 52 px; tab 28 px. | UI | pieces: 40 % cap, 52 px icons, 28 px tab; the screen sets each window's `--te-win-w` |
-| G6 | **Stacking on a shared edge.** ANSWERED: UI-W16 (#364): View options then Inputs on the left, 12 px from the edge, 8 px apart; a window that doesn't fit opens one state smaller. | UI | pieces: 12 px edge gap; the stacking itself is the screen's layout (BluePeachDev rows) |
-| G7 | **Where a peek sits.** ANSWERED: UI-W17 (#364): 8 px beside its tab, lined up with the tab's top, inside the stage; closes 400 ms after leaving both. | UI | done in `mountWindow` (tested) |
-| G8 | **The results card's full view.** ANSWERED: UI-W18 (#364): a pop-up under the strip; checks with what governs them, the project facts, two links; 540 px. | UI | the pop-up piece; the content is #210's |
-| G9 | **The gallery page.** ANSWERED: UI-G1–G5 (#364), place from TE-B-230. One open point: the "real theme switch" saves the theme, which UI-G4 forbids (TE-B-251). | UI | built after #356 and #364 merge |
-| G10 | **The restless-bridge stop rule.** ANSWERED: UI-M8 (#364). | UI | not a piece (#144) |
+| G1 | **The "pink" of a course rule.** ART-K16 (art-spec 1.0.4, #357) makes it a meaning colour, `#c8288c` with a `#7a0e52` edge, read from the app's `--rule`; solid 2 px stripes with a 3 px gap. | Graphics | done: `var(--rule, #c8288c)` |
+| G2 | **Wireframe's stick states.** ART-S10 (#357) takes the pieces' values as the rule. | Graphics | done |
+| G3 | **What a pop-up is made of.** ART-W12 (#357): paper in Notebook, `surface` in Wireframe, 1 px `ctl-line` edge, text 13 px minimum. | Graphics | done |
+| G4 | **How tabs look.** ART-W13 (#357): a glued stick group in Notebook; in Wireframe, flat segments that each keep a 1 px `ctl-line` edge, the picked one sunk 2 px. | Graphics | done |
+| G5 | **Window widths.** UI-W15 (ui-spec 1.5, #364): Inputs 400, Drawing 340, View options 640, Sweep 640, full results 540 px, never over 40 % of the stage; icons 52 px; tab 28 px. | UI | pieces: 40 % cap, 52 px icons, 28 px tab; the screen sets each window's `--te-win-w` |
+| G6 | **Stacking on a shared edge.** UI-W16 (#364): View options then Inputs on the left, 12 px from the edge, 8 px apart; a window that doesn't fit opens one state smaller. | UI | pieces: 12 px edge gap; the stacking itself is the screen's layout (BluePeachDev rows) |
+| G7 | **Where a peek sits.** UI-W17 (#364): 8 px beside its tab, lined up with the tab's top, inside the stage; closes 400 ms after leaving both. | UI | done in `mountWindow` (tested) |
+| G8 | **The results card's full view.** UI-W18 (#364): a pop-up under the strip; checks with what governs them, the project facts, two links; 540 px. | UI | the pop-up piece; the content is #210's |
+| G9 | **The gallery page.** UI-G1–G5 (#364), place from TE-B-230. The theme switch it needs without saving (UI-G3, UI-G4) is the shell's `previewTheme(id)` door, decided on TE-B-251. | UI | the gallery PR (next), `src/gallery.js` |
+| G10 | **The restless-bridge stop rule.** UI-M8 (#364). | UI | not a piece (#144) |
 
 ## Not pieces (who builds them)
 
@@ -106,6 +109,8 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 ## Change log
 
 - **0.1 · 2026-10-31** First set: tokens, picture layer, window and edge tab, stick button, icon button, chip, toggle, tabs, slider, results card, pop-up (#354; TE-B-224, TE-B-227).
+- **0.1.5 · 2026-10-31** `install()` is safe next to the shell: rules on shared class names reach only what the pieces built (`data-pc` inside `:where()`); it's tested on the program page in Wireframe and OG (BluePeachDev's BPD-3 question 1, TE-B-235).
+- **0.1.4 · 2026-10-31** After #356, #357 and #364 merged: the gaps table cites its rules (TE-B-243, TE-B-249). The tab keys cite UI-K7 instead of UI-K3 (UI's review, TE-B-232; #367). The rule map gains UI-W15, UI-W17 and UI-W18.
 - **0.1.3 · 2026-10-31** ui-spec 1.5 (#364) answers G5–G10. The pieces follow UI-W15 (52 px icons, 28 px tabs, 40 % cap, 12 px edge gap) and UI-W17 (the peek sits 8 px beside its tab, lined up with its top, and closes after 400 ms).
 - **0.1.2 · 2026-10-31** Graphics' review (TE-B-232): pill 13 px (ART-T2); art-spec 1.0.4 values (#357): `ctl-line #7f8893` (#355), course-rule pink from `--rule` as solid stripes (ART-K16), edged Wireframe tabs (ART-W13), 13 px pop-up (ART-W12); two more contrast pairs. G1–G4 answered.
 - **0.1.1 · 2026-10-31** Added the Gaps table: what the pieces needed that no spec says (TE-B-224 item 3).

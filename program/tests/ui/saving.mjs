@@ -38,7 +38,7 @@ try {
 
   for (const v of ['inputs', 'both', 'bridge', 'analysis']) {
     await leaveFs(p); await viewBtn(p, v); await p.waitForTimeout(300);
-    await saveVia(p, `${v} view, ☰ Save bridge file`, bridgeBtn, '.bridge.json');
+    await saveVia(p, `${v} view, ☰ Save bridge file`, bridgeBtn, '.truss');
     await saveVia(p, `${v} view, ☰ Save sweep file`, sweepBtn, '.sweep.json');
   }
   // the Sweep section's own button (#97), with the section folded and open
@@ -53,7 +53,7 @@ try {
     const btn = p.locator(`.fsbtn[data-fs="${fs}"]`).first();
     if (!(await btn.isVisible())) { check(`full screen ${fs}: button visible`, false); continue; }
     await btn.click(); await p.waitForTimeout(400);
-    await saveVia(p, `full screen ${fs}, ☰ Save bridge file`, bridgeBtn, '.bridge.json');
+    await saveVia(p, `full screen ${fs}, ☰ Save bridge file`, bridgeBtn, '.truss');
     await saveVia(p, `full screen ${fs}, ☰ Save sweep file`, sweepBtn, '.sweep.json');
     await p.screenshot({ path: path.join(SHOTS, `save-fs-${fs.slice(1)}.png`) });
   }
@@ -69,10 +69,10 @@ try {
   check('the pop-up shows the suggested name', (await p.inputValue('#saveModal #saveName')) === want && /^[A-Z][a-z]+_[A-Za-z]+_[0-9bcdfghjkmnpqrstvwxyz]{4}$/.test(want), want);
   await p.fill('#saveModal #saveName', 'Typed name'); await p.uncheck('#saveAsDesign');
   { const dl = p.waitForEvent('download', { timeout: 8000 }).catch(() => null); await p.click('#saveGo'); const d = await dl;
-    check('a typed file name is used', !!d && d.suggestedFilename() === 'Typed_name.bridge.json' || (!!d && d.suggestedFilename() === 'Typed name.bridge.json'), d ? d.suggestedFilename() : 'no download'); }
+    check('a typed file name is used', !!d && d.suggestedFilename() === 'Typed_name.truss' || (!!d && d.suggestedFilename() === 'Typed name.truss'), d ? d.suggestedFilename() : 'no download'); }
 
   // the other exports
-  const d1 = await saveVia(p, 'bridge file content', bridgeBtn, '.bridge.json');
+  const d1 = await saveVia(p, 'bridge file content', bridgeBtn, '.truss');
   if (d1) { const fs = await import('fs'); const j = JSON.parse(fs.readFileSync(await d1.path(), 'utf8')); check('saved bridge file reopens as a bridge', j.format === 'se310-truss-bridge' && !!j.bridge); }
   await saveVia(p, '☰ FEA script (.py)', async () => { await openMenu(p); await p.click('#dockMenu [data-click="dlPy"]'); }, '.zip');
   await saveVia(p, '☰ member table CSV', async () => { await openMenu(p); await p.click('#dockMenu [data-click="dlCsv"]'); }, '.csv');
