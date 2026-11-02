@@ -216,7 +216,9 @@ const SweepState = (() => {
     get version() { return version; },
     // replace the results; o may carry top (best rows), ctx (the rules they were judged by) and mode
     set(rows, o) { o = o || {}; sweepAll = rows; if ('top' in o) sweepRows = o.top; if ('ctx' in o) sweepCtx = o.ctx; if ('mode' in o) sweepMode = o.mode; fire(); },
-    add(rows) { rows.forEach(r => sweepAll.push(r)); if (rows.length) fire(); },   // refined designs join the sweep
+    add(rows) { rows.forEach(r => sweepAll.push(r)); if (rows.length) fire(); },   // refined designs join the sweep (call once per batch)
+    // the rows were edited in place (Re-check changes D, util and passes): say so, so caches keyed on version rebuild
+    changed(o) { o = o || {}; if ('top' in o) sweepRows = o.top; if ('ctx' in o) sweepCtx = o.ctx; fire(); },
     on(fn) { fns.push(fn); },
   });
 })();

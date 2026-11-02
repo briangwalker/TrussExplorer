@@ -344,8 +344,9 @@ function refineAround(r) {
   const keyOf = c => vars.map(([f]) => c[f]).join('|') + '|' + [c.panels, c.pattern, c.vert, c.claw, c.brace, c.loadShape, c.loadX, c.bookKg].join('|');
   const have = new Set(SweepState.rows().filter(q => q.refined).map(keyOf));
   const fresh = list.filter(c => !have.has(keyOf(c)));
-  let added = 0;
-  fresh.forEach(c => { const { t2, r2 } = evalCandidate(c); if (!r2.stable) return; const row = makeRow(c, t2, r2); row.refined = true; SweepState.add([row]); added++; });
+  const batch = [];
+  fresh.forEach(c => { const { t2, r2 } = evalCandidate(c); if (!r2.stable) return; const row = makeRow(c, t2, r2); row.refined = true; batch.push(row); });
+  SweepState.add(batch); const added = batch.length;   // one change for the whole batch (listeners fire once)
   // zoom to the new designs
   const [, fx] = AXES[S.axX], [, fy] = AXES[S.axY];
   const near = SweepState.rows().filter(q => q.refined || q === r).map(q => [fx(q), fy(q)]).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));

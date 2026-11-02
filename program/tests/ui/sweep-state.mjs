@@ -13,6 +13,11 @@ try {
   await p.waitForFunction(v => __dbg.sweepVersion > v && !document.getElementById('runSweep').disabled, v0, { timeout: 120000 });
   const r = await p.evaluate(() => ({ v: __dbg.sweepVersion, rows: __dbg.rows.length, same: TrussApp.rows === __dbg.rows }));
   check('running a sweep moves the version and replaces the rows', r.v > v0 && r.rows > 0 && r.same, JSON.stringify(r));
+  // Re-check edits the rows in place (D, util, passes): the version must still move, so caches keyed on it rebuild (Dev Lead, #331)
+  const before = await p.evaluate(() => __dbg.sweepVersion);
+  await p.evaluate(() => { const d = document.getElementById('rcGo'); let e = d; while (e) { if (e.tagName === 'DETAILS') e.open = true; e = e.parentElement; } document.getElementById('rcFS').value = '3'; d.click(); });
+  await p.waitForTimeout(300);
+  check('Re-check moves the version (rows edited in place)', await p.evaluate(v => __dbg.sweepVersion > v, before));
   check('no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
   await p.close();
 } finally { await b.close(); srv.close(); }
