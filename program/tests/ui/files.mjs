@@ -58,7 +58,9 @@ try {
     const mine = await p.evaluate(() => ({ ana: __dbg.S.anaMode, wood: +__dbg.res.wood.toFixed(1), sum: document.getElementById('docSum').textContent, stock: document.getElementById('docStock').value, kerf: document.getElementById('docKerf').value, style: document.querySelector('input[name="jstyle"]:checked').value, over: Object.keys(__dbg.S.doc.over).length, tilt: __dbg.S.d3.tilt, ties: __dbg.S.d3.botTies, imp: __dbg.S.d3.imperf.on }));
     await p.click('#docNo');
     const dl = p.waitForEvent('download'); await p.click('#dockBtn'); await p.click('#dockMenu [data-click="saveBridge"]'); await p.waitForSelector('#saveModal:not([hidden])'); await p.click('#saveGo');
-    const file = path.join(tmp, 'shared.bridge.json'); await (await dl).saveAs(file);
+    const dlv = await dl;
+    check('TE-B-256: a bridge file is saved as .truss', dlv.suggestedFilename().endsWith('.truss'), dlv.suggestedFilename());
+    const file = path.join(tmp, 'shared.truss'); await dlv.saveAs(file);
     const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
     check('#154: the file says which release, model and rules made it', saved.release && saved.model === '3D' && saved.rules && saved.rules.FS > 0 && saved.version >= 2, JSON.stringify({ r: saved.release, m: saved.model, v: saved.version }));
     await p.close();
@@ -75,6 +77,7 @@ try {
     const q2 = await openPage(b, srv.url); await waitRows(q2);
     await open(q2, 'bridge', write('old.bridge.json', old)); await q2.waitForTimeout(600);
     const o2 = await q2.evaluate(() => ({ ana: __dbg.S.anaMode, wood: +__dbg.res.wood.toFixed(1), msg: document.getElementById('toast').textContent }));
+    check('TE-B-256: the Open button offers .truss and still .bridge.json', await q2.evaluate(() => { const a = document.getElementById('filePick').accept.split(','); return a.includes('.truss') && a.includes('.bridge.json') && a.includes('.tsweep'); }));
     check('#154: an older file opens in the model its wood matches, and says so', o2.ana === '3d' && Math.abs(o2.wood - saved.summary.wood) < 0.15 && /before v61/.test(o2.msg), JSON.stringify(o2));
     check('#154: no script errors', p.errs.length + q.errs.length + q2.errs.length === 0, q.errs.concat(q2.errs).slice(0, 2).join(' | '));
     await q.close(); await q2.close();
