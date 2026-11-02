@@ -41,7 +41,7 @@ const THEME_SWITCH_NOT_BUILT = { title: 'Switching themes in the gallery', rules
 const PIC = '<svg viewBox="0 0 600 240" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'
   + '<g fill="none" stroke="var(--te-muted)" stroke-width="2" opacity=".55"><path d="M60 180H540M120 100H480M60 180L120 100L180 180L240 100L300 180L360 100L420 180L480 100L540 180M120 100V180M180 100V180M240 100V180M300 100V180M360 100V180M420 100V180M480 100V180"/></g></svg>';
 
-// The items, in page order. Each one: title, rules it shows, and the HTML made by TrussPieces (P).
+// The items, in page order. Every window has its own name, so no two landmarks share one (QA, TE-B-281). Each one: title, rules it shows, and the HTML made by TrussPieces (P).
 function sections(P) {
   const frame = (inner, cls) => `<div class="g-frame${cls ? ' ' + cls : ''}"><div class="te-picture g-pic">${PIC}</div>${inner}</div>`;
   const win = (id, title, home, state, body, icons) => P.windowHTML({ id, title, home, state, body, icons }) + P.edgeTabHTML({ id, title, home, state });
@@ -54,10 +54,10 @@ function sections(P) {
     { id: 'tokens', title: 'Theme tokens and contrast', rules: ['UI-T1', 'ART-K1', 'ART-K6', 'ART-K14', 'ART-C1', 'ART-C2'],
       html: `<div class="g-tokens" data-g-tokens>${P.TOKENS.filter(t => !/^font/.test(t.name)).map(t => `<div class="g-tok"><span class="g-sw" style="background:var(${t.css})"></span><code>${esc(t.css)}</code> <span class="g-rule">${esc(t.rule)}</span></div>`).join('')}</div>`
         + '<table class="g-pairs" data-g-pairs><caption>Contrast in this theme (ART-C1 text 4.5 : 1, ART-C2 lines 3 : 1)</caption><tbody></tbody></table>' },
-    { id: 'win-w', title: 'Window: words and icons (W)', rules: ['UI-A3', 'UI-A4', 'UI-W1', 'UI-W15', 'UI-K4'], html: frame(win('g-left', 'Inputs', 'left', 'W', body, ICONS) + win('g-right', 'Drawing', 'right', 'W', P.toggleHTML({ label: 'Dimensions', checked: false }), ICONS)) },
-    { id: 'win-i', title: 'Window: icons only (I)', rules: ['UI-A4', 'UI-W15'], html: frame(win('g-icons', 'Inputs', 'left', 'I', body, ICONS) + win('g-icons-r', 'Drawing', 'right', 'I', '', ICONS)) },
-    { id: 'win-t', title: 'Window: edge tab (T)', rules: ['UI-A4', 'UI-W15', 'ART-K8'], html: frame(win('g-tab', 'Inputs', 'left', 'T', body, ICONS) + win('g-tab-b', 'Sweep', 'bottom', 'T', '', [])) },
-    { id: 'win-peek', title: 'Peek: hover a tab', rules: ['UI-W9', 'UI-W17'], note: 'Shown open; move the pointer over and off the tab to see it close after 400 ms.', html: frame(win('g-peek', 'Inputs', 'left', 'T', body, ICONS), 'g-peekframe') },
+    { id: 'win-w', title: 'Window: words and icons (W)', rules: ['UI-A3', 'UI-A4', 'UI-W1', 'UI-W15', 'UI-K4'], html: frame(win('g-left', 'Inputs (words)', 'left', 'W', body, ICONS) + win('g-right', 'Drawing (words)', 'right', 'W', P.toggleHTML({ label: 'Dimensions', checked: false }), ICONS)) },
+    { id: 'win-i', title: 'Window: icons only (I)', rules: ['UI-A4', 'UI-W15'], html: frame(win('g-icons', 'Inputs (icons)', 'left', 'I', body, ICONS) + win('g-icons-r', 'Drawing (icons)', 'right', 'I', '', ICONS)) },
+    { id: 'win-t', title: 'Window: edge tab (T)', rules: ['UI-A4', 'UI-W15', 'ART-K8'], html: frame(win('g-tab', 'Inputs (tab)', 'left', 'T', body, ICONS) + win('g-tab-b', 'Sweep (tab)', 'bottom', 'T', '', [])) },
+    { id: 'win-peek', title: 'Peek: hover a tab', rules: ['UI-W9', 'UI-W17'], note: 'Shown open; move the pointer over and off the tab to see it close after 400 ms.', html: frame(win('g-peek', 'Inputs (peek)', 'left', 'T', body, ICONS), 'g-peekframe') },
     { id: 'stick', title: 'Stick buttons', rules: ['ART-S1', 'ART-S2', 'ART-S3', 'ART-S4', 'ART-S5', 'ART-S6', 'ART-S10'], note: 'Hover one to see it lift; press Tab to see the focus ring.', html: `<div class="g-row">${btnRow('stick')}</div>` },
     { id: 'icon', title: 'Icon buttons', rules: ['ART-I2', 'ART-S3', 'ART-S4'], html: `<div class="g-row">${btnRow('icon')}</div>` },
     { id: 'chip', title: 'Chips', rules: ['ART-S3', 'ART-S6', 'ART-S7'], html: `<div class="g-row">${btnRow('chip')}</div>` },

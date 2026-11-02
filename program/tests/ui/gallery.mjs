@@ -118,6 +118,9 @@ try {
   check('the gallery adds no network request of its own (guard e)', gReqs.length === 0, gReqs.slice(0, 3).join(' '));
   check('no page errors (guard e)', errs.length === 0, errs.join(' | '));
 
+  // ---------- landmarks: no two share a name (QA's landmark-unique, TE-B-281) ----------
+  check('every region in the gallery has its own name', await p.evaluate(() => { const n = [...document.querySelectorAll('#gallery [role="region"], #gallery section[aria-label]')].map(e => e.getAttribute('aria-label')); return n.length > 4 && new Set(n).size === n.length; }));
+
   // ---------- one top heading (QA, TE-B-281) ----------
   check('the gallery adds no h1 of its own (the page keeps one)', await p.evaluate(() => !document.querySelector('#gallery h1')));
 
