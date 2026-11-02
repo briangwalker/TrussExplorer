@@ -20,7 +20,7 @@ Everything the Explorer saves, to a file or in the browser, is listed here with 
 
 | Kind | Extension | `format` name(s) | Current version | Status |
 |---|---|---|---|---|
-| Bridge | `.bridge.json` | `se310-truss-bridge` (also accepted: `truss-explorer-bridge`) | 2 (v61) | in the app |
+| Bridge ("truss file") | `.truss` since 1.0.0-alpha (TE-B-256); `.bridge.json` still opens, forever | `se310-truss-bridge` (also accepted: `truss-explorer-bridge`) | 2 (v61) | in the app |
 | Sweep | `.sweep.json` | `se310-truss-sweep` (also accepted: `truss-explorer-sweep`) | 2 (v61) | in the app |
 | Compact sweep | `.tsweep` (gzip, binary) | header `truss-explorer-tsweep`; magic line `TRUSS-EXPLORER-SWEEP 1` | header 1, layout 1 | in the app (#179): ☰ › Save compact sweep; opens through either Open button. Layout spec: [docs/math/sweep-file-format.md](math/sweep-file-format.md) |
 | Material | `.material.json` | `truss-explorer-material` | 1 (draft) | checked by `formats.js`; nothing writes it yet (#150) |
@@ -36,7 +36,7 @@ Written by `fileInfo()` in app.js.
 |---|---|---|
 | `format`, `version` | string, integer | See above. |
 | `app` | string | `"SE 310 Truss Explorer"`. |
-| `release` | string | The release that saved it, for people: `"v61"` on main, `"balsaPixel 1.0-dev"` on the balsaPixel line. **Free text**: never parse it or compare it as a number. `null` after upgrading a v1 file. |
+| `release` | string | The release that saved it, for people: `"v61"` on main, `"1.0.0-alpha.1"` on the balsaPixel line (older alpha files say `"balsaPixel 1.0-dev"` or `"balsaPixel 1.0.0-alpha.1"`). **Free text**: never parse it or compare it as a number. `null` after upgrading a v1 file. |
 | `solver` | integer | `APP_VER`: the solver and saved-data version. This is the number to compare: a different `solver` means results may differ, so offer a re-run. `null` after upgrading a v1 file. |
 | `savedAt` | string | ISO 8601 time, UTC. |
 | `model` | `"2D"` / `"3D"` / null | The analysis model the numbers came from. `null` when an upgraded v1 file didn't say. |
@@ -122,9 +122,9 @@ What the app puts in the file:
 
 Numbers come back from 32-bit storage rounded to 7 significant digits (whole numbers exactly). The live Large search's candidate number (`idx` on a row) isn't kept.
 
-**Size limits (#296), one set for every door, in `TrussFormats.LIMITS`:** the file itself at most 128 MB, checked before it's read (`too-big`); a `.tsweep` at most 256 MB unzipped; at most 5 million sweep designs in either kind (`too-many-rows`).
+**Size limits (#296), one set for every door, in `TrussFormats.LIMITS`:** the file itself at most 512 MB, checked before it's read (`too-big`); a `.tsweep` at most 512 MB unzipped; at most 8 million sweep designs in either kind (`too-many-rows`). They are set so that no file that opens today is refused (rule 4i): 512 MB is the longest text a browser holds as one string, and 8 million is more than 512 MB of `.tsweep` can hold. They stop a crafted file, not a real one.
 
-Opening: the magic line (an unknown layout is refused: `newer-layout`), gunzip capped at 256 MB (`too-big`), the row count and every column's bounds (`damaged`), the data hash and the fingerprint checked on the header exactly as saved (`changed-data` / `changed-settings` are **warnings**: the sweep still opens, since sweep results are read-only, and the app says so), then `cleanData` on the header before anything from it is used; keys `__proto__`, `constructor` and `prototype` are never set. A newer header `version` opens with `newer-version`. SHA-256 uses the browser's own when the page has it, else a small plain version in `formats.js` (tested against Node's).
+Opening: the magic line (an unknown layout is refused: `newer-layout`), gunzip capped at 512 MB (`too-big`), the row count and every column's bounds (`damaged`), the data hash and the fingerprint checked on the header exactly as saved (`changed-data` / `changed-settings` are **warnings**: the sweep still opens, since sweep results are read-only, and the app says so), then `cleanData` on the header before anything from it is used; keys `__proto__`, `constructor` and `prototype` are never set. A newer header `version` opens with `newer-version`. SHA-256 uses the browser's own when the page has it, else a small plain version in `formats.js` (tested against Node's).
 
 
 ## Material file (draft, #150)

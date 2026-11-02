@@ -27,7 +27,7 @@ function bridgeSummary() {
 const stamp = () => new Date().toISOString();
 $('saveBridge').addEventListener('click', () => {
   const doc = Object.assign({ format: 'se310-truss-bridge', version: FILE_VER }, fileInfo(), { name: S.name || 'Design', summary: bridgeSummary(), bridge: bridgeState() });
-  saveFile(fileBase() + '.bridge.json', JSON.stringify(doc, null, 1));
+  saveFile(fileBase() + TrussFormats.KINDS.bridge.ext, JSON.stringify(doc, null, 1));   // .truss (TE-B-256)
 });
 $('saveSweepFile').addEventListener('click', () => {
   if (!sweepAll.length) { toast('Run a sweep first.', true); return; }
@@ -48,6 +48,7 @@ $('saveSweepTsweep').addEventListener('click', async () => {
   saveFile(fileBase() + '.tsweep', new Blob([t.bytes], { type: 'application/gzip' }));
 });
 let pickFor = null, pendingSweep = null;
+$('filePick').accept = TrussFormats.ACCEPT;   // .truss, .bridge.json, .sweep.json, .tsweep (TE-B-256)
 $('loadBridge').addEventListener('click', () => { pickFor = 'bridge'; $('filePick').value = ''; $('filePick').click(); });
 $('loadSweepFile').addEventListener('click', () => { pickFor = 'sweep'; $('filePick').value = ''; $('filePick').click(); });
 function applyBridge(b) {
@@ -89,7 +90,7 @@ $('filePick').addEventListener('change', async () => {
   // a .tsweep (gzip) goes through the bytes door; it comes back as the same sweep document a .sweep.json gives (#179)
   const buf = new Uint8Array(await f.arrayBuffer());
   const o = TrussFormats.isTsweepBytes(buf) ? await TrussFormats.openBytes(buf) : TrussFormats.open(new TextDecoder().decode(buf)), doc = o.doc, kind = o.kind;
-  const FILE_ERR = { 'not-json': 'That file is not a bridge or sweep file (it is not valid JSON).', 'not-an-object': 'That file is not a bridge or sweep file.', 'not-truss-explorer': 'That is not a bridge or sweep file from the Truss Explorer.', 'no-bridge': 'That bridge file has no bridge in it.', 'no-rows': 'That sweep file has no results in it.', 'no-usable-rows': 'That sweep file has no usable results.', 'not-tsweep': 'That file is not a bridge or sweep file from the Truss Explorer.', 'no-gzip': 'This browser can\'t open .tsweep files. Ask for the .sweep.json instead.', 'too-big': 'That file is too big for the Explorer to open (over 128 MB, or a .tsweep that unzips past 256 MB).', 'too-many-rows': 'That sweep file holds more than 5 million designs, more than the Explorer opens.', 'newer-layout': 'That .tsweep file was made by a newer release with a layout this one can\'t read.', 'damaged': 'That .tsweep file is damaged and could not be opened.' };
+  const FILE_ERR = { 'not-json': 'That file is not a bridge or sweep file (it is not valid JSON).', 'not-an-object': 'That file is not a bridge or sweep file.', 'not-truss-explorer': 'That is not a bridge or sweep file from the Truss Explorer.', 'no-bridge': 'That bridge file has no bridge in it.', 'no-rows': 'That sweep file has no results in it.', 'no-usable-rows': 'That sweep file has no usable results.', 'not-tsweep': 'That file is not a bridge or sweep file from the Truss Explorer.', 'no-gzip': 'This browser can\'t open .tsweep files. Ask for the .sweep.json instead.', 'too-big': `That file is too big for the Explorer to open (over ${TrussFormats.LIMITS.fileBytes / 1048576} MB, or a .tsweep that unzips past ${TrussFormats.LIMITS.unzipped / 1048576} MB).`, 'too-many-rows': `That sweep file holds more than ${(TrussFormats.LIMITS.rows / 1e6).toLocaleString()} million designs, more than the Explorer opens.`, 'newer-layout': 'That .tsweep file was made by a newer release with a layout this one can\'t read.', 'damaged': 'That .tsweep file is damaged and could not be opened.' };
   // either Open button takes either kind of file, and says which it was (#158); materials and themes don't open here yet
   if (o.ok && kind !== 'bridge' && kind !== 'sweep') { toast('That is not a bridge or sweep file from the Truss Explorer.', true); return; }
   if (!o.ok) { toast(FILE_ERR[o.errors[0]] || 'That file could not be opened.', true); return; }

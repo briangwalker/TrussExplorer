@@ -35,7 +35,9 @@ function cleanRows(rows) {
 // ---------- the formats
 // names: every name this kind has ever been written under (first = the one written today). current: the version written today.
 const KINDS = {
-  bridge:   { names: ['se310-truss-bridge', 'truss-explorer-bridge'], current: 2, ext: '.bridge.json' },
+  // a bridge (truss) file is saved as .truss since 1.0.0-alpha (Brian, TE-B-256); .bridge.json files keep opening forever (rule 4i).
+  // The extension never decides what a file is: detect() reads its 'format' field.
+  bridge:   { names: ['se310-truss-bridge', 'truss-explorer-bridge'], current: 2, ext: '.truss', also: ['.bridge.json'] },
   sweep:    { names: ['se310-truss-sweep', 'truss-explorer-sweep'], current: 2, ext: '.sweep.json' },
   material: { names: ['truss-explorer-material'], current: 1, ext: '.material.json', draft: true },
   theme:    { names: ['truss-explorer-theme'], current: 1, ext: '.theme.json', draft: true },
@@ -204,19 +206,25 @@ function check(doc, savedAs) {
 
 // ---------- size limits for anything from outside, shared by every door (#296, White Hat's review of #274)
 // fileBytes: the file itself, checked before it is read; unzipped: a .tsweep after gunzip; rows: sweep designs in either kind
-const LIMITS = Object.freeze({ fileBytes: 128 * 1024 * 1024, unzipped: 256 * 1024 * 1024, rows: 5000000 });
+// Set so that NO file that opens today is refused (rule 4i, the Dev Lead's review of #350): 512 MB is the longest text a
+// browser can hold as one string (so a bigger .sweep.json never opened anyway) and the .tsweep unzip cap before #350;
+// 8 million designs is more than 512 MB of .tsweep can hold (about 6.3 million). They stop a crafted file, not a real one.
+const LIMITS = Object.freeze({ fileBytes: 512 * 1024 * 1024, unzipped: 512 * 1024 * 1024, rows: 8000000 });
+// tests pass smaller limits through opts.limits; the app never does
+const limitsOf = opts => Object.assign({}, LIMITS, opts && opts.limits);
 
 // ---------- the one way in: text (or an already-parsed object) from a file -> a usable, current-version document
 // returns { ok, kind, doc, from, to, tooNew, errors, warnings, rowsIn, rowsDropped }
-function open(input) {
+function open(input, opts) {
+  const L = limitsOf(opts);
   let raw = input;
-  if (typeof input === 'string') { if (input.length > LIMITS.fileBytes) return { ok: false, errors: ['too-big'], warnings: [] }; try { raw = JSON.parse(input); } catch (e) { return { ok: false, errors: ['not-json'], warnings: [] }; } }
+  if (typeof input === 'string') { if (input.length > L.fileBytes) return { ok: false, errors: ['too-big'], warnings: [] }; try { raw = JSON.parse(input); } catch (e) { return { ok: false, errors: ['not-json'], warnings: [] }; } }
   const clean = cleanData(raw);
   const det = detect(clean);
   if (!det.kind) return { ok: false, det, errors: [isObj(clean) ? 'not-truss-explorer' : 'not-an-object'], warnings: [] };
   const up = upgrade(clean), c = check(up.doc, up.from);
   const res = { ok: c.ok, kind: det.kind, doc: up.doc, from: up.from, to: up.to, steps: up.steps, tooNew: det.tooNew, errors: c.errors, warnings: c.warnings };
-  if (det.kind === 'sweep' && Array.isArray(up.doc.rows) && up.doc.rows.length > LIMITS.rows) return { ok: false, kind: det.kind, errors: ['too-many-rows'], warnings: [] };
+  if (det.kind === 'sweep' && Array.isArray(up.doc.rows) && up.doc.rows.length > L.rows) return { ok: false, kind: det.kind, errors: ['too-many-rows'], warnings: [] };
   // a wrong autoName is dropped, never shown as a title (#256)
   if (up.doc.autoName != null && !okAutoName(up.doc.autoName)) delete up.doc.autoName;
   if (isObj(up.doc.bridge) && up.doc.bridge.autoName != null && !okAutoName(up.doc.bridge.autoName)) delete up.doc.bridge.autoName;
@@ -390,10 +398,10 @@ const isTsweepBytes = b => b && b.length > 2 && b[0] === 0x1f && b[1] === 0x8b; 
 // the bytes door (spec "Opening a file safely"): magic line, capped unzip, column bounds, hash and fingerprint, cleanData on the header.
 // Returns what open() returns for a sweep (kind 'sweep', a version-2 sweep document), plus binary: 'tsweep'.
 async function openBytes(input, opts) {
-  const max = Math.min((opts && opts.maxUnzipped) || LIMITS.unzipped, TS_MAX);
+  const L = limitsOf(opts), max = Math.min((opts && opts.maxUnzipped) || L.unzipped, TS_MAX);
   const fail = e => ({ ok: false, errors: [e], warnings: [] });
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
-  if (bytes.length > LIMITS.fileBytes) return fail('too-big');
+  if (bytes.length > L.fileBytes) return fail('too-big');
   if (!isTsweepBytes(bytes)) return fail('not-tsweep');
   if (!hasGzip()) return fail('no-gzip');
   let all; try { all = await gz(bytes, 'd', max); } catch (e) { return fail(e && e.message === 'too-big' ? 'too-big' : 'not-tsweep'); }
@@ -406,7 +414,7 @@ async function openBytes(input, opts) {
   const payload = all.slice(nl2 + 1), n = raw.rows, warnings = [];
   // every column lies inside the data and holds exactly one value per row
   const SIZE = { f32: 4, u8: 1 };
-  if (Number.isInteger(n) && n > LIMITS.rows) return fail('too-many-rows');
+  if (Number.isInteger(n) && n > L.rows) return fail('too-many-rows');
   if (!Number.isInteger(n) || n < 0 || n > payload.length || !Array.isArray(raw.columns)) return fail('damaged');
   for (const c of raw.columns) if (!isObj(c) || typeof c.name !== 'string' || !Number.isInteger(c.offset) || !Number.isInteger(c.length) || c.offset < 0 || c.length < 0 || c.offset + c.length > payload.length || (SIZE[c.type] && c.length !== n * SIZE[c.type])) return fail('damaged');
   const colOf = name => raw.columns.find(c => c.name === name);
@@ -460,5 +468,7 @@ async function openBytes(input, opts) {
 }
 
 const api = { KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain, LIMITS };
+// what the Open buttons offer: every kind in the app (drafts aside), the old names, and plain JSON (TE-B-256)
+api.ACCEPT = [...new Set(Object.values(KINDS).filter(k => !k.draft).flatMap(k => [k.ext].concat(k.also || [])).concat(['.json', 'application/json']))].join(',');
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussFormats = api;
 })(typeof window !== 'undefined' ? window : globalThis);

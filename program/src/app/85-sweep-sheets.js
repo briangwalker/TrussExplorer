@@ -156,6 +156,7 @@ let abPickSide = null;
 ['A', 'B'].forEach(s => $('abSrc' + s).addEventListener('change', () => { abOver = {}; if ($('abSrc' + s).value === 'file') { abPickSide = s; $('abFile').value = ''; $('abFile').click(); } abPaint(); }));
 $('abFile').addEventListener('change', async () => {
   const f = $('abFile').files[0]; if (!f || !abPickSide) return;
+  if (f.size > TrussFormats.LIMITS.fileBytes) { toast('That file is too big to open.', true); return; }   // checked before reading it (#296)
   try { const o = TrussFormats.open(await f.text()); if (!o.ok || o.kind !== 'bridge') throw 0; abFiles[abPickSide] = Object.assign({ name: o.doc.name }, o.doc.bridge); }
   catch (e) { toast('That is not a bridge file.', true); }
   abPaint();

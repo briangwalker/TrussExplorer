@@ -288,19 +288,22 @@ test('.tsweep: a result that was also swept (an end offset, the overlap) becomes
 });
 
 // ---------- #296: one set of size limits for every door (White Hat's review of #274)
-test('size limits: a huge text, too many sweep rows (either kind), and a .tsweep header claiming too many rows are refused', async () => {
+test('size limits: set so no file that opens today is refused, and they do refuse past them', async () => {
   const L = F.LIMITS;
-  assert.ok(L.fileBytes > 0 && L.unzipped > 0 && L.rows > 0 && Object.isFrozen(L));
-  assert.deepStrictEqual(F.open('x'.repeat(L.fileBytes + 1)).errors, ['too-big']);
-  const many = { format: 'se310-truss-sweep', version: 2, release: 'r', savedAt: '2026-10-31T00:00:00Z', rows: new Array(L.rows + 1).fill(0) };
-  assert.deepStrictEqual(F.open(many).errors, ['too-many-rows']);
-  // a .tsweep whose header says more rows than the limit stops before any column is read
+  assert.ok(Object.isFrozen(L));
+  // rule 4i (Dev Lead's review): at least the browser's longest string and the old 512 MB .tsweep unzip cap, and more
+  // designs than 512 MB of .tsweep can hold (about 6.3 million)
+  assert.ok(L.fileBytes >= 512 * 1024 * 1024 && L.unzipped >= 512 * 1024 * 1024 && L.rows >= 6.5e6, JSON.stringify(L));
+  // the checks themselves, with small limits passed in as the tests do (the app never passes any)
+  assert.deepStrictEqual(F.open('x'.repeat(101), { limits: { fileBytes: 100 } }).errors, ['too-big']);
+  const sweep = n => ({ format: 'se310-truss-sweep', version: 2, release: 'r', savedAt: '2026-10-31T00:00:00Z', rows: new Array(n).fill(0) });
+  assert.deepStrictEqual(F.open(sweep(4), { limits: { rows: 3 } }).errors, ['too-many-rows']);
+  assert.ok(!F.open(sweep(3), { limits: { rows: 3 } }).errors.includes('too-many-rows'));
+  // a .tsweep: too big as bytes, and a header claiming more rows than allowed stops before any column is read
   const o = F.open(fix('v2-v61-height-panels.sweep.json')), t = await F.toTsweep(o.doc);
-  const raw = await ungz(t.bytes), txt = new TextDecoder().decode(raw), nl1 = txt.indexOf('\n'), nl2 = txt.indexOf('\n', nl1 + 1);
-  const h = JSON.parse(txt.slice(nl1 + 1, nl2)); h.rows = L.rows + 1;
-  const head = new TextEncoder().encode('TRUSS-EXPLORER-SWEEP 1\n' + JSON.stringify(h) + '\n'), headLen = new TextEncoder().encode(txt.slice(0, nl2 + 1)).length;
-  const all = new Uint8Array(head.length + raw.length - headLen); all.set(head); all.set(raw.slice(headLen), head.length);
-  assert.deepStrictEqual((await F.openBytes(await regz(all))).errors, ['too-many-rows']);
+  assert.deepStrictEqual((await F.openBytes(t.bytes, { limits: { fileBytes: 10 } })).errors, ['too-big']);
+  assert.deepStrictEqual((await F.openBytes(t.bytes, { limits: { rows: t.rows - 1 } })).errors, ['too-many-rows']);
+  assert.ok((await F.openBytes(t.bytes)).ok, 'and it opens with the real limits');
 });
 
 // ---------- autoName (#256): the generated name a design got when it was made; never free text
@@ -316,4 +319,17 @@ test('autoName: a generated name is kept; free text or a wrong pattern is droppe
   }
   // files without it (every v1 and v2 fixture) open as before, with no autoName warning
   for (const f of fs.readdirSync(FIX).filter(f => f.endsWith('.json'))) { const o = F.open(fix(f)); assert.ok(!o.warnings.includes('bad-value:autoName'), f); }
+});
+
+// ---------- the saved file type (TE-B-256): .truss, and .bridge.json keeps opening
+test('file types: a bridge is saved as .truss; the Open buttons offer .truss, the old .bridge.json, sweeps and plain JSON', () => {
+  assert.strictEqual(F.KINDS.bridge.ext, '.truss');
+  assert.deepStrictEqual(F.KINDS.bridge.also, ['.bridge.json']);
+  const acc = F.ACCEPT.split(',');
+  for (const e of ['.truss', '.bridge.json', '.sweep.json', '.tsweep', '.json', 'application/json']) assert.ok(acc.includes(e), e);
+  assert.ok(!acc.includes('.material.json') && !acc.includes('.theme.json'), 'drafts are not offered yet');
+  // the page's own picker says the same before any script runs
+  const ui = fs.readFileSync(path.join(__dirname, '..', 'src', 'ui.html'), 'utf8'), m = ui.match(/id="filePick" accept="([^"]+)"/);
+  assert.ok(m); assert.deepStrictEqual(m[1].split(',').sort(), acc.slice().sort());
+  // the file's name never decides what it is: open() reads only its text (detect() uses the 'format' field)
 });

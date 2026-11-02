@@ -32,13 +32,13 @@ function design(S) {
 function bridgeFiles() {
   const out = [];
   for (const dir of [__dirname, path.join(__dirname, 'private')]) if (fs.existsSync(dir))
-    fs.readdirSync(dir).filter(f => f.endsWith('.bridge.json')).forEach(f => out.push(path.join(dir, f)));
+    fs.readdirSync(dir).filter(f => /\.(bridge\.json|truss)$/.test(f)).forEach(f => out.push(path.join(dir, f)));
   return out;
 }
 function fixtures() {
   return bridgeFiles().map(file => { const f = path.basename(file);
     const j = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return { name: f.replace('.bridge.json', ''), state: Object.assign({}, DEFAULT, j.bridge), summary: j.summary };
+    return { name: f.replace(/\.(bridge\.json|truss)$/, ''), state: Object.assign({}, DEFAULT, j.bridge), summary: j.summary };
   });
 }
 
