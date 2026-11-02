@@ -47,7 +47,7 @@ function getDownloads() {
 }
 function browserDownload(filename, data) {
   try {
-    const type = /\.(json)$/i.test(filename) ? 'application/json' : /\.csv$/i.test(filename) ? 'text/csv' : /\.html$/i.test(filename) ? 'text/html' : /\.zip$/i.test(filename) ? 'application/zip' : 'text/plain';
+    const type = /\.(json)$/i.test(filename) ? 'application/json' : /\.truss$/i.test(filename) ? 'application/octet-stream' : /\.csv$/i.test(filename) ? 'text/csv' : /\.html$/i.test(filename) ? 'text/html' : /\.zip$/i.test(filename) ? 'application/zip' : 'text/plain';
     const blob = data instanceof Blob ? data : new Blob([data], { type });
     const url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = filename; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
@@ -97,7 +97,7 @@ function askFileName(filename) {
     const m = filename.match(/^(.*?)((\.bridge|\.sweep)?\.[A-Za-z0-9]+)$/) || [filename, filename, ''];
     const base = m[1], ext = m[2] || '';
     const md = $('saveModal'); md.hidden = false;
-    $('saveExt').textContent = ext; $('saveName').value = base; $('saveAsDesign').checked = ext === '.bridge.json';
+    $('saveExt').textContent = ext; $('saveName').value = base; $('saveAsDesign').checked = ext === TrussFormats.KINDS.bridge.ext || ext === '.bridge.json';
     setTimeout(() => { $('saveName').focus(); $('saveName').select(); }, 30);
     const done = ok => { md.hidden = true; $('saveGo').onclick = $('saveNo').onclick = null; $('saveName').onkeydown = null;
       if (!ok) { resolve(null); return; }
