@@ -35,7 +35,9 @@ function cleanRows(rows) {
 // ---------- the formats
 // names: every name this kind has ever been written under (first = the one written today). current: the version written today.
 const KINDS = {
-  bridge:   { names: ['se310-truss-bridge', 'truss-explorer-bridge'], current: 2, ext: '.bridge.json' },
+  // a bridge (truss) file is saved as .truss since 1.0.0-alpha (Brian, TE-B-256); .bridge.json files keep opening forever (rule 4i).
+  // The extension never decides what a file is: detect() reads its 'format' field.
+  bridge:   { names: ['se310-truss-bridge', 'truss-explorer-bridge'], current: 2, ext: '.truss', also: ['.bridge.json'] },
   sweep:    { names: ['se310-truss-sweep', 'truss-explorer-sweep'], current: 2, ext: '.sweep.json' },
   material: { names: ['truss-explorer-material'], current: 1, ext: '.material.json', draft: true },
   theme:    { names: ['truss-explorer-theme'], current: 1, ext: '.theme.json', draft: true },
@@ -46,6 +48,10 @@ const KINDS = {
 const NAME_TO_KIND = {}; Object.keys(KINDS).forEach(k => KINDS[k].names.forEach(n => { NAME_TO_KIND[n] = k; }));
 
 const isObj = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+// autoName (#256): only ever a generated name '<Word> <Type> <code>' (src/names.js), never free text, because the public
+// database shows it as the title. The same pattern as TrussNames.looksGenerated, kept here so formats.js stands alone.
+const AUTO_NAME = /^[A-Z][a-z]{1,15} [A-Za-z]{2,15} [0-9bcdfghjkmnpqrstvwxyz]{4}$/;
+const okAutoName = x => typeof x === 'string' && AUTO_NAME.test(x);
 const num = x => x !== '' && x != null && Number.isFinite(+x);
 
 function detect(doc) {
@@ -194,6 +200,7 @@ function check(doc, savedAs) {
     errors.push('binary-format');   // a .tsweep header is only valid inside its gzip, read by the bytes reader (#179)
   }
   if ((savedAs || det.version) >= 2 && (det.kind === 'bridge' || det.kind === 'sweep')) ['release', 'savedAt'].forEach(k => { if (!doc[k]) warnings.push('missing:' + k); });
+  if ((det.kind === 'bridge' || det.kind === 'sweep') && ((doc.autoName != null && !okAutoName(doc.autoName)) || (isObj(doc.bridge) && doc.bridge.autoName != null && !okAutoName(doc.bridge.autoName)))) warnings.push('bad-value:autoName');
   return { ok: errors.length === 0, det, errors, warnings };
 }
 
@@ -207,6 +214,9 @@ function open(input) {
   if (!det.kind) return { ok: false, det, errors: [isObj(clean) ? 'not-truss-explorer' : 'not-an-object'], warnings: [] };
   const up = upgrade(clean), c = check(up.doc, up.from);
   const res = { ok: c.ok, kind: det.kind, doc: up.doc, from: up.from, to: up.to, steps: up.steps, tooNew: det.tooNew, errors: c.errors, warnings: c.warnings };
+  // a wrong autoName is dropped, never shown as a title (#256)
+  if (up.doc.autoName != null && !okAutoName(up.doc.autoName)) delete up.doc.autoName;
+  if (isObj(up.doc.bridge) && up.doc.bridge.autoName != null && !okAutoName(up.doc.bridge.autoName)) delete up.doc.bridge.autoName;
   if (det.kind === 'sweep' && Array.isArray(up.doc.rows)) {
     res.rowsIn = up.doc.rows.length; up.doc.rows = cleanRows(up.doc.rows); res.rowsDropped = res.rowsIn - up.doc.rows.length;
     if (!up.doc.rows.length) { res.ok = false; res.errors.push('no-usable-rows'); }
@@ -445,5 +455,7 @@ async function openBytes(input, opts) {
 }
 
 const api = { KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain };
+// what the Open buttons offer: every kind in the app (drafts aside), the old names, and plain JSON (TE-B-256)
+api.ACCEPT = [...new Set(Object.values(KINDS).filter(k => !k.draft).flatMap(k => [k.ext].concat(k.also || [])).concat(['.json', 'application/json']))].join(',');
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussFormats = api;
 })(typeof window !== 'undefined' ? window : globalThis);
