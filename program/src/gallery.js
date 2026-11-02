@@ -99,19 +99,21 @@ function pageHTML(P, opts) {
     ? `<div class="g-themes" role="group" aria-label="Theme">${opts.themes.map(t => P.buttonHTML({ kind: 'chip', label: t.name, pressed: t.id === opts.theme, act: 'theme:' + t.id })).join('')}</div>`
     : nb(THEME_SWITCH_NOT_BUILT);
   const cov = coverage(P, opts);
-  return `<header class="g-head"><h1>Gallery: the screen pieces</h1><p class="g-txt">Every shared piece the program is built from, in every state, made by the program's own code (UI-G1, UI-G3). `
+  return `<header class="g-head"><h2 class="g-h1">Gallery: the screen pieces</h2><p class="g-txt">Every shared piece the program is built from, in every state, made by the program's own code (UI-G1, UI-G3). `
     + `It changes nothing and saves nothing (UI-G4). Remove <code>?gallery=1</code> from the link to go back to the program.</p>${picker}</header>`
-    + `<div class="g-grid">${items}</div><h2>Not built yet</h2><div class="g-grid">${NOT_BUILT.map(nb).join('')}</div>`
-    + `<section class="g-cov" aria-label="Coverage"><h2>Coverage</h2><p><b>Rules shown (${cov.shown.length}):</b> <span data-g-shown>${cov.shown.map(esc).join(', ')}</span></p>`
+    + `<div class="g-grid">${items}</div><h3>Not built yet</h3><div class="g-grid">${NOT_BUILT.map(nb).join('')}</div>`
+    + `<section class="g-cov" aria-label="Coverage"><h3>Coverage</h3><p><b>Rules shown (${cov.shown.length}):</b> <span data-g-shown>${cov.shown.map(esc).join(', ')}</span></p>`
     + `<p><b>Rules with no piece yet (${cov.missing.length}):</b> <span data-g-missing>${cov.missing.map(esc).join(', ')}</span></p></section>`;
 }
 
 // The gallery's own layout. Tokens only, so every theme dresses it (UI-T1); 13 px minimum (ART-T2).
+// Its table sets its own colour: the built page runs in quirks mode (no doctype), where tables don't inherit colour,
+// so in dark mode they fell back to the system's light text on a light card (QA, TE-B-281; ART-C1).
 const CSS = `
 #stage.te-gallery-on>:not(#gallery){visibility:hidden}
 #stage #gallery{position:absolute;inset:0;z-index:200;overflow:auto;box-sizing:border-box;padding:20px 24px 80px;background:var(--te-page);color:var(--te-ink);font:400 14px var(--te-font-ui);visibility:visible}
-#gallery h1{font:700 24px var(--te-font-head);margin:0 0 4px}
-#gallery h2{font:700 19px var(--te-font-head);margin:28px 0 10px}
+#gallery .g-h1{font:700 24px var(--te-font-head);margin:0 0 4px;color:var(--te-ink)}
+#gallery h3{font:700 19px var(--te-font-head);margin:28px 0 10px;color:var(--te-ink)}
 #gallery .g-txt{margin:4px 0 10px;max-width:70ch}
 #gallery .g-head{margin-bottom:16px}
 #gallery .g-themes{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
@@ -137,7 +139,8 @@ const CSS = `
 #gallery .g-tok code{font:13px var(--te-font-mono)}
 #gallery .g-rule{font:13px var(--te-font-mono);color:var(--te-muted)}
 #gallery .g-sw{width:22px;height:22px;border:1px solid var(--te-line);border-radius:4px;flex:none}
-#gallery .g-pairs{margin-top:10px;border-collapse:collapse;font:13px var(--te-font-mono)}
+#gallery .g-pairs{margin-top:10px;border-collapse:collapse;font:13px var(--te-font-mono);color:var(--te-ink);background:var(--te-surface)}
+#gallery .g-pairs :is(caption,td,th){color:var(--te-ink)}
 #gallery .g-pairs caption{text-align:left;font:600 13px var(--te-font-ui);margin-bottom:4px}
 #gallery .g-pairs td{padding:2px 10px 2px 0;text-align:left}
 #gallery .g-cov p{max-width:110ch;font:13px var(--te-font-mono)}

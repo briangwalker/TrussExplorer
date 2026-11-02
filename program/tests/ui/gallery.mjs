@@ -95,7 +95,7 @@ try {
   await p.click('#g-tabs-hist'); await p.keyboard.press('ArrowRight'); await p.keyboard.press('End');
   await p.focus('#gallery [data-key="h"] .th.val'); await p.keyboard.press('End'); await p.keyboard.press('Home');
   for (const k of ['h', 't', 'a', 'F6', 'Escape']) await p.keyboard.press(k);   // the app's own keys must not act from inside the gallery
-  await p.click('#g-res'); const reopened = await visible(p, '#g-pop'); await p.click('#gallery h1');
+  await p.click('#g-res'); const reopened = await visible(p, '#g-pop'); await p.click('#gallery .g-h1');
   check('the card reopens its pop-up; an outside click closes it and does nothing else (UI-W8)', reopened && !(await visible(p, '#g-pop')));
   await p.mouse.wheel(0, 600); await p.waitForTimeout(300);
   check('the controls worked inside the gallery', await p.evaluate(() => document.getElementById('win-g-left').dataset.state === 'I' && document.getElementById('g-tabs-mem').getAttribute('aria-selected') === 'true'));
@@ -118,10 +118,36 @@ try {
   check('the gallery adds no network request of its own (guard e)', gReqs.length === 0, gReqs.slice(0, 3).join(' '));
   check('no page errors (guard e)', errs.length === 0, errs.join(' | '));
 
+  // ---------- one top heading (QA, TE-B-281) ----------
+  check('the gallery adds no h1 of its own (the page keeps one)', await p.evaluate(() => !document.querySelector('#gallery h1')));
+
   // ---------- leaving: the program is exactly as it was (UI-G4) ----------
   await load(p, base); const left = await settled(p);
   check('leaving the gallery shows the program as it was (UI-G4)', await p.evaluate(() => !document.getElementById('gallery')) && await visible(p, '#win-inputs') && left === baseline);
   await ctx.close();
+  // ---------- dark mode: every line of gallery text readable on what's behind it (ART-C1; QA, TE-B-281) ----------
+  for (const scheme of ['dark', 'light']) {
+    const d = await b.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: scheme });
+    await d.goto(base + '?gallery=1', { waitUntil: 'load' }); await d.waitForFunction(() => window.TrussGallery && TrussGallery.active); await d.waitForTimeout(600);
+    const low = await d.evaluate(() => {
+      const P = window.TrussPieces, bad = [];
+      const bgOf = el => { for (let e = el; e; e = e.parentElement) { const c = getComputedStyle(e).backgroundColor; const m = c.match(/rgba?\(([^)]+)\)/); if (m) { const v = m[1].split(',').map(Number); if (v.length < 4 || v[3] > 0.5) return c; } } return 'rgb(255,255,255)'; };
+      const toHex = c => { const v = c.match(/[\d.]+/g).map(Number); return 'rgb(' + v.slice(0, 3).join(',') + ')'; };
+      document.querySelectorAll('#gallery *').forEach(el => {
+        if (el.closest(':disabled,[aria-hidden="true"],svg')) return;
+        const own = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()); if (!own) return;
+        const r = el.getBoundingClientRect(); if (!r.width || getComputedStyle(el).visibility === 'hidden') return;
+        const ratio = P.contrast(toHex(getComputedStyle(el).color), toHex(bgOf(el)));
+        if (ratio < 4.5) bad.push({ known: !!el.closest('.res'), t: `${el.tagName.toLowerCase()}.${el.className} ${ratio.toFixed(2)}` });
+      });
+      return bad;
+    });
+    // KNOWN (CODE-T3): in dark mode the app's pass/fail colours switch to their dark values on the light stage (#393)
+    const other = low.filter(x => !x.known), known = low.filter(x => x.known);
+    check(`${scheme} mode: every line of gallery text is at least 4.5 : 1 on what's behind it (ART-C1)`, other.length === 0, other.slice(0, 4).map(x => x.t).join(' | ') + (other.length > 4 ? ` (+${other.length - 4})` : ''));
+    check(`${scheme} mode: the results card's pass/fail colours (the app's)`, known.length === 0, known.map(x => x.t).join(' | '), '#393');
+    await d.close();
+  }
 } finally { await b.close(); srv.close(); }
 const bad = check.results.filter(r => !r.ok);
 console.log(`${check.results.length - bad.length}/${check.results.length} gallery checks pass`);
