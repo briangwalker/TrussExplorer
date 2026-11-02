@@ -60,6 +60,10 @@ const REFUSE = [
   ['a picture with an embedded raster', { 't/pictures/load.svg': '<svg><image href="data:image/png;base64,AAAA"/></svg>' }, /raster|<image>/],
   ['an icons.svg with a script', { 't/icons.svg': '<svg><script/></svg>' }, /<script>/],
   ['an SVG used from CSS with a script', { 't/theme.css': '.a{background:url(x.svg)}', 't/x.svg': '<svg><script/></svg>' }, /<script>/],
+  // White Hat's last check on the packed text (#294): no outside address outside data: URIs, and no backslash escapes
+  ['an outside address outside url()', { 't/theme.css': '.a{background-image:image-set("https://example.com/x.png" 1x)}' }, /outside address/],
+  ['a backslash escape', { 't/theme.css': '.a{background:u\\72l(x.png)}' }, /backslash/],
+  ['a backslash escape in content', { 't/theme.css': '.a::after{content:"\\2715"}' }, /backslash/],
   ['an inline SVG data: URI with a script', { 't/theme.css': `.a{background:url("data:image/svg+xml;base64,${Buffer.from('<svg onload="x()"/>').toString('base64')}")}` }, /on\*/],
 ];
 for (const [name, files, why] of REFUSE) {
@@ -138,7 +142,7 @@ const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) +
 const PAIRS = [['ink', 'page', 4.5], ['ink', 'panel', 4.5], ['ink', 'surface', 4.5], ['ink', 'surface-2', 4.5], ['muted', 'page', 4.5], ['muted', 'panel', 4.5], ['muted', 'surface', 4.5], ['muted', 'surface-2', 4.5],
   ['on-strong', 'strong', 4.5], ['accent-ink', 'accent', 4.5], ['ctl-line', 'ctl-bg', 3]];
 // filed and owned by Graphics (the token values are theirs): these print as KNOWN and don't fail
-const KNOWN = { 'wireframe ctl-line/ctl-bg': '#288', 'blueprint ctl-line/ctl-bg': '#288', 'notebook-calc ctl-line/ctl-bg': '#288', 'notebook-calc muted/panel': '#288' };
+const KNOWN = { 'wireframe ctl-line/ctl-bg': '#288', 'blueprint ctl-line/ctl-bg': '#288', 'notebook-calc ctl-line/ctl-bg': '#288' };
 test('contrast: the text and control-edge token pairs of each built-in theme', () => {
   const shell = fs.readFileSync(path.join(ROOT, 'src', 'shell.css'), 'utf8');
   const themes = { wireframe: tokens(shell, null) };

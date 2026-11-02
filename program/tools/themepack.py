@@ -22,9 +22,8 @@ URL = re.compile(r'url\(\s*(?P<q>["\']?)(?P<u>.*?)(?P=q)\s*\)', re.I | re.S)
 FONTFACE = re.compile(r'@font-face\s*\{[^}]*\}', re.I | re.S)
 
 
-# the one outside load left in a built-in theme, removed by Graphics' PR #268 (self-hosted fonts); delete this entry when it merges
-KNOWN_IMPORTS = {('notebook-calc.css', 'https://fonts.googleapis.com/'): '#268'}
-KNOWN_SEEN = []
+KNOWN_SEEN = []   # nothing is excused any more: #268 self-hosted the last outside font (White Hat, #294)
+DATA_URL = re.compile(r'url\(\s*(["\']?)data:.*?\1\s*\)', re.I | re.S)
 
 
 class Refused(Exception):
@@ -56,11 +55,6 @@ def _inside(path, roots):
 
 def pack_css(css, base_dir, roots, what):
     """Return css with every relative url() inlined; raise Refused on anything not allowed."""
-    known = ''
-    for imp, issue in KNOWN_IMPORTS.items():
-        if what.endswith('(' + imp[0] + ')') and imp[1] in css:
-            m = re.search(r'@import\s+url\(\s*["\']?' + re.escape(imp[1]) + r'[^;]*;\s*', css)
-            if m: known = m.group(0); css = css[:m.start()] + '\x00KNOWN-IMPORT\x00' + css[m.end():]; KNOWN_SEEN.append(f'KNOWN {what}: the Google Fonts @import stays until {issue} merges')
     if re.search(r'@import\b', css, re.I): raise Refused(f'{what}: @import is not allowed (themes load nothing from outside, WH-N4)')
 
     def one(m):
@@ -91,7 +85,12 @@ def pack_css(css, base_dir, roots, what):
         return 'url("data:' + MIME[ext] + ';base64,' + base64.b64encode(data).decode('ascii') + '")'
 
     out = URL.sub(one, css)
-    return out.replace('\x00KNOWN-IMPORT\x00', known) if known else out   # put the known @import back where it was
+    # last check on the packed text, outside data: URIs (White Hat, #294): nothing may still point outside the page,
+    # and no CSS escapes (a backslash can spell 'url(' or 'http' in a way the checks above don't read)
+    rest = DATA_URL.sub('url()', out)
+    if re.search(r'https?:', rest, re.I) or '//' in rest: raise Refused(f'{what}: an outside address (http:, https: or //) is left after packing')
+    if '\\' in rest: raise Refused(f'{what}: a backslash escape is not allowed in theme CSS')
+    return out
 
 
 def font_bytes(css):
