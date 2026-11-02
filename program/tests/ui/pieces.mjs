@@ -162,7 +162,7 @@ try {
     const look = () => q.evaluate(() => {
       const props = ['display', 'position', 'width', 'height', 'top', 'left', 'right', 'bottom', 'max-width', 'padding-top', 'padding-left', 'margin-top', 'background-color', 'background-image',
         'border-top-width', 'border-top-color', 'border-radius', 'box-shadow', 'transform', 'font-size', 'font-weight', 'color', 'outline-offset', 'z-index', 'white-space'];
-      const els = [...document.querySelectorAll('#stage .s-pan, #stage .tabE, #stage .s-b, #stage .s-ic, #stage .res, #stage .s-ph, #stage .stp, #stage .nb, #stage .nav')].filter(e => !e.hasAttribute('data-pc'));
+      const els = [...document.querySelectorAll('#stage .s-pan, #stage .tabE, #stage .s-b, #stage .s-ic, #stage .res, #stage .s-ph, #stage .stp, #stage .nb, #stage .nav')].filter(e => !e.closest('[data-pc]'));   // inside a piece (its title bar, stepper) is the piece's, not the shell's (BluePeachDev, TE-B-287)
       return { n: els.length, s: els.map(e => { const c = getComputedStyle(e); return (e.id || e.className) + '|' + props.map(k => c.getPropertyValue(k)).join(';'); }) };
     });
     for (const theme of ['wireframe', 'og']) {
