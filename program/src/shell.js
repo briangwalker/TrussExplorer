@@ -134,6 +134,10 @@ if (!SH_CLASSIC) {
   });
   const order = ['T', 'I', 'W'];
   // the Drawing window's states, tab and peek come from the piece; the shell keeps each place's state (UI-A9) and the layout
+  // UI-W15: a window is up to its width, then its content scrolls inside it. The Drawing window's body is a one-column grid, so
+  // cap that column at the window's width (minmax(0, 1fr)); the wide member table then scrolls sideways in its own box.
+  wins.drawing.querySelector('.s-bd').style.gridTemplateColumns = 'minmax(0, 1fr)';
+  Object.assign(R.memBd.style, { overflowX: 'auto', maxWidth: '100%' });
   const pieceWin = {};
   Object.keys(PIECE).forEach(id => { pieceWin[id] = PC.mountWindow(wins[id], tabs[id], { onState: st => { S.shell.w[place()][id] = st; save(); paintWins(); } }); });
   function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
@@ -162,7 +166,7 @@ if (!SH_CLASSIC) {
   // icons for the I state
   function icons(id) {
     if (id === 'inputs') return [...R.pane.querySelectorAll(':scope > details.grp')].map((d, k) => { const h = d.querySelector('summary h3'); const t = h ? h.textContent.trim() : 'Section ' + (k + 1); const m = t.match(/^(\d+)/); return { ic: 'g' + k, g: m ? m[1] : t[0], label: t }; });
-    if (id === 'drawing' && place() === 'truss') return Object.entries(VIEW_ICONS).filter(([k]) => TOGGLES.includes(k)).map(([k, [g, label]]) => ({ ic: k, g, label, on: $(k).checked }));
+    if (id === 'drawing' && place() === 'truss') return Object.entries(VIEW_ICONS).filter(([k]) => TOGGLES.includes(k) && togShown(k)).map(([k, [g, label]]) => ({ ic: k, g, label, on: $(k).checked }));
     if (id === 'view' && place() === 'analysis') return [...document.querySelectorAll('#trackTabs [role="tab"]')].map(b => ({ ic: 't:' + b.dataset.t, g: ({ trade: '⋰', hist: '☰', curve: '⌒' })[b.dataset.t] || '•', label: b.textContent.trim(), on: b.getAttribute('aria-selected') === 'true' }));
     if (id === 'sweep') return [{ ic: 'run', g: '▶', label: 'Run the sweep' }, { ic: 'grow', g: '⋯', label: 'Show the sweep' }];
     return [{ ic: 'grow', g: WIN[id].glyph, label: 'Show ' + WIN[id].title() }];
@@ -184,6 +188,8 @@ if (!SH_CLASSIC) {
   // Each checkbox keeps its id and its 'change' listeners (30-drawing.js, 80-view3d.js), hidden inside its old label;
   // the toggle piece in front of it is what people see and use. The Scale slider stays a plain input (TE-B-235).
   const TOGGLES = Object.keys(VIEW_ICONS).filter(k => $(k) && R.drawopts.contains($(k)));
+  const ONLY3D = ['d3ShowPlan', 'd3ShowSec'];   // Plan view and End view change only the 3D drawing: hidden in 2D, so no toggle does nothing (UI-A8)
+  const togShown = k => !ONLY3D.includes(k) || S.anaMode === '3d';
   const togBox = el('div', 'te-drawtgl'); togBox.style.cssText = 'display:grid;gap:6px;margin-bottom:8px';
   togBox.setAttribute('role', 'group'); togBox.setAttribute('aria-label', 'Show on the drawing');
   togBox.innerHTML = TOGGLES.map(k => PC.toggleHTML({ label: VIEW_ICONS[k][1], checked: $(k).checked, id: 'tg-' + k })).join('');
@@ -191,9 +197,9 @@ if (!SH_CLASSIC) {
   TOGGLES.forEach(k => { const lb = $(k).closest('label'); if (lb) lb.style.display = 'none'; });
   function flip(k, v) { const c = $(k); c.checked = v; c.dispatchEvent(new Event('change', { bubbles: true })); c.dispatchEvent(new Event('input', { bubbles: true })); paintToggles(); }
   TOGGLES.forEach(k => PC.mountToggle($('tg-' + k), { onChange: v => flip(k, v) }));
-  togReady = true;
+  togReady = true; paintToggles();
   // the app also sets some checkboxes itself (a loaded bridge, the 3D settings): the toggles follow
-  function paintToggles() { TOGGLES.forEach(k => { const t = $('tg-' + k), v = !!$(k).checked; if (t.getAttribute('aria-checked') !== String(v)) { t.setAttribute('aria-checked', String(v)); t.classList.toggle('on', v); } }); }
+  function paintToggles() { TOGGLES.forEach(k => { const row = $('tg-' + k).closest('.te-togrow'); if (row) row.hidden = !togShown(k); }); TOGGLES.forEach(k => { const t = $('tg-' + k), v = !!$(k).checked; if (t.getAttribute('aria-checked') !== String(v)) { t.setAttribute('aria-checked', String(v)); t.classList.toggle('on', v); } }); }
 
   // ---------- filling the windows from the v61 page ----------
   let moved = [];
@@ -218,7 +224,7 @@ if (!SH_CLASSIC) {
     paintWins();
   }
   function paintWins() {
-    const P = place();
+    const P = place(); if (togReady) paintToggles();   // the 3D-only toggles follow the 2D/3D switch (UI-A8)
     Object.keys(WIN).forEach(id => {
       const s = wins[id], st = S.shell.w[P][id], w = WIN[id];
       if (id === 'view' && P === 'truss') s.dataset.empty = R.topSeg.hidden ? '1' : '';
