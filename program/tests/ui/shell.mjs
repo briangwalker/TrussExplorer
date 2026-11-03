@@ -151,7 +151,17 @@ try {
   check('top bar ‹: icons only (no words)', await p.locator('#shellNav .lab').count() === 0 && await visible(p, '#shellNav .swb'));
   await p.click('#navFold'); await p.waitForTimeout(150);
   check('‹ again: a tab', !(await visible(p, '#shellNav')) && await visible(p, '#navTab'));
-  await p.click('#navTab'); await p.click('#navGrow'); await p.waitForTimeout(150);
+  // BPD-6 (UI-A5, UI-W1, UI-W15, ART-K8): ☰ stays visible in the tab, and the tab sits on the stage's top edge, 28 px thick
+  { const box = await rect(p, '#navTabBox'), stg = await rect(p, '#stage');
+    check('UI-A5, UI-W1: in the tab state ☰ is visible, first in the tab, still called Menu', await visible(p, '#dockBtn') && await p.evaluate(() => { const b = document.getElementById('dockBtn'), t = document.getElementById('navTabBox'); return t.firstElementChild === b && b.getAttribute('aria-label') === 'Menu' && /›\s*Truss · 2D/.test(document.getElementById('navTab').textContent); }));
+    check('UI-W15, ART-K8: the tab touches the stage\'s top edge and is 28 px thick', !!box && Math.abs(box.t - stg.t) <= 1 && Math.abs(box.h - 28) <= 1, JSON.stringify(box)); }
+  await p.click('#dockBtn'); await p.waitForTimeout(200);
+  check('☰ in the tab still opens the menu', await visible(p, '#dockMenu'));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+  if (await visible(p, '#dockMenu')) { await p.click('#dockBtn'); await p.waitForTimeout(150); }
+  await p.click('#navTab'); await p.waitForTimeout(150);
+  check('› brings the bar back in the icons state, with ☰ first in it again', await visible(p, '#shellNav') && await p.locator('#shellNav .lab').count() === 0 && !(await visible(p, '#navTabBox')) && await p.evaluate(() => document.getElementById('shellNav').firstElementChild === document.getElementById('dockBtn')));
+  await p.click('#navGrow'); await p.waitForTimeout(150);
   check('and back to words and icons', await p.locator('#shellNav .lab').count() >= 2);
 
   // ---------- themes ----------
@@ -169,6 +179,22 @@ try {
     await p.screenshot({ path: path.join(SHOTS, `shell-theme-${t}.png`) });
   }
   check('meaning colours never change with the theme', true, m0);
+  // BPD-4 (UI-G3, UI-G4, CODE-F4; TE-B-251): the shell's theme door previews a theme without saving anything
+  await p.selectOption('#themeSel', 'blueprint'); await p.waitForTimeout(300);   // a saved pick to keep
+  { const ls = () => p.evaluate(() => JSON.stringify(localStorage));
+    const door = await p.evaluate(() => { const t = __shell.themes; return { ids: t.map(x => x.id), frozen: Object.isFrozen(t) && t.every(x => Object.isFrozen(x) && Object.keys(x).join() === 'id,name'), fn: typeof __shell.previewTheme }; });
+    const sel = await p.$$eval('#themeSel option', o => o.map(x => x.value));
+    check('__shell.themes: the built-in list (OG too), frozen, ids and names only', door.frozen && door.fn === 'function' && door.ids.join() === sel.join() && door.ids.includes('og'), JSON.stringify(door));
+    const before = await ls(), seen = [];
+    for (const id of door.ids) { await p.evaluate(id => __shell.previewTheme(id), id); await p.waitForTimeout(250); seen.push(await p.evaluate(() => document.getElementById('stage').dataset.theme)); }
+    await p.evaluate(() => __shell.previewTheme('no-such-theme')); await p.waitForTimeout(250); seen.push(await p.evaluate(() => document.getElementById('stage').dataset.theme));
+    await p.waitForTimeout(500);   // layout and the redraw after it have run
+    const after = await ls(), still = await p.evaluate(() => ({ sel: document.getElementById('themeSel').value, saved: __shell.state.theme }));
+    check('previewTheme: the look follows every theme, an unknown id falls back to Wireframe', seen.join() === door.ids.concat('wireframe').join(), seen.join());
+    check('UI-G4: a preview saves nothing (localStorage byte-identical), and leaves #themeSel and the saved theme alone', before === after && still.sel === 'blueprint' && still.saved === 'blueprint', JSON.stringify({ same: before === after, still }));
+    await p.selectOption('#themeSel', 'notebook-calc'); await p.waitForTimeout(300);
+    check('a real pick in #themeSel still saves', await p.evaluate(() => JSON.parse(localStorage.getItem('se310-truss-v5')).shell.theme === 'notebook-calc' && document.getElementById('stage').dataset.theme === 'notebook-calc')); }
+  await p.selectOption('#themeSel', 'wireframe'); await p.waitForTimeout(200);
   // ART-K6 (Wireframe strong is brown #7a4f1c) and ART-S5 (focus: 3 px accent outline, 3 px offset)
   await p.selectOption('#themeSel', 'wireframe'); await p.waitForTimeout(200);
   { const strong = await p.evaluate(() => getComputedStyle(document.getElementById('stage')).getPropertyValue('--te-strong').trim().toLowerCase());

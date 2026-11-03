@@ -47,18 +47,23 @@ if (!SH_CLASSIC) {
   const vpT = el('div', 'vp'), vpA = el('div', 'vp');
   const growBar = el('button', 'nb r sm', '›'), foldBar = el('button', 'nb r sm', '‹'); growBar.type = foldBar.type = 'button'; growBar.id = 'navGrow'; foldBar.id = 'navFold';
   nav.append(menuBtn, backBtn, vpT, vpA, growBar, foldBar);
-  const barTab = el('button', 'tabE t'); barTab.type = 'button'; barTab.id = 'navTab'; barTab.style.left = '58px'; barTab.style.top = '12px';
+  // the top bar's tab state (UI-W1 '☰ + › Truss · 2D'): one edge tab on the stage's top edge (ART-K8, UI-W15 28 px) with ☰ first,
+  // so ☰ is always visible (UI-A5). ☰ moves into the tab only in that state; in the W and I states it stays first in #shellNav.
+  const barTabBox = el('div', 'tabE t'); barTabBox.id = 'navTabBox'; barTabBox.setAttribute('role', 'group'); barTabBox.setAttribute('aria-label', 'Top bar (folded)');
+  const barTab = el('button', 'tablab'); barTab.type = 'button'; barTab.id = 'navTab'; barTabBox.appendChild(barTab);
   const card = el('button', 'res s-pan'); card.type = 'button'; card.id = 'resCard'; card.setAttribute('aria-expanded', 'false'); card.title = 'Results: click for the full list';
   const dockMenu = $('dockMenu'); dockMenu.classList.add('drawer', 'sheet');
   document.querySelectorAll('.modalcard').forEach(c => c.classList.add('sheet'));
-  stage.append(nav, barTab, card, dockMenu);
+  stage.append(nav, barTabBox, card, dockMenu);
 
   const place = () => S.shell.place;
   const sw = (which, d) => `<span class="swb">${SWP[which + (d === '3d' || d === 'c3' ? '3' : '2')]}<button type="button" style="left:0" data-sw="${which}:2" aria-label="${which === 't' ? 'Truss' : 'Analysis'} in 2D" aria-pressed="${!(d === '3d' || d === 'c3')}" title="${which === 't' ? 'Truss' : 'Analysis'} in 2D"></button><button type="button" style="right:0" data-sw="${which}:3" aria-label="${which === 't' ? 'Truss' : 'Analysis'} in 3D" aria-pressed="${d === '3d' || d === 'c3'}" title="${which === 't' ? 'Truss' : 'Analysis'} in 3D"></button></span>`;
   function passCount() { try { let n = 0; for (const r of A.rows) if (r.passes) n++; return n; } catch (e) { return 0; } }
   function paintNav() {
     const P = place(), st = S.shell.bar, words = st === 'W', tOn = P === 'truss';
-    nav.hidden = st === 'T'; barTab.hidden = st !== 'T';
+    nav.hidden = st === 'T'; barTabBox.hidden = st !== 'T';
+    if (st === 'T') { if (menuBtn.parentNode !== barTabBox) barTabBox.prepend(menuBtn); }
+    else if (menuBtn.parentNode !== nav) nav.prepend(menuBtn);
     vpT.className = 'vp ' + (tOn ? 'on' : 'off'); vpA.className = 'vp ' + (tOn ? 'off' : 'on');
     vpT.innerHTML = (words ? `<button type="button" class="lab" data-go="truss" aria-pressed="${tOn}">Truss</button>` : '') + sw('t', S.anaMode);
     const n = passCount();
@@ -239,7 +244,7 @@ if (!SH_CLASSIC) {
     const P = place(), st = S.shell.w[P], vw = innerWidth, vh = innerHeight;
     const shown = id => wins[id].dataset.empty !== '1' && (st[id] !== 'T' || wins[id].classList.contains('peek'));
     const eff = id => (st[id] === 'T' ? 'W' : st[id]);   // a peek shows the whole window
-    const navR = S.shell.bar === 'T' ? barTab.getBoundingClientRect() : nav.getBoundingClientRect();
+    const navR = S.shell.bar === 'T' ? barTabBox.getBoundingClientRect() : nav.getBoundingClientRect();
     const barB = Math.max(navR.bottom, 44);
     // results card: in the top row, right of the bar, centred when there is room
     const cw = card.offsetWidth || 360, cl = Math.max(navR.right + 12, Math.min((vw - cw) / 2, vw - cw - 46));
@@ -310,13 +315,19 @@ if (!SH_CLASSIC) {
     $('themeSel').value = stage.dataset.theme;
     $('themeNote').textContent = 'Themes change the look only. The meaning colours on the drawing (C red, T blue, zero grey, fails, passes) never change.';
   }
-  function applyTheme(id) {
+  // ONE theme path (Architecture Lead, TE-B-251). opts.save === false is a preview: it changes the look exactly as a pick
+  // does, but leaves S.shell.theme, the saved state and #themeSel alone (the gallery, UI-G3 and UI-G4). layout() never saves.
+  function applyTheme(id, opts) {
+    const keep = !(opts && opts.save === false);
     let css = '';
     if (id !== 'wireframe' && id !== 'og') { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
-    themeStyle.textContent = css; stage.dataset.theme = id; S.shell.theme = id; save();
-    if ($('themeSel')) $('themeSel').value = id;
+    themeStyle.textContent = css; stage.dataset.theme = id;
+    if (keep) { S.shell.theme = id; save(); if ($('themeSel')) $('themeSel').value = id; }
     tagAll(); lastFree = ''; layoutSoon();
   }
+  // the shell's theme door for the gallery (CODE-F4): the built-in list, read-only, and a preview that saves nothing
+  const THEMES = Object.freeze(THEME_LIST.map(t => Object.freeze({ id: t.id, name: t.name })));
+  const previewTheme = id => applyTheme(id, { save: false });
   $('themeSel').addEventListener('change', ev => applyTheme(ev.target.value));
   $('swClassic').addEventListener('change', ev => { if (ev.target.checked) { S.layout = 'classic'; save(); location.reload(); } });
 
@@ -346,6 +357,6 @@ if (!SH_CLASSIC) {
   applyTheme(S.shell.theme); paintThemeSel();
   go(place(), true);
   setTimeout(() => { paintCard(); paintNav(); lastFree = ''; layout(); }, 60);
-  window.__shell = { go, setState, applyTheme, layout, get state() { return S.shell; } };
+  window.__shell = { go, setState, applyTheme, layout, themes: THEMES, previewTheme, get state() { return S.shell; } };
 }
 })();
