@@ -1,5 +1,7 @@
 // ---------- trackers
-function cssv(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+// the chart's colours come from the stage when there is one (#393): a light stage keeps light ink and meaning colours
+// in dark mode; the classic page (no #stage) reads the page's own
+function cssv(v) { return getComputedStyle(document.getElementById('stage') || document.documentElement).getPropertyValue(v).trim(); }
 $('trackTabs').addEventListener('click', ev => {
   if (ev.target.closest('.tdim2')) return;
   const b = ev.target.closest('button[data-t]'); if (!b) return;
