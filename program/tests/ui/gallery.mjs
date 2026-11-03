@@ -34,9 +34,10 @@ const visible = (p, q) => p.evaluate(q => { const e = document.querySelector(q);
 
 try {
   // ---------- (a) without exactly ?gallery=1 it does nothing ----------
+  // (#te-pieces isn't checked: since #390 the shell itself installs the pieces' CSS on every load; TE-B-307)
   for (const q of ['', '?gallery=0', '?gallery', '?gallery=true', '?gallery=1&gallery=1']) {
     const p = await openPage(b, base + q); await p.waitForTimeout(200);
-    const none = await p.evaluate(() => !document.getElementById('gallery') && !document.getElementById('te-gallery') && !document.getElementById('te-pieces') && window.TrussGallery && !TrussGallery.active);
+    const none = await p.evaluate(() => !document.getElementById('gallery') && !document.getElementById('te-gallery') && window.TrussGallery && !TrussGallery.active);
     check(`'${q || '(no parameter)'}' builds nothing (UI-G2, guard a)`, none);
     await p.close();
   }
