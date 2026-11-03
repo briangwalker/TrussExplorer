@@ -1,0 +1,105 @@
+# Website deploy (#3), MAIN (v6x) copy for plan (c): briangwalker.com/truss-explorer/ on IONOS, over SFTP.
+# The same as balsaPixel-1.0's deploy.yml; only the folder and the test setup differ. A tag on a main commit runs this file.
+# - Runs ONLY when a release tag v* is pushed (never on a pull request or a branch push).
+# - The whole test suite runs first; the upload job waits for it AND for Brian's approval
+#   (the 'production' environment has him as required reviewer, a wait timer, and the deploy secrets).
+# - It publishes only the built page and a generated .htaccess (deploy/make_site.py): no src, tests or .git.
+# - Each file is uploaded under a temporary name, then renamed over the live one, so a failed upload leaves the site as it was.
+# - No third-party actions: the upload uses the runner's own OpenSSH sftp. Actions are pinned by commit SHA (#264).
+# Setup steps for Brian: 'Website setup guide for Brian (#3)', Parts 3-4 (the secrets: DEPLOY_HOST, DEPLOY_USER,
+# DEPLOY_KNOWN_HOSTS, and DEPLOY_KEY or DEPLOY_PASSWORD). Optional environment variable SITE_URL for the check after upload.
+name: deploy
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: truss-explorer-src-v58/truss-explorer
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065   # v5
+        with:
+          python-version: '3.12'
+      - name: Python packages for the course script
+        run: pip install --require-hashes -r tests/requirements.txt
+      - name: Playwright with Chromium
+        run: npm install --no-save playwright && npx playwright install --with-deps chromium
+      - name: Run every check (the same suite as run-all)
+        env:
+          MPLBACKEND: Agg
+        run: bash tests/run_all.sh
+      - name: The website's files for this build
+        run: python3 deploy/make_site.py   # main commits its built index.html; the tests above check it matches the sources
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
+        with:
+          name: site
+          path: truss-explorer-src-v58/truss-explorer/site/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+  upload:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4.3.0
+        with:
+          name: site
+          path: site
+      - name: Upload over SFTP (temporary names, then rename over the live files)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          SSHPASS: ${{ secrets.DEPLOY_PASSWORD }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          test -s site/index.html && test -s site/.htaccess
+          if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_USER}" ] || [ -z "${DEPLOY_KNOWN_HOSTS}" ]; then echo "Missing a deploy secret in the production environment"; exit 1; fi
+          umask 077; mkdir -p ~/.ssh
+          printf '%s\n' "${DEPLOY_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          tag="${GITHUB_REF_NAME//[^A-Za-z0-9.-]/_}"
+          cat > batch <<EOF
+          put site/index.html index.html.${tag}.new
+          put site/.htaccess .htaccess.${tag}.new
+          rename index.html.${tag}.new index.html
+          rename .htaccess.${tag}.new .htaccess
+          EOF
+          opts="-o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o BatchMode=yes -b batch"
+          if [ -n "${DEPLOY_KEY}" ]; then
+            printf '%s\n' "${DEPLOY_KEY}" > ~/.ssh/deploy_key
+            sftp $opts -i ~/.ssh/deploy_key -o IdentitiesOnly=yes "${DEPLOY_USER}@${DEPLOY_HOST}"
+          elif [ -n "${SSHPASS}" ]; then
+            sudo apt-get install -y -qq sshpass >/dev/null
+            sshpass -e sftp -o BatchMode=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o PubkeyAuthentication=no -b batch "${DEPLOY_USER}@${DEPLOY_HOST}"
+          else
+            echo "Set DEPLOY_KEY or DEPLOY_PASSWORD in the production environment"; exit 1
+          fi
+          rm -f ~/.ssh/deploy_key batch
+      - name: Check the live page (only if the SITE_URL variable is set)
+        if: ${{ vars.SITE_URL != '' }}
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          set -eu
+          h=$(curl -sSI --max-time 20 "${SITE_URL}")
+          echo "$h" | head -1
+          echo "$h" | grep -qi '^HTTP/[0-9.]* 200' || { echo "The page didn't answer 200"; exit 1; }
+          echo "$h" | grep -qi '^content-security-policy:' || { echo "No Content-Security-Policy header: check .htaccess on IONOS"; exit 1; }
+          echo "OK: 200 with its security headers"
