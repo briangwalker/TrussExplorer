@@ -3,23 +3,23 @@
 function queueSweepSave() {
   clearTimeout(queueSweepSave.t);
   queueSweepSave.t = setTimeout(() => {
-    try { if (!sweepAll.length || sweepBusy) return; } catch (e) { return; }
-    if (queueSweepSave.ref === sweepAll && queueSweepSave.len === sweepAll.length) return;
-    queueSweepSave.ref = sweepAll; queueSweepSave.len = sweepAll.length;
-    idbPut('cur', { ver: APP_VER, when: new Date().toISOString(), msg: $('sweepMsg').textContent, rows: sweepAll, top: sweepRows, ctx: sweepCtx, sig: lastSig, mode: sweepMode }).catch(() => {});
+    try { if (!SweepState.rows().length || sweepBusy) return; } catch (e) { return; }
+    if (queueSweepSave.ref === SweepState.rows() && queueSweepSave.len === SweepState.rows().length) return;
+    queueSweepSave.ref = SweepState.rows(); queueSweepSave.len = SweepState.rows().length;
+    idbPut('cur', { ver: APP_VER, when: new Date().toISOString(), msg: $('sweepMsg').textContent, rows: SweepState.rows(), top: SweepState.top(), ctx: SweepState.ctx(), sig: lastSig, mode: SweepState.mode() }).catch(() => {});
   }, 800);
 }
 (async () => {
   let v = null, ck = null;
   try { v = await idbGet('cur'); } catch (e) { v = null; }
-  if (v && v.rows && v.rows.length && !sweepAll.length) {
-    sweepAll = v.rows; sweepRows = v.top || []; sweepCtx = v.ctx || sweepCtx; lastSig = v.sig || null; sweepMode = v.mode === 'pilot' ? 'sweep' : (v.mode || 'sweep');
-    queueSweepSave.ref = sweepAll; queueSweepSave.len = sweepAll.length;
+  if (v && v.rows && v.rows.length && !SweepState.rows().length) {
+    SweepState.set(v.rows, { top: v.top || [], ctx: v.ctx || SweepState.ctx(), mode: v.mode === 'pilot' ? 'sweep' : (v.mode || 'sweep') }); lastSig = v.sig || null;
+    queueSweepSave.ref = SweepState.rows(); queueSweepSave.len = SweepState.rows().length;
     const old = v.ver !== APP_VER;
     $('sweepMsg').innerHTML = `<b>Restored</b> the sweep from ${new Date(v.when).toLocaleString()}${old ? ` (made with an older version of the Explorer${v.ver ? ` (v${v.ver})` : ''}; the solver may have changed since, so <button type="button" class="btn ghost sm" id="rerunOld">re-run it</button> to be sure)` : ''}. ` + escH(v.msg || '');
     if ($('rerunOld')) $('rerunOld').addEventListener('click', () => $('runSweep').click());
     renderSweep(); drawTrackers(); paintBigMode(); checkStale();
-  } else if (!sweepAll.length) starterSweep();
+  } else if (!SweepState.rows().length) starterSweep();
   // 2. a large search that was interrupted can carry on where it stopped
   try { ck = await idbGet('ckpt'); } catch (e) { ck = null; }
   if (ck && ck.k < ck.n) {
@@ -50,7 +50,7 @@ function starterSweep() {
   if (!n || n > 60000) { $('sweepMsg').textContent = `No sweep has been run yet. Your ranges hold ${n.toLocaleString()} designs: press Run sweep${n > 60000 ? ' (or Large search)' : ''} to fill the charts.`; return; }
   $('sweepMsg').textContent = `Building a starter sweep (${n.toLocaleString()} designs) so the charts have something to show…`;
   toast(`Building a starter sweep of ${n.toLocaleString()} designs in the background…`);
-  setTimeout(() => { if (!sweepBusy && !big.running && !sweepAll.length) $('runSweep').click(); }, 1200);
+  setTimeout(() => { if (!sweepBusy && !big.running && !SweepState.rows().length) $('runSweep').click(); }, 1200);
 }
 function escH(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 // 3. ask before leaving while something is running

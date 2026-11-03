@@ -446,8 +446,8 @@ function savedCurve(sv) { return levels().map(p => { const k = p / 100; const c 
 function drawCurve() {
   const cv = $('curveCanvas');
   const sv = shownSaved();
-  if (!sweepAll.length && !sv.length) { emptyCanvas(cv, 'Run the sweep above to fill this chart.'); $('curveTbl').innerHTML = ''; $('curveLegend').innerHTML = ''; curvePts = null; return; }
-  const groups = sweepAll.length ? groupsOf(sweepAll) : [];
+  if (!SweepState.rows().length && !sv.length) { emptyCanvas(cv, 'Run the sweep above to fill this chart.'); $('curveTbl').innerHTML = ''; $('curveLegend').innerHTML = ''; curvePts = null; return; }
+  const groups = SweepState.rows().length ? groupsOf(SweepState.rows()) : [];
   const series = groups.map((g, gi) => ({ label: g.label, g: g.label, off: isHid(g.label), tip: groupTip(g), color: S.groupBy === 'none' ? cssv('--accent') : gcolor(gi), data: curveFor(g.rows) }));
   sv.forEach(s => series.push({ label: `saved: ${s.name}`, color: gcolor(s.i + 3), dash: true, data: savedCurve(s) }));
   const shown = series.filter(s => !s.off);
@@ -456,7 +456,7 @@ function drawCurve() {
   const lv = levels();
   let xr = [lv[0] - 10, lv[lv.length - 1] + 10];
   const yv = all.map(d => d.wood); let yr = [Math.min(...yv) * 0.9, Math.max(...yv) * 1.08];
-  if (drawCurve.ref !== sweepAll) { curveView = null; drawCurve.ref = sweepAll; }
+  if (drawCurve.ref !== SweepState.rows()) { curveView = null; drawCurve.ref = SweepState.rows(); }
   if (curveView) { xr = curveView.x; yr = curveView.y; }
   const { ctx, w, h } = setupCanvas(cv); ctx.clearRect(0, 0, w, h);
   const A = axes(ctx, w, h, xr, yr, 'load level (% of the book load, FS applied)', 'least wood that passes (mm)');
@@ -471,7 +471,7 @@ function drawCurve() {
   ctx.restore();
   $('curveLegend').innerHTML = legendHTML(series.map(s => ({ color: s.color, label: s.label, dash: s.dash, g: s.g, off: s.off, tip: s.tip })));
   let t = `<thead><tr><th>Load level</th><th>Books (kg)</th>${series.map(s => `<th>${escH(s.label)}</th>`).join('')}</tr></thead><tbody>`;
-  const bk = sweepCtx ? sweepCtx.bookKg : S.load.mBook1 + S.load.mBook2;
+  const bk = SweepState.ctx() ? SweepState.ctx().bookKg : S.load.mBook1 + S.load.mBook2;
   lv.forEach((p, i) => { t += `<tr><td>${p}%</td><td>${(bk * p / 100).toFixed(2)}</td>${series.map(s => { const d = s.data[i]; return `<td>${d.wood != null ? d.wood.toFixed(0) + ' mm' : '—'}</td>`; }).join('')}</tr>`; });
   $('curveTbl').innerHTML = t + '</tbody>';
 }
