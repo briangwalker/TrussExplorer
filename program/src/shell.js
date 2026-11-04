@@ -117,11 +117,14 @@ if (!SH_CLASSIC) {
   const VIEW_ICONS = { showDims: ['✎', 'Input labels'], resOnDraw: ['Σ', 'Results on the drawing'], showForces: ['F', 'Member forces'], d3ShowPlan: ['⊞', 'Plan view (3D)'], d3ShowSec: ['⊡', 'End view (3D)'],
     showGhosts: ['◌', 'Sweep ranges'], showIds: ['#', 'Node numbers'], showElems: ['№', 'Member numbers'], showDef: ['∿', 'Deformed shape'] };
   const wins = {}, tabs = {};
+  // windows built from the window piece (#356): the piece runs their three states, edge tab and peek (mountWindow below);
+  // the shell keeps each place's states (UI-A9) and their homes. The value is the arrow their tab shows (UI-W4 ▸ INPUTS, UI-W5 ◂ DRAWING).
+  const PIECE = { drawing: '◂ ', inputs: '▸ ' };
   Object.entries(WIN).forEach(([id, w]) => {
-    if (id === 'drawing') {   // built from the window piece (UI-W5); the piece runs its own three states, tab and peek (mountWindow below)
-      const st = S.shell.w[place()].drawing;
-      stage.insertAdjacentHTML('beforeend', PC.windowHTML({ id, title: w.title(), home: 'right', state: st }) + PC.edgeTabHTML({ id, title: w.title(), home: 'right', state: st }));
-      wins[id] = $('win-drawing'); tabs[id] = stage.querySelector('.tabE[data-tab="drawing"]'); return;
+    if (PIECE[id] != null) {
+      const st = S.shell.w[place()][id];
+      stage.insertAdjacentHTML('beforeend', PC.windowHTML({ id, title: w.title(), home: w.home, state: st }) + PC.edgeTabHTML({ id, title: w.title(), home: w.home, state: st }));
+      wins[id] = $('win-' + id); tabs[id] = stage.querySelector(`.tabE[data-tab="${id}"]`); return;
     }
     const s = el('section', 's-pan'); s.dataset.win = id; s.dataset.home = w.home; s.setAttribute('aria-label', w.title()); s.id = 'win-' + id;
     s.innerHTML = `<div class="s-ph"><span class="grip" aria-hidden="true">⋮⋮</span><span class="wt"></span><span class="stp"><button type="button" class="s-ic sm" data-step="shrink"></button><button type="button" class="s-ic sm" data-step="grow"></button></span></div>`
@@ -131,16 +134,17 @@ if (!SH_CLASSIC) {
   });
   const order = ['T', 'I', 'W'];
   // the Drawing window's states, tab and peek come from the piece; the shell keeps each place's state (UI-A9) and the layout
-  const drawWin = PC.mountWindow(wins.drawing, tabs.drawing, { onState: st => { S.shell.w[place()].drawing = st; save(); paintWins(); } });
-  function setState(id, v) { if (id === 'drawing') { drawWin.setState(v); return; } S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
+  const pieceWin = {};
+  Object.keys(PIECE).forEach(id => { pieceWin[id] = PC.mountWindow(wins[id], tabs[id], { onState: st => { S.shell.w[place()][id] = st; save(); paintWins(); } }); });
+  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
   function step(id, dir) {
     const cur = S.shell.w[place()][id];
     if (id === 'results') { setState(id, dir > 0 ? 'W' : 'T'); return; }
     setState(id, order[Math.max(0, Math.min(2, order.indexOf(cur) + dir))]);
   }
   stage.addEventListener('click', ev => {
-    const b = ev.target.closest('[data-step]'); if (b) { const id = b.closest('.s-pan').dataset.win; if (id !== 'drawing') step(id, b.dataset.step === 'grow' ? 1 : -1); return; }
-    const t = ev.target.closest('.tabE[data-tab]'); if (t && t.dataset.tab === 'drawing') return;
+    const b = ev.target.closest('[data-step]'); if (b) { const id = b.closest('.s-pan').dataset.win; if (!pieceWin[id]) step(id, b.dataset.step === 'grow' ? 1 : -1); return; }
+    const t = ev.target.closest('.tabE[data-tab]'); if (t && pieceWin[t.dataset.tab]) return;
     if (t) { setState(t.dataset.tab, 'W'); const f = wins[t.dataset.tab].querySelector('.s-bd button, .s-bd input, .s-bd select, .s-bd summary'); if (f) f.focus({ preventScroll: true }); return; }
     const i = ev.target.closest('.s-icons [data-ic]'); if (i) iconAct(i.closest('.s-pan').dataset.win, i.dataset.ic);
   });
@@ -148,7 +152,7 @@ if (!SH_CLASSIC) {
   let peekT = null;
   const unpeek = id => { clearTimeout(peekT); peekT = setTimeout(() => { if (!wins[id].matches(':hover') && !(tabs[id] && tabs[id].matches(':hover'))) { wins[id].classList.remove('peek'); layout(); } }, 280); };
   Object.entries(tabs).forEach(([id, t]) => {
-    if (id === 'drawing') return;   // the window piece peeks for itself (UI-W9, UI-W17)
+    if (PIECE[id] != null) return;   // the window piece peeks for itself (UI-W9, UI-W17)
     t.addEventListener('mouseenter', () => { clearTimeout(peekT); peekT = setTimeout(() => { if (S.shell.w[place()][id] === 'T') { wins[id].classList.add('peek'); layout(); } }, 220); });
     t.addEventListener('mouseleave', () => unpeek(id));
     wins[id].addEventListener('mouseleave', () => { if (wins[id].classList.contains('peek')) unpeek(id); });
@@ -219,14 +223,14 @@ if (!SH_CLASSIC) {
       const s = wins[id], st = S.shell.w[P][id], w = WIN[id];
       if (id === 'view' && P === 'truss') s.dataset.empty = R.topSeg.hidden ? '1' : '';
       const empty = s.dataset.empty === '1';
-      s.dataset.state = st; s.hidden = empty || (id === 'drawing' && st === 'T' && !s.classList.contains('peek')); s.setAttribute('aria-label', w.title());
+      s.dataset.state = st; s.hidden = empty || (PIECE[id] != null && st === 'T' && !s.classList.contains('peek')); s.setAttribute('aria-label', w.title());
       s.querySelector('.wt').textContent = w.title();
       const right = w.home === 'right', [sh, gr] = [s.querySelector('[data-step="shrink"]'), s.querySelector('[data-step="grow"]')];
       sh.textContent = right ? '›' : '‹'; gr.textContent = right ? '‹' : '›';
       sh.setAttribute('aria-label', `${id === 'results' || st === 'I' ? 'Hide' : 'Shrink'} ${w.title()}${st === 'W' && id !== 'results' ? ' to icons' : ''}`); sh.title = sh.getAttribute('aria-label');
       gr.setAttribute('aria-label', `Grow ${w.title()} to words and icons`); gr.title = gr.getAttribute('aria-label');
       gr.hidden = st === 'W' || id === 'results';
-      if (tabs[id]) { tabs[id].hidden = empty || st !== 'T'; tabs[id].textContent = (id === 'drawing' ? '◂ ' : '') + w.title(); tabs[id].setAttribute('aria-label', `Show ${w.title()}`); tabs[id].title = `Show ${w.title()} (hover to peek)`; }
+      if (tabs[id]) { tabs[id].hidden = empty || st !== 'T'; tabs[id].textContent = (PIECE[id] || '') + w.title(); tabs[id].setAttribute('aria-label', `Show ${w.title()}`); tabs[id].title = `Show ${w.title()} (hover to peek)`; }
       if (st === 'I') paintIcons(id);
     });
     card.setAttribute('aria-expanded', String(S.shell.w[P].results === 'W'));
@@ -258,8 +262,10 @@ if (!SH_CLASSIC) {
     Object.assign(V.style, { left: M + 'px', top: top0 + 'px', right: 'auto', width: eff('view') === 'W' ? 'auto' : 'auto', maxWidth: (vw - 2 * M - rightUsed) + 'px', bottom: 'auto' });
     const vB = shown('view') ? V.getBoundingClientRect().bottom + 8 : top0;
     // inputs on the left edge, under the view options
-    const I = wins.inputs, iW = eff('inputs') === 'W' ? Math.min(WIN.inputs.w, vw - 2 * M) : 56;
-    Object.assign(I.style, { left: M + 'px', top: vB + 'px', bottom: M + 'px', width: iW + 'px', right: 'auto', maxHeight: 'none' });
+    // UI-W15: up to 400 px and never over 40 % of the stage; the icons state is one 52 px column. A peek is placed by the piece (UI-W17).
+    const I = wins.inputs, iW = eff('inputs') === 'W' ? Math.floor(Math.min(WIN.inputs.w, vw - 2 * M, vw * 0.4)) : 52;
+    if (!I.classList.contains('peek')) Object.assign(I.style, { left: M + 'px', top: vB + 'px', bottom: M + 'px', width: iW + 'px', right: 'auto', maxHeight: 'none' });
+    else Object.assign(I.style, { width: iW + 'px' });
     const iShown = shown('inputs'), leftUsed = iShown ? iW + 2 * M : 0;
     // sweep at the bottom, beside the inputs
     const W = wins.sweep, sl = leftUsed || M, sW = eff('sweep') === 'W' ? Math.max(260, Math.min(WIN.sweep.w, vw - sl - M - rightUsed)) : 'auto';
