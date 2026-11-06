@@ -15,6 +15,7 @@
 | `85-sweep-sheets.js` | sweep data sheet, sweep between two bridges (A↔B) | Architecture Lead |
 | `90-controls.js` | mouse and keys, ☰ menu, settings, find-stable, full screen | Dev Lead |
 | `95-keep-safe.js` | keeping work safe across reloads (backups, IndexedDB restore), result tables | Architecture Lead |
+| `93-members.js` | the Members tab in Analysis (#416): the UI Engineer's table view, wired to the drawing, Copy and CSV | Dev Lead |
 | `99-door.js` | `window.TrussApp` (the shell's door) and the IIFE's close | Dev Lead (the door's list is agreed by both) |
 
 ## Rules
