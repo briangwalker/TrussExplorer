@@ -29,6 +29,7 @@ try {
   const want = { 'entry.1594388703': d.rel, 'entry.700670228': d.model, 'entry.1525333786': d.code };
   check('the link pre-fills exactly version, model, bridge code and technical details (Brian\'s four fields), nothing else',
     keys.sort().join() === ['usp', 'entry.1594388703', 'entry.700670228', 'entry.1525333786', 'entry.1232166955'].sort().join() && q.get('usp') === 'pp_url' && Object.entries(want).every(([k, v]) => q.get(k) === v), d.href);
+  check('White Hat (TE-B-341 note 1): every field name is entry.<digits>, plus usp=pp_url only', keys.every(k => k === 'usp' || /^entry\.[0-9]+$/.test(k)) && q.getAll('usp').length === 1, keys.join());
   const tech = q.get('entry.1232166955');
   check('technical details: the same text the dialog shows, under 2,000 characters in the link', tech === d.tech && d.href.length < 2000, `${d.href.length} chars`);
   check('technical details: White Hat\'s cleared items (reduced browser, sizes, theme, view, windows, language, pointer, counts, storage, last error)',
@@ -59,7 +60,15 @@ try {
   await p.evaluate(() => { const n = document.getElementById('name') || document.querySelector('input[aria-label*="name" i]'); if (n) { n.value = 'Somebody Typed'; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); } });
   await openDialog(p); await p.waitForTimeout(150);
   check('#260: a typed design name shows "Leave names out", ticked', await p.evaluate(() => !document.getElementById('bugNamesRow').hidden && document.getElementById('bugNames').checked));
-  await p.keyboard.press('Escape');
+  // White Hat (TE-B-341 note 2): with the name left out, the code is the SAVED file's code, in the dialog, the link and the file name
+  const dn = await p.evaluate(() => { const g = id => document.getElementById(id); const on = { code: g('bugCode').textContent, href: g('bugGo').href }; g('bugNames').click(); const off = { code: g('bugCode').textContent, href: g('bugGo').href }; g('bugNames').click(); return { on, off, back: g('bugCode').textContent }; });
+  check('unticking "Leave names out" changes the code shown and in the link, ticking it again puts it back', dn.on.code !== dn.off.code && dn.back === dn.on.code && new URL(dn.on.href).searchParams.get('entry.1525333786') === dn.on.code && new URL(dn.off.href).searchParams.get('entry.1525333786') === dn.off.code, JSON.stringify(dn));
+  const [dl2, pop2] = await Promise.all([p.waitForEvent('download', { timeout: 8000 }).catch(() => null), p.context().waitForEvent('page', { timeout: 8000 }).catch(() => null), p.click('#bugGo')]);
+  if (pop2) await pop2.close().catch(() => {});
+  let d2 = null; if (dl2) { d2 = JSON.parse(await (await import('fs')).promises.readFile(await dl2.path(), 'utf8')); }
+  check('names left out: the saved file has no typed name, and its code matches the dialog, the link and the file name', !!d2 && !JSON.stringify(d2).includes('Somebody Typed') && d2.bridgeCode === dn.on.code && dl2.suggestedFilename() === `TE-bug-${dn.on.code}.truss`, d2 ? JSON.stringify({ c: d2.bridgeCode, n: d2.name, fn: dl2.suggestedFilename() }) : 'no download');
+  const fnv = o => { const t = JSON.stringify(o); let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };   // the app's fingerprint() (50-files.js)
+  check('and the code is the fingerprint of the bridge inside the saved file', !!d2 && fnv(d2.bridge) === d2.bridgeCode, d2 ? fnv(d2.bridge) + ' vs ' + d2.bridgeCode : '');
   check('no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
   // phone
   const ph = await b.newContext({ viewport: { width: 390, height: 844 } }); const q2 = await ph.newPage(); await q2.goto(srv.url); await waitRows(q2);

@@ -7,7 +7,10 @@
 const BUG_FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSfyuQGRg7v4PAn3nU8owBNG84E3ukX3w4WCOAkwjL7MWnJWgg/viewform';
 // the form's pre-fill fields, from Brian's pre-filled link (TE-B-338, 11-05 23:25); each value goes through encodeURIComponent
 const BUG_FORM_FIELDS = { release: 'entry.1594388703', model: 'entry.700670228', code: 'entry.1525333786', tech: 'entry.1232166955' };
-function bugFacts() { const fi = fileInfo(); return { release: fi.release, model: fi.model, code: fi.bridgeCode, tech: bugTech() }; }
+// the bridge as it will be saved: with 'Leave names out' ticked the typed name is replaced, so the code is worked out
+// AFTER that, and the code in the dialog, the link and the file name matches the saved file (White Hat, TE-B-341 note 2)
+function bugBridge() { const b = bridgeState(), nr = $('bugNamesRow'), nb = $('bugNames'); if (nr && !nr.hidden && nb && nb.checked) b.name = TrussNames.looksGenerated(S.autoName) ? S.autoName : 'Design'; return b; }
+function bugFacts() { const fi = fileInfo(), b = bugBridge(); return { release: fi.release, model: fi.model, code: fingerprint(b), tech: bugTech(), bridge: b }; }
 // the last error, as its kind + where only (White Hat, TE-B-323 (2)): never its message, which can hold values from a file
 let bugLastErr = '';
 window.addEventListener('error', ev => { const f = String(ev.filename || '').split(/[?#]/)[0].split('/').pop() || 'page';
@@ -60,11 +63,14 @@ const typedName = () => !!S.name && S.name !== S.autoName && !TrussNames.looksGe
   let opener = null;
   function open() {
     opener = document.activeElement; if (typeof closeDock === 'function') closeDock();
+    $('bugNamesRow').hidden = !typedName(); $('bugNames').checked = true;
+    fill(); md.hidden = false; $('bugGo').focus();
+  }
+  function fill() {
     const f = bugFacts(); $('bugRel').textContent = f.release; $('bugModel').textContent = f.model; $('bugCode').textContent = f.code;
     $('bugTech').textContent = f.tech; $('bugGo').href = bugFormUrl(f);
-    $('bugNamesRow').hidden = !typedName(); $('bugNames').checked = true;
-    md.hidden = false; $('bugGo').focus();
   }
+  $('bugNames').addEventListener('change', fill);
   function close() { md.hidden = true; const o = opener; opener = null; if (o && o.isConnected && o.offsetParent && typeof o.focus === 'function') o.focus(); else if ($('dockBtn')) $('dockBtn').focus(); }   // the opener sits in the closed ☰, so focus goes back to ☰ (QA, TE-B-315)
   row.addEventListener('click', ev => { ev.stopPropagation(); open(); });
   $('bugX').addEventListener('click', close); $('bugCancel').addEventListener('click', close);
@@ -80,9 +86,8 @@ const typedName = () => !!S.name && S.name !== S.autoName && !TrussNames.looksGe
   });
   // the link opens the form itself (a plain link in a new tab, never fetched by the page); the click also saves the file
   $('bugGo').addEventListener('click', () => {
-    const f = bugFacts(), b = bridgeState();
-    if (!$('bugNamesRow').hidden && $('bugNames').checked) { b.name = TrussNames.looksGenerated(S.autoName) ? S.autoName : 'Design'; }
-    const doc = Object.assign({ format: 'se310-truss-bridge', version: FILE_VER }, fileInfo(), { name: b.name || 'Design', summary: bridgeSummary(), bridge: b });
+    const f = bugFacts(), b = f.bridge;
+    const doc = Object.assign({ format: 'se310-truss-bridge', version: FILE_VER }, fileInfo(), { bridgeCode: f.code, name: b.name || 'Design', summary: bridgeSummary(), bridge: b });
     const fn = 'TE-bug-' + f.code + TrussFormats.KINDS.bridge.ext;
     saveNamed(fn, JSON.stringify(doc, null, 1)).then(() => toast(`Saved ${fn} · attach it to the form`));
     setTimeout(close, 0);
