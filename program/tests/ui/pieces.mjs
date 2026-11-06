@@ -159,19 +159,22 @@ try {
   const srv = await serve(undefined, { shell: true });
   try {
     const q = await openPage(b, srv.url); await waitRows(q); await q.waitForTimeout(500);
-    const look = () => q.evaluate(() => {
+    // 'before' picks the nodes; 'after' re-reads THE SAME nodes, so a table that redraws in between (the History rows)
+    // can't shift the comparison by one. Nodes the page removed in between are skipped (BluePeachDev, TE-B-299).
+    const look = again => q.evaluate(again => {
       const props = ['display', 'position', 'width', 'height', 'top', 'left', 'right', 'bottom', 'max-width', 'padding-top', 'padding-left', 'margin-top', 'background-color', 'background-image',
         'border-top-width', 'border-top-color', 'border-radius', 'box-shadow', 'transform', 'font-size', 'font-weight', 'color', 'outline-offset', 'z-index', 'white-space'];
-      const els = [...document.querySelectorAll('#stage .s-pan, #stage .tabE, #stage .s-b, #stage .s-ic, #stage .res, #stage .s-ph, #stage .stp, #stage .nb, #stage .nav')].filter(e => !e.hasAttribute('data-pc'));
-      return { n: els.length, s: els.map(e => { const c = getComputedStyle(e); return (e.id || e.className) + '|' + props.map(k => c.getPropertyValue(k)).join(';'); }) };
-    });
+      if (!again) window.__pcEls = [...document.querySelectorAll('#stage .s-pan, #stage .tabE, #stage .s-b, #stage .s-ic, #stage .res, #stage .s-ph, #stage .stp, #stage .nb, #stage .nav')].filter(e => !e.closest('[data-pc]'));   // inside a piece (its title bar, stepper) is the piece's, not the shell's (BluePeachDev, TE-B-287)
+      const els = window.__pcEls;
+      return { n: els.length, s: els.map(e => { if (!e.isConnected) return null; const c = getComputedStyle(e); return (e.id || e.className) + '|' + props.map(k => c.getPropertyValue(k)).join(';'); }) };
+    }, !!again);
     for (const theme of ['wireframe', 'og']) {
       await q.evaluate(t => __shell.applyTheme(t), theme); await q.waitForTimeout(300);
       const before = await look();
       await q.evaluate(() => { TrussPieces.install(document); document.getElementById('te-pieces').disabled = false; }); await q.waitForTimeout(300);
-      const after = await look();
-      const diff = before.s.filter((x, i) => x !== after.s[i]);
-      check(`install() changes nothing the shell drew (${theme}, ${before.n} elements)`, before.n > 20 && after.n === before.n && diff.length === 0, diff.slice(0, 2).join(' || '));
+      const after = await look(true);
+      const diff = before.s.filter((x, i) => x !== null && after.s[i] !== null && x !== after.s[i]);
+      check(`install() changes nothing the shell drew (${theme}, ${before.n} elements)`, before.n > 20 && after.s.filter(x => x !== null).length > 20 && diff.length === 0, diff.slice(0, 2).join(' || '));
       await q.evaluate(() => { document.getElementById('te-pieces').disabled = true; });   // off again before the next theme's 'before'
     }
     check('no page errors on the program page', q.errs.length === 0, q.errs.join(' | '));
