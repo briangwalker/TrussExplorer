@@ -209,7 +209,11 @@ function check(doc, savedAs) {
 // Set so that NO file that opens today is refused (rule 4i, the Dev Lead's review of #350): 512 MB is the longest text a
 // browser can hold as one string (so a bigger .sweep.json never opened anyway) and the .tsweep unzip cap before #350;
 // 8 million designs is more than 512 MB of .tsweep can hold (about 6.3 million). They stop a crafted file, not a real one.
-const LIMITS = Object.freeze({ fileBytes: 512 * 1024 * 1024, unzipped: 512 * 1024 * 1024, rows: 8000000 });
+// bridgeBytes: a bridge (truss) file is a few KB; nobody's saved bridge comes near 2 MB, so a bridge gets its own, much smaller
+// cap (per file kind, #296). The name allows an early refusal before reading; the content decides after parsing.
+const LIMITS = Object.freeze({ fileBytes: 512 * 1024 * 1024, unzipped: 512 * 1024 * 1024, rows: 8000000, bridgeBytes: 2 * 1024 * 1024 });
+// a file NAME that says bridge: refuse it before reading if it's over bridgeBytes
+const BRIDGE_NAME = /\.(truss|bridge\.json)$/i;
 // tests pass smaller limits through opts.limits; the app never does
 const limitsOf = opts => Object.assign({}, LIMITS, opts && opts.limits);
 
@@ -219,6 +223,8 @@ function open(input, opts) {
   const L = limitsOf(opts);
   let raw = input;
   if (typeof input === 'string') { if (input.length > L.fileBytes) return { ok: false, errors: ['too-big'], warnings: [] }; try { raw = JSON.parse(input); } catch (e) { return { ok: false, errors: ['not-json'], warnings: [] }; } }
+  // a bridge over its own cap is refused before the deep clean, whatever the file was called (the content decides)
+  if (typeof input === 'string' && input.length > L.bridgeBytes && isObj(raw)) { let k = null; try { k = detect(raw).kind; } catch (e) {} if (k === 'bridge') return { ok: false, kind: 'bridge', errors: ['too-big'], warnings: [] }; }
   const clean = cleanData(raw);
   const det = detect(clean);
   if (!det.kind) return { ok: false, det, errors: [isObj(clean) ? 'not-truss-explorer' : 'not-an-object'], warnings: [] };
@@ -467,7 +473,7 @@ async function openBytes(input, opts) {
   return res;
 }
 
-const api = { KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain, LIMITS };
+const api = { KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain, LIMITS, BRIDGE_NAME };
 // what the Open buttons offer: every kind in the app (drafts aside), the old names, and plain JSON (TE-B-256)
 api.ACCEPT = [...new Set(Object.values(KINDS).filter(k => !k.draft).flatMap(k => [k.ext].concat(k.also || [])).concat(['.json', 'application/json']))].join(',');
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussFormats = api;
