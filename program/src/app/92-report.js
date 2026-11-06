@@ -17,7 +17,7 @@ window.addEventListener('error', ev => { const f = String(ev.filename || '').spl
   bugLastErr = `${errKind(ev.error, 'Error')} at ${/^[\w.-]{1,40}$/.test(f) ? f : 'page'}:${Number.isInteger(ev.lineno) ? ev.lineno : 0}`; });
 window.addEventListener('unhandledrejection', ev => { bugLastErr = `${errKind(ev.reason, 'Rejection')} (promise)`; });
 // only a plain word (TypeError, RangeError...) ever goes in, never a message: a name that isn't one becomes the fallback (QA, TE-B-315)
-function errKind(e, dflt) { const n = e && typeof e.name === 'string' ? e.name : ''; return /^[A-Za-z]{1,30}$/.test(n) ? n : dflt; }
+function errKind(e, dflt) { const n = e instanceof Error && typeof e.name === 'string' ? e.name : ''; return /^[A-Za-z]{1,30}$/.test(n) ? n : dflt; }   // a real Error only (White Hat, TE-B-341)
 // 'Technical details': ONLY White Hat's cleared list (TE-B-323 (1)-(2)), built here from fixed sources, shown in the
 // dialog before the form opens. Never the full user agent, time zone, names, file names, saved data or the page address.
 function bugBrowser() {
