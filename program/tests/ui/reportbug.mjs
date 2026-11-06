@@ -21,12 +21,20 @@ try {
   const d = await p.evaluate(() => { const md = document.getElementById('bugModal'), card = md.querySelector('[role=dialog]'), go = document.getElementById('bugGo'), r = go.getBoundingClientRect();
     return { open: !md.hidden, modal: card.getAttribute('aria-modal'), name: document.getElementById(card.getAttribute('aria-labelledby')).textContent, focus: document.activeElement === go,
       rel: document.getElementById('bugRel').textContent, model: document.getElementById('bugModel').textContent, code: document.getElementById('bugCode').textContent,
-      href: go.href, target: go.target, relAttr: go.rel, btnOn: r.top >= 0 && r.bottom <= innerHeight, text: card.textContent }; });
+      href: go.href, tech: document.getElementById('bugTech').textContent, target: go.target, relAttr: go.rel, btnOn: r.top >= 0 && r.bottom <= innerHeight, text: card.textContent }; });
   check('UI-W13: a named, modal dialog with focus on its main button', d.open && d.modal === 'true' && d.name === 'Report a bug' && d.focus, JSON.stringify({ ...d, text: undefined }));
   check('UI-W14: it lists version, model and bridge code, and says no name, email or files go by the link', /^1\.0\.0-alpha\.\d+$/.test(d.rel) && /^[23]D$/.test(d.model) && /^[0-9a-f]{8}$/.test(d.code) && /No name, email or files/.test(d.text), JSON.stringify({ rel: d.rel, model: d.model, code: d.code }));
   check('White Hat: a plain link in a new tab, noopener noreferrer, to the ONE fixed form address', d.href.startsWith(FORM) && d.target === '_blank' && /noopener/.test(d.relAttr) && /noreferrer/.test(d.relAttr), d.href);
-  const q = new URL(d.href).searchParams; const extra = [...q.keys()].filter(k => k !== 'usp' && !/^entry\.\d+$/.test(k));
-  check('White Hat: the link carries nothing but the pre-fill (no name, notes or saved data)', !extra.length && ![...q.values()].some(v => v.includes(d.code) ? false : v.length > 40), d.href);
+  const q = new URL(d.href).searchParams, keys = [...q.keys()];
+  const want = { 'entry.1594388703': d.rel, 'entry.700670228': d.model, 'entry.1525333786': d.code };
+  check('the link pre-fills exactly version, model, bridge code and technical details (Brian\'s four fields), nothing else',
+    keys.sort().join() === ['usp', 'entry.1594388703', 'entry.700670228', 'entry.1525333786', 'entry.1232166955'].sort().join() && q.get('usp') === 'pp_url' && Object.entries(want).every(([k, v]) => q.get(k) === v), d.href);
+  const tech = q.get('entry.1232166955');
+  check('technical details: the same text the dialog shows, under 2,000 characters in the link', tech === d.tech && d.href.length < 2000, `${d.href.length} chars`);
+  check('technical details: White Hat\'s cleared items (reduced browser, sizes, theme, view, windows, language, pointer, counts, storage, last error)',
+    /^\S+ \d* ?\/ \S+/.test(tech) && /win \d+x\d+, screen \d+x\d+ @[\d.]+/.test(tech) && /theme \w/.test(tech) && /lang \w/.test(tech) && /pointer (touch|mouse)/.test(tech) && /joints \d+, members \d+, sweep rows \d+/.test(tech) && /storage (yes|no)/.test(tech) && /last error /.test(tech), tech);
+  const ua = await p.evaluate(() => navigator.userAgent), nm = await p.evaluate(() => __dbg.S.name);
+  check('never the full user agent, the design name or the page address', !tech.includes(ua) && !tech.includes('Mozilla') && !(nm && tech.includes(nm)) && !tech.includes('127.0.0.1'), tech);
   check('UI-A21 / UI-W23: Save bridge and open form is on screen without scrolling at 1280 x 720', d.btnOn);
   // the click saves TE-bug-<code>.truss and opens the form in a new tab
   const [dl, pop] = await Promise.all([p.waitForEvent('download', { timeout: 8000 }).catch(() => null), ctx.waitForEvent('page', { timeout: 8000 }).catch(() => null), p.click('#bugGo')]);
