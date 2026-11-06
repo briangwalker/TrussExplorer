@@ -1,3 +1,5 @@
+<!doctype html>
+<html lang="en">
 <meta charset="utf-8">
 <title>balsaPixel: Truss Explorer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -8,12 +10,18 @@
 :root {
   --bg: #e9edf0; --sheet: #ffffff; --ink: #18212b; --muted: #5b6774; --line: #cfd6dc; --soft: #f2f4f6;
   --accent: #a8742f; --accent-ink: #ffffff; --accent-soft: #f3e7d4;
-  --comp: #c23a2b; --tens: #2160a8; --zero: #9aa5af; --ok: #2f7a4b; --warn: #b8610d; --bad: #b0177a;
-  --desk: #c9cfd5; --env: rgba(168,116,47,.07); --envline: #c79a5c; --book: rgba(33,96,168,.10);
-  --g1: #2160a8; --g2: #c2662b; --g3: #2f8a5b; --g4: #8a4fb0; --g5: #b0384f; --g6: #1f8a9a; --g7: #8a7a1f; --g8: #5b6774;
+  --desk: #c9cfd5;
   --f-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
   --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+/* the meaning colours (C, T, zero, pass, warn, fail, the envelope and the chart groups), light values. #393: every light
+   balsaPixel stage (every theme but OG) keeps these even when the computer is in dark mode, so they read on its light
+   cards (ART-C1, ART-C4, ART-K14). The dark values below apply to the page and to an OG stage only. */
+:root, #stage:not([data-theme="og"]) {
+  --comp: #c23a2b; --tens: #2160a8; --zero: #9aa5af; --ok: #2f7a4b; --warn: #b8610d; --bad: #b0177a;
+  --env: rgba(168,116,47,.07); --envline: #c79a5c; --book: rgba(33,96,168,.10);
+  --g1: #2160a8; --g2: #c2662b; --g3: #2f8a5b; --g4: #8a4fb0; --g5: #b0384f; --g6: #1f8a9a; --g7: #8a7a1f; --g8: #5b6774;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0f141a; --sheet: #171e26; --ink: #e3e8ed; --muted: #95a1ad; --line: #2c3742; --soft: #1d2630;
