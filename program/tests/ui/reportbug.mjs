@@ -69,6 +69,11 @@ try {
   check('names left out: the saved file has no typed name, and its code matches the dialog, the link and the file name', !!d2 && !JSON.stringify(d2).includes('Somebody Typed') && d2.bridgeCode === dn.on.code && dl2.suggestedFilename() === `TE-bug-${dn.on.code}.truss`, d2 ? JSON.stringify({ c: d2.bridgeCode, n: d2.name, fn: dl2.suggestedFilename() }) : 'no download');
   const fnv = o => { const t = JSON.stringify(o); let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };   // the app's fingerprint() (50-files.js)
   check('and the code is the fingerprint of the bridge inside the saved file', !!d2 && fnv(d2.bridge) === d2.bridgeCode, d2 ? fnv(d2.bridge) + ' vs ' + d2.bridgeCode : '');
+  // QA (TE-B-315): 'last error' carries only a plain error kind and the script's own file:line, never typed text or a file name
+  const le = await p.evaluate(() => { const e = new Error('Somebody Typed my.truss'); e.name = 'Somebody Typed my.truss'; window.dispatchEvent(new ErrorEvent('error', { error: e, message: e.message, filename: 'https://x.test/a/My Bridge.truss?q=1', lineno: 7 })); const zero = bugLastErrFor();
+    const t = new TypeError('Somebody Typed'); window.dispatchEvent(new ErrorEvent('error', { error: t, message: t.message, filename: 'https://x.test/app.js?v=2#h', lineno: 12 })); const one = bugLastErrFor();
+    return { zero, one }; function bugLastErrFor() { document.getElementById('reportBugBtn').click(); const s = document.getElementById('bugTech').textContent; document.getElementById('bugCancel').click(); return s; } });
+  check('last error: a plain kind + file:line only, nothing typed and no file name', /last error Error at page:7$/.test(le.zero) && /last error TypeError at app\.js:12$/.test(le.one) && !/Somebody|\.truss|x\.test/.test(le.zero + le.one), JSON.stringify(le));
   check('no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
   // phone
   const ph = await b.newContext({ viewport: { width: 390, height: 844 } }); const q2 = await ph.newPage(); await q2.goto(srv.url); await waitRows(q2);
