@@ -1,6 +1,6 @@
 # Truss Explorer UI Standard
 
-**Version 1.5.3 · 2026-11-02 · owner: UI Designer · creative sign-off: Brian**
+**Version 1.5.4 · 2026-11-05 · owner: UI Designer · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel looks and behaves. Every rule has a number (`UI-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -36,6 +36,7 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 | UI-A17 | **Meaning is never colour alone** | C / T / 0 letters, ✕ for fails, dashes for previews, shape cues for picked members (UI-D5). |
 | UI-A19 | **Help text says how to use it, not how it works** | Write "Drag the ✎ value or type a number", not "The input is bound to the solver's h parameter". One short sentence per hint. Hints can be hidden (☰ › Show help text), never required to use the screen. |
 | UI-A20 | **Easy reset** | ☰ › File has **Start from a simple example** (the built-in presets) and **Go back to an earlier version** (the backups, the same list as Analysis › History). Neither one deletes anything: the current bridge goes into History first. |
+| UI-A21 | **The next step is always visible** (Brian's axiom, 2026-11-05, #411) | When any page, sheet, dialog, tour step or window opens, the button for its next step is on screen without scrolling. If something has to scroll, it's the content, never the button (UI-W23). **The only exception** is a page where people should read before going on, where the button may sit after the text on purpose. Today that's one page: the **pilot-run check before a full sweep** (UI-S9, 'Big jobs pilot first'). Adding a page to this list is Brian's call. |
 | UI-A18 | **Meaning colours never change** | Compression red, tension blue, zero-force grey, pass green, fail **magenta + ✕**. Grey means zero force only, never "fails". **Course-rule pink** (a course rule limits this value; UI-I2, UI-S3, UI-C1) is a meaning colour too: the same in every theme, always drawn with its 45° hatch and the rule's name, never alone, and never confused with fail magenta (the value and contrast are Graphics', pieces gap G1). Themes can't change these (UI-T2); OG is the only exception, kept as-is. |
 
 ## UI-W · Windows and where they sit
@@ -64,6 +65,8 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 | UI-W19 | **The view control's home** (the 3D view cube, UI-V2–V7; or the 2D round pad, UI-V8) | **right edge, top**: first in the right-edge stack (UI-W16), **12 px** from the right edge and **12 px** below the top bar's band, so it sits clear of the top bar, the results strip and the Drawing window | Its box is the cube or pad plus its own buttons (⌂, Look from, + and −). The Drawing window opens **8 px below that box**, never beside or over it. Folding or opening the Drawing window never moves the control. Look from's Side/Top/End list (UI-V7) is a pop-up, so it may open over the Drawing window and closes on an outside click (UI-W8). In Analysis, the round pad takes the same home. View options (Analysis) sits 8 px under it, then Drawing. **The view control is the only thing that changes the view**, apart from the 2D/3D switches in the top bar (Brian 56a, TE-B-295). | — | — |
 | UI-W20 | **The ⋮⋮ grip shows only on what can be moved** (Brian, TE-B-283 item 5) | — | The six-dot grip appears only on a window or pop-up you can drag, and dragging it moves that window. Anything that stays in its home shows no grip. Today the things that move are the ✎ value editor (UI-I8) and the PIP (UI-W7); Inputs, View options, Drawing, the sweep bar, the top bar and the results card have **no grip**. Whether more windows become movable is Brian's call (TE-B-283 item 5); if he says yes, each one that moves gets the grip and the rest still don't. | | |
 | UI-W21 | **What lives on the view control, and what stays in View options** (Brian 56a) | — | **On the view control** (cube in 3D, round pad in 2D, both in Truss and Analysis): pan (pad arrows), zoom **+ / −**, **⌂ Home** (UI-V6; Set and Reset Home stay in ☰), **Reset zoom** (UI-C6, greyed when nothing is zoomed), the **Drag: zoom box / move** switch (2D charts, UI-C6), **Look from** (3D, UI-V7) and the rotate ring (UI-V4). **In View options** (Analysis): the tabs (UI-S6), the axis pickers, Group by, Colour fails, + Log design, + Add designs on click, CSV and the count line. **In the Drawing window** (Truss): the drawing toggles and Scale (the deformed-shape scale), which change what is drawn, not the view. **Mouse and keys** (UI-V9, UI-K) still change the view anywhere on the picture; this rule is about on-screen controls. | | |
+| UI-W22 | **Sheets and dialogs on an outside click** (#410) | — | A click on the dimmed backdrop around a ☰ sheet (UI-A16) closes it the same way Esc does, and does nothing else on the page behind. Focus goes back to ☰ or whatever opened it. A **dialog** (UI-W13) closes the same way, **unless** it holds typed values that aren't applied yet. Then the click is ignored and the dialog's Cancel button flashes once, so nothing typed is lost. Report a bug (UI-W14) has nothing typed, so it closes. | | |
+| UI-W23 | **A sheet's or dialog's buttons never scroll away** (#411; points to UI-A21) | — | Every sheet and dialog has three parts: a fixed **header** (title and ✕), a **middle** that scrolls when it has to, and a fixed **button row** at the bottom with the main button (e.g. *Make the build documents*, *Save bridge and open form*). The button row is on screen as soon as it opens, at 1366 × 768, 1440 × 900 and with the browser zoomed to 125 %, down to a 600 px tall window. Below that, the whole sheet scrolls but the button row stays pinned to its bottom edge. The only exception is UI-A21's list. | | |
 
 **UI-W14 form questions** (Google Form owned by Brian, file upload on; short, in this order; TE-B-132):
 1. *Version, model, bridge code*: filled in by the link; don't change them.
@@ -289,6 +292,7 @@ Every rule above must be cited by a build issue. These weren't, until now:
 | UI-I2–I5 | #87, #131, inside step 8 (#215) | |
 | UI-C5 | #230, #231 | planned |
 | UI-B1–B5 | every PR that changes the build documents (mainv and alpha); review in TE-B-129 | #186 is a known UI-B4 miss |
+| UI-W22, UI-W23, UI-A21 | #410, #411 on the live alpha's current sheets (the release after 1.0.0-alpha.3, Brian 2a, TE-B-320) | then again in step 10 (#217) |
 | UI-W14 | #115 (stretch for 11-04; on mainv and alpha, TE-B-132) | not one of the 14 steps |
 
 ---
@@ -308,14 +312,15 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 | 7 · 3D Look from | #214 | UI-S2, UI-V1–V7, UI-V9 (and #33) |
 | 8 · Inputs screen | #215 | UI-S3, UI-I1–I9, UI-T4 (Tilt shear, ART-H4), UI-W13 |
 | 9 · Empty and in-between states | #216 | UI-A14, UI-S5, UI-S9, UI-D4 |
-| 10 · ☰ and sheets | #217 | UI-A16, UI-W8, UI-W9, UI-A15, UI-A9, UI-N4, UI-A19, UI-A20, UI-W13, UI-V9, UI-K5 (the Mouse and keys sheet) |
+| 10 · ☰ and sheets | #217 | UI-A16, UI-W8, UI-W9, UI-A15, UI-A9, UI-N4, UI-A19, UI-A20, UI-A21, UI-W13, UI-W22, UI-W23, UI-V9, UI-K5 (the Mouse and keys sheet) |
 | 11 · Keyboard and screen readers | #218 | UI-K1–K5 (F6 windows; rebinding works for every key), UI-K7, UI-N5 |
 | 12 · Phone | #219 | UI-S8 |
-| 13 · First-time tour | #220 | UI-F1–F2, UI-K6 (keys and mouse walkthrough), UI-M1–M4, UI-M7, UI-M8 (#144) |
+| 13 · First-time tour | #220 | UI-F1–F2, UI-A21, UI-K6 (keys and mouse walkthrough), UI-M1–M4, UI-M7, UI-M8 (#144) |
 | 14 · Themes and OG | #221 | UI-T1–T6, UI-A18, UI-M5–M6 (#143) |
 
 ## Change log
 
+- **1.5.4 · 2026-11-05** Brian's new axiom (TE-B-321): UI-A21, the next step is always visible, with its one allowed exception (the pilot-run check). From the live site (TE-B-320): UI-W22, a sheet or dialog closes on an outside click unless typed values would be lost (#410); UI-W23, a sheet's or dialog's button row never scrolls away (#411), pointing to UI-A21. Step 10 and 13 and the coverage table cite them. The axiom is also in Brian's Interface & Program Design Axioms (core axiom 7).
 - **1.5.3 · 2026-11-02** Brian's 55a and 56a (TE-B-295). 55a is already UI-W20. 56a: View options moves to the right, directly UNDER the view control (UI-A2, UI-W3, UI-W16, UI-W19); the left edge holds Inputs alone; in Truss there's no View options window. New UI-W21 sorts the controls: view controls (pan, zoom, Home, Reset zoom, drag mode, Look from, ring) on the cube/pad; the Analysis tabs and chart tools in View options; drawing toggles and Scale in the Drawing window. UI-C6 and UI-K1 follow. Steps 2 and 4 cite UI-W21.
 - **1.5.2 · 2026-11-01** Brian's alpha check (TE-B-283, gaps A and B): UI-W19 gives the view cube / round pad its home (right edge, top, first in the right stack) and its clearance (the Drawing window opens 8 px below it); UI-W16 adds the view control to its stack and to its never-covers list. UI-W20: the ⋮⋮ grip shows only on what can be moved (today the ✎ editor and the PIP). Gap C (which side View options sits) waits for Brian; UI-W3 is unchanged. Step 2 cites UI-W19 and UI-W20.
 - **1.5.1 · 2026-10-31** Added UI-K7 (tabs and choice groups: one Tab stop, arrows move and pick, Home/End). The shared pieces (#356) cited UI-K3 (chart dots) for this; UI-K7 is the rule it meets. Step 11 cites it.
