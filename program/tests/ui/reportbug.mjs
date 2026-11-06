@@ -46,7 +46,9 @@ try {
   check('the dialog closes after it', await p.evaluate(() => document.getElementById('bugModal').hidden));
   // Esc and the backdrop close it, and focus goes back
   await openDialog(p); await p.waitForTimeout(150); await p.keyboard.press('Escape'); await p.waitForTimeout(150);
-  check('Esc closes it and focus leaves the hidden dialog', await p.evaluate(() => document.getElementById('bugModal').hidden && !document.getElementById('bugModal').contains(document.activeElement)));
+  check('Esc closes it and focus goes back to ☰ (the menu it was opened from)', await p.evaluate(() => document.getElementById('bugModal').hidden && document.activeElement === document.getElementById('dockBtn')));
+  await openDialog(p); await p.waitForTimeout(150); await p.click('#bugCancel'); await p.waitForTimeout(150);
+  check('Cancel closes it and focus goes back to ☰', await p.evaluate(() => document.getElementById('bugModal').hidden && document.activeElement === document.getElementById('dockBtn')));
   await openDialog(p); await p.waitForTimeout(150); await p.mouse.click(5, 715); await p.waitForTimeout(150);
   check('UI-W22: a click on the backdrop closes it', await p.evaluate(() => document.getElementById('bugModal').hidden));
   // focus stays inside while it's open

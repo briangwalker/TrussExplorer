@@ -65,7 +65,7 @@ const typedName = () => !!S.name && S.name !== S.autoName && !TrussNames.looksGe
     $('bugNamesRow').hidden = !typedName(); $('bugNames').checked = true;
     md.hidden = false; $('bugGo').focus();
   }
-  function close() { md.hidden = true; const o = opener; opener = null; if (o && o.isConnected && typeof o.focus === 'function') o.focus(); else if ($('dockBtn')) $('dockBtn').focus(); }
+  function close() { md.hidden = true; const o = opener; opener = null; if (o && o.isConnected && o.offsetParent && typeof o.focus === 'function') o.focus(); else if ($('dockBtn')) $('dockBtn').focus(); }   // the opener sits in the closed ☰, so focus goes back to ☰ (QA, TE-B-315)
   row.addEventListener('click', ev => { ev.stopPropagation(); open(); });
   $('bugX').addEventListener('click', close); $('bugCancel').addEventListener('click', close);
   // UI-W22: a click on the dimmed backdrop closes it (nothing is typed here) and does nothing else
