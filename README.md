@@ -16,6 +16,7 @@ The app lives in `truss-explorer-src-v58/truss-explorer/`; the paths below are r
 4. **Build it.** ☰ › *Build documents…* gives a cut list, full-size templates and step-by-step instructions.
 
 *For learning and model bridges, not for designing real structures.*
+It shows how a truss carries load; it can't tell you if a real bridge is safe. Real bridges need real material data, the local design code and a qualified engineer.
 
 **Found a bug, or have a question?** [Open an issue](https://github.com/briangwalker/TrussExplorer/issues/new/choose); it needs a free GitHub account. Say what you did, what you expected and what happened. A screenshot and your `.truss` file help. A *Report a bug* form inside the program is planned.
 
