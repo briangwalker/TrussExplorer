@@ -232,6 +232,7 @@ const FS_CFG = {
     ? { fill: $('c3Canvas').closest('.chartbox'), bar: [$('trackTabs'), $('logHere'), $('groupBy').closest('label'), $('c3Canvas').closest('[data-panel]').querySelector('.tradectl')], foot: [$('c3Legend')] }
     : S.tab === 'curve' ? { fill: $('curveCanvas').closest('.chartbox'), bar: [$('trackTabs'), $('logHere'), $('groupBy').closest('label'), $('curveLevels').closest('.row')], foot: [$('curveLegend')] }
     : S.tab === 'hist' ? { fill: $('trackBody').querySelector('[data-panel="hist"]'), bar: [$('trackTabs'), $('logHere')] }
+    : S.tab === 'mem' ? { fill: $('memPanel'), bar: [$('trackTabs')] }
     : { fill: $('tradeCanvas').closest('.chartbox'), bar: [$('trackTabs'), $('logHere'), $('groupBy').closest('label'), $('tradeCanvas').closest('[data-panel]').querySelector('.tradectl')], foot: [$('tradeLegend')] },
   '#sideSheet': () => ({ fill: topOn() ? $('c3d').closest('.chartbox') : $('drawWrap'), bar: [$('statusPill'), $('topViewSeg'), $('showDims').closest('.drawopts')], foot: [$('drawWrap').parentElement.querySelector('.legend')] }),
   '#inputsPane': () => ({ inputs: true }),

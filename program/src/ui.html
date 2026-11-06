@@ -908,6 +908,7 @@ body.hidesame table .samecol { display: none; }
             <span class="tabgrp"><button type="button" role="tab" data-t="trade" aria-selected="true">Trade-off chart</button><span class="seg mini tdim2" title="Flat 2D chart, or a 3D chart with a third axis"><button type="button" data-v="trade">2D</button><button type="button" data-v="c3">3D</button></span></span>
             <button type="button" role="tab" data-t="hist" aria-selected="false">Design history</button>
             <button type="button" role="tab" data-t="curve" aria-selected="false">Required-wood curve</button>
+            <button type="button" role="tab" data-t="mem" aria-selected="false">Members</button>
           </div><button type="button" class="btn ghost sm" id="logHere" title="Add the bridge on screen to the design history, to compare later">+ Log design</button><button type="button" class="btn ghost sm fsbtn" data-fs="#trackBody" title="Show the whole Analysis section full screen (Esc to leave)">⛶ Full screen</button></summary>
         <div class="bd" style="display:grid;gap:12px" id="trackBody">
           <div class="btns">
@@ -1000,6 +1001,8 @@ body.hidesame table .samecol { display: none; }
             <div class="legend" id="curveLegend" style="margin-top:6px"></div>
             <div class="tablewrap tdata" style="margin-top:10px"><table id="curveTbl"></table></div>
           </div>
+
+          <div data-panel="mem" hidden id="memPanel" data-pc></div>
         </div>
       </details>
 
