@@ -26,6 +26,8 @@ if (!SH_CLASSIC) {
   while (document.body.firstChild) stage.appendChild(document.body.firstChild);
   document.body.appendChild(stage); document.body.classList.add('shell');
   const themeStyle = document.createElement('style'); themeStyle.id = 'themeCss'; document.head.appendChild(themeStyle);
+  // the shared screen pieces (#354, docs/pieces.md): their CSS reaches only what they built (data-pc), so the rest of the shell is unchanged
+  const PC = window.TrussPieces; PC.install(document);
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 
   // references taken before anything moves
@@ -45,18 +47,23 @@ if (!SH_CLASSIC) {
   const vpT = el('div', 'vp'), vpA = el('div', 'vp');
   const growBar = el('button', 'nb r sm', '›'), foldBar = el('button', 'nb r sm', '‹'); growBar.type = foldBar.type = 'button'; growBar.id = 'navGrow'; foldBar.id = 'navFold';
   nav.append(menuBtn, backBtn, vpT, vpA, growBar, foldBar);
-  const barTab = el('button', 'tabE t'); barTab.type = 'button'; barTab.id = 'navTab'; barTab.style.left = '58px'; barTab.style.top = '12px';
+  // the top bar's tab state (UI-W1 '☰ + › Truss · 2D'): one edge tab on the stage's top edge (ART-K8, UI-W15 28 px) with ☰ first,
+  // so ☰ is always visible (UI-A5). ☰ moves into the tab only in that state; in the W and I states it stays first in #shellNav.
+  const barTabBox = el('div', 'tabE t'); barTabBox.id = 'navTabBox'; barTabBox.setAttribute('role', 'group'); barTabBox.setAttribute('aria-label', 'Top bar (folded)');
+  const barTab = el('button', 'tablab'); barTab.type = 'button'; barTab.id = 'navTab'; barTabBox.appendChild(barTab);
   const card = el('button', 'res s-pan'); card.type = 'button'; card.id = 'resCard'; card.setAttribute('aria-expanded', 'false'); card.title = 'Results: click for the full list';
   const dockMenu = $('dockMenu'); dockMenu.classList.add('drawer', 'sheet');
   document.querySelectorAll('.modalcard').forEach(c => c.classList.add('sheet'));
-  stage.append(nav, barTab, card, dockMenu);
+  stage.append(nav, barTabBox, card, dockMenu);
 
   const place = () => S.shell.place;
   const sw = (which, d) => `<span class="swb">${SWP[which + (d === '3d' || d === 'c3' ? '3' : '2')]}<button type="button" style="left:0" data-sw="${which}:2" aria-label="${which === 't' ? 'Truss' : 'Analysis'} in 2D" aria-pressed="${!(d === '3d' || d === 'c3')}" title="${which === 't' ? 'Truss' : 'Analysis'} in 2D"></button><button type="button" style="right:0" data-sw="${which}:3" aria-label="${which === 't' ? 'Truss' : 'Analysis'} in 3D" aria-pressed="${d === '3d' || d === 'c3'}" title="${which === 't' ? 'Truss' : 'Analysis'} in 3D"></button></span>`;
   function passCount() { try { let n = 0; for (const r of A.rows) if (r.passes) n++; return n; } catch (e) { return 0; } }
   function paintNav() {
     const P = place(), st = S.shell.bar, words = st === 'W', tOn = P === 'truss';
-    nav.hidden = st === 'T'; barTab.hidden = st !== 'T';
+    nav.hidden = st === 'T'; barTabBox.hidden = st !== 'T';
+    if (st === 'T') { if (menuBtn.parentNode !== barTabBox) barTabBox.prepend(menuBtn); }
+    else if (menuBtn.parentNode !== nav) nav.prepend(menuBtn);
     vpT.className = 'vp ' + (tOn ? 'on' : 'off'); vpA.className = 'vp ' + (tOn ? 'off' : 'on');
     vpT.innerHTML = (words ? `<button type="button" class="lab" data-go="truss" aria-pressed="${tOn}">Truss</button>` : '') + sw('t', S.anaMode);
     const n = passCount();
@@ -95,7 +102,8 @@ if (!SH_CLASSIC) {
   }
   card.addEventListener('click', () => { setState('results', S.shell.w[place()].results === 'W' ? 'T' : 'W'); });
   const H = A.hooks, keyCore = H.renderKey, sweepCore = H.renderSweep, fsCore = H.setFs;
-  H.renderKey = () => { keyCore(); paintCard(); };
+  let togReady = false;   // the drawing toggles (below) follow every render once they exist
+  H.renderKey = () => { keyCore(); paintCard(); if (togReady) paintToggles(); };
   H.renderSweep = () => { const r = sweepCore(); paintNav(); return r; };
 
   // ---------- windows: W (words and icons) → I (icons) → T (an edge tab) ----------
@@ -109,7 +117,15 @@ if (!SH_CLASSIC) {
   const VIEW_ICONS = { showDims: ['✎', 'Input labels'], resOnDraw: ['Σ', 'Results on the drawing'], showForces: ['F', 'Member forces'], d3ShowPlan: ['⊞', 'Plan view (3D)'], d3ShowSec: ['⊡', 'End view (3D)'],
     showGhosts: ['◌', 'Sweep ranges'], showIds: ['#', 'Node numbers'], showElems: ['№', 'Member numbers'], showDef: ['∿', 'Deformed shape'] };
   const wins = {}, tabs = {};
+  // windows built from the window piece (#356): the piece runs their three states, edge tab and peek (mountWindow below);
+  // the shell keeps each place's states (UI-A9) and their homes. The value is the arrow their tab shows (UI-W4 ▸ INPUTS, UI-W5 ◂ DRAWING).
+  const PIECE = { drawing: '◂ ', inputs: '▸ ' };
   Object.entries(WIN).forEach(([id, w]) => {
+    if (PIECE[id] != null) {
+      const st = S.shell.w[place()][id];
+      stage.insertAdjacentHTML('beforeend', PC.windowHTML({ id, title: w.title(), home: w.home, state: st }) + PC.edgeTabHTML({ id, title: w.title(), home: w.home, state: st }));
+      wins[id] = $('win-' + id); tabs[id] = stage.querySelector(`.tabE[data-tab="${id}"]`); return;
+    }
     const s = el('section', 's-pan'); s.dataset.win = id; s.dataset.home = w.home; s.setAttribute('aria-label', w.title()); s.id = 'win-' + id;
     s.innerHTML = `<div class="s-ph"><span class="grip" aria-hidden="true">⋮⋮</span><span class="wt"></span><span class="stp"><button type="button" class="s-ic sm" data-step="shrink"></button><button type="button" class="s-ic sm" data-step="grow"></button></span></div>`
       + (id === 'sweep' ? '<div class="s-sum"></div>' : '') + '<div class="s-bd"></div><div class="s-icons" role="toolbar"></div>';
@@ -117,21 +133,26 @@ if (!SH_CLASSIC) {
     if (w.home !== 'res') { const t = el('button', 'tabE ' + ({ left: 'l', right: 'r', bottom: 'b', top: 't' })[w.home]); t.type = 'button'; t.dataset.tab = id; stage.appendChild(t); tabs[id] = t; }
   });
   const order = ['T', 'I', 'W'];
-  function setState(id, v) { S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
+  // the Drawing window's states, tab and peek come from the piece; the shell keeps each place's state (UI-A9) and the layout
+  const pieceWin = {};
+  Object.keys(PIECE).forEach(id => { pieceWin[id] = PC.mountWindow(wins[id], tabs[id], { onState: st => { S.shell.w[place()][id] = st; save(); paintWins(); } }); });
+  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
   function step(id, dir) {
     const cur = S.shell.w[place()][id];
     if (id === 'results') { setState(id, dir > 0 ? 'W' : 'T'); return; }
     setState(id, order[Math.max(0, Math.min(2, order.indexOf(cur) + dir))]);
   }
   stage.addEventListener('click', ev => {
-    const b = ev.target.closest('[data-step]'); if (b) { const id = b.closest('.s-pan').dataset.win; step(id, b.dataset.step === 'grow' ? 1 : -1); return; }
-    const t = ev.target.closest('.tabE[data-tab]'); if (t) { setState(t.dataset.tab, 'W'); const f = wins[t.dataset.tab].querySelector('.s-bd button, .s-bd input, .s-bd select, .s-bd summary'); if (f) f.focus({ preventScroll: true }); return; }
+    const b = ev.target.closest('[data-step]'); if (b) { const id = b.closest('.s-pan').dataset.win; if (!pieceWin[id]) step(id, b.dataset.step === 'grow' ? 1 : -1); return; }
+    const t = ev.target.closest('.tabE[data-tab]'); if (t && pieceWin[t.dataset.tab]) return;
+    if (t) { setState(t.dataset.tab, 'W'); const f = wins[t.dataset.tab].querySelector('.s-bd button, .s-bd input, .s-bd select, .s-bd summary'); if (f) f.focus({ preventScroll: true }); return; }
     const i = ev.target.closest('.s-icons [data-ic]'); if (i) iconAct(i.closest('.s-pan').dataset.win, i.dataset.ic);
   });
   // hover a tab to peek at the window; it goes away when the pointer leaves both
   let peekT = null;
   const unpeek = id => { clearTimeout(peekT); peekT = setTimeout(() => { if (!wins[id].matches(':hover') && !(tabs[id] && tabs[id].matches(':hover'))) { wins[id].classList.remove('peek'); layout(); } }, 280); };
   Object.entries(tabs).forEach(([id, t]) => {
+    if (PIECE[id] != null) return;   // the window piece peeks for itself (UI-W9, UI-W17)
     t.addEventListener('mouseenter', () => { clearTimeout(peekT); peekT = setTimeout(() => { if (S.shell.w[place()][id] === 'T') { wins[id].classList.add('peek'); layout(); } }, 220); });
     t.addEventListener('mouseleave', () => unpeek(id));
     wins[id].addEventListener('mouseleave', () => { if (wins[id].classList.contains('peek')) unpeek(id); });
@@ -141,8 +162,8 @@ if (!SH_CLASSIC) {
   // icons for the I state
   function icons(id) {
     if (id === 'inputs') return [...R.pane.querySelectorAll(':scope > details.grp')].map((d, k) => { const h = d.querySelector('summary h3'); const t = h ? h.textContent.trim() : 'Section ' + (k + 1); const m = t.match(/^(\d+)/); return { ic: 'g' + k, g: m ? m[1] : t[0], label: t }; });
-    if (id === 'view' && place() === 'truss') return Object.entries(VIEW_ICONS).filter(([k]) => { const l = $(k) && $(k).closest('label'); return l && !l.hidden && l.style.display !== 'none'; }).map(([k, [g, label]]) => ({ ic: k, g, label, on: $(k).checked }));
-    if (id === 'view') return [...document.querySelectorAll('#trackTabs [role="tab"]')].map(b => ({ ic: 't:' + b.dataset.t, g: ({ trade: '⋰', hist: '☰', curve: '⌒' })[b.dataset.t] || '•', label: b.textContent.trim(), on: b.getAttribute('aria-selected') === 'true' }));
+    if (id === 'drawing' && place() === 'truss') return Object.entries(VIEW_ICONS).filter(([k]) => TOGGLES.includes(k)).map(([k, [g, label]]) => ({ ic: k, g, label, on: $(k).checked }));
+    if (id === 'view' && place() === 'analysis') return [...document.querySelectorAll('#trackTabs [role="tab"]')].map(b => ({ ic: 't:' + b.dataset.t, g: ({ trade: '⋰', hist: '☰', curve: '⌒' })[b.dataset.t] || '•', label: b.textContent.trim(), on: b.getAttribute('aria-selected') === 'true' }));
     if (id === 'sweep') return [{ ic: 'run', g: '▶', label: 'Run the sweep' }, { ic: 'grow', g: '⋯', label: 'Show the sweep' }];
     return [{ ic: 'grow', g: WIN[id].glyph, label: 'Show ' + WIN[id].title() }];
   }
@@ -154,10 +175,25 @@ if (!SH_CLASSIC) {
   function iconAct(id, ic) {
     if (ic === 'grow') { setState(id, 'W'); return; }
     if (id === 'inputs') { const d = R.pane.querySelectorAll(':scope > details.grp')[+ic.slice(1)]; setState('inputs', 'W'); if (d) { d.open = true; d.scrollIntoView({ block: 'start' }); const s = d.querySelector('summary'); if (s) s.focus({ preventScroll: true }); } return; }
-    if (id === 'view' && VIEW_ICONS[ic]) { const c = $(ic); c.checked = !c.checked; c.dispatchEvent(new Event('change', { bubbles: true })); c.dispatchEvent(new Event('input', { bubbles: true })); paintIcons(id); return; }
+    if (id === 'drawing' && VIEW_ICONS[ic]) { flip(ic, !$(ic).checked); paintIcons(id); return; }
     if (id === 'view' && ic.startsWith('t:')) { const b = document.querySelector(`#trackTabs [data-t="${ic.slice(2)}"]`); if (b) b.click(); return; }
     if (id === 'sweep' && ic === 'run') { const b = $('runSweep'); if (b) b.click(); }
   }
+
+  // ---------- the drawing toggles (UI-W5): toggle pieces that drive the app's own checkboxes ----------
+  // Each checkbox keeps its id and its 'change' listeners (30-drawing.js, 80-view3d.js), hidden inside its old label;
+  // the toggle piece in front of it is what people see and use. The Scale slider stays a plain input (TE-B-235).
+  const TOGGLES = Object.keys(VIEW_ICONS).filter(k => $(k) && R.drawopts.contains($(k)));
+  const togBox = el('div', 'te-drawtgl'); togBox.style.cssText = 'display:grid;gap:6px;margin-bottom:8px';
+  togBox.setAttribute('role', 'group'); togBox.setAttribute('aria-label', 'Show on the drawing');
+  togBox.innerHTML = TOGGLES.map(k => PC.toggleHTML({ label: VIEW_ICONS[k][1], checked: $(k).checked, id: 'tg-' + k })).join('');
+  R.drawopts.parentNode.insertBefore(togBox, R.drawopts);   // a page node, so fill() and restore() move it with the others
+  TOGGLES.forEach(k => { const lb = $(k).closest('label'); if (lb) lb.style.display = 'none'; });
+  function flip(k, v) { const c = $(k); c.checked = v; c.dispatchEvent(new Event('change', { bubbles: true })); c.dispatchEvent(new Event('input', { bubbles: true })); paintToggles(); }
+  TOGGLES.forEach(k => PC.mountToggle($('tg-' + k), { onChange: v => flip(k, v) }));
+  togReady = true;
+  // the app also sets some checkboxes itself (a loaded bridge, the 3D settings): the toggles follow
+  function paintToggles() { TOGGLES.forEach(k => { const t = $('tg-' + k), v = !!$(k).checked; if (t.getAttribute('aria-checked') !== String(v)) { t.setAttribute('aria-checked', String(v)); t.classList.toggle('on', v); } }); }
 
   // ---------- filling the windows from the v61 page ----------
   let moved = [];
@@ -166,8 +202,8 @@ if (!SH_CLASSIC) {
   function contents(id) {
     const T = place() === 'truss';
     if (id === 'inputs') return [R.pane];
-    if (id === 'view') return T ? [R.topSeg, R.drawopts] : [...$('fsBar').children];
-    if (id === 'drawing') return T ? [R.legend, R.memBd] : [...$('fsFoot').children];
+    if (id === 'view') return T ? [R.topSeg] : [...$('fsBar').children];
+    if (id === 'drawing') return T ? [togBox, R.drawopts, R.legend, R.memBd] : [...$('fsFoot').children];
     if (id === 'sweep') return [R.sweepBd];
     if (id === 'results') return [R.stats, R.msgs];
     return [];
@@ -184,15 +220,17 @@ if (!SH_CLASSIC) {
   function paintWins() {
     const P = place();
     Object.keys(WIN).forEach(id => {
-      const s = wins[id], st = S.shell.w[P][id], w = WIN[id], empty = s.dataset.empty === '1';
-      s.dataset.state = st; s.hidden = empty; s.setAttribute('aria-label', w.title());
+      const s = wins[id], st = S.shell.w[P][id], w = WIN[id];
+      if (id === 'view' && P === 'truss') s.dataset.empty = R.topSeg.hidden ? '1' : '';
+      const empty = s.dataset.empty === '1';
+      s.dataset.state = st; s.hidden = empty || (PIECE[id] != null && st === 'T' && !s.classList.contains('peek')); s.setAttribute('aria-label', w.title());
       s.querySelector('.wt').textContent = w.title();
       const right = w.home === 'right', [sh, gr] = [s.querySelector('[data-step="shrink"]'), s.querySelector('[data-step="grow"]')];
       sh.textContent = right ? '›' : '‹'; gr.textContent = right ? '‹' : '›';
       sh.setAttribute('aria-label', `${id === 'results' || st === 'I' ? 'Hide' : 'Shrink'} ${w.title()}${st === 'W' && id !== 'results' ? ' to icons' : ''}`); sh.title = sh.getAttribute('aria-label');
       gr.setAttribute('aria-label', `Grow ${w.title()} to words and icons`); gr.title = gr.getAttribute('aria-label');
       gr.hidden = st === 'W' || id === 'results';
-      if (tabs[id]) { tabs[id].hidden = empty || st !== 'T'; tabs[id].textContent = w.title(); tabs[id].setAttribute('aria-label', `Show ${w.title()}`); tabs[id].title = `Show ${w.title()} (hover to peek)`; }
+      if (tabs[id]) { tabs[id].hidden = empty || st !== 'T'; tabs[id].textContent = (PIECE[id] || '') + w.title(); tabs[id].setAttribute('aria-label', `Show ${w.title()}`); tabs[id].title = `Show ${w.title()} (hover to peek)`; }
       if (st === 'I') paintIcons(id);
     });
     card.setAttribute('aria-expanded', String(S.shell.w[P].results === 'W'));
@@ -206,7 +244,7 @@ if (!SH_CLASSIC) {
     const P = place(), st = S.shell.w[P], vw = innerWidth, vh = innerHeight;
     const shown = id => wins[id].dataset.empty !== '1' && (st[id] !== 'T' || wins[id].classList.contains('peek'));
     const eff = id => (st[id] === 'T' ? 'W' : st[id]);   // a peek shows the whole window
-    const navR = S.shell.bar === 'T' ? barTab.getBoundingClientRect() : nav.getBoundingClientRect();
+    const navR = S.shell.bar === 'T' ? barTabBox.getBoundingClientRect() : nav.getBoundingClientRect();
     const barB = Math.max(navR.bottom, 44);
     // results card: in the top row, right of the bar, centred when there is room
     const cw = card.offsetWidth || 360, cl = Math.max(navR.right + 12, Math.min((vw - cw) / 2, vw - cw - 46));
@@ -215,15 +253,19 @@ if (!SH_CLASSIC) {
     // drawing / chart key on the right edge
     const D = wins.drawing, dW = eff('drawing') === 'W' ? Math.min(WIN.drawing.w, vw - 2 * M) : 56;
     const top0 = Math.max(barB, cardB) + 8;
-    Object.assign(D.style, { right: M + 'px', left: 'auto', top: top0 + 'px', width: dW + 'px', maxHeight: (vh - top0 - M) + 'px', bottom: 'auto' });
+    // a peeking Drawing window is placed by the window piece, beside its tab (UI-W17); its home is put back when the peek ends
+    if (!D.classList.contains('peek')) Object.assign(D.style, { right: M + 'px', left: 'auto', top: top0 + 'px', width: dW + 'px', maxHeight: (vh - top0 - M) + 'px', bottom: 'auto' });
+    else Object.assign(D.style, { width: dW + 'px', maxHeight: (vh - top0 - M) + 'px' });
     const dShown = shown('drawing'), rightUsed = dShown ? dW + 2 * M : 0;
     // view options under the bar on the left
     const V = wins.view;
     Object.assign(V.style, { left: M + 'px', top: top0 + 'px', right: 'auto', width: eff('view') === 'W' ? 'auto' : 'auto', maxWidth: (vw - 2 * M - rightUsed) + 'px', bottom: 'auto' });
     const vB = shown('view') ? V.getBoundingClientRect().bottom + 8 : top0;
     // inputs on the left edge, under the view options
-    const I = wins.inputs, iW = eff('inputs') === 'W' ? Math.min(WIN.inputs.w, vw - 2 * M) : 56;
-    Object.assign(I.style, { left: M + 'px', top: vB + 'px', bottom: M + 'px', width: iW + 'px', right: 'auto', maxHeight: 'none' });
+    // UI-W15: up to 400 px and never over 40 % of the stage; the icons state is one 52 px column. A peek is placed by the piece (UI-W17).
+    const I = wins.inputs, iW = eff('inputs') === 'W' ? Math.floor(Math.min(WIN.inputs.w, vw - 2 * M, vw * 0.4)) : 52;
+    if (!I.classList.contains('peek')) Object.assign(I.style, { left: M + 'px', top: vB + 'px', bottom: M + 'px', width: iW + 'px', right: 'auto', maxHeight: 'none' });
+    else Object.assign(I.style, { width: iW + 'px' });
     const iShown = shown('inputs'), leftUsed = iShown ? iW + 2 * M : 0;
     // sweep at the bottom, beside the inputs
     const W = wins.sweep, sl = leftUsed || M, sW = eff('sweep') === 'W' ? Math.max(260, Math.min(WIN.sweep.w, vw - sl - M - rightUsed)) : 'auto';
@@ -273,13 +315,19 @@ if (!SH_CLASSIC) {
     $('themeSel').value = stage.dataset.theme;
     $('themeNote').textContent = 'Themes change the look only. The meaning colours on the drawing (C red, T blue, zero grey, fails, passes) never change.';
   }
-  function applyTheme(id) {
+  // ONE theme path (Architecture Lead, TE-B-251). opts.save === false is a preview: it changes the look exactly as a pick
+  // does, but leaves S.shell.theme, the saved state and #themeSel alone (the gallery, UI-G3 and UI-G4). layout() never saves.
+  function applyTheme(id, opts) {
+    const keep = !(opts && opts.save === false);
     let css = '';
     if (id !== 'wireframe' && id !== 'og') { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
-    themeStyle.textContent = css; stage.dataset.theme = id; S.shell.theme = id; save();
-    if ($('themeSel')) $('themeSel').value = id;
+    themeStyle.textContent = css; stage.dataset.theme = id;
+    if (keep) { S.shell.theme = id; save(); if ($('themeSel')) $('themeSel').value = id; }
     tagAll(); lastFree = ''; layoutSoon();
   }
+  // the shell's theme door for the gallery (CODE-F4): the built-in list, read-only, and a preview that saves nothing
+  const THEMES = Object.freeze(THEME_LIST.map(t => Object.freeze({ id: t.id, name: t.name })));
+  const previewTheme = id => applyTheme(id, { save: false });
   $('themeSel').addEventListener('change', ev => applyTheme(ev.target.value));
   $('swClassic').addEventListener('change', ev => { if (ev.target.checked) { S.layout = 'classic'; save(); location.reload(); } });
 
@@ -309,6 +357,6 @@ if (!SH_CLASSIC) {
   applyTheme(S.shell.theme); paintThemeSel();
   go(place(), true);
   setTimeout(() => { paintCard(); paintNav(); lastFree = ''; layout(); }, 60);
-  window.__shell = { go, setState, applyTheme, layout, get state() { return S.shell; } };
+  window.__shell = { go, setState, applyTheme, layout, themes: THEMES, previewTheme, get state() { return S.shell; } };
 }
 })();

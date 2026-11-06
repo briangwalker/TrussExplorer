@@ -57,7 +57,7 @@ $('rcGo').addEventListener('click', () => {
     if (r.passes) pass++;
   });
   Object.assign(c, { FS, bookKg: bk, defl, minOv: ov });
-  sweepRows = sweepAll.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30);
+  SweepState.changed({ top: sweepAll.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30) });   // rows edited in place: the version moves
   if ($('rcInputs').checked) {
     S.mat.FS = FS; S.opts.deflLimit = defl; S.opts.minOverlap = ov; const old = S.load.mBook1 + S.load.mBook2, f1 = old > 0 ? S.load.mBook1 / old : 0.6; S.load.mBook1 = +(bk * f1).toFixed(3); S.load.mBook2 = +(bk - S.load.mBook1).toFixed(3);
     update(); lastSig = sweepSig();

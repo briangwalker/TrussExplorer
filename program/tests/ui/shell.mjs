@@ -27,15 +27,18 @@ try {
   // ---------- Truss place ----------
   check('starts in Truss: the drawing fills the screen', await p.evaluate(() => __shell.state.place === 'truss' && document.getElementById('fsFill').contains(document.getElementById('drawWrap'))));
   check('the Inputs window holds the inputs', await p.evaluate(() => document.getElementById('win-inputs').contains(document.getElementById('inputsPane'))) && await visible(p, '#win-inputs'));
-  check('View options holds the drawing options', await p.evaluate(() => document.getElementById('win-view').contains(document.getElementById('showDims'))));
+  check('UI-W5: the Drawing window holds the drawing toggles and the legend', await p.evaluate(() => { const w = document.getElementById('win-drawing'); return w.contains(document.getElementById('showDims')) && w.contains(document.getElementById('tg-showDims')) && !!w.querySelector('.legend'); }));
+  check('UI-W3: View options in Truss 2D has none of its own tools, so it is not on screen', await p.evaluate(() => !document.getElementById('win-view').contains(document.getElementById('showDims'))) && !(await visible(p, '#win-view')));
   check('the results card shows the verdict', /PASSES|FAILS|UNSTABLE/.test(await p.textContent('#resCard')));
-  // UI-A3: the picture is the base layer. It covers the whole stage under the top bar, and the windows float over it.
-  const BAR = 56;
-  const stageBelowBar = () => p.evaluate(bar => { const r = document.getElementById('stage').getBoundingClientRect(); return { l: r.left, t: r.top + bar, r: r.right, b: r.bottom }; }, BAR);
+  // UI-A3, UI-A4, UI-W1: the picture is the base layer. It covers the WHOLE stage; every window, the top bar and the results card too, floats over it.
+  const wholeStage = () => p.evaluate(() => { const r = document.getElementById('stage').getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; });
+  const overlaps = (a, b) => !!a && !!b && a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
   const same = (a, b) => !!a && !!b && ['l', 't', 'r', 'b'].every(k => Math.abs(a[k] - b[k]) <= 1);
   const fill0 = await rect(p, '#fsFill');
-  { const s0 = await stageBelowBar(), i = await rect(p, '#win-inputs');
-    check('UI-A3: the drawing covers the whole stage under the top bar', same(fill0, s0), JSON.stringify({ fill: fill0, stage: s0 }));
+  { const s0 = await wholeStage(), i = await rect(p, '#win-inputs'), bar = await rect(p, '#shellNav'), cardR = await rect(p, '#resCard');
+    check('UI-A3: the drawing covers the whole stage', same(fill0, s0), JSON.stringify({ fill: fill0, stage: s0 }));
+    check('UI-A3, UI-W1: the top bar and the results card float over the drawing (#382)', overlaps(bar, fill0) && overlaps(cardR, fill0) && fill0.t <= bar.t, JSON.stringify({ bar, card: cardR, fillT: fill0.t }));
+    check('the 2D drawing\'s default fit starts below the top bar', await p.evaluate(() => { const d = document.getElementById('draw').getBoundingClientRect(), n = document.getElementById('shellNav').getBoundingClientRect(); return d.top >= n.bottom; }));
     check('UI-A3: the Inputs window floats over the drawing (not beside it)', fill0.l <= i.l && fill0.r >= i.r, JSON.stringify({ fillL: fill0.l, inputsL: i.l })); }
   const fillSame = async (what) => { await p.waitForTimeout(300); const f = await rect(p, '#fsFill'); check(`UI-A3: ${what} doesn't move or resize the drawing`, same(f, fill0), JSON.stringify(f)); };
   await p.screenshot({ path: path.join(SHOTS, 'shell-truss.png') });
@@ -57,19 +60,63 @@ try {
   check('moving away ends the peek', !(await visible(p, '#win-inputs')));
   await p.click('.tabE[data-tab="inputs"]'); await p.waitForTimeout(250);
   check('clicking the tab brings the window back', await st(p, 'inputs') === 'W' && await visible(p, '#win-inputs'));
+  // BPD-7: the Inputs window is the window piece (UI-W4, UI-A4, UI-W15)
+  { const w = await rect(p, '#win-inputs'), vw = await p.evaluate(() => innerWidth);
+    check('UI-W4: the Inputs window is the window piece, at home on the left edge, holding #inputsPane', await p.evaluate(() => { const w = document.getElementById('win-inputs'); return w.hasAttribute('data-pc') && w.dataset.part === 'window' && w.dataset.home === 'left' && w.getAttribute('role') === 'region' && w.contains(document.getElementById('inputsPane')); }) && w.l <= 14);
+    check('UI-W15: Inputs is at most 400 px and never over 40 % of the stage', w.w <= 400 + 0.5 && w.w <= vw * 0.4 + 0.5, JSON.stringify({ w: w.w, vw }));
+    check('UI-A4: one ‹ in the words state (› hidden)', await p.evaluate(() => { const w = document.getElementById('win-inputs'); return !w.querySelector('[data-step="grow"]').offsetParent && !!w.querySelector('[data-step="shrink"]').offsetParent; })); }
+  await p.click('#win-inputs [data-step="shrink"]'); await p.waitForTimeout(200);
+  check('UI-W15: the icons state is one 52 px column', Math.abs((await rect(p, '#win-inputs')).w - 52) <= 1, JSON.stringify(await rect(p, '#win-inputs')));
+  await p.click('#win-inputs [data-step="shrink"]'); await p.waitForTimeout(250);
+  { const t = await rect(p, '.tabE[data-tab="inputs"]');
+    check('UI-W4: the tab reads ▸ INPUTS, on the left edge', /▸\s*inputs/i.test(await p.textContent('.tabE[data-tab="inputs"]')) && t.l <= 1, JSON.stringify(t)); }
+  await fillSame('closing the Inputs window (to its tab)');
+  await p.click('.tabE[data-tab="inputs"]'); await p.waitForTimeout(250);
   await fillSame('opening a window (Inputs from its tab)');
-  { const i0 = await rect(p, '#win-inputs');
-    await p.click('#win-view [data-step="shrink"]'); await p.waitForTimeout(250);
-    const i1 = await rect(p, '#win-inputs');
-    await fillSame(`moving a window (View options to icons moves Inputs ${Math.round(i1.t - i0.t)} px)`); }
   await p.evaluate(() => { const w = document.getElementById('win-drawing'); w.style.right = '200px'; w.style.top = '300px'; });
   await fillSame('moving a window by hand (Drawing)');
   await p.evaluate(() => __shell.layout());
-  const vIcons = await p.locator('#win-view .s-icons [data-ic]').count();
-  check('View options as icons: one toggle per drawing option', vIcons >= 6, vIcons);
-  const was = await p.isChecked('#showIds'); await p.click('#win-view .s-icons [data-ic="showIds"]'); await p.waitForTimeout(200);
-  check('an icon toggle flips its option', (await p.isChecked('#showIds')) === !was && (await p.getAttribute('#win-view .s-icons [data-ic="showIds"]', 'aria-pressed')) === String(!was));
-  await p.click('#win-view .s-icons [data-ic="showIds"]'); await p.click('#win-view [data-step="grow"]');
+
+  // ---------- the Drawing window: built from the window piece (UI-W5, UI-A4, UI-W8, UI-W9, UI-D6, UI-A3; BPD-3) ----------
+  const TG = ['showDims', 'resOnDraw', 'showForces', 'd3ShowPlan', 'd3ShowSec', 'showGhosts', 'showIds', 'showElems', 'showDef'];
+  check('the Drawing window is the window piece, at home on the right edge', await p.evaluate(() => { const w = document.getElementById('win-drawing'); return w.hasAttribute('data-pc') && w.dataset.part === 'window' && w.dataset.home === 'right' && w.getAttribute('role') === 'region'; }));
+  check('it starts as icons in Truss, one per drawing toggle', await st(p, 'drawing') === 'I' && (await p.locator('#win-drawing .s-icons [data-ic]').count()) === TG.length);
+  { const was = await p.isChecked('#showIds'); await p.click('#win-drawing .s-icons [data-ic="showIds"]'); await p.waitForTimeout(200);
+    check('an icon flips its toggle, and the toggle piece follows', (await p.isChecked('#showIds')) === !was && (await p.getAttribute('#win-drawing .s-icons [data-ic="showIds"]', 'aria-pressed')) === String(!was) && (await p.getAttribute('#tg-showIds', 'aria-checked')) === String(!was));
+    await p.click('#win-drawing .s-icons [data-ic="showIds"]'); await p.waitForTimeout(150); }
+  await p.click('#win-drawing [data-step="grow"]'); await p.waitForTimeout(300);
+  { const d = await rect(p, '#win-drawing'), vw = await p.evaluate(() => innerWidth);
+    check('UI-W5: › grows it to words, at the right edge', await st(p, 'drawing') === 'W' && await visible(p, '#tg-showDims') && d.r >= vw - 14 && d.l > vw / 2, JSON.stringify(d)); }
+  await fillSame('opening the Drawing window');
+  check('every drawing option is a toggle piece with its words (the checkbox keeps its id)', await p.evaluate(TG => TG.every(k => { const t = document.getElementById('tg-' + k), c = document.getElementById(k); return t && t.getAttribute('role') === 'switch' && t.hasAttribute('data-pc') && c && c.type === 'checkbox' && t.getAttribute('aria-checked') === String(c.checked) && t.closest('label').textContent.trim().length > 3; }), TG));
+  // every toggle still switches its layer: the checkbox, the app's setting and (in 2D) the drawing all follow
+  const STATE = { showDims: 'S.showDims', resOnDraw: 'S.resOnDraw', showForces: 'S.showForces', d3ShowPlan: 'S.d3.showPlan', d3ShowSec: 'S.d3.showSec', showGhosts: 'S.showGhosts', showIds: 'S.showIds', showElems: 'S.showElems', showDef: 'S.showDef' };
+  const ONLY3D = ['d3ShowPlan', 'd3ShowSec'];
+  for (const k of TG) {
+    const read = () => p.evaluate(([k, path]) => { const S = __dbg.S, v = path.split('.').slice(1).reduce((o, x) => o && o[x], S); return { cb: document.getElementById(k).checked, s: v !== false && v != null && v !== 0 ? !!v : false, draw: document.getElementById('draw').innerHTML.length + ':' + document.getElementById('draw').querySelectorAll('*').length + ':' + (document.getElementById('resOv') ? document.getElementById('resOv').hidden : '-') }; }, [k, STATE[k]]);   // resOnDraw's layer is the #resOv overlay
+    const a = await read(); await p.click('#tg-' + k); await p.waitForTimeout(250); const b = await read();
+    const ok = b.cb === !a.cb && b.s === b.cb && (ONLY3D.includes(k) || a.draw !== b.draw);
+    check(`toggle ${k}: switches its layer`, ok, JSON.stringify({ a, b }));
+    await p.click('#tg-' + k); await p.waitForTimeout(200);
+  }
+  check('UI-D6: no two toggle labels overlap', await p.evaluate(() => { const r = [...document.querySelectorAll('#win-drawing .te-togrow')].map(e => e.getBoundingClientRect()).filter(x => x.width); return r.every((a, i) => r.every((b, j) => i >= j || a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)); }));
+  // UI-W8: windows aren't pop-ups, so a click on the picture leaves the Drawing window open
+  await p.mouse.click(700, 700); await p.waitForTimeout(250);
+  check('UI-W8: a click on the picture leaves the Drawing window open', await st(p, 'drawing') === 'W' && await visible(p, '#win-drawing'));
+  await p.click('#win-drawing [data-step="shrink"]'); await p.waitForTimeout(200);
+  await fillSame('resizing the Drawing window (to icons)');
+  await p.click('#win-drawing [data-step="shrink"]'); await p.waitForTimeout(300);
+  check('UI-W5: › again leaves the tab ◂ DRAWING on the right edge', await st(p, 'drawing') === 'T' && !(await visible(p, '#win-drawing')) && await visible(p, '.tabE[data-tab="drawing"]') && /◂\s*drawing/i.test(await p.textContent('.tabE[data-tab="drawing"]')));
+  await fillSame('closing the Drawing window (to its tab)');
+  await p.hover('.tabE[data-tab="drawing"]'); await p.waitForTimeout(600);
+  { const w = await rect(p, '#win-drawing'), t = await rect(p, '.tabE[data-tab="drawing"]');
+    check('UI-W9, UI-W17: hovering the tab peeks beside it', await p.evaluate(() => document.getElementById('win-drawing').classList.contains('peek')) && await visible(p, '#win-drawing') && w.r <= t.l - 6, JSON.stringify({ w, t })); }
+  await fillSame('a peek (a window moved beside its tab)');
+  await p.mouse.move(700, 700); await p.waitForTimeout(800);
+  check('moving away ends the peek', !(await visible(p, '#win-drawing')));
+  await p.click('.tabE[data-tab="drawing"]'); await p.waitForTimeout(300);
+  check('clicking the tab brings it back in words', await st(p, 'drawing') === 'W' && await visible(p, '#win-drawing'));
+  await p.click('#win-drawing [data-step="shrink"]'); await p.waitForTimeout(200);
   // results
   await p.click('#resCard'); await p.waitForTimeout(250);
   check('the results card opens the full results', await visible(p, '#win-results') && await p.evaluate(() => document.getElementById('win-results').contains(document.getElementById('stats'))));
@@ -81,10 +128,15 @@ try {
 
   // ---------- 2D | 3D, Analysis, back ----------
   await p.click('#shellNav [data-sw="t:3"]'); await p.waitForTimeout(1200);
+  { const v = await rect(p, '#win-view'), i = await rect(p, '#win-inputs');
+    const both = await visible(p, '#win-view') && await visible(p, '#win-inputs');
+    check('UI-W16: on the left edge, Inputs stacks under View options with an 8 px gap, never overlapping it', both && Math.abs(i.t - v.b - 8) <= 1 && i.t >= v.b, JSON.stringify({ viewB: v && v.b, inputsT: i && i.t, both })); }
   check('Truss 3D: the analysis model is 3D and the 3D bridge fills the screen', await p.evaluate(() => __dbg.S.anaMode === '3d' && document.getElementById('fsFill').contains(document.getElementById('c3d'))));
   await p.click('#shellNav [data-sw="t:2"]'); await p.waitForTimeout(800);
   check('Truss 2D: back to the side view', await p.evaluate(() => __dbg.S.anaMode === '2d' && document.getElementById('fsFill').contains(document.getElementById('drawWrap'))));
   await p.click('#shellNav [data-go="analysis"]'); await p.waitForTimeout(700);
+  { const f = await rect(p, '#fsFill'), s0 = await wholeStage(), c = await rect(p, '#tradeCanvas'), bar = await rect(p, '#shellNav');
+    check('UI-A3: in Analysis the chart covers the whole stage and draws behind the top bar too', same(f, s0) && !!c && c.t <= bar.t && overlaps(bar, c), JSON.stringify({ fill: f, canvas: c })); }
   check('Analysis: the chart fills the screen and its controls are in View options', await p.evaluate(() => __shell.state.place === 'analysis' && document.getElementById('fsFill').contains(document.getElementById('tradeCanvas')) && document.getElementById('win-view').contains(document.getElementById('trackTabs'))));
   check('Inputs start as a tab in Analysis (each place keeps its own layout)', await st(p, 'inputs') === 'T');
   check('Analysis shows how many designs pass', /\d/.test(await p.textContent('#shellNav .vp.on .badge').catch(() => '')));
@@ -99,7 +151,17 @@ try {
   check('top bar ‹: icons only (no words)', await p.locator('#shellNav .lab').count() === 0 && await visible(p, '#shellNav .swb'));
   await p.click('#navFold'); await p.waitForTimeout(150);
   check('‹ again: a tab', !(await visible(p, '#shellNav')) && await visible(p, '#navTab'));
-  await p.click('#navTab'); await p.click('#navGrow'); await p.waitForTimeout(150);
+  // BPD-6 (UI-A5, UI-W1, UI-W15, ART-K8): ☰ stays visible in the tab, and the tab sits on the stage's top edge, 28 px thick
+  { const box = await rect(p, '#navTabBox'), stg = await rect(p, '#stage');
+    check('UI-A5, UI-W1: in the tab state ☰ is visible, first in the tab, still called Menu', await visible(p, '#dockBtn') && await p.evaluate(() => { const b = document.getElementById('dockBtn'), t = document.getElementById('navTabBox'); return t.firstElementChild === b && b.getAttribute('aria-label') === 'Menu' && /›\s*Truss · 2D/.test(document.getElementById('navTab').textContent); }));
+    check('UI-W15, ART-K8: the tab touches the stage\'s top edge and is 28 px thick', !!box && Math.abs(box.t - stg.t) <= 1 && Math.abs(box.h - 28) <= 1, JSON.stringify(box)); }
+  await p.click('#dockBtn'); await p.waitForTimeout(200);
+  check('☰ in the tab still opens the menu', await visible(p, '#dockMenu'));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+  if (await visible(p, '#dockMenu')) { await p.click('#dockBtn'); await p.waitForTimeout(150); }
+  await p.click('#navTab'); await p.waitForTimeout(150);
+  check('› brings the bar back in the icons state, with ☰ first in it again', await visible(p, '#shellNav') && await p.locator('#shellNav .lab').count() === 0 && !(await visible(p, '#navTabBox')) && await p.evaluate(() => document.getElementById('shellNav').firstElementChild === document.getElementById('dockBtn')));
+  await p.click('#navGrow'); await p.waitForTimeout(150);
   check('and back to words and icons', await p.locator('#shellNav .lab').count() >= 2);
 
   // ---------- themes ----------
@@ -117,9 +179,27 @@ try {
     await p.screenshot({ path: path.join(SHOTS, `shell-theme-${t}.png`) });
   }
   check('meaning colours never change with the theme', true, m0);
+  // BPD-4 (UI-G3, UI-G4, CODE-F4; TE-B-251): the shell's theme door previews a theme without saving anything
+  await p.selectOption('#themeSel', 'blueprint'); await p.waitForTimeout(300);   // a saved pick to keep
+  { const ls = () => p.evaluate(() => JSON.stringify(localStorage));
+    const door = await p.evaluate(() => { const t = __shell.themes; return { ids: t.map(x => x.id), frozen: Object.isFrozen(t) && t.every(x => Object.isFrozen(x) && Object.keys(x).join() === 'id,name'), fn: typeof __shell.previewTheme }; });
+    const sel = await p.$$eval('#themeSel option', o => o.map(x => x.value));
+    check('__shell.themes: the built-in list (OG too), frozen, ids and names only', door.frozen && door.fn === 'function' && door.ids.join() === sel.join() && door.ids.includes('og'), JSON.stringify(door));
+    const before = await ls(), seen = [];
+    for (const id of door.ids) { await p.evaluate(id => __shell.previewTheme(id), id); await p.waitForTimeout(250); seen.push(await p.evaluate(() => document.getElementById('stage').dataset.theme)); }
+    await p.evaluate(() => __shell.previewTheme('no-such-theme')); await p.waitForTimeout(250); seen.push(await p.evaluate(() => document.getElementById('stage').dataset.theme));
+    await p.waitForTimeout(500);   // layout and the redraw after it have run
+    const after = await ls(), still = await p.evaluate(() => ({ sel: document.getElementById('themeSel').value, saved: __shell.state.theme }));
+    check('previewTheme: the look follows every theme, an unknown id falls back to Wireframe', seen.join() === door.ids.concat('wireframe').join(), seen.join());
+    check('UI-G4: a preview saves nothing (localStorage byte-identical), and leaves #themeSel and the saved theme alone', before === after && still.sel === 'blueprint' && still.saved === 'blueprint', JSON.stringify({ same: before === after, still }));
+    await p.selectOption('#themeSel', 'notebook-calc'); await p.waitForTimeout(300);
+    check('a real pick in #themeSel still saves', await p.evaluate(() => JSON.parse(localStorage.getItem('se310-truss-v5')).shell.theme === 'notebook-calc' && document.getElementById('stage').dataset.theme === 'notebook-calc')); }
+  await p.selectOption('#themeSel', 'wireframe'); await p.waitForTimeout(200);
   // ART-K6 (Wireframe strong is brown #7a4f1c) and ART-S5 (focus: 3 px accent outline, 3 px offset)
   await p.selectOption('#themeSel', 'wireframe'); await p.waitForTimeout(200);
   { const strong = await p.evaluate(() => getComputedStyle(document.getElementById('stage')).getPropertyValue('--te-strong').trim().toLowerCase());
+    const ctlLine = await p.evaluate(() => getComputedStyle(document.getElementById('stage')).getPropertyValue('--te-ctl-line').trim().toLowerCase());
+    check('ART-K7: Wireframe ctl-line is #7f8893 (#383)', ctlLine === '#7f8893', ctlLine);
     await p.focus('#dockBtn'); await p.keyboard.press('Shift+Tab'); await p.keyboard.press('Tab');
     const ring = await p.evaluate(() => { const e = document.activeElement, s = getComputedStyle(e); return { on: e.matches(':focus-visible'), w: s.outlineWidth, off: s.outlineOffset }; });
     check('ART-K6, ART-S5: Wireframe strong is #7a4f1c and a focused button has a 3 px outline 3 px out', strong === '#7a4f1c' && ring.on && ring.w === '3px' && ring.off === '3px', JSON.stringify({ strong, ring })); }
