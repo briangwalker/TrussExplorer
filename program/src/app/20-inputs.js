@@ -188,7 +188,7 @@ function update() {
   res2d = C.analyze(tr, S.mat, S.load, anaOpts());
   res = S.anaMode === '3d' ? apply3D(tr, res2d, S.load, d3opts(null)) : res2d;
   clearTimeout(update.bk); update.bk = setTimeout(() => { try { if (res && res.stable) backupBridge('after your changes'); } catch (e) {} }, 15000);
-  paintInputs(); if (typeof sizeName === 'function') sizeName(); renderDiagChips(); renderVertChips(); renderDrawing(); renderStats(); renderTable(); renderExport(); updateSweepCount(); renderHistory(); render3D();
+  paintInputs(); if (typeof sizeName === 'function') sizeName(); renderDiagChips(); renderVertChips(); renderDrawing(); renderStats(); renderTable(); renderExport(); updateSweepCount(); renderHistory(); render3D(); if (S.tab === 'mem') renderMembers();
   save();
 }
 let res2d = null;
