@@ -217,7 +217,7 @@ function drawTrade() {
     if (classic) { ys.push(need); sv.forEach(s => s.trade.forEach(q => { xs.push(q.wood); ys.push(q.capKg); })); }
     if (cur && Number.isFinite(fx(cur)) && Number.isFinite(fy(cur))) { xs.push(fx(cur)); ys.push(fy(cur)); }
     const pad = (lo, hi, z) => { const d = (hi - lo) || Math.abs(hi) || 1; return [z && lo >= 0 ? 0 : lo - 0.04 * d, hi + 0.05 * d]; };
-    xr = pad(Math.min(...xs), Math.max(...xs), false); yr = pad(Math.min(...ys), Math.max(...ys), S.axY === 'capKg');
+    xr = pad(minOf(xs), maxOf(xs), false); yr = pad(minOf(ys), maxOf(ys), S.axY === 'capKg');
   }
   const { ctx, w, h } = setupCanvas(cv); ctx.clearRect(0, 0, w, h);
   const A = axes(ctx, w, h, xr, yr, xl, yl);
@@ -354,8 +354,8 @@ function refineAround(r) {
   const near = SweepState.rows().filter(q => q.refined || q === r).map(q => [fx(q), fy(q)]).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
   if (near.length > 1) {
     const xs = near.map(q => q[0]), ys = near.map(q => q[1]);
-    const dx = (Math.max(...xs) - Math.min(...xs)) || 1, dy = (Math.max(...ys) - Math.min(...ys)) || 1;
-    tradeView = { x: [Math.min(...xs) - 0.3 * dx, Math.max(...xs) + 0.3 * dx], y: [Math.min(...ys) - 0.3 * dy, Math.max(...ys) + 0.3 * dy] };
+    const dx = (maxOf(xs) - minOf(xs)) || 1, dy = (maxOf(ys) - minOf(ys)) || 1;
+    tradeView = { x: [minOf(xs) - 0.3 * dx, maxOf(xs) + 0.3 * dx], y: [minOf(ys) - 0.3 * dy, maxOf(ys) + 0.3 * dy] };
   }
   $('refMsg').textContent = `Added ${added} designs within ±${(half * step).toFixed(2)} mm (${vars.map(v => v[0]).join(', ')}) in ${step} mm steps. Blue diamonds pass. Click one to load it.`;
   drawTrackers();
@@ -448,7 +448,7 @@ function draw3() {
   const rows = SweepState.rows().filter(r => (S.c3.fails || r.passes) && [fx(r), fy(r), fz(r)].every(Number.isFinite));
   const { ctx, w, h } = setupCanvas(cv); ctx.clearRect(0, 0, w, h);
   if (!rows.length) { ctx.fillStyle = cssv('--muted'); ctx.textAlign = 'center'; ctx.font = '13px Barlow, sans-serif'; ctx.fillText('No designs to show (tick "Show failing designs"?)', w / 2, h / 2); c3v.pts = null; return; }
-  const rng = f => { const v = rows.map(f); let lo = Math.min(...v), hi = Math.max(...v); if (hi - lo < 1e-9) { lo -= 1; hi += 1; } return [lo, hi]; };
+  const rng = f => { const v = rows.map(f); let lo = minOf(v), hi = maxOf(v); if (hi - lo < 1e-9) { lo -= 1; hi += 1; } return [lo, hi]; };
   const R = [rng(fx), rng(fy), rng(fz)];
   const norm = (v, [lo, hi]) => (v - lo) / (hi - lo) * 2 - 1;
   const cy = Math.cos(c3v.yaw), sy = Math.sin(c3v.yaw), cp = Math.cos(c3v.pitch), sp = Math.sin(c3v.pitch);
