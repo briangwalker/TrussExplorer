@@ -698,7 +698,9 @@ function setSticks(k, fn) {
 }
 $('resetSticks').addEventListener('click', () => { S.sticks = {}; update(); });
 // a CSV cell that a spreadsheet would read as a formula (= + - @ ...) is kept as text; plain numbers stay numbers
-function csvSafe(v) { if (typeof v !== 'string') return v; const t = v.replace(/[\u0000-\u001F\u007F]+/g, ' '); return /^[=+\-@]/.test(t) && !/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t) ? "'" + t : t; }
+// a cell a spreadsheet would read as a formula gets a leading ' (CSV injection); leading spaces and tabs are looked past,
+// since some spreadsheets trim them first (Black Hat, UI Engineer, TE-B-346/359). Plain signed numbers stay numbers.
+function csvSafe(v) { if (typeof v !== 'string') return v; const t = v.replace(/[\u0000-\u001F\u007F]+/g, ' '), u = t.replace(/^\s+/, ''); return /^[=+\-@]/.test(u) && !/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(u) ? "'" + t : t; }
 function csvOf(rows) { return rows.map(r => r.map(v => { v = csvSafe(v); return /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v; }).join(',')).join('\n'); }
 function csvText() { return infoLines().map(l => '# ' + l).join('\n') + '\n' + csvOf(rowsForCsv()); }
 
