@@ -63,13 +63,10 @@ const typedName = () => !!S.name && S.name !== S.autoName && !TrussNames.looksGe
   </div>`;
   document.body.appendChild(md);
   let opener = null;
-  // one report per press: a double or triple click inside 1.5 s doesn't save a second file or open a second form (#424);
-  // opening the dialog again starts fresh
-  let goAt = 0;
   function open() {
     opener = document.activeElement; if (typeof closeDock === 'function') closeDock();
     $('bugNamesRow').hidden = !typedName(); $('bugNames').checked = true;
-    fill(); goAt = 0; md.hidden = false; $('bugGo').focus();
+    fill(); md.hidden = false; $('bugGo').focus();
   }
   function fill() {
     const f = bugFacts(); $('bugRel').textContent = f.release; $('bugModel').textContent = f.model; $('bugCode').textContent = f.code;
@@ -90,8 +87,7 @@ const typedName = () => !!S.name && S.name !== S.autoName && !TrussNames.looksGe
     }
   });
   // the link opens the form itself (a plain link in a new tab, never fetched by the page); the click also saves the file
-  $('bugGo').addEventListener('click', ev => {
-    const now = Date.now(); if (now - goAt < 1500) { ev.preventDefault(); return; } goAt = now;
+  $('bugGo').addEventListener('click', () => {
     const f = bugFacts(), b = f.bridge;
     const doc = Object.assign({ format: 'se310-truss-bridge', version: FILE_VER }, fileInfo(), { bridgeCode: f.code, name: b.name || 'Design', summary: bridgeSummary(), bridge: b });
     const fn = 'TE-bug-' + f.code + TrussFormats.KINDS.bridge.ext;
