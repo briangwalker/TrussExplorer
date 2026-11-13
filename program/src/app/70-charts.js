@@ -431,6 +431,15 @@ const c3v = { yaw: -0.7, pitch: 0.45, zoom: 1, px: 0, py: 0, pts: null, drag: nu
 $('c3Fails').checked = !!S.c3.fails;
 $('c3Fails').addEventListener('change', () => { S.c3.fails = $('c3Fails').checked; save(); draw3(); });
 $('c3Reset').addEventListener('click', () => { c3v.yaw = -0.7; c3v.pitch = 0.45; c3v.zoom = 1; c3v.px = 0; c3v.py = 0; draw3(); });
+// the scale that fits the box with its labels (x, y to 1.25, z to 1.12: the axis names sit just outside) into a W x H area, seen from the home view
+function c3fit(W, H) {
+  const cy = Math.cos(-0.7), sy = Math.sin(-0.7), cp = Math.cos(0.45), sp = Math.sin(0.45);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  [-1.25, 1.25].forEach(X => [-1.25, 1.25].forEach(Y => [-1.12, 1.12].forEach(Z => {
+    const xr = X * cy - Y * sy, yr = X * sy + Y * cy, u = xr, v = yr * sp + Z * cp;
+    x0 = Math.min(x0, u); x1 = Math.max(x1, u); y0 = Math.min(y0, v); y1 = Math.max(y1, v); })));
+  return Math.max(10, Math.min(W / (x1 - x0), H / (y1 - y0)));
+}
 function draw3() {
   const cv = $('c3Canvas');
   if (!SweepState.rows().length) { emptyCanvas(cv, 'Run a sweep to fill this chart.'); c3v.pts = null; $('c3Legend').innerHTML = ''; return; }
@@ -445,9 +454,13 @@ function draw3() {
   const cy = Math.cos(c3v.yaw), sy = Math.sin(c3v.yaw), cp = Math.cos(c3v.pitch), sp = Math.sin(c3v.pitch);
   // world: x right, y into the page, z up. Rotate about z (yaw), then tilt (pitch). The box (with room for its labels) is fitted to the canvas.
   const rot = (X, Y, Z) => { const x1 = X * cy - Y * sy, y1 = X * sy + Y * cy; return [x1, y1 * sp + Z * cp, y1 * cp - Z * sp]; };
-  const Rb = Math.hypot(1.35, 1.35, 1.2);   // the box and its labels fit inside this sphere whichever way it is turned
-  const sc = Math.min(w - 20, h - 30) / (2 * Rb) * c3v.zoom;
-  const ox = w / 2 + c3v.px, oy = h / 2 + c3v.py;
+  // #409 (TE-B-313): the default view fills the free part of the picture. The box and its labels, seen from the home
+  // view, are fitted to the canvas less the top bar and the bottom tabs when the chart is the full-screen picture
+  // (UI-A3); turning it may push a corner off the edge, and Reset view brings the fit back. It refits on every draw,
+  // so a resize or new results refit too (UI-C7).
+  const fs = !!cv.closest('#fsFill'), mT = fs ? 66 : 10, mB = fs ? 40 : 20, mX = fs ? 24 : 10;
+  const sc = c3fit(w - 2 * mX, h - mT - mB) * c3v.zoom;
+  const ox = w / 2 + c3v.px, oy = mT + (h - mT - mB) / 2 + c3v.py;
   const proj = (X, Y, Z) => { const q = rot(X, Y, Z); return [ox + sc * q[0], oy - sc * q[1], q[2]]; };
   // box and axes
   ctx.strokeStyle = cssv('--line'); ctx.lineWidth = 1;
