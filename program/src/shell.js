@@ -11,11 +11,37 @@ if (!SH_CLASSIC) {
   // ---------- built-in themes (build.py fills THEME_PACK from themes/index.json) ----------
   const THEME_PACK = /*THEMES*/{ files: {}, list: [] };
   const THEME_LIST = [{ id: 'wireframe', name: 'Wireframe' }, { id: 'og', name: 'OG (v61)' }].concat(THEME_PACK.list.filter(t => t.css && THEME_PACK.files[t.css]));
-  const PLACES = ['truss', 'analysis'], STATES = ['W', 'I', 'T'];
-  const DEF = { place: 'truss', bar: 'W', hist: [], theme: 'wireframe',
-    w: { truss: { inputs: 'W', view: 'W', drawing: 'I', sweep: 'T', results: 'T' }, analysis: { inputs: 'T', view: 'W', drawing: 'W', sweep: 'T', results: 'T' } } };
+  // ---------- THE TABLE (TE-B-364): what this tool puts in the shell, as data ----------
+  // Places, windows, their default states, the icons and the edge-tab arrows. A new window, icon or tab icon is a row
+  // here, not a new literal further down (the code below only reads it). Later this is the tool's half of the
+  // shell / tool seam (TE-B-358): a second tool would hand the shell its own table.
+  const TABLE = {
+    places: ['truss', 'analysis'],
+    // id: where it lives, its title (a function, since Drawing is 'Chart key' in Analysis), its glyph, its width in W
+    windows: {
+      inputs: { home: 'left', title: () => 'Inputs', glyph: '✎', w: 400 },
+      view: { home: 'top', title: () => 'View options', glyph: '◐' },
+      drawing: { home: 'right', title: () => place() === 'truss' ? 'Drawing' : 'Chart key', glyph: '▤', w: 340 },
+      sweep: { home: 'bottom', title: () => 'Sweep', glyph: '▶', w: 640 },
+      results: { home: 'res', title: () => 'Results', glyph: 'Σ', w: 540 },
+    },
+    // each place's window states (W words, I icons, T edge tab); a phone (under 700 px) starts with the picture
+    states: { truss: { inputs: 'W', view: 'W', drawing: 'I', sweep: 'T', results: 'T' }, analysis: { inputs: 'T', view: 'W', drawing: 'W', sweep: 'T', results: 'T' } },
+    phoneStates: { truss: { inputs: 'T', view: 'I', drawing: 'T', sweep: 'T', results: 'T' }, analysis: { inputs: 'T', view: 'I', drawing: 'T', sweep: 'T', results: 'T' } },
+    // windows built from the window piece (#356), with the arrow their edge tab shows (UI-W4 ▸ INPUTS, UI-W5 ◂ DRAWING)
+    pieceArrows: { drawing: '◂ ', inputs: '▸ ' },
+    // the Drawing window's toggles: checkbox id -> [icon, label] (UI-W5); onlyIn3d are hidden in 2D (UI-A8)
+    viewIcons: { showDims: ['✎', 'Input labels'], resOnDraw: ['Σ', 'Results on the drawing'], showForces: ['F', 'Member forces'], d3ShowPlan: ['⊞', 'Plan view (3D)'], d3ShowSec: ['⊡', 'End view (3D)'],
+      showGhosts: ['◌', 'Sweep ranges'], showIds: ['#', 'Node numbers'], showElems: ['№', 'Member numbers'], showDef: ['∿', 'Deformed shape'] },
+    onlyIn3d: ['d3ShowPlan', 'd3ShowSec'],
+    // Analysis tabs (#trackTabs data-t) -> icon in View options' I state
+    tabIcons: { trade: '⋰', hist: '☰', curve: '⌒', mem: '▤' },
+    sweepIcons: [{ ic: 'run', g: '▶', label: 'Run the sweep' }, { ic: 'grow', g: '⋯', label: 'Show the sweep' }],
+  };
+  const PLACES = TABLE.places, STATES = ['W', 'I', 'T'];
+  const DEF = { place: PLACES[0], bar: 'W', hist: [], theme: 'wireframe', w: TABLE.states };
   const sh0 = S.shell && typeof S.shell === 'object' ? S.shell : {};
-  if (!sh0.w && innerWidth < 700) { DEF.w.truss = { inputs: 'T', view: 'I', drawing: 'T', sweep: 'T', results: 'T' }; DEF.w.analysis = { inputs: 'T', view: 'I', drawing: 'T', sweep: 'T', results: 'T' }; DEF.bar = 'I'; }   // a phone starts with the picture
+  if (!sh0.w && innerWidth < 700) { DEF.w = TABLE.phoneStates; DEF.bar = 'I'; }   // a phone starts with the picture
   S.shell = { place: PLACES.includes(sh0.place) ? sh0.place : DEF.place, bar: STATES.includes(sh0.bar) ? sh0.bar : DEF.bar,
     hist: Array.isArray(sh0.hist) ? sh0.hist.filter(p => PLACES.includes(p)).slice(-20) : [], theme: typeof sh0.theme === 'string' ? sh0.theme : DEF.theme, w: {} };
   PLACES.forEach(p => { S.shell.w[p] = {}; Object.keys(DEF.w[p]).forEach(k => { const v = sh0.w && sh0.w[p] && sh0.w[p][k]; S.shell.w[p][k] = STATES.includes(v) ? v : DEF.w[p][k]; }); });
@@ -107,19 +133,11 @@ if (!SH_CLASSIC) {
   H.renderSweep = () => { const r = sweepCore(); paintNav(); return r; };
 
   // ---------- windows: W (words and icons) → I (icons) → T (an edge tab) ----------
-  const WIN = {
-    inputs: { home: 'left', title: () => 'Inputs', glyph: '✎', w: 400 },
-    view: { home: 'top', title: () => 'View options', glyph: '◐' },
-    drawing: { home: 'right', title: () => place() === 'truss' ? 'Drawing' : 'Chart key', glyph: '▤', w: 340 },
-    sweep: { home: 'bottom', title: () => 'Sweep', glyph: '▶', w: 640 },
-    results: { home: 'res', title: () => 'Results', glyph: 'Σ', w: 540 },
-  };
-  const VIEW_ICONS = { showDims: ['✎', 'Input labels'], resOnDraw: ['Σ', 'Results on the drawing'], showForces: ['F', 'Member forces'], d3ShowPlan: ['⊞', 'Plan view (3D)'], d3ShowSec: ['⊡', 'End view (3D)'],
-    showGhosts: ['◌', 'Sweep ranges'], showIds: ['#', 'Node numbers'], showElems: ['№', 'Member numbers'], showDef: ['∿', 'Deformed shape'] };
+  const WIN = TABLE.windows, VIEW_ICONS = TABLE.viewIcons;   // the table above
   const wins = {}, tabs = {};
   // windows built from the window piece (#356): the piece runs their three states, edge tab and peek (mountWindow below);
   // the shell keeps each place's states (UI-A9) and their homes. The value is the arrow their tab shows (UI-W4 ▸ INPUTS, UI-W5 ◂ DRAWING).
-  const PIECE = { drawing: '◂ ', inputs: '▸ ' };
+  const PIECE = TABLE.pieceArrows;
   Object.entries(WIN).forEach(([id, w]) => {
     if (PIECE[id] != null) {
       const st = S.shell.w[place()][id];
@@ -167,8 +185,8 @@ if (!SH_CLASSIC) {
   function icons(id) {
     if (id === 'inputs') return [...R.pane.querySelectorAll(':scope > details.grp')].map((d, k) => { const h = d.querySelector('summary h3'); const t = h ? h.textContent.trim() : 'Section ' + (k + 1); const m = t.match(/^(\d+)/); return { ic: 'g' + k, g: m ? m[1] : t[0], label: t }; });
     if (id === 'drawing' && place() === 'truss') return Object.entries(VIEW_ICONS).filter(([k]) => TOGGLES.includes(k) && togShown(k)).map(([k, [g, label]]) => ({ ic: k, g, label, on: $(k).checked }));
-    if (id === 'view' && place() === 'analysis') return [...document.querySelectorAll('#trackTabs [role="tab"]')].map(b => ({ ic: 't:' + b.dataset.t, g: ({ trade: '⋰', hist: '☰', curve: '⌒', mem: '▤' })[b.dataset.t] || '•', label: b.textContent.trim(), on: b.getAttribute('aria-selected') === 'true' }));
-    if (id === 'sweep') return [{ ic: 'run', g: '▶', label: 'Run the sweep' }, { ic: 'grow', g: '⋯', label: 'Show the sweep' }];
+    if (id === 'view' && place() === 'analysis') return [...document.querySelectorAll('#trackTabs [role="tab"]')].map(b => ({ ic: 't:' + b.dataset.t, g: TABLE.tabIcons[b.dataset.t] || '•', label: b.textContent.trim(), on: b.getAttribute('aria-selected') === 'true' }));
+    if (id === 'sweep') return TABLE.sweepIcons.map(x => ({ ...x }));
     return [{ ic: 'grow', g: WIN[id].glyph, label: 'Show ' + WIN[id].title() }];
   }
   function paintIcons(id) {
@@ -188,7 +206,7 @@ if (!SH_CLASSIC) {
   // Each checkbox keeps its id and its 'change' listeners (30-drawing.js, 80-view3d.js), hidden inside its old label;
   // the toggle piece in front of it is what people see and use. The Scale slider stays a plain input (TE-B-235).
   const TOGGLES = Object.keys(VIEW_ICONS).filter(k => $(k) && R.drawopts.contains($(k)));
-  const ONLY3D = ['d3ShowPlan', 'd3ShowSec'];   // Plan view and End view change only the 3D drawing: hidden in 2D, so no toggle does nothing (UI-A8)
+  const ONLY3D = TABLE.onlyIn3d;   // Plan view and End view change only the 3D drawing: hidden in 2D, so no toggle does nothing (UI-A8)
   const togShown = k => !ONLY3D.includes(k) || S.anaMode === '3d';
   const togBox = el('div', 'te-drawtgl'); togBox.style.cssText = 'display:grid;gap:6px;margin-bottom:8px';
   togBox.setAttribute('role', 'group'); togBox.setAttribute('aria-label', 'Show on the drawing');
