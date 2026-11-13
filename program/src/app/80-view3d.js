@@ -456,7 +456,7 @@ function drawCurve() {
   if (!all.length) { emptyCanvas(cv, series.some(s => s.off) ? 'Every group is hidden: click a group below to show it.' : 'No design passes at these load levels.'); $('curveLegend').innerHTML = legendHTML(series.map(s => ({ color: s.color, label: s.label, dash: s.dash, g: s.g, off: s.off, tip: s.tip }))); $('curveTbl').innerHTML = ''; return; }
   const lv = levels();
   let xr = [lv[0] - 10, lv[lv.length - 1] + 10];
-  const yv = all.map(d => d.wood); let yr = [Math.min(...yv) * 0.9, Math.max(...yv) * 1.08];
+  const yv = all.map(d => d.wood); let yr = [minOf(yv) * 0.9, maxOf(yv) * 1.08];
   if (drawCurve.ref !== SweepState.rows()) { curveView = null; drawCurve.ref = SweepState.rows(); }
   if (curveView) { xr = curveView.x; yr = curveView.y; }
   const { ctx, w, h } = setupCanvas(cv); ctx.clearRect(0, 0, w, h);
