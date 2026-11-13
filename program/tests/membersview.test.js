@@ -31,6 +31,10 @@ test('csvOf() escapes like the app: formulas stay text, quotes doubled, numbers 
   assert.strictEqual(V.csvOf([['a', '-1.50', '=SUM(A1)', 'x,"y"', '+cmd', 3, 'a\nb']]), `a,-1.50,'=SUM(A1),"x,""y""",'+cmd,3,a b`);
 });
 
+test('csvOf(): a formula behind leading spaces or a tab is kept as text too (the app\'s csvSafe on #431)', () => {
+  assert.strictEqual(V.csvOf([[' =1', '\t=SUM(A1)', '  @x', ' -1.5', '\t+2']]), "' =1,' =SUM(A1),'  @x, -1.5, +2");
+});
+
 test('sorted(): highest use first (UI-S6); ties keep member order; the input is not changed', () => {
   const rows = [{ k: 0, use: 0.2 }, { k: 1, use: 0.9 }, { k: 2, use: 0.2 }, { k: 3, use: 1.4 }];
   assert.deepStrictEqual(V.sorted(rows).map(r => r.k), [3, 1, 0, 2]);

@@ -44,7 +44,8 @@ function csvRow(r, typeLabel) {
 function csvRows(rows, typeLabel) { return [HEAD.slice()].concat(need(rows).map(r => csvRow(r, typeLabel))); }
 
 // as csvSafe() / csvOf() in src/app/30-drawing.js
-function csvSafe(v) { if (typeof v !== 'string') return v; const t = v.replace(/[\u0000-\u001F\u007F]+/g, ' '); return /^[=+\-@]/.test(t) && !/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t) ? "'" + t : t; }
+// leading spaces and tabs are looked past, since some spreadsheets trim them first (the app's fix on #431, TE-B-346/359)
+function csvSafe(v) { if (typeof v !== 'string') return v; const t = v.replace(/[\u0000-\u001F\u007F]+/g, ' '), u = t.replace(/^\s+/, ''); return /^[=+\-@]/.test(u) && !/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(u) ? "'" + t : t; }
 function csvOf(table) { return table.map(r => r.map(v => { v = csvSafe(v); return /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v; }).join(',')).join('\n'); }
 
 // the bar's fill: the app's pass / fail meaning colours only, never the course-rule pink (ART-K16, Graphics TE-B-347);
