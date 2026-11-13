@@ -109,6 +109,7 @@ function paintAna() {
 $('topViewSeg').addEventListener('click', ev => { const b = ev.target.closest('[data-v]'); if (!b) return; S.topView = b.dataset.v; save(); if (fsEl === '#sideSheet') { setFs(null); placeTopView(); setFs('#sideSheet'); } else placeTopView(); renderDrawing(); render3D(); });
 $('anaSwitch').addEventListener('click', ev => {
   const b = ev.target.closest('[data-ana]'); if (!b || b.dataset.ana === S.anaMode) return;
+  if (adj) closeAdj();   // #408: a 2D<->3D switch closes an open ✎ value editor properly (UI-I8, UI-W8), so no input stays marked active
   const fsWas = fsEl; if (fsWas === '#sideSheet') setFs(null);
   S.anaMode = b.dataset.ana; paintAna(); update(); checkStale(); updateSweepCount();
   if (fsWas === '#sideSheet') setFs('#sideSheet');
