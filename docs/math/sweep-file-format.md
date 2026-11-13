@@ -1,6 +1,6 @@
 # Sweep file format `.tsweep`, version 1
 
-*Math Consultant, 2026-10-27. Status: proposal for review. Reference code and tests: [`reference/tsweep.js`](reference/tsweep.js), [`reference/tsweep.test.js`](reference/tsweep.test.js).*
+*Math Consultant, 2026-10-27; updated 2026-10-28 to match the app's writer (#179, PR #274). Status: in the app. Reference code and tests: [`reference/tsweep.js`](reference/tsweep.js), [`reference/tsweep.test.js`](reference/tsweep.test.js).*
 
 ## Goals
 
@@ -63,8 +63,8 @@ The header uses the **shared v2 header** names from [`docs/formats.md`](../forma
 | `bridgeCode` | The short FNV-1a code printed on CSVs and build documents, for matching printouts to files. Display only: merge safety uses `fingerprint`. |
 | `sweep.dims` | **Every sweepable input, in a fixed order, including the ones not swept** (one value). That is what makes merging work: a sweep that held height at 40 and one that swept 40–60 describe the same input. Last dimension changes fastest (as `candAt` does). Values are numbers, strings or small objects (choices). |
 | `sweep.total` | Number of designs in the grid, as a string (exact past 2^53). |
-| `sweep.sampling` | `{"method":"all"}` for a full grid; `{"method":"feistel-v1","keys":["…"],"tested":n}` for a large search (the #18 shuffle: keys plus count say exactly which designs were tried); `{"method":"merged","parts":[…]}` after a merge. |
-| `base`, `material` | Everything else that changes a result. **`material` is in solver units** (mm, N, MPa; `rho` in kg/mm³), like a bridge file, not the SI of a `.material.json`. |
+| `sweep.sampling` | `{"method":"all"}` for a full grid; `{"method":"feistel-v1","keys":["…"],"tested":n}` for a large search (the #18 shuffle: keys plus count say exactly which designs were tried); `{"method":"merged","parts":[…]}` after a merge. `{"method":"rows","tested":n}` when the stored rows are exactly the designs tried (what the app writes, #179). |
+| `base`, `material` | Everything else that changes a result, and **nothing that doesn't** (see "What goes in `base`" below): a setting that only changes the screen would give two identical sweeps different fingerprints, so they could never merge. **`material` is in solver units** (mm, N, MPa; `rho` in kg/mm³), like a bridge file, not the SI of a `.material.json`. |
 | `rules` | The shared rules object. **Only `FS`, `bookKg`, `deflLimit` and `minOverlap` are rescalable**: use and deflection are stored at these reference values and rescale exactly when they change (k = FS′·m′ ⁄ FS·m), and the overlap check re-runs on the stored `overlap`. **`width` and `envelope` are not rescalable** (they change which designs pass), so they are in the fingerprint. |
 | `fingerprint` | `sha256` of the canonical JSON of `{solver, model, base, material, width, envelope}` (sorted keys, no spaces, shortest number form). Two files can merge only if their fingerprints are equal. |
 | `payloadSha256` | Hash of the binary part: shows the numbers were not changed after saving. It proves the file is intact, not that the results are true; the build guide, part 2, covers that. |
@@ -86,9 +86,23 @@ No personal details go in a file: no user names, emails or grades. `name` is the
 | `gov` | u8 | What governs the most-used member: 0 unknown, 1 tension, 2 crushing, 3 buckling, 4 bracing, 5 deflection |
 | `idx` | varint-delta | Design numbers, ascending, each stored as the gap from the previous one (7 bits per byte). Works past 2^53. |
 
+**Columns a writer adds for itself** are allowed, named `x.<name>` so no one mistakes them for spec columns; other readers skip them. The app (#179) uses `f32`, or `u8` with `"coded": "bool"` (0 not set, 1 false, 2 true) or `"coded": "list"` plus a `values` list (0 not set, k = `values[k-1]`). Likewise a writer may add its own header block (the app's is `explorer`); readers keep but ignore it, and it is **not** in the fingerprint.
+
+**When book mass is swept** (`bookKg` is a dimension with more than one value), each row was solved at its own mass. Store `use` and `defl` **at `rules.bookKg`** anyway, by multiplying by m_ref ⁄ m_row (exact: both are linear in the load); a reader that needs the row's own value multiplies back by m_row ⁄ m_ref. That keeps rule 1 of rescaling true for every row. A writer that can't do this must write `rules.bookKg: null`, and readers then don't rescale.
+
 **Unstable designs are stored too**, with NaN results and `flags = 0`, so a library knows they were already tried.
 
 **Pass/fail is not stored; it's worked out on loading** from `use`, `defl`, `overlap`, `flags` and the rules in use. So a file never disagrees with the rules the reader picks.
+
+## What goes in `base`
+
+`base` holds every **fixed** input that can change a result: geometry, supports and desks, loads and books, stick counts and patterns, the friction values, the 3D settings (for a 3D sweep), and from the analysis options `width`, `tieJoint` and `crossTies`. Leave out:
+
+- the swept inputs (they are in `sweep.dims`);
+- the four rescalable rules (`FS`, `bookKg`, `deflLimit`, `minOverlap`), wherever they sit (in the app, `deflLimit` and `minOverlap` are inside `opts`);
+- anything that only changes the screen or the printouts. In the app (v63) that is `name`, `swOn`, `swVals`, `swSel`, `focus`, `dragUnit`, `dragMode`, `tradeDrag`, `c3Drag`, `bigHours` and the build-document settings `doc`.
+
+When unsure, **leave it in**. An extra key only stops a merge, which is safe; a missing one could merge two sweeps that differ.
 
 ## Merging
 

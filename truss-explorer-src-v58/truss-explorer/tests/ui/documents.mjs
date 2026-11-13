@@ -24,14 +24,19 @@ const CASES = [
   ['3D 12-panel catenary', many(12, 'catenary'), D3()],
   ['3D 12-panel arc, tilt 25, width 120, X everywhere', many(12, 'arc'), D3({ tilt: 25, width: 120, topPat: ['X'], botPat: ['X'], framePat: ['X'] })],
   ['2D edge bear, s 10', Object.assign({}, DEFAULT, { edgeBear: true, supportOffset: 10 }), null],
+  // #298: an arch through the flat bottom chord (the BDT-004 style): the bottom chord is cut at the crossings
+  ['3D arch through the bottom chord', Object.assign({}, DEFAULT, { height: 30, panels: 4, deskMode: 'length', overlap: 48.4, deskEnds: 'feet', topShape: 'catenary', topEnd: -27, pattern: 'pratt', diagLeft: ['P', 'P'], vertLeft: [true, true] }), D3({ framePat: ['D'] })],
+  // #282: the curved top chord as one stick bent to the curve (a bending form page, the checks sheet, a day-before step)
+  ['2D bent top chord, 6-panel parabola h 90', Object.assign({}, DEFAULT, { height: 90, topShape: 'parabola', topEnd: 50, panels: 6, diagLeft: ['X', 'X', 'X'], vertLeft: [true, true, true] }), null, { bentTop: true }],
+  ['3D bent top chord, 12-panel arc', many(12, 'arc'), D3(), { bentTop: true }],
 ];
 try {
-  for (const [name, st, o] of CASES) {
+  for (const [name, st, o, cfg] of CASES) {
     const tr = C.buildTruss(design(st)), res = C.analyze(tr, st.mat, st.load, st.opts);
-    const plan = BD.cutPlan(tr, 3.18, { stock: 240, force: k => res.members[k].F });
+    const plan = BD.cutPlan(tr, 3.18, Object.assign({ stock: 240, force: k => res.members[k].F }, cfg || {}));
     let d3 = null; if (o) { const m3 = T3.build3D(tr, o), r3 = T3.analyze3D(m3, Object.assign({}, C.DEFAULT_MAT), st.load); if (r3.stable) d3 = { m3, r3, tieJoint: 'ontop' }; }
     if (o && !d3) { check(`${name}: 3D model is stable`, false); continue; }
-    const html = BD.documentHTML(tr, res, { name, b: 3.18, h: 3.18, nTruss: 2, stock: 240, kerf: 1, massNote: 'm', capNote: 'c', d3 }, plan, { steps: true, templates: true, colour: true });
+    const html = BD.documentHTML(tr, res, { name, b: 3.18, h: 3.18, nTruss: 2, stock: 240, kerf: 1, massNote: 'm', capNote: 'c', d3, ties: { count: tr.deckNodes.length, len: 60 } }, plan, { steps: true, templates: true, colour: true });
     const f = path.join(tmp, name.replace(/\W+/g, '_') + '.html'); fs.writeFileSync(f, html);
     const p = await b.newPage({ viewport: { width: 1200, height: 900 } }); await p.goto('file://' + f);
     const r = await p.evaluate(() => {
@@ -48,8 +53,22 @@ try {
     const items = plan.items.length + (d3 ? BD.crossPlan(d3.m3, d3.r3, 3.18, {}).items.length : 0) + (st.edgeBear ? 1 : 0);
     const listed = await p.evaluate(() => [...document.querySelectorAll('table.grid')].filter(t => /Long pt/.test(t.textContent)).reduce((s, t) => s + t.querySelectorAll('tr').length - 1, 0));
     check(`${name}: every item is in the cut list`, listed === items, `${listed} of ${items}`);
+    // #300: the 3D plan lists its ties as parts, so the 2D cross-tie 'T' pieces are added only without 3D (edge stops or not)
+    const tCuts = await p.evaluate(() => [...document.querySelectorAll('.bar text')].filter(e => e.textContent === 'T').length);
+    check(`${name}: cross-ties counted once in the cutting plan (${d3 ? 'none as T in 3D' : tr.deckNodes.length + ' T in 2D'})`, tCuts === (d3 ? 0 : tr.deckNodes.length), `${tCuts} T pieces`);
     const N = r.pages, okNums = r.nums.every((s, i) => s === `SHEET ${i + 1} OF ${N}`) && r.pg.every((s, i) => s.includes(`page ${r.nums.length + i + 1} of ${N}`));
     check(`${name}: page numbers match the ${N} printed pages`, okNums, r.nums.slice(-1)[0] + ' / ' + (r.pg.slice(-1)[0] || ''));
+    // #302: the steps start with printing the templates and cutting the parts, name their templates, and splint what's marked;
+    // #299: the platform check comes first only when a chord end sits below the deck
+    const st2 = await p.evaluate(() => { const s = [...document.querySelectorAll('.step')].map(e => e.textContent); return { first: s.slice(0, 4).join(' | '), all: s.join(' | '), n: s.length }; });
+    const low = Math.min(...tr.nodes.map(q => q[1])) < -0.5;
+    check(`${name}: steps start with ${low ? 'the platform check, then ' : ''}printing the templates and cutting the parts`, (!low || /measure the real test platforms/.test(st2.first)) && /Print and check the templates/.test(st2.first) && /Cut and label every part/.test(st2.first) && /template T1/.test(st2.all) && (low || !/measure the real test platforms/.test(st2.all)), st2.first.slice(0, 300));
+    const marked = /splint/.test(await p.evaluate(() => [...document.querySelectorAll('table.grid, .note')].map(e => e.textContent).join(' ')));
+    check(`${name}: every splint the documents mark has a step`, !marked || /Splint/.test(st2.all), '');
+    if (cfg && cfg.bentTop) {
+      const bt = await p.evaluate(() => ({ sheet: [...document.querySelectorAll('.title td')].some(td => td.textContent === 'Bent top chord'), form: [...document.querySelectorAll('.tpl .note')].filter(n => /Bending form/.test(n.textContent)).length, day: [...document.querySelectorAll('.step p')].some(e => /The day before/.test(e.textContent)), bar: [...document.querySelectorAll('.tpl')].filter(s => /Bending form/.test(s.textContent)).every(s => s.querySelector('svg').getAttribute('width') === '240mm'), splices: (document.body.textContent.match(/Splices/g) || []).length }));
+      check(`${name}: the bent top chord gets its checks sheet, a full-size bending form (240 mm wide, 1:1) and a day-before step`, bt.sheet && bt.form > 0 && bt.day && bt.bar, JSON.stringify(bt));
+    }
     await p.close();
   }
 } finally { await b.close(); fs.rmSync(tmp, { recursive: true, force: true }); }

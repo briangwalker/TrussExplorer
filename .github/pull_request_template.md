@@ -12,6 +12,10 @@ Closes #
      The "spec-cited" check reads this line (docs/spec-checks.md). If no spec covers the change, write "Spec: none - <why>" and ask the owner on the issue first. -->
 Spec rules met: 
 
+### Results
+<!-- Say one: "Results: unchanged (cmp.py maxdF 0.000, tests/golden.json unchanged)", or "Results: change - Math or Physics review please" and tick the review below. (TE-B-104, rulebook rule 3) -->
+Results: 
+
 
 ### Reviews requested
 - [ ] UI Designer (layout or interaction changes)

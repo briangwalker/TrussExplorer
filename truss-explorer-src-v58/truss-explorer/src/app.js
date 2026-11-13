@@ -39,7 +39,7 @@ const COURSE = { mat: Object.assign({}, C.DEFAULT_MAT), load: { mBook1: 1.5, mBo
 // NEVER rename this key: everyone's saved work lives under it. When the saved format changes, convert old data on load instead.
 const KEY = 'se310-truss-v5';
 const APP_VER = 35;   // bumped whenever the solver or the saved data changes
-const APP_RELEASE = 'v63';   // the release name, written into every file the app saves
+const APP_RELEASE = 'v64';   // the release name, written into every file the app saves
 
 // The starter bridge fits the 300 mm envelope measured on the outer faces (#185, Brian 2026-10-28): 48.4 mm on each desk
 // gives 296.8 mm between end joints and 299.98 mm outside (half a stick, 1.59 mm, shorter at each end than v61's 300 mm).
@@ -58,8 +58,9 @@ const DEFAULT = {
 const SAFE_CH = { '<': '‹', '>': '›', '"': '”', "'": '’', '`': 'ˋ' };
 function cleanData(x, depth) {
   depth = depth || 0;
-  if (typeof x === 'string') return (x.length > 2000 ? x.slice(0, 2000) : x).replace(/[<>"'`]/g, c => SAFE_CH[c]);
-  if (x === null || typeof x !== 'object' || depth > 40) return x;
+  if (typeof x === 'string') return (x.length > 2000 ? x.slice(0, 2000) : x).replace(/[<>"'`]/g, c => SAFE_CH[c]).replace(/[\u0000-\u001F\u007F\u2028\u2029]/g, ' ');   // text from outside is one line
+  if (depth > 40) return null;   // nested deeper than any real file: drop it (fails closed, as on balsaPixel-1.0, #248)
+  if (x === null || typeof x !== 'object') return x;
   if (ArrayBuffer.isView(x) || x instanceof ArrayBuffer) return x;
   if (Array.isArray(x)) return x.map(v => cleanData(v, depth + 1));
   const o = {}; Object.keys(x).forEach(k => { if (k === '__proto__' || k === 'constructor' || k === 'prototype') return; o[cleanData(k, depth + 1)] = cleanData(x[k], depth + 1); });
@@ -999,7 +1000,9 @@ function setSticks(k, fn) {
   update();
 }
 $('resetSticks').addEventListener('click', () => { S.sticks = {}; update(); });
-function csvOf(rows) { return rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(',')).join('\n'); }
+// a CSV cell that a spreadsheet would read as a formula (= + - @ ...) is kept as text; plain numbers stay numbers
+function csvSafe(v) { if (typeof v !== 'string') return v; const t = v.replace(/[\u0000-\u001F\u007F]+/g, ' '); return /^[=+\-@]/.test(t) && !/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t) ? "'" + t : t; }
+function csvOf(rows) { return rows.map(r => r.map(v => { v = csvSafe(v); return /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v; }).join(',')).join('\n'); }
 function csvText() { return infoLines().map(l => '# ' + l).join('\n') + '\n' + csvOf(rowsForCsv()); }
 
 // ---------- export
@@ -1154,7 +1157,7 @@ function lpFiles() {
     });
     B.push(row);
   }
-  const readme = `SE 310 Truss Explorer - LP data for "${S.name}"
+  const readme = `SE 310 Truss Explorer - LP data for "${X.pyName(S.name)}"
 ${summaryOf({ family: S.family, pattern: S.pattern, panels: S.panels, height: S.height, overall: tr.overall, ratio: S.ratio, sideAngle: S.sideAngle, curve: tr.info.curve, bottom: tr.info.shape, supportOffset: tr.info.supportOffset })}
 Exported ${new Date().toISOString().slice(0, 10)}. Units: mm, N. One side truss (the loads are this truss's share).
 ${infoLines().join('\n')}
@@ -1198,7 +1201,7 @@ dual values mean) is the part to do yourself.
   ];
 }
 // ---------- build documents: joint styles, cut list, drawing, steps, templates
-S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false }, S.doc || {});
+S.doc = Object.assign({ style: 'through', over: {}, stock: 240, kerf: 1, steps: true, tpl: true, colour: true, dash: false, bentTop: false }, S.doc || {});
 // the kit's sticks are 240 mm (#116): move the old 914 mm default over once; a length set on purpose stays
 if (!S.doc.stock240) { if (+S.doc.stock === 914) S.doc.stock = 240; S.doc.stock240 = true; }
 // the 3D model and results the documents describe, when the 3D analysis is on
@@ -1210,11 +1213,20 @@ function docPlan() {
   Object.keys(S.doc.over).forEach(n => { const j = J.find(q => q.n === +n); if (!j) return; const o = S.doc.over[n]; if (o.through != null && !j.m.some(q => q.k === o.through)) return; ok[n] = o; });
   S.doc.over = ok;
   // pieces longer than one stock stick are spliced where the chord force is lowest (the worst of the two trusses in 3D)
-  return BuildDoc.cutPlan(tr, b, { style: S.doc.style, over: S.doc.over, stock: +S.doc.stock || 240, force: k => res && res.members && res.members[k] ? res.members[k].F : 0 });
+  return BuildDoc.cutPlan(tr, b, { style: S.doc.style, over: S.doc.over, stock: +S.doc.stock || 240, force: k => res && res.members && res.members[k] ? res.members[k].F : 0, bentTop: !!S.doc.bentTop && topCurves() });
 }
+// a top chord that bends at its joints can be built as one stick bent to the curve (#282)
+function topCurves() { return BuildDoc.cutPlan(tr, +S.mat.b || 3.18, { bentTop: true }).bendAt.length > 0; }
 function renderDocDialog() {
   const plan = docPlan(), b = +S.mat.b || 3.18;
   document.querySelectorAll('input[name="jstyle"]').forEach(r => { r.checked = r.value === S.doc.style; });
+  const curves = topCurves(); $('docBentBox').hidden = !curves; $('docBent').checked = !!S.doc.bentTop;
+  const bck = curves && S.doc.bentTop ? BuildDoc.bentCheck(tr, plan, res, Object.assign({}, C.DEFAULT_MAT, S.mat)) : null;
+  $('docBentNote').innerHTML = !curves ? '' : !bck ? 'Off: the curved top chord is cut as straight pieces, joint to joint.'
+    : bck.tooTight ? `<b style="color:var(--bad)">✕ Too tight for one stick:</b> bent to this curve the chord reaches ${Math.round(bck.worstUse * 100)}% of its strength at the design load. Untick this for straight pieces, or flatten the curve.`
+    : `Tightest radius ${bck.Rmin.toFixed(0)} mm: ${bck.mustSoak ? `<b>soak or steam it</b> and let it dry on the bending form (bent dry, the wood stretches ${(bck.strain * 100).toFixed(2)}%; it breaks at ${(bck.strainLimit * 100).toFixed(2)}%)` : 'it can be bent dry'}. Once dried to shape it uses up to ${Math.round(bck.worstUse * 100)}% of its strength at the design load. The documents add a bending form, the checks and the steps.`;
+  $('docNest').checked = !!S.doc.nest;
+  $('docBendRow').hidden = !(bck && !bck.tooTight); $('docBendN').value = bendCopies();
   $('docStock').value = S.doc.stock; $('docKerf').value = S.doc.kerf; $('docSteps').checked = S.doc.steps; $('docTpl').checked = S.doc.tpl; $('docColour').checked = S.doc.colour; $('docDash').checked = S.doc.dash;
   // view with joint numbers
   const v = BuildDoc.sideSVG(tr, plan, { labels: false, b, color: S.doc.colour ? 'part' : 'mono', dash: S.doc.dash });
@@ -1231,7 +1243,7 @@ function renderDocDialog() {
     + ((plan.short || []).length ? ` ${plan.short.length} member${plan.short.length > 1 ? 's are' : ' is'} under ${(6 * b).toFixed(0)} mm (6 stick widths): the pin-jointed results are less reliable there.` : '');
   const sw = no => S.doc.colour ? `<span style="display:inline-block;width:10px;height:10px;margin-right:4px;background:${BuildDoc.colOf(no)}"></span>` : '';
   $('docItems').innerHTML = '<thead><tr><th>Item</th><th class="l">Part</th><th>Qty</th><th>Long point</th><th>Short point</th><th class="l">End cuts</th></tr></thead><tbody>' +
-    plan.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${BuildDoc.TL[it.type] || it.type}</td><td>${it.pieces.length * nT * it.n}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('')
+    plan.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${BuildDoc.TL[it.type] || it.type}${it.bent ? ' (one bent stick)' : ''}</td><td>${it.pieces.length * nT * it.n}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('')
     + (cx ? cx.items.map(it => `<tr><td>${sw(it.no)}${it.no}</td><td class="l">${it.label}</td><td>${it.pieces.length}</td><td>${it.long.toFixed(1)}</td><td>${it.short.toFixed(1)}</td><td class="l">${it.cuts.map(BuildDoc.cutTxt).join(' / ')}</td></tr>`).join('') : '') + '</tbody>';
   const name = k => `${k} ${(BuildDoc.TL[tr.elems[k].type] || '').toLowerCase()}`;
   $('docJoints').innerHTML = '<thead><tr><th>Joint</th><th class="l">On top / runs through</th><th class="l">Other ends</th><th>Mitre %</th></tr></thead><tbody>' +
@@ -1257,7 +1269,7 @@ document.querySelectorAll('input[name="jstyle"]').forEach(r => r.addEventListene
 document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.opts.tieJoint = r.value; update(); renderDocDialog(); }));
 $('docStock').addEventListener('change', () => guardNum('docStock', 50, 2000, S.doc.stock, v => { S.doc.stock = v; save(); renderDocDialog(); }, 'Stock stick length'));
 $('docKerf').addEventListener('change', () => guardNum('docKerf', 0, 10, S.doc.kerf, v => { S.doc.kerf = v; save(); renderDocDialog(); }, 'Saw kerf'));
-[['docSteps', 'steps'], ['docTpl', 'tpl'], ['docColour', 'colour'], ['docDash', 'dash']].forEach(([id, k]) => $(id).addEventListener('change', () => { S.doc[k] = $(id).checked; save(); renderDocDialog(); }));
+[['docSteps', 'steps'], ['docTpl', 'tpl'], ['docColour', 'colour'], ['docDash', 'dash'], ['docBent', 'bentTop']].forEach(([id, k]) => $(id).addEventListener('change', () => { S.doc[k] = $(id).checked; save(); renderDocDialog(); }));
 $('docResetJ').addEventListener('click', () => { S.doc.over = {}; save(); renderDocDialog(); });
 $('docJoints').addEventListener('change', ev => {
   const t = ev.target, n = t.dataset.j, f = t.dataset.f; if (n == null) return;
@@ -1268,14 +1280,31 @@ $('docJoints').addEventListener('change', ev => {
   if (cur.end === 'mitre' && cur.through === undefined) cur.through = null;
   S.doc.over[n] = cur; save(); renderDocDialog();
 });
-$('docGo').addEventListener('click', () => {
+// TE-B-162: the bending sheet on its own (steps + 1:1 forms). Default one form per truss; the box sets more (spares).
+function bendCopies() { return Math.max(1, Math.min(8, Math.round(+S.doc.bendN || +S.load.nTruss || 2))); }
+$('docBendN').addEventListener('change', () => { S.doc.bendN = Math.max(1, Math.min(8, Math.round(+$('docBendN').value || 1))); save(); renderDocDialog(); });
+$('docBendGo').addEventListener('click', () => {
   const plan = docPlan(), mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
-  const meta = { name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 240, kerf: +S.doc.kerf,
+  const html = BuildDoc.bendingSheetHTML(tr, plan, res, { mat, name: S.name || 'Design', code: fingerprint(bridgeState()), b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2,
+    info: (() => { const fi = fileInfo(); return `${fi.release} · ${fi.model} · bridge code ${fi.bridgeCode}`; })() }, { copies: bendCopies() });
+  if (html) saveFile(fileBase() + '_bending_sheet.html', html);
+});
+function docMeta() {
+  const mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
+  return { mat, name: S.name || 'Design', b: +mat.b, h: +mat.h, nTruss: +S.load.nTruss || 2, stock: +S.doc.stock || 240, kerf: +S.doc.kerf,
     ties: S.opts.crossTies ? { count: tr.deckNodes.length, len: +S.opts.width || 60 } : null, d3: doc3D(),
     massNote: `bridge mass ${res.massTotal.toFixed(1)} g`, capNote: `${res.capKg.toFixed(1)} kg of books (needs ${((S.load.mBook1 + S.load.mBook2) * S.mat.FS).toFixed(1)} kg)`,
     scaleNote: 'Templates: 1:1', info: (() => { const fi = fileInfo(); return `${fi.release} · ${fi.model} · bridge code ${fi.bridgeCode} · FS ${fi.rules.FS}, books ${fi.rules.bookKg} kg, envelope on outer faces`; })() };
-  const html = BuildDoc.documentHTML(tr, res, meta, plan, { steps: S.doc.steps, templates: S.doc.tpl, colour: S.doc.colour, dash: S.doc.dash });
+}
+$('docGo').addEventListener('click', () => {
+  const html = BuildDoc.documentHTML(tr, res, docMeta(), docPlan(), { steps: S.doc.steps, templates: S.doc.tpl, colour: S.doc.colour, dash: S.doc.dash });
   saveFile(fileBase() + '_build_documents.html', html);
+});
+// TE-B-169: the minimum build set in black and white (steps, a one-page cut guide, end-angle templates, full-size templates)
+$('docNest').addEventListener('change', () => { S.doc.nest = $('docNest').checked; save(); });
+$('docMini').addEventListener('click', () => {
+  const html = BuildDoc.documentHTML(tr, res, Object.assign(docMeta(), { code: fingerprint(bridgeState()) }), docPlan(), { minimal: true, nest: !!S.doc.nest });
+  saveFile(fileBase() + '_build_set_bw.html', html);
 });
 // ---------- bridge and sweep files, to share with partners (and, later, to publish)
 const FILE_VER = 2;   // 2 (v61): the analysis model, 3D setup and build-document settings travel with the bridge; every file says which release made it
@@ -1285,7 +1314,7 @@ function fingerprint(o) { const s = JSON.stringify(o); let h = 0x811c9dc5; for (
 // the same facts as lines of text, for CSVs, the .py, the LP README and the build documents (over: { model, rules } of a sweep)
 function infoLines(over) {
   const fi = fileInfo(over && over.model), r = Object.assign({}, fi.rules, over && over.rules);
-  return [`SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`, `Design: ${S.name || 'Design'} · ${fi.model} analysis · saved ${fi.savedAt}`,
+  return [`SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`, `Design: ${X.pyName(S.name || 'Design')} · ${fi.model} analysis · saved ${fi.savedAt}`,
     `Rules: FS ${r.FS}, books ${r.bookKg} kg, deflection <= ${r.deflLimit} mm, overlap >= ${r.minOverlap} mm, width ${r.width} mm, envelope on outer faces`, `Bridge code: ${fi.bridgeCode}`];
 }
 // the rules a sweep's results were judged by (they can differ from the inputs on screen)
@@ -1424,6 +1453,8 @@ $('presetSel').addEventListener('change', () => {
   // the sweep switches not named go off; ranges keep their values unless reset
   if ($('presetSweep').checked) Object.keys(S.swOn).forEach(k => { if (!(k in b.swOn)) b.swOn[k] = false; });
   S.sticks = {}; S.loads = null; S.focus = [];
+  // every 3D setting the preset doesn't name goes back to a fresh page's (#281); the 2D/3D switch and the view stay as they are
+  b.d3 = Object.assign(d3Defaults(), { showPlan: S.d3.showPlan, showSec: S.d3.showSec }, q.set.d3 || {});
   applyBridge(b);
   $('presetSel').value = ''; closeDock(); toast(`Started from "${q.name}". Changed your mind? ☰ → Go back to an earlier bridge.`);
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2321,7 +2352,7 @@ $('tradeCsv').addEventListener('click', () => {
   const extra = [...new Set(sweepAll.flatMap(r => Object.keys(r).filter(k => /^st_|^fc_/.test(k))))];
   const outc = ['wood', 'mass', 'D', 'util', 'capKg', 'passes', 'edgeOK', 'envOK', 'refined'];
   const all = cols.concat(extra, outc);
-  const esc = v => v == null ? '' : (typeof v === 'number' ? (Number.isFinite(v) ? +v.toPrecision(8) : '') : String(v).replace(/[",\n]/g, ' '));
+  const esc = v => v == null ? '' : (typeof v === 'number' ? (Number.isFinite(v) ? +v.toPrecision(8) : '') : csvSafe(String(v)).replace(/[",\n]/g, ' '));
   const csv = infoLines(sweepInfo()).map(l => '# ' + l).concat([all.join(',')], sweepAll.map(r => all.map(k => esc(r[k])).join(','))).join('\n');
   saveFile(fileBase() + '_tradeoff.csv', csv);
 });
@@ -2607,6 +2638,8 @@ $('c3Canvas').addEventListener('mousemove', ev => {
 $('c3Canvas').addEventListener('mouseleave', () => { $('c3Tip').hidden = true; });
 
 // ---------- 3D view (prototype)
+// a fresh page's 3D setup; a starter preset puts it back too (#281), so a preset gives the same bridge whatever came before
+function d3Defaults() { return { tilt: 0, botTies: true, topBr: 'single', botBr: 'single', sway: true, imperf: { on: false, alpha: 0.02, beta: 0.005, dir: 1 }, topPat: ['S'], botPat: ['S'], framePat: ['D', 'N'], sec: 0 }; }
 S.d3 = Object.assign({ tilt: 0, botTies: true, topBr: 'single', botBr: 'single', sway: true }, S.d3 || {});
 S.d3.imperf = Object.assign({ on: false, alpha: 0.02, beta: 0.005, dir: 1 }, S.d3.imperf || {});
 // per-panel / per-station patterns (left half). Older saved settings become patterns the first time.
@@ -3192,7 +3225,7 @@ function sheetHTML(sh) {
     <p class="note" style="margin:6px 0 0">Everything else was fixed at: ${escH(sh.fixed)}.${sh.sampled ? ' "Step reached" is how far apart the sampled designs are, on average, in each swept input: the sample covers the whole range, but less finely than the step set.' : ''}</p>`;
 }
 function sheetCSV(sh) {
-  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const q = v => `"${String(v == null ? '' : csvSafe(v)).replace(/"/g, '""')}"`;
   const fi = fileInfo(sweepInfo().model);
   const head = [['Made with', `SE 310 Truss Explorer ${fi.release} (solver ${fi.solver})`], ['Bridge code', fi.bridgeCode], ['Run', sh.kind], ['When', sh.when], ['Analysis', sh.analysis], ['Designs tested', sh.tested], ['Designs in the ranges', sh.total], ['Sampled', sh.sampled ? 'yes' : 'no'], ['FS', sh.FS], ['Books (kg)', sh.bookKg], ['Deflection limit (mm)', sh.defl], ['Min overlap (mm)', sh.minOv], ['Fixed inputs', sh.fixed], []];
   const tbl = [['Swept input', 'From', 'To', 'Step set', 'Values', 'Choices', 'Step reached (about)']].concat(sh.rows.map(r => r.list ? [r.name, '', '', '', r.count, r.list.join(' / '), r.eff || 'all'] : [r.name, r.from, r.to, r.step, r.count, '', r.eff != null ? r.eff : r.step]));
