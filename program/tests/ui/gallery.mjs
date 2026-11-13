@@ -13,7 +13,11 @@ const base = srv.url.replace(/\?.*$/, '');
 
 // localStorage plus every record of the IndexedDB store 'big' (cur, last, ckpt), as one string
 const snapshot = p => p.evaluate(async () => {
-  const ls = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); ls[k] = localStorage.getItem(k); }
+  // IGNORE: the program's own 'openMap' (which sections are open) changes by itself between plain reloads (#405).
+  // The gallery has no sections and stops every event, so it can't write it; every other byte is compared.
+  const ls = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); let v = localStorage.getItem(k);
+    if (k === 'se310-truss-v5') { try { const o = JSON.parse(v); delete o.openMap; v = JSON.stringify(o); } catch (e) {} }
+    ls[k] = v; }
   const idb = await new Promise(res => { try {
     const r = indexedDB.open('se310-truss', 1); r.onupgradeneeded = () => r.result.createObjectStore('big');
     r.onerror = () => res('no idb'); r.onsuccess = () => { const db = r.result; if (!db.objectStoreNames.contains('big')) { db.close(); return res({}); }
@@ -30,6 +34,11 @@ async function settled(p, ms = 20000) {
   return prev;
 }
 const load = async (p, url) => { await p.goto(url, { waitUntil: 'load' }); await p.waitForFunction(() => window.__dbg && window.__dbg.res); await waitRows(p); };
+// what changed between two snapshots, in a few words (for the check's message)
+const what = (x, y) => { if (x === y) return ''; const A = JSON.parse(x), B = JSON.parse(y), la = Object.fromEntries(A.ls), lb = Object.fromEntries(B.ls), out = [];
+  for (const k of new Set([...Object.keys(la), ...Object.keys(lb)])) if (la[k] !== lb[k]) { const u = la[k] || '', v = lb[k] || ''; let i = 0; while (u[i] === v[i]) i++; out.push(`${k} @${i}: ${JSON.stringify(u.slice(Math.max(0, i - 30), i + 30))} -> ${JSON.stringify(v.slice(Math.max(0, i - 30), i + 30))}`); }
+  if (JSON.stringify(A.idb) !== JSON.stringify(B.idb)) out.push('idb ' + [...new Set([...Object.keys(A.idb || {}), ...Object.keys(B.idb || {})])].filter(k => (A.idb || {})[k] !== (B.idb || {})[k]).join(','));
+  return out.join(' | '); };
 const visible = (p, q) => p.evaluate(q => { const e = document.querySelector(q); if (!e) return false; const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; }, q);
 
 try {
@@ -50,11 +59,13 @@ try {
   await load(p0, base);
   const normalReqs = new Set(); const onReq = r => { if (!/^data:|^blob:/.test(r.url())) normalReqs.add(r.url().replace(/\?gallery=1$/, '')); };
   p0.on('request', onReq);
-  const before = await settled(p0);
-  await load(p0, base);
-  const baseline = await settled(p0);
+  // The program itself fills in some saved state over its first loads (which sections are open, openMap), so load it
+  // until two settled loads in a row agree; that is the baseline the gallery visit must leave unchanged (TE-B-307).
+  let before = await settled(p0), baseline = null;
+  for (let i = 0; i < 5 && baseline === null; i++) { await load(p0, base); const cur = await settled(p0); if (cur === before) baseline = cur; else before = cur; }
   p0.off('request', onReq);
-  check('baseline: two normal loads leave storage the same (so the gallery check below means something)', before === baseline);
+  check('baseline: normal loads of the program settle to the same storage (so the gallery check below means something)', baseline !== null);
+  if (baseline === null) baseline = before;
 
   // ---------- open the gallery in the same browser context, so it sees the same storage ----------
   const reqs = [], errs = [];
@@ -115,7 +126,7 @@ try {
 
   // ---------- (d) and (e) ----------
   const after = await settled(p);
-  check('storage is byte-identical after the visit (UI-G4, guard d)', after === baseline, after === baseline ? '' : 'changed');
+  check('storage is byte-identical after the visit (UI-G4, guard d)', after === baseline, what(baseline, after));
   check('the gallery adds no network request of its own (guard e)', gReqs.length === 0, gReqs.slice(0, 3).join(' '));
   check('no page errors (guard e)', errs.length === 0, errs.join(' | '));
 
@@ -127,7 +138,7 @@ try {
 
   // ---------- leaving: the program is exactly as it was (UI-G4) ----------
   await load(p, base); const left = await settled(p);
-  check('leaving the gallery shows the program as it was (UI-G4)', await p.evaluate(() => !document.getElementById('gallery')) && await visible(p, '#win-inputs') && left === baseline);
+  check('leaving the gallery shows the program as it was (UI-G4)', await p.evaluate(() => !document.getElementById('gallery')) && await visible(p, '#win-inputs') && left === baseline, what(baseline, left));
   await ctx.close();
   // ---------- dark mode: every line of gallery text readable on what's behind it (ART-C1; QA, TE-B-281) ----------
   for (const scheme of ['dark', 'light']) {
