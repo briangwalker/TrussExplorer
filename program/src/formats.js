@@ -214,6 +214,17 @@ function check(doc, savedAs) {
 const LIMITS = Object.freeze({ fileBytes: 512 * 1024 * 1024, unzipped: 512 * 1024 * 1024, rows: 8000000, bridgeBytes: 2 * 1024 * 1024 });
 // a file NAME that says bridge: refuse it before reading if it's over bridgeBytes
 const BRIDGE_NAME = /\.(truss|bridge\.json)$/i;
+// any other name over bridgeBytes (a bridge renamed .txt, say): before reading the whole file, look at its first PEEK_BYTES.
+// Only a sweep is ever that big, and every sweep the app saves starts with its format name, or is a .tsweep (gzip: 1f 8b).
+// If neither is in the head, it can't be a real sweep, so it's refused unread (White Hat's left-over on SEC-005, TE-B-343).
+const PEEK_BYTES = 64 * 1024;
+const SWEEP_HEAD = new RegExp('"format"\\s*:\\s*"(' + KINDS.sweep.names.join('|') + ')"');
+// bytes: the first bytes of the file (Uint8Array). true = it may be a big sweep, so read it; false = refuse it unread
+function headMayBeBig(bytes) {
+  if (!bytes || !bytes.length) return false;
+  if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) return true;   // gzip: a .tsweep; the bytes door caps it
+  return SWEEP_HEAD.test(new TextDecoder().decode(bytes.subarray(0, PEEK_BYTES)));
+}
 // tests pass smaller limits through opts.limits; the app never does
 const limitsOf = opts => Object.assign({}, LIMITS, opts && opts.limits);
 
@@ -473,7 +484,7 @@ async function openBytes(input, opts) {
   return res;
 }
 
-const api = { KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain, LIMITS, BRIDGE_NAME };
+const api = { KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain, LIMITS, BRIDGE_NAME, PEEK_BYTES, headMayBeBig };
 // what the Open buttons offer: every kind in the app (drafts aside), the old names, and plain JSON (TE-B-256)
 api.ACCEPT = [...new Set(Object.values(KINDS).filter(k => !k.draft).flatMap(k => [k.ext].concat(k.also || [])).concat(['.json', 'application/json']))].join(',');
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussFormats = api;
