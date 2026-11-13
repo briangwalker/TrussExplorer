@@ -74,6 +74,12 @@ function sections(P) {
       + P.resultsHTML({ verdict: 'pass', checks: [{ value: '18.6', op: '>=', limit: '5.0', unit: 'kg', ok: true }, { value: '0.131', op: '<=', limit: '2', unit: 'mm', ok: true }] })
       + P.resultsHTML({ verdict: 'fail', checks: [{ value: '3.9', op: '>=', limit: '5.0', unit: 'kg', ok: false }, { value: '0.131', op: '<=', limit: '2', unit: 'mm', ok: true }] })
       + P.resultsHTML({ verdict: 'unstable' }) + '</div>' },
+    { id: 'table', title: 'Data table (an APG grid): the Members tab', rules: ['UI-S6', 'UI-H4', 'UI-K7', 'UI-A17', 'ART-K3', 'ART-K4'],
+      note: 'One Tab stop; arrow keys move cell by cell; the picked row is lit. Use is the sort column. Sample numbers.',
+      html: P.tableHTML({ id: 'g-table', caption: '4 members, highest use first', rowHeader: 'k', lit: '3',
+        columns: [{ key: 'k', label: 'Member', num: true }, { key: 'ij', label: 'i–j' }, { key: 'F', label: 'F (N)', num: true }, { key: 'TC', label: 'T/C' }, { key: 'use', label: 'Use', sort: 'descending' }],
+        rows: [['3', '2–5', '-36.10', 'C compression', '79%'], ['0', '0–1', '-24.56', 'C compression', '54%'], ['7', '4–6', '16.07', 'T tension', '21%'], ['12', '1–2', '0.00', '0 no force', '0%']]
+          .map(r => ({ key: r[0], cells: { k: r[0], ij: r[1], F: r[2], TC: r[3], use: r[4] } })) }) },
     { id: 'popup', title: 'Pop-up: the results card\'s full view, open', rules: ['UI-W8', 'UI-W18', 'ART-W12'], note: 'Click outside to close it (that click does nothing else); Esc closes it and returns focus. Its content is #210\'s.',
       html: '<div class="g-popframe">' + P.resultsHTML({ id: 'g-res', verdict: 'pass', checks: [{ value: '18.6', op: '>=', limit: '5.0', unit: 'kg', ok: true }] })
         + '<div class="te-pop" id="g-pop" role="dialog" aria-label="Full results" hidden>The full results go here: each check against its limit, the project facts, and links (UI-W18, #210).</div></div>' },
@@ -171,6 +177,7 @@ function open(doc, win) {
   section.querySelectorAll('.te-chip[aria-pressed]:not([data-act^="theme:"])').forEach(c => P.mountToggle(c));
   section.querySelectorAll('[role="tablist"]').forEach(t => P.mountTabs(t));
   section.querySelectorAll('.te-slider').forEach(s => P.mountSlider(s));
+  section.querySelectorAll('table[role="grid"]').forEach(t => P.mountTable(t));
   const pops = P.popups(doc), card = section.querySelector('#g-res'), pop = section.querySelector('#g-pop');
   if (card && pop) { card.addEventListener('click', () => pops.open(pop, card)); pops.open(pop, card); }
   const peekTab = section.querySelector('.tabE[data-tab="g-peek"]');   // shown open, by the window's own peek code

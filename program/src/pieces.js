@@ -14,7 +14,7 @@
 (function (root) {
 'use strict';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.1';
 
 // ---------- text ----------
 // Everything a caller passes is text, never markup (CODE-S1).
@@ -209,6 +209,36 @@ function resultsHTML(o) {
     + `<span class="pill ${V[0]}" data-part="badge" data-slot="disp">${V[1]}</span><span aria-hidden="true">▾</span></button>`;
 }
 
+// ---------- the table: an APG grid (UI-S6, UI-H4, UI-K7, UI-A17; TE-B-346, ui-spec 1.5.7) ----------
+// A data grid you read and pick from: role="grid", ONE Tab stop, arrow keys move cell by cell. A row can be lit (hovered or
+// focused) and one row picked (aria-selected). One column may be the sort column: its header holds a real button and the
+// only aria-sort (APG sortable table). The row-header column (rowHeader) stays in place when the table scrolls sideways.
+// Look: rows alternate ART-K3 surface / surface-2, header line ART-K4 `line` (Graphics, TE-B-347).
+// opts: { id, caption, columns: [{ key, label, num, sort: 'descending'|'ascending' (the sort column), sortLabel }],
+//         rows: [{ key, cells: { colKey: text }, html: { colKey: markup the caller built and escaped }, cls }],
+//         rowHeader (column key), lit (row key), empty (text when there are no rows) }
+function tableHTML(o) {
+  if (!o || !Array.isArray(o.columns) || !o.columns.length) fail('a table needs columns');
+  const cols = o.columns, rows = Array.isArray(o.rows) ? o.rows : [];
+  if (cols.filter(c => c.sort).length > 1) fail('only one column can be the sort column');
+  for (const c of cols) if (c.sort && c.sort !== 'descending' && c.sort !== 'ascending') fail('sort is descending or ascending');
+  const cls = c => [c.num ? 'num' : '', c.key === o.rowHeader ? 'rh' : ''].filter(Boolean).join(' ');
+  const ca = c => cls(c) ? ` class="${cls(c)}"` : '';
+  const th = c => c.sort
+    ? `<th scope="col"${ca(c)} aria-sort="${c.sort}"><button type="button" class="te-sort" data-sort="${escH(c.key)}" tabindex="-1"${attr('aria-label', c.sortLabel)}>${escH(c.label)} <span aria-hidden="true">${c.sort === 'descending' ? '▼' : '▲'}</span></button></th>`
+    : `<th scope="col"${ca(c)}>${escH(c.label)}</th>`;
+  const head = '<thead><tr>' + cols.map(th).join('') + '</tr></thead>';
+  const litN = Math.max(0, rows.findIndex(r => String(r.key) === String(o.lit)));
+  const cell = (r, c, n, ci) => {
+    const tag = c.key === o.rowHeader ? 'th' : 'td', inner = r.html && r.html[c.key] != null ? r.html[c.key] : escH(r.cells ? r.cells[c.key] : '');
+    return `<${tag}${tag === 'th' ? ' scope="row"' : ''}${ca(c)} tabindex="${n === litN && ci === 0 ? 0 : -1}">${inner}</${tag}>`;
+  };
+  const body = rows.length ? rows.map((r, n) => `<tr data-key="${escH(r.key)}"${r.cls ? ` class="${escH(r.cls)}"` : ''}${String(r.key) === String(o.lit) ? ' aria-selected="true"' : ''}>`
+    + cols.map((c, ci) => cell(r, c, n, ci)).join('') + '</tr>').join('')
+    : `<tr class="empty"><td colspan="${cols.length}" tabindex="0">${escH(o.empty || 'Nothing to show.')}</td></tr>`;
+  return `<table class="te-tbl" role="grid" data-part="table" data-slot="disp" data-pc${attr('id', o.id)}>${o.caption ? `<caption>${escH(o.caption)}</caption>` : ''}${head}<tbody>${body}</tbody></table>`;
+}
+
 // ---------- CSS ----------
 // The look of the pieces in Wireframe, using only --te-* tokens and the app's meaning colours (--ok, --bad).
 // Scoped to #stage like everything themed (UI-T1); a theme's own rules are more specific and win.
@@ -287,6 +317,19 @@ const CSS = `
 #stage .res:where([data-pc]) .pill.ok{color:var(--ok,#2f7a4b)}#stage .res:where([data-pc]) .pill.bad{color:var(--bad,#b0177a)}
 #stage .te-pop{position:absolute;z-index:90;background:var(--te-surface);color:var(--te-ink);font:400 13px var(--te-font-ui);border:1px solid var(--te-ctl-line);border-radius:10px;box-shadow:0 12px 40px rgba(20,30,40,.25);padding:10px 12px}
 #stage .te-pop[hidden]{display:none}
+#stage .te-tbl{border-collapse:separate;border-spacing:0;font:400 13px var(--te-font-ui);color:var(--te-ink);background:var(--te-surface)}
+#stage .te-tbl caption{text-align:left;font:600 13px var(--te-font-ui);padding:0 0 6px;color:var(--te-ink)}
+#stage .te-tbl :is(th,td){font-size:13px;padding:4px 8px;text-align:left;white-space:nowrap;color:var(--te-ink);background:inherit;outline:none}
+#stage .te-tbl thead th{position:sticky;top:0;background:var(--te-surface-2);font-weight:700;border-bottom:1px solid var(--te-line);z-index:2}
+#stage .te-tbl .rh{position:sticky;left:0;z-index:1;font-weight:700}
+#stage .te-tbl thead th.rh{z-index:3}
+#stage .te-tbl .num{text-align:right;font-family:var(--te-font-mono);font-variant-numeric:tabular-nums}
+#stage .te-tbl tbody tr{background:var(--te-surface);cursor:default}
+#stage .te-tbl tbody tr:nth-child(even){background:var(--te-surface-2)}
+#stage .te-tbl tbody tr[aria-selected="true"],#stage .te-tbl tbody tr.lit{background:var(--te-hot)}
+#stage .te-tbl :is(td,th):focus-visible{outline:3px solid var(--te-accent);outline-offset:-3px}
+#stage .te-tbl .te-sort{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline dotted}
+#stage .te-tbl tr.empty td{color:var(--te-muted);white-space:normal}
 @media (prefers-reduced-motion:reduce){#stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip,.te-tog){transition:none}}
 `;
 // Put the CSS on the page once (one <style id="te-pieces">), the way shell.js adds #themeCss. Returns the element.
@@ -413,6 +456,69 @@ function mountSlider(el, opts) {
   return { set, get, destroy() { offs.forEach(f => f()); } };
 }
 
+// A table's grid keys and pointer (APG Grid; ui-spec 1.5.7 UI-S6, UI-H4, UI-K7). ONE Tab stop: the last focused cell.
+//   ↑ ↓ rows, ← → cells, Home / End first / last cell of the row, Ctrl+Home / Ctrl+End first / last row, PageUp / PageDown 10 rows.
+//   The row holding focus, or under the pointer, is lit and reported: onHover(key); leaving the table reports onHover(null).
+//   Enter, Space or a click picks the row (aria-selected) and reports onPick(key); it stays picked (UI-H4).
+//   The sort header's button reports onSort(key) (the caller draws the table again). Sideways scrolling follows focus.
+// Returns { light(key), picked, focusKey(key), destroy() }: light(key) picks a row from outside (a member clicked on the bridge).
+function mountTable(tbl, opts) {
+  opts = opts || {};
+  const doc = tbl.ownerDocument;
+  const rows = () => [...tbl.querySelectorAll('tbody tr[data-key]')];
+  const cellsOf = tr => [...tr.children];
+  let picked = (tbl.querySelector('tbody tr[aria-selected="true"]') || {}).dataset;
+  picked = picked ? picked.key : null;
+  const mark = key => rows().forEach(r => r.classList.toggle('lit', r.dataset.key === key));
+  const pick = key => { picked = key; rows().forEach(r => { if (r.dataset.key === key) r.setAttribute('aria-selected', 'true'); else r.removeAttribute('aria-selected'); }); if (opts.onPick) opts.onPick(key); };
+  const hover = key => { mark(key); if (opts.onHover) opts.onHover(key); };
+  // a body cell (it lights and picks) or a header cell (it only takes focus; the sort header's button takes it instead)
+  const cellOf = el => { const c = el && el.closest && el.closest('tbody td, tbody th'); return c && tbl.contains(c) && c.parentElement.dataset.key != null ? c : null; };
+  const navOf = el => { const c = el && el.closest && el.closest('td, th'); return c && tbl.contains(c) && (c.parentElement.dataset.key != null || c.closest('thead')) ? c : null; };
+  const navRows = () => [tbl.querySelector('thead tr'), ...rows()].filter(Boolean);
+  const stop = () => tbl.querySelectorAll('[tabindex="0"]');
+  const go = c => {
+    if (!c) return;
+    const t = c.querySelector('button.te-sort') || c;
+    stop().forEach(x => { if (x !== t) x.tabIndex = -1; });
+    t.tabIndex = 0; t.focus(); if (c.scrollIntoView) c.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  };
+  tbl.querySelectorAll('thead th').forEach(th => { if (!th.querySelector('button.te-sort')) th.tabIndex = -1; });
+  const offs = [
+    on(tbl, 'mouseover', ev => { const c = cellOf(ev.target); if (c) hover(c.parentElement.dataset.key); }),
+    on(tbl, 'mouseleave', () => { if (!tbl.contains(doc.activeElement)) hover(null); }),
+    on(tbl, 'click', ev => {
+      const s = ev.target.closest && ev.target.closest('button.te-sort');
+      if (s && tbl.contains(s)) { if (opts.onSort) opts.onSort(s.dataset.sort); return; }
+      const c = cellOf(ev.target); if (c && !ev.target.closest('a,input')) { go(c); pick(c.parentElement.dataset.key); }
+    }),
+    on(tbl, 'focusin', ev => { const c = cellOf(ev.target); hover(c ? c.parentElement.dataset.key : null); }),
+    on(tbl, 'focusout', ev => { if (!tbl.contains(ev.relatedTarget)) hover(null); }),
+    on(tbl, 'keydown', ev => {
+      const c = navOf(doc.activeElement); if (!c) return;
+      const body = cellOf(c);
+      if (body && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); pick(c.parentElement.dataset.key); return; }
+      const all = navRows(), r = all.indexOf(c.parentElement), ci = cellsOf(c.parentElement).indexOf(c);
+      const ctl = ev.ctrlKey || ev.metaKey, last = all.length - 1, cl = cellsOf(c.parentElement).length - 1;
+      const first = all.length > 1 ? 1 : 0;   // Ctrl+Home goes to the first data row (APG), ↑ from it reaches the header row
+      const to = {
+        ArrowDown: [r + 1, ci], ArrowUp: [r - 1, ci], ArrowRight: [r, ci + 1], ArrowLeft: [r, ci - 1],
+        Home: ctl ? [first, 0] : [r, 0], End: ctl ? [last, cl] : [r, cl], PageDown: [r + 10, ci], PageUp: [Math.max(first, r - 10), ci],
+      }[ev.key];
+      if (!to) return; ev.preventDefault();
+      const tr = all[Math.max(0, Math.min(last, to[0]))], cs = cellsOf(tr);
+      go(cs[Math.max(0, Math.min(cs.length - 1, to[1]))]);
+    }),
+  ];
+  return {
+    light(key) { pick(key == null ? null : String(key)); },
+    // moves the Tab stop (and focus, if the table has it) to a row's first cell, e.g. after the caller draws the table again
+    focusKey(key) { const tr = rows().find(x => x.dataset.key === String(key)); if (!tr) return; const c = tr.firstElementChild; if (tbl.contains(doc.activeElement)) go(c); else { stop().forEach(x => { x.tabIndex = -1; }); c.tabIndex = 0; } },
+    get picked() { return picked; },
+    destroy() { offs.forEach(f => f()); },
+  };
+}
+
 // Pop-ups (UI-W8): a pointer-down outside the open pop-up closes it and does nothing else; Esc closes the top-most
 // one and returns focus to its opener. One manager per document; open(pop, opener) / close(pop).
 function popups(doc) {
@@ -433,7 +539,7 @@ function popups(doc) {
   return { open, close, get open_count() { return stack.length; }, destroy() { doc.removeEventListener('pointerdown', down, true); doc.removeEventListener('keydown', key, true); } };
 }
 
-const api = { VERSION, TOKENS, WIREFRAME, STATES, tokenCSS, parseColour, contrast, contrastPairs, escH,
+const api = { VERSION, TOKENS, WIREFRAME, STATES, tokenCSS, parseColour, contrast, contrastPairs, escH, tableHTML, mountTable,
   buttonHTML, toggleHTML, tabsHTML, windowHTML, edgeTabHTML, nextState, sliderValue, sliderHTML, resultsHTML,
   CSS, install, mountWindow, mountToggle, mountTabs, mountSlider, popups };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussPieces = api;

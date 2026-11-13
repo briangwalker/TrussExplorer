@@ -20,6 +20,9 @@ This page holds no rules. The rules live in [ui-spec.md](ui-spec.md) (`UI-…`),
 | Slider | `sliderHTML({ key, label, min, max, step, value, from, to, wall, rule })`, `sliderValue()` | `mountSlider(el, { onInput })` | `.te-slider` `slider` > `.trk`, `.zone.rule`, `.zone.wall`, `.band` `slider-band`, `.th[data-end=from/to/val]` |
 | Results card | `resultsHTML({ checks, verdict })` | opens its full view with `popups()` | `.res` `results` · `.pill` `badge` |
 | Pop-up | — | `popups(doc).open(pop, opener)` / `.close(pop)` | `.te-pop` |
+| Table (0.2.1, an APG grid) | `tableHTML({ id, caption, columns: [{ key, label, num, sort }], rows, rowHeader, lit, empty })` | `mountTable(tbl, { onHover, onPick, onSort })` → `{ light(key), picked, focusKey(key) }` | `.te-tbl` `table[role=grid]`: `th[scope=col]`, one `th[aria-sort]` with a `.te-sort` button, `th.rh[scope=row]` held in place, `td.num` right-aligned mono, `tr.lit` / `tr[aria-selected]` |
+
+The Members tab (#416) is built from the table piece by `src/membersview.js` (`TrussMembersView`): `tableHTML(P, TrussMembers.rows(tr, res), { typeLabel, lit })`, `toolbarHTML(P)`, and `csvRows()` / `csvOf()`, which give exactly the app's `rowsForCsv()` / CSV text (Node: every case in tests/lib.js; browser: byte for byte against the app's Copy table as CSV). Tests: `tests/membersview.test.js`, `tests/ui/members.mjs`.
 
 `TrussPieces.install(document)` puts the pieces' CSS on the page once (`<style id="te-pieces">`). It is safe to call on the program page: every element a piece builds carries `data-pc`, and the rules on class names the shell also uses (`.s-pan`, `.tabE`, `.s-b`, `.s-ic`, `.res`, `.s-ph`, `.stp`, the focus ring) reach only those elements. A browser test checks that installing it changes nothing the shell drew, in Wireframe and OG (TE-B-235). The marker sits in `:where()`, so a theme's own rules still win (UI-T1). Call it from the code that uses the pieces, never at load (CODE-F1, TE-B-230). The class names are the ones the built-in themes already style, so Notebook + Calculator applies to the pieces unchanged (checked in the browser test).
 
@@ -45,6 +48,7 @@ Tests: **N** = `program/tests/pieces.test.js` (Node), **B** = `program/tests/ui/
 | UI-W18 | The results card's full view is a pop-up | pop-up | B: card opens its pop-up; content is #210's |
 | UI-W12 | Project facts one click away | results card's full view (a pop-up) | B: card opens its pop-up (`aria-expanded`). The facts themselves come from #210. |
 | UI-S6 | Analysis tabs | tabs | N: tablist markup |
+| UI-S6 (Members), UI-H4, UI-A17, UI-A18 | Members sorted by use; hover / pick lights a member; T/C in words; app meaning colours | table, Members view | N: membersview.test.js; B: ui/members.mjs |
 | UI-K7 | Tabs: one Tab stop; arrows move and pick, wrapping; Home and End go to the ends (ui-spec 1.5.1, #367; UI-K3 is for chart dots) | tabs (roving focus) | N: one tab in the Tab order · B: arrows, Home, End, wrap |
 | UI-K4 | Named regions; focus ring kept by every theme | window (`role=region`, `aria-label`), CSS focus ring | N: markup · B: ring |
 | UI-I1 | Swept range shown on the slider with both ends | slider | N: band and ends · B: from can't pass to; band follows |
@@ -69,7 +73,7 @@ Tests: **N** = `program/tests/pieces.test.js` (Node), **B** = `program/tests/ui/
 | ART-M5 | Press 120 ms; reduced motion has none | button CSS (`--t-press`) | N: reduced-motion rule |
 | CODE-F1, F5, S1, N3 | One global; builders are pure; text escaped; throw only for programmer errors | all | N: runs under Node; escaping test; refusals |
 
-## Gaps found while building (TE-B-224 item 3): all answered
+## Gaps found while building (TE-B-224 item 3)
 
 Building the pieces turned up ten questions no spec answered. Each one now has a spec rule (art-spec 1.0.4, #357; ui-spec 1.5, #364, both merged), and the piece cites that rule. The last column says where the rule is met.
 
@@ -85,6 +89,7 @@ Building the pieces turned up ten questions no spec answered. Each one now has a
 | G8 | **The results card's full view.** UI-W18 (#364): a pop-up under the strip; checks with what governs them, the project facts, two links; 540 px. | UI | the pop-up piece; the content is #210's |
 | G9 | **The gallery page.** UI-G1–G5 (#364), place from TE-B-230. The theme switch it needs without saving (UI-G3, UI-G4) is the shell's `previewTheme(id)` door, decided on TE-B-251. | UI | the gallery PR (next), `src/gallery.js` |
 | G10 | **The restless-bridge stop rule.** UI-M8 (#364). | UI | not a piece (#144) |
+| G11 | **How a data table looks** (row height, header, zebra, the lit row, number font). Graphics: keep the look (TE-B-347): zebra ART-K3, header line ART-K4 `line`, the use bar's track a 1 px `line-soft` edge and its fill pass / fail only (never course-rule pink), zebra in every theme. UI: place, columns and keys in ui-spec 1.5.5 / 1.5.7 UI-S6. The ART- rule itself is Graphics' next art-spec. | Graphics, UI | answered |
 
 ## Not pieces (who builds them)
 
@@ -107,6 +112,9 @@ P.mountToggle(document.getElementById('tForces'), { onChange: v => { S.showForce
 The drawing or chart goes inside one `.te-picture` element that is never resized for a window (UI-A3).
 
 ## Change log
+
+- **0.2.1 · 2026-11-13** The table is an APG grid (ui-spec 1.5.7 UI-S6; TE-B-346): `role="grid"`, one Tab stop that remembers the last cell, ↑ ↓ ← → by cell, Home/End along the row, Ctrl+Home/End to the first/last row, PageUp/PageDown 10 rows; ↑ from the first row reaches the header. One sort column (`sort`) carries the only `aria-sort` and a real button (`onSort`). A row-header column (`rowHeader`) and the header row stay in place when the table scrolls. Members view: the short column set and an *All columns* switch (UI-S6 1.5.5), sorting by Use both ways (the CSV keeps member order), the caption counts the members, and Graphics' four points (TE-B-347). Gallery: a Members table item.
+- **0.2 · 2026-11-05** The table piece (`tableHTML`, `mountTable`: hover, arrows, Enter or click lights a row, one Tab stop; UI-S6, UI-H4, UI-K7) and the Members tab view (`src/membersview.js`, #416, TE-B-332). Gap G11: no table-look rule yet.
 
 - **0.1 · 2026-10-31** First set: tokens, picture layer, window and edge tab, stick button, icon button, chip, toggle, tabs, slider, results card, pop-up (#354; TE-B-224, TE-B-227).
 - **0.1.5 · 2026-10-31** `install()` is safe next to the shell: rules on shared class names reach only what the pieces built (`data-pc` inside `:where()`); it's tested on the program page in Wireframe and OG (BluePeachDev's BPD-3 question 1, TE-B-235).
