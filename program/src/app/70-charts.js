@@ -106,7 +106,7 @@ function drawTrackers() {
   queueSweepSave(); try { paintSheet(); } catch (e) {}
   paintTabs();
   if (!$('s-track').open) return;
-  if (S.tab === 'trade') drawTrade(); else if (S.tab === 'curve') drawCurve(); else if (S.tab === 'c3') draw3(); else renderHistory();
+  if (S.tab === 'trade') drawTrade(); else if (S.tab === 'curve') drawCurve(); else if (S.tab === 'c3') draw3(); else if (S.tab === 'mem') renderMembers(); else renderHistory();
   paintAllHidden();
 }
 // a clear notice on the chart when every group is switched off, so an empty chart is not mistaken for one still loading
