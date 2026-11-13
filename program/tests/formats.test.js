@@ -322,6 +322,23 @@ test('size limits: a bridge over its 2 MB cap is refused, by name before reading
   assert.ok(!F.open(JSON.stringify(sw)).errors.includes('too-big'));
 });
 
+// any other name over the bridge cap (TE-B-343, White Hat's left-over on SEC-005): the file's head decides before it's read
+test('size limits: a big file with any other name is read only if its head says sweep (or it is gzip); every saved sweep does', async () => {
+  const e = s => new TextEncoder().encode(s);
+  assert.strictEqual(F.PEEK_BYTES, 64 * 1024);
+  // rule 4i: every sweep fixture, as the app writes it, passes the head check
+  for (const f of fs.readdirSync(FIX).filter(f => f.endsWith('.sweep.json'))) assert.ok(F.headMayBeBig(fs.readFileSync(path.join(FIX, f)).subarray(0, F.PEEK_BYTES)), f);
+  for (const n of F.KINDS.sweep.names) assert.ok(F.headMayBeBig(e('{ "format" : "' + n + '", "version": 2')), n);
+  // a .tsweep is gzip: read it, the bytes door has its own caps
+  const t = await F.toTsweep(F.open(fix('v2-v61-height-panels.sweep.json')).doc);
+  assert.ok(F.headMayBeBig(t.bytes.subarray(0, 16)));
+  // a bridge, anything else, or nothing: refused unread
+  assert.ok(!F.headMayBeBig(e(fix('v2-v61-course-sample-2d.bridge.json'))));
+  assert.ok(!F.headMayBeBig(e('x'.repeat(1000))) && !F.headMayBeBig(e('')) && !F.headMayBeBig(null));
+  // the format name only counts as the format field, not as text somewhere else
+  assert.ok(!F.headMayBeBig(e('{"format":"se310-truss-bridge","notes":"se310-truss-sweep"')));
+});
+
 // ---------- autoName (#256): the generated name a design got when it was made; never free text
 test('autoName: a generated name is kept; free text or a wrong pattern is dropped with a warning', () => {
   const base = { format: 'se310-truss-bridge', version: 2, release: 'r', savedAt: '2026-10-30T00:00:00Z', name: 'My bridge', bridge: { name: 'My bridge', panels: 4 } };
