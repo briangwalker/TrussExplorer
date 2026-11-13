@@ -14,7 +14,7 @@
 (function (root) {
 'use strict';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 // ---------- text ----------
 // Everything a caller passes is text, never markup (CODE-S1).
@@ -209,6 +209,22 @@ function resultsHTML(o) {
     + `<span class="pill ${V[0]}" data-part="badge" data-slot="disp">${V[1]}</span><span aria-hidden="true">▾</span></button>`;
 }
 
+// ---------- the table (UI-S6 Members, UI-H4, UI-A17) ----------
+// A read-only data table: a header row (scope="col"), numbers right-aligned in a monospace face, one row that can be
+// lit (hovered, focused or picked). No look rule for tables exists yet (G11 in docs/pieces.md); it uses ART-K3's
+// surface / surface-2 for rows, as that rule names "table rows".
+// opts: { id, caption, columns: [{ key, label, num }], rows: [{ key, cells: { colKey: text }, html: { colKey: markup the
+//         caller built and escaped }, cls }], lit (row key), empty (text when there are no rows) }
+function tableHTML(o) {
+  if (!o || !Array.isArray(o.columns) || !o.columns.length) fail('a table needs columns');
+  const cols = o.columns, rows = Array.isArray(o.rows) ? o.rows : [];
+  const head = '<thead><tr>' + cols.map(c => `<th scope="col"${c.num ? ' class="num"' : ''}>${escH(c.label)}</th>`).join('') + '</tr></thead>';
+  const body = rows.length ? rows.map((r, n) => `<tr data-key="${escH(r.key)}" tabindex="${n === 0 ? 0 : -1}"${r.cls ? ` class="${escH(r.cls)}"` : ''}${String(r.key) === String(o.lit) ? ' aria-selected="true"' : ''}>`
+    + cols.map(c => `<td${c.num ? ' class="num"' : ''}>${r.html && r.html[c.key] != null ? r.html[c.key] : escH(r.cells ? r.cells[c.key] : '')}</td>`).join('') + '</tr>').join('')
+    : `<tr class="empty"><td colspan="${cols.length}">${escH(o.empty || 'Nothing to show.')}</td></tr>`;
+  return `<table class="te-tbl" data-part="table" data-slot="disp" data-pc${attr('id', o.id)}${o.caption ? '' : ''}>${o.caption ? `<caption>${escH(o.caption)}</caption>` : ''}${head}<tbody>${body}</tbody></table>`;
+}
+
 // ---------- CSS ----------
 // The look of the pieces in Wireframe, using only --te-* tokens and the app's meaning colours (--ok, --bad).
 // Scoped to #stage like everything themed (UI-T1); a theme's own rules are more specific and win.
@@ -287,6 +303,16 @@ const CSS = `
 #stage .res:where([data-pc]) .pill.ok{color:var(--ok,#2f7a4b)}#stage .res:where([data-pc]) .pill.bad{color:var(--bad,#b0177a)}
 #stage .te-pop{position:absolute;z-index:90;background:var(--te-surface);color:var(--te-ink);font:400 13px var(--te-font-ui);border:1px solid var(--te-ctl-line);border-radius:10px;box-shadow:0 12px 40px rgba(20,30,40,.25);padding:10px 12px}
 #stage .te-pop[hidden]{display:none}
+#stage .te-tbl{border-collapse:collapse;font:400 13px var(--te-font-ui);color:var(--te-ink);background:var(--te-surface)}
+#stage .te-tbl caption{text-align:left;font:600 13px var(--te-font-ui);padding:0 0 6px;color:var(--te-ink)}
+#stage .te-tbl :is(th,td){font-size:13px;padding:4px 8px;text-align:left;white-space:nowrap;color:var(--te-ink)}
+#stage .te-tbl th{position:sticky;top:0;background:var(--te-surface-2);font-weight:700;border-bottom:1px solid var(--te-line);z-index:1}
+#stage .te-tbl .num{text-align:right;font-family:var(--te-font-mono);font-variant-numeric:tabular-nums}
+#stage .te-tbl tbody tr:nth-child(even){background:var(--te-surface-2)}
+#stage .te-tbl tbody tr{cursor:default;outline:none}
+#stage .te-tbl tbody tr[aria-selected="true"],#stage .te-tbl tbody tr.lit{background:var(--te-hot)}
+#stage .te-tbl tbody tr:focus-visible{outline:3px solid var(--te-accent);outline-offset:-3px}
+#stage .te-tbl tr.empty td{color:var(--te-muted);white-space:normal}
 @media (prefers-reduced-motion:reduce){#stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip,.te-tog){transition:none}}
 `;
 // Put the CSS on the page once (one <style id="te-pieces">), the way shell.js adds #themeCss. Returns the element.
@@ -413,6 +439,33 @@ function mountSlider(el, opts) {
   return { set, get, destroy() { offs.forEach(f => f()); } };
 }
 
+// A table's rows: hovering a row or moving to it with the arrow keys lights it and calls onHover(key); leaving the table
+// calls onHover(null); a click or Enter picks it (onPick(key)) and it stays lit (UI-H4). One Tab stop (like UI-K7).
+// Returns { light(key), destroy() }: light(key) lights a row from outside, e.g. when a member is clicked on the bridge.
+function mountTable(tbl, opts) {
+  opts = opts || {};
+  const rows = () => [...tbl.querySelectorAll('tbody tr[data-key]')];
+  let picked = (tbl.querySelector('tbody tr[aria-selected="true"]') || {}).dataset;
+  picked = picked ? picked.key : null;
+  const mark = key => rows().forEach(r => r.classList.toggle('lit', r.dataset.key === key));
+  const pick = key => { picked = key; rows().forEach(r => { if (r.dataset.key === key) r.setAttribute('aria-selected', 'true'); else r.removeAttribute('aria-selected'); }); if (opts.onPick) opts.onPick(key); };
+  const hover = key => { mark(key); if (opts.onHover) opts.onHover(key); };
+  const offs = [
+    on(tbl, 'mouseover', ev => { const r = ev.target.closest('tbody tr[data-key]'); if (r && tbl.contains(r)) hover(r.dataset.key); }),
+    on(tbl, 'mouseleave', () => hover(null)),
+    on(tbl, 'click', ev => { const r = ev.target.closest('tbody tr[data-key]'); if (r && tbl.contains(r) && !ev.target.closest('button,a,input')) pick(r.dataset.key); }),
+    on(tbl, 'focusin', ev => { const r = ev.target.closest('tbody tr[data-key]'); if (r) { rows().forEach(x => { x.tabIndex = x === r ? 0 : -1; }); hover(r.dataset.key); } }),
+    on(tbl, 'focusout', ev => { if (!tbl.contains(ev.relatedTarget)) hover(null); }),
+    on(tbl, 'keydown', ev => {
+      const all = rows(), i = all.indexOf(document.activeElement); if (i < 0) return;
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(all[i].dataset.key); return; }
+      const j = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: all.length - 1, PageDown: i + 10, PageUp: i - 10 }[ev.key];
+      if (j == null) return; ev.preventDefault(); const t = all[Math.max(0, Math.min(all.length - 1, j))]; t.focus(); t.scrollIntoView({ block: 'nearest' });
+    }),
+  ];
+  return { light(key) { pick(key == null ? null : String(key)); }, get picked() { return picked; }, destroy() { offs.forEach(f => f()); } };
+}
+
 // Pop-ups (UI-W8): a pointer-down outside the open pop-up closes it and does nothing else; Esc closes the top-most
 // one and returns focus to its opener. One manager per document; open(pop, opener) / close(pop).
 function popups(doc) {
@@ -433,7 +486,7 @@ function popups(doc) {
   return { open, close, get open_count() { return stack.length; }, destroy() { doc.removeEventListener('pointerdown', down, true); doc.removeEventListener('keydown', key, true); } };
 }
 
-const api = { VERSION, TOKENS, WIREFRAME, STATES, tokenCSS, parseColour, contrast, contrastPairs, escH,
+const api = { VERSION, TOKENS, WIREFRAME, STATES, tokenCSS, parseColour, contrast, contrastPairs, escH, tableHTML, mountTable,
   buttonHTML, toggleHTML, tabsHTML, windowHTML, edgeTabHTML, nextState, sliderValue, sliderHTML, resultsHTML,
   CSS, install, mountWindow, mountToggle, mountTabs, mountSlider, popups };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussPieces = api;
