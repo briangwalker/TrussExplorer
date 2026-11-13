@@ -11,7 +11,7 @@
 #     A module placed this way must stand alone: it defines one global (TrussFormats, TrussNames...) and runs nothing
 #     that needs another module while the page loads. Adding one = adding the file; nothing else changes.
 # Run twice, it writes the same bytes (run_all.sh checks this, since index.html is not committed on balsaPixel-1.0).
-import os, re, json, sys
+import base64, os, re, json, sys
 here = os.path.dirname(os.path.abspath(__file__)); src = os.path.join(here, 'src')
 rd = lambda *p: open(os.path.join(*p), encoding='utf-8').read()
 
@@ -44,11 +44,18 @@ def module(f):
     return text
 
 # one pass over the original ui.html, so text inside a module is never mistaken for a placeholder
+# the TE-mark favicon from Graphics' website art pack (#289, TE-B-317), inlined as a data: icon so the site is still one page
+# (img-src allows data:). It's read from the art pack itself, so there's one copy of the icon.
+def favicon():
+    svg = rd(here, '..', 'docs', 'art-website-pack', 'favicon', 'favicon.svg').strip()
+    if '<script' in svg.lower() or 'href=' in svg.lower(): sys.exit('build.py: favicon.svg must hold no script and no links')
+    return '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,' + base64.b64encode(svg.encode('utf-8')).decode('ascii') + '">'
 def fill(m):
+    if m.group(0) == '<!--FAVICON-->': return favicon()
     if m.group(0) == '/*SHELLCSS*/': return rd(src, 'shell.css')
     if m.group(0) == '<!--MODULES-->': return '\n'.join('<script>' + module(f) + '</script>' for f in others)
     return '<script>' + module(m.group(1).lower() + '.js') + '</script>'
-ui = re.sub(r'/\*SHELLCSS\*/|<!--MODULES-->|<script>/\*([A-Z0-9]+)\*/</script>', fill, ui)
+ui = re.sub(r'<!--FAVICON-->|/\*SHELLCSS\*/|<!--MODULES-->|<script>/\*([A-Z0-9]+)\*/</script>', fill, ui)
 open(os.path.join(here, 'index.html'), 'w', encoding='utf-8').write(ui); print('built index.html' + (f' (modules: {", ".join(others)})' if others else ''))
 # CSP script hashes (#297, WH-N3): the page is one file of inline <script> blocks, so the website's Content-Security-Policy
 # allows exactly these by hash instead of 'unsafe-inline'. The deploy (#3) reads index.csp.txt from THIS build, never a
