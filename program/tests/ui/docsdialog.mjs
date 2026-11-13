@@ -22,6 +22,7 @@ try {
       await openIt(p);
       await p.focus('#docGo'); await p.keyboard.press('Enter');
       await p.waitForSelector('#saveModal:not([hidden])');
+      await p.waitForFunction(() => document.getElementById('saveModal').contains(document.activeElement), null, { timeout: 5000 }).catch(() => {});   // the name pop-up has taken focus
       const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 15000 }).catch(() => null), p.keyboard.press('Enter')]);
       await p.waitForTimeout(300);
       check('a download works from the keyboard', !!dl && /_build_documents\.html$/.test(dl.suggestedFilename()), dl ? dl.suggestedFilename() : 'no download');
