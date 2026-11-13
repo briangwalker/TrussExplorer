@@ -133,15 +133,17 @@ function nextState(state, dir) {
   const i = STATES.indexOf(state); if (i < 0) fail('window state must be W, I or T');
   return STATES[Math.max(0, Math.min(2, i + (dir > 0 ? 1 : -1)))];
 }
-// opts: { id, title, home: 'left'|'right'|'top'|'bottom', state: 'W'|'I'|'T', body (HTML the caller built), icons: [{ ic, label, icon, on }] }
+// opts: { id, title, home: 'left'|'right'|'top'|'bottom', state: 'W'|'I'|'T', body (HTML the caller built), icons: [{ ic, label, icon, on }], movable }
+// The ⋮⋮ grip is drawn only when movable is true (UI-W20, Brian 55a): today only the ✎ value editor and the PIP move;
+// every other window keeps its fixed home (UI-W16) and shows no grip.
 function windowHTML(o) {
   if (!o || !/^[a-z][a-z0-9-]*$/.test(String(o.id))) fail('a window needs an id of lower-case letters, digits and hyphens');
   if (!HOMES[o.home]) fail('a window home is left, right, top or bottom');
   const st = STATES.includes(o.state) ? o.state : 'W', right = o.home === 'right', title = o.title || o.id;
   const shrink = right ? '›' : '‹', grow = right ? '‹' : '›';
   const icons = (o.icons || []).map(x => buttonHTML({ kind: 'icon', label: x.label, icon: x.icon, pressed: x.on, act: x.ic })).join('');
-  return `<section class="s-pan" id="win-${o.id}" data-win="${o.id}" data-home="${o.home}" data-state="${st}" data-part="window" data-slot="bg" data-pc role="region" aria-label="${escH(title)}"${st === 'T' ? ' hidden' : ''}>`
-    + `<div class="s-ph" data-part="window-title" data-slot="bg"><span class="grip" aria-hidden="true">⋮⋮</span><span class="wt">${escH(title)}</span>`
+  return `<section class="s-pan" id="win-${o.id}" data-win="${o.id}" data-home="${o.home}" data-state="${st}"${o.movable === true ? ' data-movable' : ''} data-part="window" data-slot="bg" data-pc role="region" aria-label="${escH(title)}"${st === 'T' ? ' hidden' : ''}>`
+    + `<div class="s-ph" data-part="window-title" data-slot="bg">${o.movable === true ? '<span class="grip" aria-hidden="true">⋮⋮</span>' : ''}<span class="wt">${escH(title)}</span>`
     + `<span class="stp" data-part="stepper" data-slot="ctl"><button type="button" class="s-ic sm" data-part="icon-button" data-slot="ctl" data-pc data-step="shrink" aria-label="${escH((st === 'W' ? 'Shrink ' : 'Hide ') + title + (st === 'W' ? ' to icons' : ''))}">${shrink}</button>`
     + `<button type="button" class="s-ic sm" data-part="icon-button" data-slot="ctl" data-pc data-step="grow" aria-label="${escH('Grow ' + title + ' to words and icons')}"${st === 'W' ? ' hidden' : ''}>${grow}</button></span></div>`
     + `<div class="s-bd">${o.body || ''}</div><div class="s-icons" role="toolbar" aria-label="${escH(title + ' (icons)')}">${icons}</div></section>`;

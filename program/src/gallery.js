@@ -44,7 +44,7 @@ const PIC = '<svg viewBox="0 0 600 240" width="100%" height="100%" preserveAspec
 // The items, in page order. Every window has its own name, so no two landmarks share one (QA, TE-B-281). Each one: title, rules it shows, and the HTML made by TrussPieces (P).
 function sections(P) {
   const frame = (inner, cls) => `<div class="g-frame${cls ? ' ' + cls : ''}"><div class="te-picture g-pic">${PIC}</div>${inner}</div>`;
-  const win = (id, title, home, state, body, icons) => P.windowHTML({ id, title, home, state, body, icons }) + P.edgeTabHTML({ id, title, home, state });
+  const win = (id, title, home, state, body, icons, movable) => P.windowHTML({ id, title, home, state, body, icons, movable }) + P.edgeTabHTML({ id, title, home, state });
   const ICONS = [{ ic: 'shape', label: 'Shape', icon: 'S' }, { ic: 'geo', label: 'Geometry', icon: 'G' }, { ic: 'load', label: 'Load', icon: 'L', on: true }];
   const body = '<p class="g-txt">Words and icons: the window\'s own controls go here.</p>' + P.toggleHTML({ label: 'Member forces', checked: true });
   const btnRow = kind => ['default', 'pressed', 'disabled'].map(st => `<div class="g-cell"><span class="g-lab">${st}</span>`
@@ -58,6 +58,8 @@ function sections(P) {
     { id: 'win-i', title: 'Window: icons only (I)', rules: ['UI-A4', 'UI-W15'], html: frame(win('g-icons', 'Inputs (icons)', 'left', 'I', body, ICONS) + win('g-icons-r', 'Drawing (icons)', 'right', 'I', '', ICONS)) },
     { id: 'win-t', title: 'Window: edge tab (T)', rules: ['UI-A4', 'UI-W15', 'ART-K8'], html: frame(win('g-tab', 'Inputs (tab)', 'left', 'T', body, ICONS) + win('g-tab-b', 'Sweep (tab)', 'bottom', 'T', '', [])) },
     { id: 'win-peek', title: 'Peek: hover a tab', rules: ['UI-W9', 'UI-W17'], note: 'Shown open; move the pointer over and off the tab to see it close after 400 ms.', html: frame(win('g-peek', 'Inputs (peek)', 'left', 'T', body, ICONS), 'g-peekframe') },
+    { id: 'win-move', title: 'Grip: only on a window that moves', rules: ['UI-W20', 'UI-W16'], note: 'Only the ✎ value editor and the PIP can be moved, so only they show ⋮⋮. Fixed windows (left) show none.',
+      html: frame(win('g-fixed', 'Inputs (fixed)', 'left', 'W', '<p class="g-txt">A fixed home: no grip.</p>', []) + win('g-move', 'Editor (movable)', 'right', 'W', '<p class="g-txt">Can be moved: grip shown.</p>', [], true)) },
     { id: 'stick', title: 'Stick buttons', rules: ['ART-S1', 'ART-S2', 'ART-S3', 'ART-S4', 'ART-S5', 'ART-S6', 'ART-S10'], note: 'Hover one to see it lift; press Tab to see the focus ring.', html: `<div class="g-row">${btnRow('stick')}</div>` },
     { id: 'icon', title: 'Icon buttons', rules: ['ART-I2', 'ART-S3', 'ART-S4'], html: `<div class="g-row">${btnRow('icon')}</div>` },
     { id: 'chip', title: 'Chips', rules: ['ART-S3', 'ART-S6', 'ART-S7'], html: `<div class="g-row">${btnRow('chip')}</div>` },
