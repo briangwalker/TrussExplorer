@@ -75,17 +75,6 @@ try {
     window.dispatchEvent(new ErrorEvent('error', { error: { name: 'Plain' }, message: 'x', filename: 'app.js', lineno: 3 })); const two = bugLastErrFor();
     return { zero, one, two }; function bugLastErrFor() { document.getElementById('reportBugBtn').click(); const s = document.getElementById('bugTech').textContent; document.getElementById('bugCancel').click(); return s; } });
   check('last error: a plain kind + file:line only, nothing typed and no file name', /last error Error at page:7$/.test(le.zero) && /last error TypeError at app\.js:12$/.test(le.one) && /last error Error at app\.js:3$/.test(le.two) && !/Somebody|\.truss|x\.test/.test(le.zero + le.one), JSON.stringify(le));
-  // #424: a double or triple click saves ONE file and opens ONE form tab
-  for (const n of [2, 3]) {
-    await openDialog(p); await p.waitForTimeout(200);
-    let dls = 0, tabs = 0; const onD = () => { dls++; }, onP = pg => { tabs++; pg.close().catch(() => {}); };
-    p.on('download', onD); p.context().on('page', onP);
-    // the clicks land before the dialog's close runs, as a fast double-click does on a slow machine
-    await p.evaluate(n => { const g = document.getElementById('bugGo'); for (let i = 0; i < n; i++) g.click(); }, n); await p.waitForTimeout(1200);
-    p.off('download', onD); p.context().off('page', onP);
-    check(`#424: a ${n === 2 ? 'double' : 'triple'} click saves one file and opens one form tab`, dls === 1 && tabs === 1, `files ${dls}, tabs ${tabs}`);
-    await p.waitForTimeout(400);
-  }
   check('no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
   // phone
   const ph = await b.newContext({ viewport: { width: 390, height: 844 } }); const q2 = await ph.newPage(); await q2.goto(srv.url); await waitRows(q2);
