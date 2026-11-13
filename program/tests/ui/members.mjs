@@ -21,7 +21,7 @@ async function mount(p) {
     box.innerHTML = V.toolbarHTML(P) + V.tableHTML(P, rows, { typeLabel: window.TrussExport.TYPE_LABEL, id: 'mvT' });
     document.getElementById('stage').appendChild(box);
     window.mvLog = [];
-    window.mvT = P.mountTable(document.getElementById('mvT'), { onHover: k => mvLog.push('hover:' + k), onPick: k => mvLog.push('pick:' + k) });
+    window.mvT = P.mountTable(document.getElementById('mvT'), { onHover: k => mvLog.push('hover:' + k), onPick: k => mvLog.push('pick:' + k), onSort: k => mvLog.push('sort:' + k) });
   });
 }
 
@@ -54,12 +54,44 @@ try {
   await p.mouse.move(1400, 880);
   check('leaving the table reports none', await p.evaluate(() => mvLog.at(-1) === 'hover:null' && !document.querySelector('#mvT tr.lit')));
   check('one Tab stop for the whole table', await p.evaluate(() => document.querySelectorAll('#mvT [tabindex="0"]').length === 1));
-  await p.focus(`#mvT tr[data-key="${k0}"]`); await p.keyboard.press('ArrowDown');
-  check('ArrowDown moves to the next row and lights it', await p.evaluate(k => document.activeElement.dataset.key === String(k) && document.activeElement.classList.contains('lit') && document.activeElement.tabIndex === 0, k1));
+  // the APG grid keys (ui-spec 1.5.7 UI-S6): cell by cell, one Tab stop, the lit member follows the focused row
+  const at = () => p.evaluate(() => { const e = document.activeElement, tr = e.closest('tr'); return { key: tr && tr.dataset.key, ci: tr ? [...tr.children].indexOf(e.closest('th,td')) : -1, sort: !!e.closest('.te-sort'), tab: e.tabIndex, n: tr ? tr.children.length : 0 }; });
+  check('the table is a grid (APG)', await p.evaluate(() => document.getElementById('mvT').getAttribute('role') === 'grid'));
+  await p.focus(`#mvT tr[data-key="${k0}"] > :first-child`); await p.keyboard.press('ArrowDown');
+  let a = await at();
+  check('↓ moves to the next row\'s cell and lights that member (UI-H4)', a.key === String(k1) && a.ci === 0 && a.tab === 0 && await p.evaluate(k => document.querySelector(`#mvT tr[data-key="${k}"]`).classList.contains('lit') && mvLog.at(-1) === 'hover:' + k, k1), JSON.stringify(a));
+  await p.keyboard.press('ArrowRight'); a = await at();
+  check('→ moves one cell along the row', a.key === String(k1) && a.ci === 1, JSON.stringify(a));
+  await p.keyboard.press('End'); a = await at();
+  check('End goes to the last cell of the row', a.ci === a.n - 1, JSON.stringify(a));
+  await p.keyboard.press('Home'); a = await at();
+  check('Home goes to the first cell of the row', a.key === String(k1) && a.ci === 0, JSON.stringify(a));
+  await p.keyboard.press('Control+End'); a = await at();
+  check('Ctrl+End goes to the last row', a.key === String(order.keys.at(-1)) && a.ci === a.n - 1, JSON.stringify(a));
+  await p.keyboard.press('Control+Home'); a = await at();
+  check('Ctrl+Home goes to the first row', a.key === String(k0) && a.ci === 0, JSON.stringify(a));
+  check('still one Tab stop after moving', await p.evaluate(() => document.querySelectorAll('#mvT [tabindex="0"]').length === 1));
+  await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowRight');
+  await p.keyboard.press('Shift+Tab'); await p.keyboard.press('Tab'); a = await at();
+  check('Tab back in returns to the last cell (one Tab stop, APG)', a.key === String(k1) && a.ci === 1, JSON.stringify(a));
   await p.keyboard.press('Enter');
-  check('Enter picks the row: it stays lit (UI-H4)', await p.evaluate(k => document.querySelector(`#mvT tr[data-key="${k}"]`).getAttribute('aria-selected') === 'true' && mvLog.includes('pick:' + k), k1));
+  check('Enter picks the row: it stays picked (aria-selected, UI-H4)', await p.evaluate(k => document.querySelector(`#mvT tr[data-key="${k}"]`).getAttribute('aria-selected') === 'true' && mvLog.includes('pick:' + k), k1));
+  // the sort header: ↑ from the first row reaches it; it is the only aria-sort, and its button reports the sort
+  await p.keyboard.press('Control+Home');
+  for (let n = 0; n < 12; n++) await p.keyboard.press('ArrowRight');
+  await p.keyboard.press('ArrowUp'); a = await at();
+  check('↑ from the first row reaches the Use header\'s sort button', a.sort, JSON.stringify(a));
+  check('Use carries the only aria-sort, descending (UI-S6 1.5.7)', await p.evaluate(() => { const s = [...document.querySelectorAll('#mvT [aria-sort]')]; return s.length === 1 && s[0].getAttribute('aria-sort') === 'descending' && /Use/.test(s[0].textContent); }));
+  await p.keyboard.press('Enter');
+  check('Enter on the sort button asks for the sort', await p.evaluate(() => mvLog.at(-1) === 'sort:use'), await p.evaluate(() => mvLog.slice(-3).join(' ')));
+  // sideways: in a narrow window the Member column and the header row stay in place (UI-S6, UI-W23)
+  await p.evaluate(() => { document.getElementById('mvTest').style.width = '320px'; });
+  await p.focus(`#mvT tr[data-key="${k0}"] > :first-child`); await p.keyboard.press('End');
+  const pin = await p.evaluate(() => { const box = document.getElementById('mvTest'), rh = document.activeElement.closest('tr').firstElementChild, bl = box.getBoundingClientRect().left, rl = rh.getBoundingClientRect().left; return { scrolled: box.scrollLeft, gap: Math.round(rl - bl), seen: (() => { const r = document.activeElement.getBoundingClientRect(), b = box.getBoundingClientRect(); return r.right <= b.right + 1 && r.left >= b.left - 1; })() }; });
+  check('sideways scrolling follows focus, and the Member column stays in place', pin.scrolled > 0 && pin.gap <= 12 && pin.seen, JSON.stringify(pin));
+  check('the All columns switch is above the table', await p.evaluate(() => { const t = document.querySelector('#mvTest [role="switch"]'); return !!t && /All columns/.test(t.closest('label').textContent) && t.compareDocumentPosition(document.getElementById('mvT')) & 4; }));
   await p.evaluate(k => mvT.light(k), k0);
-  check('light(k) from the bridge lights that row and only it', await p.evaluate(k => [...document.querySelectorAll('#mvT [aria-selected="true"]')].map(r => r.dataset.key).join() === String(k), k0));
+  check('light(k) from the bridge picks that row and only it', await p.evaluate(k => [...document.querySelectorAll('#mvT [aria-selected="true"]')].map(r => r.dataset.key).join() === String(k), k0));
   await p.click(`#mvT tr[data-key="${k1}"] td:nth-child(2)`);
   check('a click picks a row', await p.evaluate(k => mvT.picked === String(k), k1));
   // UI-A18: the T/C letters take the app's own colours

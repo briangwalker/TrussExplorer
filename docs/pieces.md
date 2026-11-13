@@ -20,7 +20,7 @@ This page holds no rules. The rules live in [ui-spec.md](ui-spec.md) (`UI-…`),
 | Slider | `sliderHTML({ key, label, min, max, step, value, from, to, wall, rule })`, `sliderValue()` | `mountSlider(el, { onInput })` | `.te-slider` `slider` > `.trk`, `.zone.rule`, `.zone.wall`, `.band` `slider-band`, `.th[data-end=from/to/val]` |
 | Results card | `resultsHTML({ checks, verdict })` | opens its full view with `popups()` | `.res` `results` · `.pill` `badge` |
 | Pop-up | — | `popups(doc).open(pop, opener)` / `.close(pop)` | `.te-pop` |
-| Table (0.2) | `tableHTML({ id, caption, columns, rows, lit, empty })` | `mountTable(tbl, { onHover, onPick })` → `{ light(key), picked }` | `.te-tbl` `table`: `th[scope=col]`, `td.num` right-aligned mono, `tr.lit` / `tr[aria-selected]` |
+| Table (0.2.1, an APG grid) | `tableHTML({ id, caption, columns: [{ key, label, num, sort }], rows, rowHeader, lit, empty })` | `mountTable(tbl, { onHover, onPick, onSort })` → `{ light(key), picked, focusKey(key) }` | `.te-tbl` `table[role=grid]`: `th[scope=col]`, one `th[aria-sort]` with a `.te-sort` button, `th.rh[scope=row]` held in place, `td.num` right-aligned mono, `tr.lit` / `tr[aria-selected]` |
 
 The Members tab (#416) is built from the table piece by `src/membersview.js` (`TrussMembersView`): `tableHTML(P, TrussMembers.rows(tr, res), { typeLabel, lit })`, `toolbarHTML(P)`, and `csvRows()` / `csvOf()`, which give exactly the app's `rowsForCsv()` / CSV text (Node: every case in tests/lib.js; browser: byte for byte against the app's Copy table as CSV). Tests: `tests/membersview.test.js`, `tests/ui/members.mjs`.
 
@@ -89,7 +89,7 @@ Building the pieces turned up ten questions no spec answered. Each one now has a
 | G8 | **The results card's full view.** UI-W18 (#364): a pop-up under the strip; checks with what governs them, the project facts, two links; 540 px. | UI | the pop-up piece; the content is #210's |
 | G9 | **The gallery page.** UI-G1–G5 (#364), place from TE-B-230. The theme switch it needs without saving (UI-G3, UI-G4) is the shell's `previewTheme(id)` door, decided on TE-B-251. | UI | the gallery PR (next), `src/gallery.js` |
 | G10 | **The restless-bridge stop rule.** UI-M8 (#364). | UI | not a piece (#144) |
-| G11 | **How a data table looks** (row height, header, zebra, the lit row, number font). No rule yet; the table piece uses ART-K3's `surface` / `surface-2` for rows, `--te-hot` for the lit row, 13 px text, mono numbers. Asked on the board (#416). | Graphics, UI | open |
+| G11 | **How a data table looks** (row height, header, zebra, the lit row, number font). Graphics: keep the look (TE-B-347): zebra ART-K3, header line ART-K4 `line`, the use bar's track a 1 px `line-soft` edge and its fill pass / fail only (never course-rule pink), zebra in every theme. UI: place, columns and keys in ui-spec 1.5.5 / 1.5.7 UI-S6. The ART- rule itself is Graphics' next art-spec. | Graphics, UI | answered |
 
 ## Not pieces (who builds them)
 
@@ -113,6 +113,7 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 
 ## Change log
 
+- **0.2.1 · 2026-11-13** The table is an APG grid (ui-spec 1.5.7 UI-S6; TE-B-346): `role="grid"`, one Tab stop that remembers the last cell, ↑ ↓ ← → by cell, Home/End along the row, Ctrl+Home/End to the first/last row, PageUp/PageDown 10 rows; ↑ from the first row reaches the header. One sort column (`sort`) carries the only `aria-sort` and a real button (`onSort`). A row-header column (`rowHeader`) and the header row stay in place when the table scrolls. Members view: the short column set and an *All columns* switch (UI-S6 1.5.5), sorting by Use both ways (the CSV keeps member order), the caption counts the members, and Graphics' four points (TE-B-347). Gallery: a Members table item.
 - **0.2 · 2026-11-05** The table piece (`tableHTML`, `mountTable`: hover, arrows, Enter or click lights a row, one Tab stop; UI-S6, UI-H4, UI-K7) and the Members tab view (`src/membersview.js`, #416, TE-B-332). Gap G11: no table-look rule yet.
 
 - **0.1 · 2026-10-31** First set: tokens, picture layer, window and edge tab, stick button, icon button, chip, toggle, tabs, slider, results card, pop-up (#354; TE-B-224, TE-B-227).
