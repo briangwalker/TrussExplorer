@@ -12,7 +12,7 @@ This page holds no rules. The rules live in [ui-spec.md](ui-spec.md) (`UI-…`),
 |---|---|---|---|
 | Theme tokens | `TOKENS`, `WIREFRAME`, `tokenCSS(id, values)`, `contrast()`, `contrastPairs()` | — | `--te-*` on `#stage[data-theme="<id>"]` |
 | Picture layer | — (CSS) | — | `.te-picture`: the drawing or chart goes in here |
-| Window | `windowHTML({ id, title, home, state, body, icons })`, `nextState()` | `mountWindow(win, tab, { onState })` | `.s-pan` `window` · `.s-ph` `window-title` · `.stp` `stepper` |
+| Window | `windowHTML({ id, title, home, state, body, icons, movable })` (⋮⋮ grip only when `movable: true`, UI-W20), `nextState()` | `mountWindow(win, tab, { onState })` | `.s-pan` `window` · `.s-ph` `window-title` · `.stp` `stepper` |
 | Edge tab | `edgeTabHTML({ id, title, home, state })` | (in `mountWindow`) | `.tabE.l/.r/.t/.b` `edge-tab` |
 | Stick button, icon button, chip | `buttonHTML({ kind, label, icon, pressed, disabled })` | `mountToggle()` for a pressed button | `.s-b` `button` · `.s-ic` `icon-button` · `.te-chip` `chip` |
 | Toggle | `toggleHTML({ label, checked })` | `mountToggle()` | `.te-tog[role=switch]` `toggle` |
@@ -108,6 +108,7 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 
 ## Change log
 
+- **0.1.6 · 2026-11-13** `windowHTML` takes `movable` (default false). The ⋮⋮ grip is drawn only on a window that can be moved, today the ✎ value editor and the PIP (UI-W20, Brian 55a, TE-B-301). The gallery shows one fixed and one movable window side by side.
 - **0.1 · 2026-10-31** First set: tokens, picture layer, window and edge tab, stick button, icon button, chip, toggle, tabs, slider, results card, pop-up (#354; TE-B-224, TE-B-227).
 - **0.1.5 · 2026-10-31** `install()` is safe next to the shell: rules on shared class names reach only what the pieces built (`data-pc` inside `:where()`); it's tested on the program page in Wireframe and OG (BluePeachDev's BPD-3 question 1, TE-B-235).
 - **0.1.4 · 2026-10-31** After #356, #357 and #364 merged: the gaps table cites its rules (TE-B-243, TE-B-249). The tab keys cite UI-K7 instead of UI-K3 (UI's review, TE-B-232; #367). The rule map gains UI-W15, UI-W17 and UI-W18.
