@@ -1,6 +1,6 @@
 # Truss Explorer Art Standard (themes and art assets)
 
-**Version 1.0.4 · 2026-10-31 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
+**Version 1.0.5 · 2026-11-13 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel **looks and moves**: themes, tokens, materials, pictures, icons, textures and motion. Every rule has a number (`ART-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -37,7 +37,7 @@ A theme is a set of tokens plus per-part looks (UI-T1). These are the tokens a *
 | ART-K4 | `line`, `line-soft` | window borders; dividers | `#b9c0c8`, `#d5dae0` | `#b48b52`, `rgba(110,80,40,.25)` |
 | ART-K5 | `ink`, `muted` | text; secondary text | `#1d232a`, `#4f5964` | `#23262b`, `#5b6774` |
 | ART-K6 | `strong`, `on-strong` | picked controls, top bar, tabs; text on them | `#7a4f1c`, `#fff` | `#8c5e22`, `#fff8ec` |
-| ART-K7 | `ctl-bg`, `ctl-line` | unpicked controls: face and border | `#fff`, `#7f8893` (3.59 : 1, ART-C2) | `#ebd09b`, `#a9804a` |
+| ART-K7 | `ctl-bg`, `ctl-line` | unpicked controls: face and border | `#fff`, `#7f8893` (3.59 : 1, ART-C2) | `#ebd09b`, `#946832` (3.27 : 1 on `ctl-bg`, 3.63 : 1 on `panel`, ART-C2) |
 | ART-K8 | `tab` | brown edge tabs | `#8a5a2b` | `#8a5a2b` |
 | ART-K9 | `accent`, `accent-ink` | count badge, tour marks, **focus ring** | `#f0b45a`, `#2a1a04` | `#f0b45a`, `#2a1a04` |
 | ART-K10 | `hot` | the highlighted row | `#fdebd6` | `rgba(255,210,60,.38)` |
@@ -61,6 +61,7 @@ A built-in theme may add private tokens with its own prefix (Notebook + Calculat
 | ART-C2 | Lines, icons, focus rings and control edges are at least **3 : 1**. | | QA #68 | live |
 | ART-C3 | **Help text on wood** uses `--te-ink` (never `--te-muted`) and at least 14 px; on a busy texture it sits on a paper label (ART-W1). | Fixes "light help text on the wood Inputs tray" (TE-B-026). | TE-B-026 | planned #221 |
 | ART-C4 | **Dark mode** (`prefers-color-scheme: dark`, or the app's dark setting) uses generated wood, never the photo, and keeps every contrast above. | Notebook + Calculator: `wood = generated` in dark. | Brian, 2026-10-27 | live in kit |
+| ART-C6 | **Control edges per theme.** `ctl-line` on `ctl-bg` is at least 3 : 1 in every theme that ships or is shown in the gallery. Values: Wireframe `#7f8893` on `#fff` (3.59 : 1); Notebook + Calculator `#946832` on `#ebd09b` (3.27 : 1); Blueprint (a sample, not shipped) `#6a7ea3` on `#e9eef7` (3.52 : 1). `--te-muted` on `--te-panel` is at least 4.5 : 1 (ART-C1). These are the pairs `tests/themes.test.js` (#265) computes; a pair added there is added here. | Closes #288's three control-edge lines (#355 for Wireframe). | #288, TE-B-359 | live as a rule; the two theme files still hold the old values (#288) |
 | ART-C5 | Group colours (isolation tools, #148) avoid the five meaning hues. | `#7048b8`, `#d0731f`, `#13878f`, `#8a7a1f` | #148 | planned |
 
 ## ART-T · Type
@@ -104,6 +105,8 @@ A theme option chooses one window look; the controls inside a window are made of
 | ART-W10 | **Walkthrough card** (UI-K6) | a small paper note, taped at one corner, beside what it is about; the sentence in Kalam, the step count ("3 of 9") in the UI font | key cap = an inked key outline drawn on the paper, never a balsa stick on paper (ART-P1); on a Calculator window the target's own pixel key lights | highlight = a pencil ring around the target with the ART-M7 wobble, over a `hot` highlighter wash; reduced motion: drawn once, no pulse | planned #220 |
 | ART-W11 | **ⓘ help button** (UI-K6 says where it goes): the round **end of a balsa dowel**, seen end-on: matte, visible end-grain rings, one soft top-left highlight no brighter than the wood (never glossy or glowing), the “i” inked in `--te-ink`. 28 px minimum (UI-A touch target 44 px with the hit area). **Pressed:** it sinks halfway into the page and reads as a half-sphere: it moves 3 px down, its shadow shrinks to a thin line on the top edge, and the highlight goes out (ART-S3). Hover: the ring darkens a little; no glow. Replaces the bright, shiny button. | `data-part="help-button"` | | Graphics' pick (a, dowel end) shipped as a two-way door, All-hands 2026-10-30 item 5a; Brian can swap it | planned |
 | ART-W12 | **Pop-up** (value picker lists, the results card's full view, the ⓘ box; UI-W8) | light and temporary, so **paper** (ART-P1): Notebook uses the paper texture with a soft shadow and a 1 px `ctl-line` edge; Wireframe uses `surface` with the same shadow and edge. Never wood, never an LCD (the value tag editor, ART-W9, is the one calculator pop-up). | text in `ink`, 13 px minimum (ART-T2) | | UI Engineer gap G3, TE-B-239 | planned |
+| ART-W14 | **Data table** (the Members tab, UI-S6 / UI-W21; any later table) | Rows alternate `surface` and `surface-2` (ART-K3) in every theme; Notebook adds no ruled lines. The header row is `surface-2`, bold, sticky, with a 1 px `line` rule under it (ART-K4); no lines between rows. Text 13 px minimum (ART-T2); numbers right-aligned in the mono font. The lit row (hovered or picked) is `--te-hot`; the focus ring is 3 px `accent`, drawn inside the row. T and C are a letter plus the word, in the tension and compression meaning colours (ART-K6), never colour alone. A **use bar** is 48 px wide: its track has a 1 px `line-soft` edge (never plain `surface-2`, which vanishes on a striped row), its fill uses only the pass, fail and zero meaning colours (never the course-rule pink, ART-K16), and the number always sits beside it. | `data-part="table"` | UI Engineer gap G11, TE-B-339, TE-B-347 | planned |
+| ART-W15 | **Model-values note** (UI-W24, beside the Material inputs) | A printed caption, not a paper note: UI text in `muted`, 13 px minimum, no handwriting, tape, icon or colour. It is always shown, in every theme, so it follows ART-C1 (4.5 : 1 on its panel). The words are Physics' and one string in the program serves every place (UI-W24). | | TE-B-342, UI-W24 | planned |
 | ART-W13 | **Tabs** (UI-S6) | Notebook: a **glued stick group** (ART-S7), the picked tab pressed (ART-S3). Wireframe: flat segments that each keep a 1 px `ctl-line` edge on `ctl-bg` (an unpicked tab must still read as a control, ART-C2); the picked tab is `strong` on `on-strong` and sunk 2 px. Words 13 px minimum (ART-T2). | `data-part="tab"` | | UI Engineer gap G4, TE-B-239 | planned |
 
 ## ART-D · The drawing
@@ -209,11 +212,11 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 |---|---|---|
 | 2 · Truss 2D full screen | #209 | ART-D1–D5, ART-S1–S10, ART-W1, ART-C1–C3, ART-I1–I3, ART-M7 |
 | 3 · Sweep bar, results card, PIP | #210 | ART-D2, ART-W7, ART-W3 (results strip) |
-| 4 · Analysis full screen | #211 | ART-M6, ART-C5 |
-| 8 · Inputs screen | #215 | ART-H1–H4, ART-H6, ART-W5, ART-W6, ART-O6, ART-K16 |
+| 4 · Analysis full screen | #211 | ART-M6, ART-C5, ART-W14 |
+| 8 · Inputs screen | #215 | ART-H1–H4, ART-H6, ART-W5, ART-W6, ART-O6, ART-K16, ART-W15 |
 | 11 · Keyboard and screen readers | #218 | ART-S5, ART-I2 |
 | 13 · First-time tour | #220 | ART-M3, ART-W10 |
-| 14 · Themes and OG | #221 | ART-P1–P6, ART-K1–K16, ART-C1–C4, ART-T1–T3, ART-W1–W9, ART-W11–W13, ART-X1–X7, ART-O1–O6, ART-H5 |
+| 14 · Themes and OG | #221 | ART-P1–P6, ART-K1–K16, ART-C1–C4, ART-C6, ART-T1–T3, ART-W1–W9, ART-W11–W15, ART-X1–X7, ART-O1–O6, ART-H5 |
 | Transitions | #143 | ART-M1, ART-M2, ART-M4, ART-M5 |
 | Restless bridge | #144 | ART-M3 |
 
@@ -230,6 +233,7 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 
 ## Change log
 
+- **1.0.5 · 2026-11-13** Closes #288's control-edge lines as values: new ART-C6 (Wireframe `#7f8893`, Notebook + Calculator `#946832`, Blueprint sample `#6a7ea3`, all at least 3 : 1) and ART-K7's Notebook value changes from `#a9804a` (2.39 : 1) to `#946832`. New ART-W14 (data table, answers gap G11, TE-B-339, TE-B-347) and ART-W15 (the model-values note's look, UI-W24, TE-B-342). Steps #211, #215 and #221 cite them. No look changes for users until the two theme files take the new values (#288). Spec rules met: ART-C2, ART-K7.
 - **1.0.4 · 2026-10-31** Answers the UI Engineer's four art gaps (TE-B-239, TE-B-224 item 3): new ART-K16 (course-rule pink is a meaning colour, `#c8288c`, solid stripes), ART-S10 (Wireframe stick hover and pressed), ART-W12 (pop-up is paper), ART-W13 (tabs are a glued stick group; Wireframe segments keep an edge). ART-K7 Wireframe `ctl-line` is `#7f8893`, 3.59 : 1, which clears ART-C2 (#355, TE-B-232). Build steps #209, #215, #221 cite the new rules.
 
 - **1.0.3 · 2026-10-30** ART-W6: the slider look is its own setting with A, B and C, no longer tied to the window look (Brian, TE-B-147 item 2). New ART-O6 (the setting). ART-O2 no longer picks the slider. A and the Motion Lab's “stick in a tray” are the same slider (ART-W1), so there is nothing to merge. New ART-W11: the ⓘ button is a dowel end with a half-sunk pressed look (two-way door, All-hands 2026-10-30 item 5a, TE-B-203). Build steps 8 (#215) and 14 (#221) now cite ART-O6 and ART-W11.
