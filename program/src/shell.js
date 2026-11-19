@@ -163,7 +163,7 @@ if (!SH_CLASSIC) {
   function icons(id) {
     if (id === 'inputs') return [...R.pane.querySelectorAll(':scope > details.grp')].map((d, k) => { const h = d.querySelector('summary h3'); const t = h ? h.textContent.trim() : 'Section ' + (k + 1); const m = t.match(/^(\d+)/); return { ic: 'g' + k, g: m ? m[1] : t[0], label: t }; });
     if (id === 'drawing' && place() === 'truss') return Object.entries(VIEW_ICONS).filter(([k]) => TOGGLES.includes(k)).map(([k, [g, label]]) => ({ ic: k, g, label, on: $(k).checked }));
-    if (id === 'view' && place() === 'analysis') return [...document.querySelectorAll('#trackTabs [role="tab"]')].map(b => ({ ic: 't:' + b.dataset.t, g: ({ trade: '⋰', hist: '☰', curve: '⌒' })[b.dataset.t] || '•', label: b.textContent.trim(), on: b.getAttribute('aria-selected') === 'true' }));
+    if (id === 'view' && place() === 'analysis') return [...document.querySelectorAll('#trackTabs [role="tab"]')].map(b => ({ ic: 't:' + b.dataset.t, g: ({ trade: '⋰', hist: '☰', curve: '⌒', mem: '▤' })[b.dataset.t] || '•', label: b.textContent.trim(), on: b.getAttribute('aria-selected') === 'true' }));
     if (id === 'sweep') return [{ ic: 'run', g: '▶', label: 'Run the sweep' }, { ic: 'grow', g: '⋯', label: 'Show the sweep' }];
     return [{ ic: 'grow', g: WIN[id].glyph, label: 'Show ' + WIN[id].title() }];
   }

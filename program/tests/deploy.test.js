@@ -29,3 +29,15 @@ test('the deploy workflow: tags only, tests first, production environment, read-
   (wf.match(/uses: \S+/g) || []).forEach(u => assert.match(u, /@[0-9a-f]{40}$/, `${u} is pinned to a commit`));
   assert.match(wf, /StrictHostKeyChecking=yes/);
 });
+
+test('TE-B-317: the page carries the TE-mark favicon from the art pack, inlined as a data: icon', () => {
+  execFileSync('python3', ['build.py'], { cwd: root });
+  const page = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const m = page.match(/<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml;base64,([A-Za-z0-9+/=]+)">/);
+  assert.ok(m, 'one icon link in the page');
+  const svg = fs.readFileSync(path.join(root, '..', 'docs', 'art-website-pack', 'favicon', 'favicon.svg'), 'utf8').trim();
+  assert.equal(Buffer.from(m[1], 'base64').toString('utf8'), svg, 'the same icon as the art pack');
+  assert.equal((page.match(/rel="icon"/g) || []).length, 1);
+  const policy = fs.readFileSync(path.join(root, 'index.csp.txt'), 'utf8');
+  assert.match(policy, /img-src 'self' data:/, 'the CSP lets the data: icon load');
+});

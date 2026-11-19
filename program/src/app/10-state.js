@@ -43,7 +43,7 @@ const KEY = 'se310-truss-v5';
 const APP_VER = 35;   // bumped whenever the solver or the saved data changes
 // the product name shown in the tab and the classic header comes from ONE string, BuildDoc.PRODUCT_NAME (TE-B-280)
 document.title = BuildDoc.PRODUCT_NAME; { const an = document.getElementById('appName'); if (an) an.textContent = BuildDoc.PRODUCT_NAME; }
-const APP_RELEASE = '1.0.0-alpha.2';   // SemVer pre-release (board TE-B-017); a version only, never the product name (TE-B-246: the product is 'balsaPixel: Truss Explorer'); written into every file the app saves (main is the stable v6x line)
+const APP_RELEASE = '1.0.0-alpha.3';   // SemVer pre-release (board TE-B-017); a version only, never the product name (TE-B-246: the product is 'balsaPixel: Truss Explorer'); written into every file the app saves (main is the stable v6x line)
 
 // The starter bridge fits the 300 mm envelope measured on the outer faces (#185, Brian 2026-10-28): 48.4 mm on each desk
 // gives 296.8 mm between end joints and 299.98 mm outside (half a stick, 1.59 mm, shorter at each end than v61's 300 mm).
@@ -114,4 +114,7 @@ function summaryOf(p) {
   if (p.family !== 'warren' && p.vert === 'none') s += ' · no verticals';
   return s;
 }
-
+// smallest and largest of a list by a loop: Math.min(...list) overflows the call stack past about 125,000 values,
+// which a big sweep has (TE-B-379; the same rule as sweepstore's range, #223). Empty gives Infinity / -Infinity, as Math.min() does.
+function minOf(a) { let m = Infinity; for (let i = 0; i < a.length; i++) if (a[i] < m) m = a[i]; return m; }
+function maxOf(a) { let m = -Infinity; for (let i = 0; i < a.length; i++) if (a[i] > m) m = a[i]; return m; }

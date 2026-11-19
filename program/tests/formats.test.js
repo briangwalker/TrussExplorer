@@ -287,6 +287,41 @@ test('.tsweep: a result that was also swept (an end offset, the overlap) becomes
   assert.strictEqual(t2.dupes, 1);
 });
 
+// ---------- #296: one set of size limits for every door (White Hat's review of #274)
+test('size limits: set so no file that opens today is refused, and they do refuse past them', async () => {
+  const L = F.LIMITS;
+  assert.ok(Object.isFrozen(L));
+  // rule 4i (Dev Lead's review): at least the browser's longest string and the old 512 MB .tsweep unzip cap, and more
+  // designs than 512 MB of .tsweep can hold (about 6.3 million)
+  assert.ok(L.fileBytes >= 512 * 1024 * 1024 && L.unzipped >= 512 * 1024 * 1024 && L.rows >= 6.5e6, JSON.stringify(L));
+  // the checks themselves, with small limits passed in as the tests do (the app never passes any)
+  assert.deepStrictEqual(F.open('x'.repeat(101), { limits: { fileBytes: 100 } }).errors, ['too-big']);
+  const sweep = n => ({ format: 'se310-truss-sweep', version: 2, release: 'r', savedAt: '2026-10-31T00:00:00Z', rows: new Array(n).fill(0) });
+  assert.deepStrictEqual(F.open(sweep(4), { limits: { rows: 3 } }).errors, ['too-many-rows']);
+  assert.ok(!F.open(sweep(3), { limits: { rows: 3 } }).errors.includes('too-many-rows'));
+  // a .tsweep: too big as bytes, and a header claiming more rows than allowed stops before any column is read
+  const o = F.open(fix('v2-v61-height-panels.sweep.json')), t = await F.toTsweep(o.doc);
+  assert.deepStrictEqual((await F.openBytes(t.bytes, { limits: { fileBytes: 10 } })).errors, ['too-big']);
+  assert.deepStrictEqual((await F.openBytes(t.bytes, { limits: { rows: t.rows - 1 } })).errors, ['too-many-rows']);
+  assert.ok((await F.openBytes(t.bytes)).ok, 'and it opens with the real limits');
+});
+
+// per file kind (#296): a bridge file has its own small cap; sweeps keep the large ones
+test('size limits: a bridge over its 2 MB cap is refused, by name before reading and by content after; a big sweep still opens', () => {
+  const L = F.LIMITS;
+  assert.strictEqual(L.bridgeBytes, 2 * 1024 * 1024);
+  assert.ok(F.BRIDGE_NAME.test('a.truss') && F.BRIDGE_NAME.test('A.Bridge.JSON') && !F.BRIDGE_NAME.test('a.sweep.json') && !F.BRIDGE_NAME.test('a.json'));
+  // every saved bridge fixture is far under the cap (rule 4i)
+  for (const f of fs.readdirSync(FIX).filter(f => f.endsWith('.bridge.json'))) assert.ok(fs.statSync(path.join(FIX, f)).size < L.bridgeBytes / 20, f);
+  // a 3 MB bridge, whatever it is called: the content decides, before the deep clean
+  const big = JSON.parse(fix('v2-v61-course-sample-2d.bridge.json')); big.notes = 'x'.repeat(3 * 1024 * 1024);
+  const r = F.open(JSON.stringify(big));
+  assert.strictEqual(r.ok, false); assert.deepStrictEqual(r.errors, ['too-big']); assert.strictEqual(r.kind, 'bridge');
+  // a sweep of the same size is within the sweep limits and opens
+  const sw = JSON.parse(fix('v2-v61-height-panels.sweep.json')); sw.notes = 'x'.repeat(3 * 1024 * 1024);
+  assert.ok(!F.open(JSON.stringify(sw)).errors.includes('too-big'));
+});
+
 // ---------- autoName (#256): the generated name a design got when it was made; never free text
 test('autoName: a generated name is kept; free text or a wrong pattern is dropped with a warning', () => {
   const base = { format: 'se310-truss-bridge', version: 2, release: 'r', savedAt: '2026-10-30T00:00:00Z', name: 'My bridge', bridge: { name: 'My bridge', panels: 4 } };

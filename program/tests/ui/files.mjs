@@ -77,6 +77,12 @@ try {
     const q2 = await openPage(b, srv.url); await waitRows(q2);
     await open(q2, 'bridge', write('old.bridge.json', old)); await q2.waitForTimeout(600);
     const o2 = await q2.evaluate(() => ({ ana: __dbg.S.anaMode, wood: +__dbg.res.wood.toFixed(1), msg: document.getElementById('toast').textContent }));
+    // #296 per file kind: a 3 MB .truss is refused before it's read, and the open bridge stays as it was
+    const tooBig = path.join(tmp, 'huge.truss'); fs.writeFileSync(tooBig, '{"format":"se310-truss-bridge","version":2,"x":"' + 'x'.repeat(3 * 1024 * 1024) + '"}');
+    const nameBefore = await q2.evaluate(() => __dbg.S.name);
+    await q2.click('#dockBtn'); await q2.waitForSelector('#dockMenu:not([hidden])');
+    const [fcBig] = await Promise.all([q2.waitForEvent('filechooser'), q2.click('#dockMenu [data-click="loadBridge"]')]); await fcBig.setFiles(tooBig); await q2.waitForTimeout(500);
+    check('#296: a 3 MB .truss is refused before reading, with a message, and nothing changes', await q2.evaluate(n => __dbg.S.name === n && /bridge file is never more than 2 MB/.test(document.body.textContent), nameBefore));
     check('TE-B-256: the Open button offers .truss and still .bridge.json', await q2.evaluate(() => { const a = document.getElementById('filePick').accept.split(','); return a.includes('.truss') && a.includes('.bridge.json') && a.includes('.tsweep'); }));
     check('#154: an older file opens in the model its wood matches, and says so', o2.ana === '3d' && Math.abs(o2.wood - saved.summary.wood) < 0.15 && /before v61/.test(o2.msg), JSON.stringify(o2));
     check('#154: no script errors', p.errs.length + q.errs.length + q2.errs.length === 0, q.errs.concat(q2.errs).slice(0, 2).join(' | '));
