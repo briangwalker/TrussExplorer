@@ -1,0 +1,172 @@
+// The limits table and the input check (CODE-F1, CODE-F4, CODE-N2, CODE-N3; #420, #421). Board TE-B-373.
+//   node --test tests/limits.test.js
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+const L = require(path.join(__dirname, '..', 'src', 'limits.js'));
+
+// A good set of values: every id at its app default (Dev Lead's CSV, TE-B-370b), so expressions resolve.
+const DEF = { height: 70, topEnd: 0, curve: -30, botEnd: 0, panels: 4, ratio: 1, sideAngle: 90, deskPanels: 1, overlap: 48.4, tableThick: 30,
+  braceDepth: 20, fricK: 2, fricMu: 0.4, supportOffset: 0, bookLen: 242, bookWidth: 209, bookThick: 32, FS: 2, deflLimit: 2, minOverlap: 5,
+  width: 60, mBook1: 1.5, mBook2: 1, nTruss: 2, E: 3000, rho: 160, sigT: 7.5, sigC: 4.5, bS: 3.18, hS: 3.18, tilt3d: 0, width3d: 60,
+  impAlpha: 0.02, impBeta: 0.005, autoLimit: 500, bigCap: 10000, rcFS: 2, rcBook: 2.5, rcDefl: 2, rcOv: 5, refStep: 0.5, woodBudget: 100,
+  loadTarget: 1, docBendN: 3, docStock: 240, docKerf: 1, abSteps: 10, abExt: 0, model: '2D', bottom: 'parabola', topShape: 'parabola' };
+const deepFreeze = o => { Object.values(o).forEach(v => v && typeof v === 'object' && deepFreeze(v)); return Object.freeze(o); };
+const only = (id, v, base = DEF) => L.checkInputs(Object.assign({}, base, { [id]: v })).filter(e => e.id === id);
+const EPS = 0.001;
+
+test('every id in DEF has a row, and every row has a default to test with', () => {
+  for (const r of L.TABLE) assert.ok(r.id in DEF, 'default for ' + r.id);
+  assert.strictEqual(L.TABLE.length, 48);
+  assert.strictEqual(new Set(L.TABLE.map(r => r.id)).size, 48, 'no id twice');
+  assert.deepStrictEqual(L.checkInputs(DEF), [], 'the defaults are all allowed');
+  assert.deepStrictEqual(L.warnInputs(DEF), [], 'and raise no warning');
+});
+
+test('each row: below min, min, max, above max, text and empty (the 6 cases from Math)', () => {
+  for (const r of L.TABLE) {
+    const lo = L.bound(r.min, DEF), hi = L.bound(r.max, DEF);
+    assert.strictEqual(typeof lo, 'number', r.id + ' min'); assert.strictEqual(typeof hi, 'number', r.id + ' max');
+    assert.ok(lo <= hi, r.id + ' min <= max');
+    const below = only(r.id, lo - EPS); assert.strictEqual(below.length, 1, r.id + ' below min'); assert.strictEqual(below[0].why, 'min', r.id);
+    assert.strictEqual(below[0].msg, r.msg, r.id + ' says the row message'); assert.strictEqual(below[0].value, lo - EPS);
+    assert.deepStrictEqual(only(r.id, lo), [], r.id + ' at min');
+    assert.deepStrictEqual(only(r.id, hi), [], r.id + ' at max');
+    const above = only(r.id, hi + EPS); assert.strictEqual(above.length, 1, r.id + ' above max'); assert.strictEqual(above[0].why, 'max', r.id);
+    for (const junk of ['abc', '', '  ', NaN, Infinity, null, undefined, [], {}, true]) {
+      const e = only(r.id, junk); assert.strictEqual(e.length, 1, r.id + ' ' + String(junk)); assert.strictEqual(e[0].why, 'not-a-number');
+    }
+  }
+});
+
+test('a value as text is read as a number; a file value is reported, not changed', () => {
+  assert.deepStrictEqual(only('height', '50'), []);
+  assert.deepStrictEqual(only('height', ' 50.5 '), []);
+  assert.strictEqual(only('height', '5')[0].why, 'min');
+  const file = deepFreeze(Object.assign({}, DEF, { height: 5, panels: 99 }));
+  const copy = JSON.parse(JSON.stringify(file));
+  const errs = L.checkInputs(file);
+  assert.deepStrictEqual(errs.map(e => e.id + ':' + e.why), ['height:min', 'topEnd:max', 'botEnd:max', 'panels:max'], 'height 5 also leaves no room for the chord ends: all listed');
+  assert.deepStrictEqual(file, copy, 'the input is exactly as it was');
+  assert.strictEqual(errs[0].value, 5); assert.strictEqual(errs[3].value, 99);
+});
+
+test('whole numbers: panels, deskPanels and nTruss refuse 2.5 (step)', () => {
+  for (const id of ['panels', 'deskPanels', 'nTruss']) { const e = only(id, 2.5); assert.strictEqual(e.length, 1, id); assert.strictEqual(e[0].why, 'step'); }
+  assert.deepStrictEqual(only('ratio', 1.07), [], 'ratio step 0.05 is the box step, not a rule');
+});
+
+test('zeroOr: overlap and supportOffset are 0 or at least two stick widths', () => {
+  for (const id of ['overlap', 'supportOffset']) {
+    assert.deepStrictEqual(only(id, 0), [], id + ' 0'); assert.deepStrictEqual(only(id, 6.36), [], id + ' 6.36');
+    const e = only(id, 3); assert.strictEqual(e.length, 1, id + ' 3'); assert.strictEqual(e[0].why, 'zeroOr');
+  }
+  assert.strictEqual(only('overlap', 6.4, Object.assign({}, DEF, { bS: 5 })).length, 1, 'stick 5 mm: 6.4 is below two sticks (10 mm)');
+  assert.deepStrictEqual(only('overlap', 10, Object.assign({}, DEF, { bS: 5 })), []);
+});
+
+test('expressions follow the other values', () => {
+  assert.strictEqual(L.bound('height-10', { height: 70 }), 60);
+  assert.strictEqual(L.bound('-min(tableThick,50)', { tableThick: 30 }), -30);
+  assert.strictEqual(L.bound('-min(tableThick,50)', { tableThick: 80 }), -50);
+  assert.strictEqual(L.bound('stick2', { bS: 3.18, hS: 3.18 }), 6.36);
+  assert.strictEqual(L.bound('stick2', { bS: 3.18, hS: 5 }), 10);
+  assert.strictEqual(L.bound(7, {}), 7);
+  assert.strictEqual(L.bound('height-10', {}), null, 'a missing value gives null, not a throw');
+  assert.strictEqual(L.bound('height-10', { height: 'x' }), null);
+  assert.strictEqual(L.bound('1+2*3-(4-1)/3', {}), 6);
+  assert.strictEqual(L.bound('max(1,2,3)-min(4,5)', {}), -1);
+  assert.deepStrictEqual(only('curve', 59, Object.assign({}, DEF, { height: 70 })), []);
+  assert.strictEqual(only('curve', 61, Object.assign({}, DEF, { height: 70 }))[0].why, 'max');
+  assert.deepStrictEqual(only('curve', 61, Object.assign({}, DEF, { height: 80 })), []);
+  assert.strictEqual(only('braceDepth', 31)[0].why, 'max', 'brace deeper than the 30 mm table');
+  assert.strictEqual(only('autoLimit', 10001)[0].why, 'max', 'auto limit above bigCap');
+});
+
+test('the parser refuses unknown names, other functions and bad syntax with a TypeError (CODE-N3)', () => {
+  for (const bad of ['nope', 'height+nope', 'sqrt(4)', 'Math.max(1,2)', 'eval(1)', 'constructor', '__proto__', 'toString', 'abs(-1)',
+    '1 +', '(1', '1)', 'max(1', 'max(1,)', 'max()', '1 2', '1 + * 2', '*2', 'a.b', '1;2', 'height=1', '"x"', '`x`', '1e3', '2**2', '', '   '])
+    assert.throws(() => L.bound(bad, DEF), TypeError, JSON.stringify(bad));
+  for (const bad of [{}, [], true, null, undefined, () => 1]) assert.throws(() => L.bound(bad, DEF), TypeError);
+});
+
+test('every expression in the table parses, and every name in it is an input id or a derived name', () => {
+  for (const r of L.TABLE) for (const f of ['min', 'max', 'zeroOr', 'warnMin', 'warnMax']) if (r[f] !== undefined) {
+    assert.doesNotThrow(() => L.bound(r[f], DEF), r.id + '.' + f);
+    assert.notStrictEqual(L.bound(r[f], DEF), null, r.id + '.' + f);
+  }
+  for (const k of Object.keys(L.DERIVED)) assert.doesNotThrow(() => L.bound(L.DERIVED[k], DEF), k);
+});
+
+test('no row has an unknown `when` id; the rows are the real ones', () => {
+  const ids = new Set(L.TABLE.map(r => r.id).concat(L.WHEN_IDS));
+  for (const r of L.TABLE) if (r.when) {
+    assert.ok(ids.has(r.when.id), r.id + ' when ' + r.when.id);
+    assert.ok(Array.isArray(r.when.in) && r.when.in.length > 0 && r.when.in.every(x => typeof x === 'string'), r.id);
+    assert.deepStrictEqual(Object.keys(r.when).sort(), ['id', 'in']);
+  }
+  assert.deepStrictEqual(L.TABLE.filter(r => r.when).map(r => r.id), ['curve', 'topEnd']);
+  // the chord shapes the page really has: ids and values (ui.html / 60-sweep.js)
+  const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'ui.html'), 'utf8');
+  assert.ok(html.includes('id="bottom"') && html.includes('id="topShape"'), 'seg ids exist');
+  for (const r of L.TABLE.filter(r => r.when)) for (const v of r.when.in) assert.ok(html.includes('data-v="' + v + '"') || html.includes(v), v);
+});
+
+test('a row applies only when its `when` matches', () => {
+  const flat = Object.assign({}, DEF, { bottom: 'flat', topShape: 'flat', curve: 9999, topEnd: -9999 });
+  assert.deepStrictEqual(L.checkInputs(flat), [], 'a flat chord has no curve or end to check');
+  assert.strictEqual(L.checkInputs(Object.assign({}, flat, { bottom: 'arc' })).some(e => e.id === 'curve'), true);
+  assert.strictEqual(L.checkInputs(Object.assign({}, flat, { topShape: 'catenary' })).some(e => e.id === 'topEnd'), true);
+  const noShape = Object.assign({}, DEF, { curve: 9999 }); delete noShape.bottom;
+  assert.deepStrictEqual(L.checkInputs(noShape), [], 'no shape given: the row is skipped');
+});
+
+test('only ids that are present are checked; damaged input reads as nothing to check (CODE-N2)', () => {
+  assert.deepStrictEqual(L.checkInputs({}), []);
+  assert.deepStrictEqual(L.checkInputs({ height: 5 }).map(e => e.id), ['height']);
+  assert.deepStrictEqual(L.checkInputs({ unknownId: 1e9 }), []);
+  for (const bad of [null, undefined, 'x', 42, [], [1, 2], true, () => 1]) {
+    assert.doesNotThrow(() => L.checkInputs(bad)); assert.deepStrictEqual(L.checkInputs(bad), []);
+    assert.doesNotThrow(() => L.warnInputs(bad)); assert.deepStrictEqual(L.warnInputs(bad), []);
+  }
+  const inherited = Object.create({ height: 5 });
+  assert.deepStrictEqual(L.checkInputs(inherited), [], 'inherited properties are not values');
+  assert.doesNotThrow(() => L.checkInputs(JSON.parse('{"__proto__": {"height": 5}, "constructor": 1}')));
+});
+
+test('warnings are separate: allowed but unusual values', () => {
+  const w = (id, v, extra) => L.warnInputs(Object.assign({}, DEF, extra, { [id]: v })).filter(x => x.id === id);
+  assert.strictEqual(w('E', 1000)[0].why, 'warnMin'); assert.deepStrictEqual(only('E', 1000), []);
+  assert.match(w('E', 1000)[0].msg, /Outside 1500-6000 MPa/);
+  assert.strictEqual(w('E', 7000)[0].why, 'warnMax'); assert.deepStrictEqual(w('E', 3000), []);
+  assert.strictEqual(w('height', 15)[0].why, 'warnMin'); assert.deepStrictEqual(w('height', 20), []);
+  assert.strictEqual(w('mBook1', 11)[0].why, 'warnMax');
+  assert.strictEqual(w('FS', 1.2)[0].why, 'warnMin');
+  assert.strictEqual(w('curve', 55, { height: 70 })[0].why, 'warnMax', 'curve above height-20');
+  assert.deepStrictEqual(w('E', 100), [], 'an error gets no warning');
+  assert.strictEqual(only('E', 100)[0].why, 'min');
+  // course stick
+  assert.deepStrictEqual(w('bS', 3.18), []); assert.strictEqual(w('bS', 4)[0].why, 'STICK'); assert.match(w('hS', 2.5)[0].msg, /Not the course stick/);
+  // 3D: nTruss other than 2
+  assert.deepStrictEqual(w('nTruss', 3), [], 'in 2D no warning');
+  assert.strictEqual(w('nTruss', 3, { model: '3D' })[0].why, 'N3D'); assert.strictEqual(w('nTruss', 3, { model: '3D' })[0].msg, 'The 3D result models two trusses only.');
+  assert.deepStrictEqual(w('nTruss', 2, { model: '3D' }), []);
+  // M1 needs the geometry: not raised here
+  assert.deepStrictEqual(w('sideAngle', 20), []);
+});
+
+test('no dynamic code: the source never runs text as code', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'limits.js'), 'utf8');
+  assert.ok(!/\beval\s*\(/.test(src) && !/\bFunction\s*\(/.test(src) && !/\bnew\s+Function\b/.test(src) && !/setTimeout\s*\(\s*['"`]/.test(src));
+  assert.ok(!/\b(document|window\.|localStorage|require\s*\()/.test(src.replace(/typeof window[^\n]*/g, '')), 'no DOM, no app state, no imports (CODE-F1, CODE-F5)');
+});
+
+test('the table is frozen and standalone; the global is TrussLimits (CODE-F1)', () => {
+  assert.ok(Object.isFrozen(L.TABLE) && Object.isFrozen(L.DERIVED) && Object.isFrozen(L.WHEN_IDS));
+  const vm = require('node:vm'), ctx = { window: undefined }; vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', 'limits.js'), 'utf8'), ctx);
+  assert.strictEqual(typeof ctx.TrussLimits.checkInputs, 'function');
+  assert.strictEqual(L.rowFor('height').min, 10); assert.strictEqual(L.rowFor('nope'), null);
+});
