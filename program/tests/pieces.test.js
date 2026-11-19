@@ -97,6 +97,16 @@ test('window: a named region with a title, ‹ › stepper, body and icon toolba
   assert.throws(() => P.windowHTML({ id: 'Bad Id', home: 'left' }), /id/);
 });
 
+test('window: the ⋮⋮ grip only on a window that moves (UI-W20, Brian 55a; TE-B-301)', () => {
+  const fixed = P.windowHTML({ id: 'inputs', title: 'Inputs', home: 'left', state: 'W' });
+  assert.doesNotMatch(fixed, /class="grip"/, 'a fixed window has no grip');
+  assert.doesNotMatch(fixed, /data-movable/);
+  for (const m of [false, 'yes', 1, null]) assert.doesNotMatch(P.windowHTML({ id: 'x', home: 'left', movable: m }), /grip/, 'only true turns it on: ' + m);
+  const moves = P.windowHTML({ id: 'editor', title: 'Edit value', home: 'right', state: 'W', movable: true });
+  has(moves, /^<section [^>]*data-state="W" data-movable data-part="window"/);
+  has(moves, /<div class="s-ph"[^>]*><span class="grip" aria-hidden="true">⋮⋮<\/span><span class="wt">Edit value</);
+});
+
 test('edge tab: names its window, shown only in the T state (UI-A4, UI-W9)', () => {
   has(P.edgeTabHTML({ id: 'inputs', title: 'Inputs', home: 'left', state: 'T' }), /^<button type="button" class="tabE l" data-part="edge-tab" data-slot="ctl" data-pc data-tab="inputs" aria-controls="win-inputs" aria-label="Show Inputs"[^>]*>Inputs<\/button>$/);
   has(P.edgeTabHTML({ id: 'drawing', home: 'right', state: 'W' }), /class="tabE r".* hidden>/);
