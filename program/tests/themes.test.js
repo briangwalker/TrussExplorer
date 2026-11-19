@@ -140,9 +140,10 @@ const over = (fg, bg) => fg[3] >= 1 ? fg : [0, 1, 2].map(i => fg[i] * fg[3] + bg
 const lum = c => { const v = c.slice(0, 3).map(x => x / 255).map(x => x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 const PAIRS = [['ink', 'page', 4.5], ['ink', 'panel', 4.5], ['ink', 'surface', 4.5], ['ink', 'surface-2', 4.5], ['muted', 'page', 4.5], ['muted', 'panel', 4.5], ['muted', 'surface', 4.5], ['muted', 'surface-2', 4.5],
-  ['on-strong', 'strong', 4.5], ['accent-ink', 'accent', 4.5], ['ctl-line', 'ctl-bg', 3]];
+  ['on-strong', 'strong', 4.5], ['accent-ink', 'accent', 4.5], ['ctl-line', 'ctl-bg', 3],
+  ['focus', 'surface', 3], ['focus', 'surface-2', 3], ['focus', 'hot', 3], ['focus', 'panel', 3], ['focus', 'ctl-bg', 3]];   // ART-K17, ART-C6 (TE-B-396)
 // filed and owned by Graphics (the token values are theirs): these print as KNOWN and don't fail
-const KNOWN = { 'wireframe ctl-line/ctl-bg': '#288', 'blueprint ctl-line/ctl-bg': '#288', 'notebook-calc ctl-line/ctl-bg': '#288' };
+const KNOWN = { 'blueprint focus/ctl-bg': 'TE-B-396 (Graphics: Blueprint is a sample; its focus value passes on hot only)' };   // #288's three ctl-line pairs now pass (ART-C6 values)
 test('contrast: the text and control-edge token pairs of each built-in theme', () => {
   const shell = fs.readFileSync(path.join(ROOT, 'src', 'shell.css'), 'utf8');
   const themes = { wireframe: tokens(shell, null) };
