@@ -12,7 +12,7 @@ This page holds no rules. The rules live in [ui-spec.md](ui-spec.md) (`UI-…`),
 |---|---|---|---|
 | Theme tokens | `TOKENS`, `WIREFRAME`, `tokenCSS(id, values)`, `contrast()`, `contrastPairs()` | — | `--te-*` on `#stage[data-theme="<id>"]` |
 | Picture layer | — (CSS) | — | `.te-picture`: the drawing or chart goes in here |
-| Window | `windowHTML({ id, title, home, state, body, icons })`, `nextState()` | `mountWindow(win, tab, { onState })` | `.s-pan` `window` · `.s-ph` `window-title` · `.stp` `stepper` |
+| Window | `windowHTML({ id, title, home, state, body, icons, movable })` (⋮⋮ grip only when `movable: true`, UI-W20), `nextState()` | `mountWindow(win, tab, { onState })` | `.s-pan` `window` · `.s-ph` `window-title` · `.stp` `stepper` |
 | Edge tab | `edgeTabHTML({ id, title, home, state })` | (in `mountWindow`) | `.tabE.l/.r/.t/.b` `edge-tab` |
 | Stick button, icon button, chip | `buttonHTML({ kind, label, icon, pressed, disabled })` | `mountToggle()` for a pressed button | `.s-b` `button` · `.s-ic` `icon-button` · `.te-chip` `chip` |
 | Toggle | `toggleHTML({ label, checked })` | `mountToggle()` | `.te-tog[role=switch]` `toggle` |
@@ -114,6 +114,7 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 ## Change log
 
 - **0.2.1 · 2026-11-13** The table is an APG grid (ui-spec 1.5.7 UI-S6; TE-B-346): `role="grid"`, one Tab stop that remembers the last cell, ↑ ↓ ← → by cell, Home/End along the row, Ctrl+Home/End to the first/last row, PageUp/PageDown 10 rows; ↑ from the first row reaches the header. One sort column (`sort`) carries the only `aria-sort` and a real button (`onSort`). A row-header column (`rowHeader`) and the header row stay in place when the table scrolls. Members view: the short column set and an *All columns* switch (UI-S6 1.5.5), sorting by Use both ways (the CSV keeps member order), the caption counts the members, and Graphics' four points (TE-B-347). Gallery: a Members table item.
+- **0.2 + movable · 2026-11-13** `windowHTML` takes `movable` (default false). The ⋮⋮ grip is drawn only on a window that can be moved, today the ✎ value editor and the PIP (UI-W20, Brian 55a, TE-B-301). The gallery shows one fixed and one movable window side by side.
 - **0.2 · 2026-11-05** The table piece (`tableHTML`, `mountTable`: hover, arrows, Enter or click lights a row, one Tab stop; UI-S6, UI-H4, UI-K7) and the Members tab view (`src/membersview.js`, #416, TE-B-332). Gap G11: no table-look rule yet.
 
 - **0.1 · 2026-10-31** First set: tokens, picture layer, window and edge tab, stick button, icon button, chip, toggle, tabs, slider, results card, pop-up (#354; TE-B-224, TE-B-227).
