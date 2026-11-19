@@ -89,6 +89,7 @@ try {
   await p.focus(`#mvT tr[data-key="${k0}"] > :first-child`); await p.keyboard.press('End');
   const pin = await p.evaluate(() => { const box = document.getElementById('mvTest'), rh = document.activeElement.closest('tr').firstElementChild, bl = box.getBoundingClientRect().left, rl = rh.getBoundingClientRect().left; return { scrolled: box.scrollLeft, gap: Math.round(rl - bl), seen: (() => { const r = document.activeElement.getBoundingClientRect(), b = box.getBoundingClientRect(); return r.right <= b.right + 1 && r.left >= b.left - 1; })() }; });
   check('sideways scrolling follows focus, and the Member column stays in place', pin.scrolled > 0 && pin.gap <= 12 && pin.seen, JSON.stringify(pin));
+  check('the held Member column has a 1 px line on its right edge, so a half-hidden neighbour doesn\'t read as part of it (ART-W14, UI SHOULD TE-B-438)', await p.evaluate(() => /inset/.test(getComputedStyle(document.querySelector('#mvT tbody .rh')).boxShadow)));
   check('the All columns switch is above the table', await p.evaluate(() => { const t = document.querySelector('#mvTest [role="switch"]'); return !!t && /All columns/.test(t.closest('label').textContent) && t.compareDocumentPosition(document.getElementById('mvT')) & 4; }));
   await p.evaluate(k => mvT.light(k), k0);
   check('light(k) from the bridge picks that row and only it', await p.evaluate(k => [...document.querySelectorAll('#mvT [aria-selected="true"]')].map(r => r.dataset.key).join() === String(k), k0));
