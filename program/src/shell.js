@@ -144,7 +144,7 @@ if (!SH_CLASSIC) {
       wins[id] = $('win-' + id); tabs[id] = stage.querySelector(`.tabE[data-tab="${id}"]`); return;
     }
     const s = el('section', 's-pan'); s.dataset.win = id; s.dataset.home = w.home; s.setAttribute('aria-label', w.title()); s.id = 'win-' + id;
-    s.innerHTML = `<div class="s-ph"><span class="grip" aria-hidden="true">⋮⋮</span><span class="wt"></span><span class="stp"><button type="button" class="s-ic sm" data-step="shrink"></button><button type="button" class="s-ic sm" data-step="grow"></button></span></div>`
+    s.innerHTML = `<div class="s-ph"><span class="wt"></span><span class="stp"><button type="button" class="s-ic sm" data-step="shrink"></button><button type="button" class="s-ic sm" data-step="grow"></button></span></div>`
       + (id === 'sweep' ? '<div class="s-sum"></div>' : '') + '<div class="s-bd"></div><div class="s-icons" role="toolbar"></div>';
     stage.appendChild(s); wins[id] = s;
     if (w.home !== 'res') { const t = el('button', 'tabE ' + ({ left: 'l', right: 'r', bottom: 'b', top: 't' })[w.home]); t.type = 'button'; t.dataset.tab = id; stage.appendChild(t); tabs[id] = t; }
