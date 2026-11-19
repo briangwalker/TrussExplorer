@@ -509,7 +509,7 @@ function pilotOneLine(P) {
 function renderPilot() {
   const P = big.pilot; if (!P) return;
   const st = P.rows, pass = st.filter(r => r.passes).length;
-  const rng = (f, dp) => { const v = st.map(f).filter(Number.isFinite); return v.length ? `${Math.min(...v).toFixed(dp)} to ${Math.max(...v).toFixed(dp)}` : '—'; };
+  const rng = (f, dp) => { const v = st.map(f).filter(Number.isFinite); return v.length ? `${minOf(v).toFixed(dp)} to ${maxOf(v).toFixed(dp)}` : '—'; };
   const ok = (bad, n) => bad === 0 ? `<b style="color:var(--ok)">all ${n.toLocaleString()} pass</b>` : `<b style="color:var(--bad)">${bad.toLocaleString()} of ${n.toLocaleString()} fail</b>`;
   const n = plannedN(P, P.msPer);
   $('bigBox').innerHTML = `<h3 style="margin:0 0 6px">Pilot audit (low fidelity)</h3>
