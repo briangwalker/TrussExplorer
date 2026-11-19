@@ -42,6 +42,13 @@ jobs:
           name: built-page
           path: program/index.html
           if-no-files-found: ignore
+      - name: Keep each theme's screenshot for review (#265; tests/ui/shell.mjs takes them at 1440 x 900)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
+        with:
+          name: theme-screenshots
+          path: program/tests/shots/shell-theme-*.png
+          if-no-files-found: ignore
       - name: Keep the screenshots when something fails
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4

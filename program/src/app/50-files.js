@@ -87,6 +87,8 @@ $('filePick').addEventListener('change', async () => {
   // the size is checked before the file is read, so a huge file never fills memory (#296)
   if (TrussFormats.BRIDGE_NAME.test(f.name) && f.size > TrussFormats.LIMITS.bridgeBytes) { toast(`That bridge file is ${(f.size / 1048576).toFixed(1)} MB; a bridge file is never more than ${TrussFormats.LIMITS.bridgeBytes / 1048576} MB, so it wasn't opened.`, true); return; }   // per file kind (#296)
   if (f.size > TrussFormats.LIMITS.fileBytes) { toast(`That file is ${Math.round(f.size / 1048576)} MB, more than the ${TrussFormats.LIMITS.fileBytes / 1048576} MB the Explorer opens.`, true); return; }
+  // any other name over the bridge cap: only a sweep is that big, so look at the file's head before reading all of it (TE-B-343)
+  if (!TrussFormats.BRIDGE_NAME.test(f.name) && f.size > TrussFormats.LIMITS.bridgeBytes && !TrussFormats.headMayBeBig(new Uint8Array(await f.slice(0, TrussFormats.PEEK_BYTES).arrayBuffer()))) { toast(`That file is ${(f.size / 1048576).toFixed(1)} MB and isn't a sweep file; any other file over ${TrussFormats.LIMITS.bridgeBytes / 1048576} MB isn't opened.`, true); return; }
   // parse, clean, detect, upgrade to the current version and check, all in formats.js (#149; spec in docs/formats.md)
   // a .tsweep (gzip) goes through the bytes door; it comes back as the same sweep document a .sweep.json gives (#179)
   const buf = new Uint8Array(await f.arrayBuffer());
