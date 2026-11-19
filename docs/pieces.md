@@ -122,3 +122,13 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 - **0.1.3 · 2026-10-31** ui-spec 1.5 (#364) answers G5–G10. The pieces follow UI-W15 (52 px icons, 28 px tabs, 40 % cap, 12 px edge gap) and UI-W17 (the peek sits 8 px beside its tab, lined up with its top, and closes after 400 ms).
 - **0.1.2 · 2026-10-31** Graphics' review (TE-B-232): pill 13 px (ART-T2); art-spec 1.0.4 values (#357): `ctl-line #7f8893` (#355), course-rule pink from `--rule` as solid stripes (ART-K16), edged Wireframe tabs (ART-W13), 13 px pop-up (ART-W12); two more contrast pairs. G1–G4 answered.
 - **0.1.1 · 2026-10-31** Added the Gaps table: what the pieces needed that no spec says (TE-B-224 item 3).
+
+## Number boxes and steppers (src/inputs.js, `TrussInputs` 0.1.0)
+
+These are for step 8, the Inputs (#215). They follow the same rules as the pieces. A box never holds its own limits: it asks a check function, and `fromLimits(TrussLimits, id, values)` builds that function from the one limits table (`src/limits.js`, RMA-4 #462), so the boxes and the file loader read the same rows (UI-I10).
+
+| Piece | Markup | Behaviour | Rules | Tests |
+|---|---|---|---|---|
+| Number box + stepper | `numberHTML(P, { id, label, unit, value, title })`: a label, − and + buttons, a text box with `inputmode="decimal"`, the unit, and a `role="status"` note line | `mountNumber(el, { check, step, value, onCommit })` → `{ value, set, markFile, clear, destroy }`. While typing, the note says at once what the value would be. Enter or leaving the box commits. **limit**: refused, back to the last good value, ⟂ note. **rule**: committed, pink (`--rule`), the rule named. **warn**: committed, with a note. − / + and ↑ ↓ (Shift: ×10) move by the step and **stop at the wall**. Esc puts the last good value back. `markFile(msg)`: a file's bad value stays exactly as the file had it, marked, never clamped and never committed, until a good one is typed. The box grows with its value, 52–96 px. | UI-I2, UI-I3, UI-I9, UI-I10, ART-T2 | N: inputs.test.js; B: ui/inputs.mjs (16 checks with TrussLimits in the build, 15 without) |
+
+**Not yet:** the ✎ value editor (UI-I8: the joystick, the sweep range and Done, 320 px, moves by its title bar). It is the next piece, built on this box. The course-rule table (UI-I2's h ≤ 100, width 50–75) isn't in `limits.js`; the Inputs wiring passes those rules in its own check until it is.
