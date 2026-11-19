@@ -29,9 +29,6 @@ const NOT_BUILT = [
   { title: 'Value editor (✎)', rules: ['UI-I8', 'ART-W9'], note: 'pieces 0.2' },
   { title: 'Number box', rules: ['UI-I9', 'ART-T2'], note: 'pieces 0.2' },
   { title: 'Stepper', rules: ['UI-I1'], note: 'pieces 0.2' },
-  { title: 'Sheet (☰ page)', rules: ['UI-A16'], note: 'pieces 0.2' },
-  { title: 'Toast', rules: ['UI-W10', 'ART-P1', 'ART-T3'], note: 'pieces 0.2' },
-  { title: 'Dialog', rules: ['UI-W13'], note: 'pieces 0.2' },
   { title: 'PIP', rules: ['UI-W7', 'UI-H5', 'UI-H8'], note: 'step 3 (#210)' },
   { title: 'Chart key', rules: ['UI-W11'], note: 'step 4 (#211)' },
 ];
@@ -42,6 +39,9 @@ const PIC = '<svg viewBox="0 0 600 240" width="100%" height="100%" preserveAspec
   + '<g fill="none" stroke="var(--te-muted)" stroke-width="2" opacity=".55"><path d="M60 180H540M120 100H480M60 180L120 100L180 180L240 100L300 180L360 100L420 180L480 100L540 180M120 100V180M180 100V180M240 100V180M300 100V180M360 100V180M420 100V180M480 100V180"/></g></svg>';
 
 // The items, in page order. Every window has its own name, so no two landmarks share one (QA, TE-B-281). Each one: title, rules it shows, and the HTML made by TrussPieces (P).
+// the sheets, dialogs and toasts live beside the pieces (src/sheets.js); looked up when the page is built
+function sheetsLib() { return root.TrussSheets || (typeof require === 'function' ? require('./sheets.js') : null); }
+
 function sections(P) {
   const frame = (inner, cls) => `<div class="g-frame${cls ? ' ' + cls : ''}"><div class="te-picture g-pic">${PIC}</div>${inner}</div>`;
   const win = (id, title, home, state, body, icons, movable) => P.windowHTML({ id, title, home, state, body, icons, movable }) + P.edgeTabHTML({ id, title, home, state });
@@ -76,7 +76,23 @@ function sections(P) {
       + P.resultsHTML({ verdict: 'pass', checks: [{ value: '18.6', op: '>=', limit: '5.0', unit: 'kg', ok: true }, { value: '0.131', op: '<=', limit: '2', unit: 'mm', ok: true }] })
       + P.resultsHTML({ verdict: 'fail', checks: [{ value: '3.9', op: '>=', limit: '5.0', unit: 'kg', ok: false }, { value: '0.131', op: '<=', limit: '2', unit: 'mm', ok: true }] })
       + P.resultsHTML({ verdict: 'unstable' }) + '</div>' },
-    { id: 'popup', title: 'Pop-up: the results card\'s full view, open', rules: ['UI-W8', 'UI-W18', 'ART-W12'], note: 'Click outside to close it (that click does nothing else); Esc closes it and returns focus. Its content is #210\'s.',
+    { id: 'sheet', title: 'Sheet (☰ page) and dialog', rules: ['UI-A16', 'UI-W8', 'UI-W13', 'UI-W22', 'UI-W23'],
+      note: 'Open one: a fixed header and button row, a middle that scrolls. Esc or a click outside closes it; type in the dialog first and the outside click is refused (Cancel flashes). Sample text.',
+      html: (S => S ? `<p class="g-txt">${P.buttonHTML({ label: 'Open a sheet', act: 'g-open:g-sheet' })} ${P.buttonHTML({ label: 'Open a dialog', act: 'g-open:g-dialog' })}</p>`
+        + S.sheetHTML(P, { id: 'g-sheet', kind: 'sheet', title: 'Keys and help', body: '<p class="g-txt">A ☰ page. Esc closes it; so does a click outside.</p>' + Array.from({ length: 12 }, (_, n) => `<p class="g-txt">Line ${n + 1} of a long page: the middle scrolls, the header and buttons stay.</p>`).join('') })
+        + S.sheetHTML(P, { id: 'g-dialog', kind: 'dialog', title: 'Build documents', body: '<p class="g-txt"><label>Copies <input id="g-dlg-n" value="1" inputmode="numeric" data-g-dirty></label></p>',
+          buttons: [{ label: 'Cancel', cancel: true }, { label: 'Make the build documents', act: 'g-noop', main: true }] })
+        : '<p class="g-txt">The sheets file is not loaded.</p>')(sheetsLib()) },
+    { id: 'toast', title: 'Toast', rules: ['UI-W10', 'UI-W13', 'ART-P1', 'ART-T3'],
+      note: 'One at a time, bottom centre; says what changed and offers Undo; waits while the pointer is on it. Sample text.',
+      html: `<p class="g-txt">${P.buttonHTML({ label: 'Show a toast', act: 'g-toast' })}</p>` },
+    { id: 'table', title: 'Data table (an APG grid): the Members tab', rules: ['UI-S6', 'UI-H4', 'UI-K7', 'UI-A17', 'ART-K3', 'ART-K4'],
+      note: 'One Tab stop; arrow keys move cell by cell; the picked row is lit. Use is the sort column. Sample numbers.',
+      html: P.tableHTML({ id: 'g-table', caption: '4 members, highest use first', rowHeader: 'k', lit: '3',
+        columns: [{ key: 'k', label: 'Member', num: true }, { key: 'ij', label: 'i–j' }, { key: 'F', label: 'F (N)', num: true }, { key: 'TC', label: 'T/C' }, { key: 'use', label: 'Use', sort: 'descending' }],
+        rows: [['3', '2–5', '-36.10', 'C compression', '79%'], ['0', '0–1', '-24.56', 'C compression', '54%'], ['7', '4–6', '16.07', 'T tension', '21%'], ['12', '1–2', '0.00', '0 no force', '0%']]
+          .map(r => ({ key: r[0], cells: { k: r[0], ij: r[1], F: r[2], TC: r[3], use: r[4] } })) }) },
+    { id: 'popup', title: 'Pop-up: the results card\'s full view', rules: ['UI-W8', 'UI-W18', 'ART-W12'], note: 'Click the card to open it. Click outside to close it (that click does nothing else); Esc closes it and returns focus. Its content is #210\'s.',
       html: '<div class="g-popframe">' + P.resultsHTML({ id: 'g-res', verdict: 'pass', checks: [{ value: '18.6', op: '>=', limit: '5.0', unit: 'kg', ok: true }] })
         + '<div class="te-pop" id="g-pop" role="dialog" aria-label="Full results" hidden>The full results go here: each check against its limit, the project facts, and links (UI-W18, #210).</div></div>' },
   ];
@@ -173,8 +189,20 @@ function open(doc, win) {
   section.querySelectorAll('.te-chip[aria-pressed]:not([data-act^="theme:"])').forEach(c => P.mountToggle(c));
   section.querySelectorAll('[role="tablist"]').forEach(t => P.mountTabs(t));
   section.querySelectorAll('.te-slider').forEach(s => P.mountSlider(s));
+  section.querySelectorAll('table[role="grid"]').forEach(t => P.mountTable(t));
+  const S = sheetsLib();
+  if (S) {
+    S.install(doc);
+    const modals = S.modals(doc), toasts = S.toasts(doc);
+    section.querySelectorAll('[data-act^="g-open:"]').forEach(b => b.addEventListener('click', () => modals.open(doc.getElementById(b.dataset.act.slice(7)), b)));
+    section.querySelectorAll('[data-g-dirty]').forEach(i => i.addEventListener('input', () => { i.closest('dialog').dataset.dirty = ''; }));
+    section.querySelectorAll('dialog.te-sheet').forEach(d => d.addEventListener('close', () => { delete d.dataset.dirty; }));
+    section.querySelectorAll('[data-act="g-toast"]').forEach(b => b.addEventListener('click', () => toasts.show({ text: 'Changed h 70 → 80', undo: () => toasts.show({ text: 'Undone: h is 70 again' }) })));
+  }
   const pops = P.popups(doc), card = section.querySelector('#g-res'), pop = section.querySelector('#g-pop');
-  if (card && pop) { card.addEventListener('click', () => pops.open(pop, card)); pops.open(pop, card); }
+  // opened by its card only: a pop-up open on load would eat the visitor's first click anywhere (UI-W8), which made the
+  // first theme-chip click seem to do nothing (Graphics, TE-B-432)
+  if (card && pop) card.addEventListener('click', () => pops.open(pop, card));
   const peekTab = section.querySelector('.tabE[data-tab="g-peek"]');   // shown open, by the window's own peek code
   if (peekTab) peekTab.dispatchEvent(new MouseEvent('mouseenter'));
 
@@ -182,7 +210,9 @@ function open(doc, win) {
   const paintPairs = () => {
     const cs = win.getComputedStyle(stage), v = {};
     P.TOKENS.forEach(t => { v[t.name] = cs.getPropertyValue(t.css).trim(); });
-    const rows = P.contrastPairs(v).map(p => `<tr><td>${esc(p.fg)} on ${esc(p.bg)}</td><td>${isNaN(p.ratio) ? '—' : p.ratio.toFixed(2) + ' : 1'}</td><td>${isNaN(p.ratio) ? 'not a plain colour' : p.ok ? '✓' : '✕ under ' + p.min}</td><td>${esc(p.rule)}</td></tr>`);
+    v.focus = cs.getPropertyValue('--te-focus').trim() || v.accent;   // ART-K17; amber accent until the theme sets it
+    const focusPairs = ['surface', 'surface-2', 'hot', 'panel', 'ctl-bg'].map(bg => { const r = P.contrast(v.focus, v[bg]); return { fg: 'focus', bg, min: 3, rule: 'ART-C6', ratio: r, ok: r >= 3 }; });
+    const rows = P.contrastPairs(v).concat(focusPairs).map(p => `<tr><td>${esc(p.fg)} on ${esc(p.bg)}</td><td>${isNaN(p.ratio) ? '—' : p.ratio.toFixed(2) + ' : 1'}</td><td>${isNaN(p.ratio) ? 'not a plain colour' : p.ok ? '✓' : '✕ under ' + p.min}</td><td>${esc(p.rule)}</td></tr>`);
     const tb = section.querySelector('[data-g-pairs] tbody'); if (tb) tb.innerHTML = rows.join('');
   };
   paintPairs();

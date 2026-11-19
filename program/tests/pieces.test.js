@@ -165,7 +165,7 @@ test('CSS: rules on the shell\'s class names reach only what the pieces built (d
 });
 
 test('CSS: focus ring 3 px accent with 3 px offset (ART-S5, UI-K4); disabled 50 % and desaturated (ART-S4); hover lift (ART-S2)', () => {
-  has(P.CSS, /:focus-visible\{outline:3px solid var\(--te-accent\);outline-offset:3px\}/);
+  has(P.CSS, /:focus-visible\{outline:3px solid var\(--te-focus, var\(--te-accent\)\);outline-offset:3px\}/, "the ring reads ART-K17 focus, amber only until the theme sets it");
   has(P.CSS, /:disabled\{opacity:\.5;filter:saturate\(\.3\)/);
   has(P.CSS, /:hover:not\(:disabled\):not\(\.on\)\{transform:translate\(-1px,-2px\)/);
   has(P.CSS, /\[aria-pressed="true"\][^{]*\{[^}]*transform:translateY\(2px\)/, 'pressed sinks (ART-S3, ART-S6)');
