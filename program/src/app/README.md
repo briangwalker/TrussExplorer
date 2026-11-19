@@ -26,3 +26,4 @@
 - **Ownership:** edit someone else's part through them or the board (rulebook rule 3, P8d).
 - **Step 2** (TE-B-019) gives parts real interfaces one at a time: the sweep engine first (#35 moves it into a Web Worker), then files, then the drawing (`renderDrawing(target, design)` for the PIP, #210/#237).
 - **`main` still has the unsplit `src/app.js`.** See CONTRIBUTING for forward merges.
+- **Boundary parts** (`50-files.js`, `85-sweep-sheets.js`, `92-report.js`) carry the `security: boundary` label on any PR that touches them: White Hat (and Black Hat for file doors) comments before Brian approves (security checklist 1.1, R3-R9).
