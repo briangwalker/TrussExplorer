@@ -290,7 +290,7 @@ const CSS = `
 #stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip,.te-tog):hover:not(:disabled):not(.on){transform:translate(-1px,-2px);box-shadow:0 3px 0 var(--te-ctl-line),2px 6px 10px rgba(20,30,40,.18)}
 #stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip,.te-tog).on,#stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip)[aria-pressed="true"],#stage .te-tog[aria-checked="true"]{background:var(--te-strong);border-color:var(--te-strong);color:var(--te-on-strong);transform:translateY(2px);box-shadow:inset 0 3px 4px rgba(0,0,0,.28)}
 #stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip,.te-tog):disabled{opacity:.5;filter:saturate(.3);cursor:default;transform:none}
-#stage :where([data-pc],[data-pc] *):is(button,[role="slider"],[tabindex]):focus-visible{outline:3px solid var(--te-accent);outline-offset:3px}
+#stage :where([data-pc],[data-pc] *):is(button,[role="slider"],[tabindex]):focus-visible{outline:3px solid var(--te-focus, var(--te-accent));outline-offset:3px}
 #stage .te-togrow{display:inline-flex;align-items:center;gap:8px;font:500 14px var(--te-font-ui);cursor:pointer}
 #stage .te-tog{position:relative;width:34px;height:30px;padding:0;flex:none}
 #stage .te-tog i{position:absolute;top:6px;left:10px;width:12px;height:10px;border-radius:2px;background:var(--te-ctl-line)}
@@ -327,7 +327,7 @@ const CSS = `
 #stage .te-tbl tbody tr{background:var(--te-surface);cursor:default}
 #stage .te-tbl tbody tr:nth-child(even){background:var(--te-surface-2)}
 #stage .te-tbl tbody tr[aria-selected="true"],#stage .te-tbl tbody tr.lit{background:var(--te-hot)}
-#stage .te-tbl :is(td,th):focus-visible{outline:3px solid var(--te-accent);outline-offset:-3px}
+#stage .te-tbl :is(td,th):focus-visible{outline:3px solid var(--te-focus, var(--te-accent));outline-offset:-3px}
 #stage .te-tbl .te-sort{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline dotted}
 #stage .te-tbl tr.empty td{color:var(--te-muted);white-space:normal}
 @media (prefers-reduced-motion:reduce){#stage :is(.s-b:where([data-pc]),.s-ic:where([data-pc]),.te-chip,.te-tog){transition:none}}
