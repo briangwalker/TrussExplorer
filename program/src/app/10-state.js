@@ -114,4 +114,7 @@ function summaryOf(p) {
   if (p.family !== 'warren' && p.vert === 'none') s += ' · no verticals';
   return s;
 }
-
+// smallest and largest of a list by a loop: Math.min(...list) overflows the call stack past about 125,000 values,
+// which a big sweep has (TE-B-379; the same rule as sweepstore's range, #223). Empty gives Infinity / -Infinity, as Math.min() does.
+function minOf(a) { let m = Infinity; for (let i = 0; i < a.length; i++) if (a[i] < m) m = a[i]; return m; }
+function maxOf(a) { let m = -Infinity; for (let i = 0; i < a.length; i++) if (a[i] > m) m = a[i]; return m; }
