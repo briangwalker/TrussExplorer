@@ -1,6 +1,6 @@
 # Builds the single-page app: src/ui.html with each module dropped into its placeholder -> index.html
 # balsaPixel: src/shell.js is its own <script> after app.js and reaches the app only through window.TrussApp;
-# src/shell.css goes into its own <style>; every theme listed in themes/index.json is inlined as a string, so the page stays one file.
+# src/shell.css goes into its own <style>; every theme listed in themes/index.json is packed by tools/themepack.py and inlined, so the page stays one file.
 #
 # Where each module goes (#109, board TE-B-018: no shared list to edit, so two PRs adding files don't collide):
 #   <script>/*NAME*/</script> in ui.html  -> src/name.js, at that spot (for modules whose position matters: the solver, app.js, the shell)
@@ -11,20 +11,20 @@
 #     A module placed this way must stand alone: it defines one global (TrussFormats, TrussNames...) and runs nothing
 #     that needs another module while the page loads. Adding one = adding the file; nothing else changes.
 # Run twice, it writes the same bytes (run_all.sh checks this, since index.html is not committed on balsaPixel-1.0).
-import os, re, json, sys
+import base64, os, re, json, sys
 here = os.path.dirname(os.path.abspath(__file__)); src = os.path.join(here, 'src')
 rd = lambda *p: open(os.path.join(*p), encoding='utf-8').read()
 
-def theme_pack():
-    tdir = os.path.join(here, 'themes'); idx = json.loads(rd(tdir, 'index.json'))
-    files, lst = {}, []
-    for t in idx['themes']:
-        css = t.get('css')
-        if css and css not in files: files[css] = rd(tdir, css)
-        assert t.get('format') == 'truss-explorer-theme' and t.get('version') == 1, f"theme {t.get('id')}: unknown format or version"
-        lst.append({k: t[k] for k in ('id', 'name', 'css') if k in t})
-    # inside a <script>: no "</" can close it early
-    return json.dumps({'files': files, 'list': lst}, ensure_ascii=True).replace('</', '<\\/')
+# themes: packed by tools/themepack.py (#265; docs/art-implementation.md section 3). It inlines each theme's images as data: URIs,
+# packs pictures and icons, refuses anything that would load from outside or carry script, and checks the 400 KB budget.
+sys.path.insert(0, os.path.join(here, 'tools'))
+import themepack
+try:
+    THEMES, FONTS, _report = themepack.pack(os.path.join(here, 'themes'))
+except themepack.Refused as e:
+    sys.exit('build.py: theme refused: ' + str(e))
+for line in themepack.KNOWN_SEEN: print(line)
+def theme_pack(): return themepack.pack_json(THEMES)
 
 ui = rd(src, 'ui.html')
 PLACED = re.compile(r'<script>/\*([A-Z0-9]+)\*/</script>')
@@ -44,11 +44,18 @@ def module(f):
     return text
 
 # one pass over the original ui.html, so text inside a module is never mistaken for a placeholder
+# the TE-mark favicon from Graphics' website art pack (#289, TE-B-317), inlined as a data: icon so the site is still one page
+# (img-src allows data:). It's read from the art pack itself, so there's one copy of the icon.
+def favicon():
+    svg = rd(here, '..', 'docs', 'art-website-pack', 'favicon', 'favicon.svg').strip()
+    if '<script' in svg.lower() or 'href=' in svg.lower(): sys.exit('build.py: favicon.svg must hold no script and no links')
+    return '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,' + base64.b64encode(svg.encode('utf-8')).decode('ascii') + '">'
 def fill(m):
-    if m.group(0) == '/*SHELLCSS*/': return rd(src, 'shell.css')
+    if m.group(0) == '<!--FAVICON-->': return favicon()
+    if m.group(0) == '/*SHELLCSS*/': return rd(src, 'shell.css') + ('\n' + FONTS if FONTS else '')   # shared theme fonts (themes/fonts/fonts.css), packed
     if m.group(0) == '<!--MODULES-->': return '\n'.join('<script>' + module(f) + '</script>' for f in others)
     return '<script>' + module(m.group(1).lower() + '.js') + '</script>'
-ui = re.sub(r'/\*SHELLCSS\*/|<!--MODULES-->|<script>/\*([A-Z0-9]+)\*/</script>', fill, ui)
+ui = re.sub(r'<!--FAVICON-->|/\*SHELLCSS\*/|<!--MODULES-->|<script>/\*([A-Z0-9]+)\*/</script>', fill, ui)
 open(os.path.join(here, 'index.html'), 'w', encoding='utf-8').write(ui); print('built index.html' + (f' (modules: {", ".join(others)})' if others else ''))
 # CSP script hashes (#297, WH-N3): the page is one file of inline <script> blocks, so the website's Content-Security-Policy
 # allows exactly these by hash instead of 'unsafe-inline'. The deploy (#3) reads index.csp.txt from THIS build, never a
