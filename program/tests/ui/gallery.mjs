@@ -91,14 +91,16 @@ try {
     return q('.s-b[aria-pressed="true"]') && q('.s-b:disabled') && q('.te-chip[aria-pressed="false"]') && q('[role="switch"][aria-checked="true"]') && q('[role="switch"][aria-checked="false"]')
       && q('.te-slider[data-over="rule"]') && q('.te-slider[data-wall="lo"]') && q('.te-slider[data-swept]');
   }));
-  check('the results card passing, failing and unstable, and a pop-up open (UI-G1)', await p.evaluate(() => { const t = document.getElementById('gallery').textContent; return /✓ PASSES/.test(t) && /✕ FAILS/.test(t) && /✕ UNSTABLE/.test(t); }) && await visible(p, '#g-pop'));
+  check('the results card passing, failing and unstable; its pop-up closed until clicked (UI-G1, UI-W8)', await p.evaluate(() => { const t = document.getElementById('gallery').textContent; return /✓ PASSES/.test(t) && /✕ FAILS/.test(t) && /✕ UNSTABLE/.test(t); }) && !(await visible(p, '#g-pop')));
   check('every item names its rules (UI-G1)', await p.evaluate(() => [...document.querySelectorAll('#gallery .g-item')].every(f => /(UI|ART)-[A-Z]+\d/.test(f.querySelector('figcaption').textContent))));
   check('pieces not built yet show as cards naming their rules (UI-G3)', await p.evaluate(() => document.querySelectorAll('#gallery [data-g-notbuilt]').length >= 6 && [...document.querySelectorAll('#gallery [data-g-notbuilt]')].every(c => /(UI|ART)-[A-Z]+\d/.test(c.textContent))));
   check('the page ends with the coverage list (UI-G1)', await p.evaluate(() => /UI-A3/.test(document.querySelector('[data-g-shown]').textContent) && /UI-I8/.test(document.querySelector('[data-g-missing]').textContent)));
-  check('the contrast table is filled from this theme\'s tokens', await p.evaluate(() => document.querySelectorAll('[data-g-pairs] tbody tr').length >= 10));
+  check('the contrast table is filled from this theme\'s tokens, focus pairs included (ART-C6)', await p.evaluate(() => document.querySelectorAll('[data-g-pairs] tbody tr').length >= 15 && /focus on hot/.test(document.querySelector('[data-g-pairs]').textContent)));
   await p.screenshot({ path: path.join(SHOTS, 'gallery-top.png') });
 
   // ---------- use everything: clicks and keys must stay inside the gallery ----------
+  await p.click('#g-res');
+  check('the card opens its pop-up (UI-W8)', await visible(p, '#g-pop'));
   await p.keyboard.press('Escape');
   check('Esc closes the open pop-up and returns focus to the results card (UI-W8)', !(await visible(p, '#g-pop')) && await p.evaluate(() => document.activeElement.id === 'g-res'));
   // sheets, dialogs and toasts work on the gallery page (UI-A16, UI-W10, UI-W22)
@@ -136,6 +138,17 @@ try {
   check('storage is byte-identical after the visit (UI-G4, guard d)', after === baseline, what(baseline, after));
   check('the gallery adds no network request of its own (guard e)', gReqs.length === 0, gReqs.slice(0, 3).join(' '));
   check('no page errors (guard e)', errs.length === 0, errs.join(' | '));
+
+  // the first click on a theme chip, straight after load, switches the theme (Graphics, TE-B-432: it used to be eaten)
+  {
+    const q = await openPage(b, base + '?gallery=1'); await q.waitForTimeout(400);
+    if (await q.evaluate(() => TrussGallery.door)) {
+      const to = await q.evaluate(() => __shell.themes.map(t => t.id).find(id => id !== document.getElementById('stage').dataset.theme));
+      await q.click(`#gallery [data-act="theme:${to}"]`); await q.waitForTimeout(250);
+      check('the first theme-chip click after load switches the theme (TE-B-432)', await q.evaluate(t => document.getElementById('stage').dataset.theme === t, to), to);
+    }
+    await q.close();
+  }
 
   // ---------- landmarks: no two share a name (QA's landmark-unique, TE-B-281) ----------
   check('every region in the gallery has its own name', await p.evaluate(() => { const n = [...document.querySelectorAll('#gallery [role="region"], #gallery section[aria-label]')].map(e => e.getAttribute('aria-label')); return n.length > 4 && new Set(n).size === n.length; }));

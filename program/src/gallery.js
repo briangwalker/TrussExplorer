@@ -92,7 +92,7 @@ function sections(P) {
         columns: [{ key: 'k', label: 'Member', num: true }, { key: 'ij', label: 'i–j' }, { key: 'F', label: 'F (N)', num: true }, { key: 'TC', label: 'T/C' }, { key: 'use', label: 'Use', sort: 'descending' }],
         rows: [['3', '2–5', '-36.10', 'C compression', '79%'], ['0', '0–1', '-24.56', 'C compression', '54%'], ['7', '4–6', '16.07', 'T tension', '21%'], ['12', '1–2', '0.00', '0 no force', '0%']]
           .map(r => ({ key: r[0], cells: { k: r[0], ij: r[1], F: r[2], TC: r[3], use: r[4] } })) }) },
-    { id: 'popup', title: 'Pop-up: the results card\'s full view, open', rules: ['UI-W8', 'UI-W18', 'ART-W12'], note: 'Click outside to close it (that click does nothing else); Esc closes it and returns focus. Its content is #210\'s.',
+    { id: 'popup', title: 'Pop-up: the results card\'s full view', rules: ['UI-W8', 'UI-W18', 'ART-W12'], note: 'Click the card to open it. Click outside to close it (that click does nothing else); Esc closes it and returns focus. Its content is #210\'s.',
       html: '<div class="g-popframe">' + P.resultsHTML({ id: 'g-res', verdict: 'pass', checks: [{ value: '18.6', op: '>=', limit: '5.0', unit: 'kg', ok: true }] })
         + '<div class="te-pop" id="g-pop" role="dialog" aria-label="Full results" hidden>The full results go here: each check against its limit, the project facts, and links (UI-W18, #210).</div></div>' },
   ];
@@ -200,7 +200,9 @@ function open(doc, win) {
     section.querySelectorAll('[data-act="g-toast"]').forEach(b => b.addEventListener('click', () => toasts.show({ text: 'Changed h 70 → 80', undo: () => toasts.show({ text: 'Undone: h is 70 again' }) })));
   }
   const pops = P.popups(doc), card = section.querySelector('#g-res'), pop = section.querySelector('#g-pop');
-  if (card && pop) { card.addEventListener('click', () => pops.open(pop, card)); pops.open(pop, card); }
+  // opened by its card only: a pop-up open on load would eat the visitor's first click anywhere (UI-W8), which made the
+  // first theme-chip click seem to do nothing (Graphics, TE-B-432)
+  if (card && pop) card.addEventListener('click', () => pops.open(pop, card));
   const peekTab = section.querySelector('.tabE[data-tab="g-peek"]');   // shown open, by the window's own peek code
   if (peekTab) peekTab.dispatchEvent(new MouseEvent('mouseenter'));
 
@@ -208,7 +210,9 @@ function open(doc, win) {
   const paintPairs = () => {
     const cs = win.getComputedStyle(stage), v = {};
     P.TOKENS.forEach(t => { v[t.name] = cs.getPropertyValue(t.css).trim(); });
-    const rows = P.contrastPairs(v).map(p => `<tr><td>${esc(p.fg)} on ${esc(p.bg)}</td><td>${isNaN(p.ratio) ? '—' : p.ratio.toFixed(2) + ' : 1'}</td><td>${isNaN(p.ratio) ? 'not a plain colour' : p.ok ? '✓' : '✕ under ' + p.min}</td><td>${esc(p.rule)}</td></tr>`);
+    v.focus = cs.getPropertyValue('--te-focus').trim() || v.accent;   // ART-K17; amber accent until the theme sets it
+    const focusPairs = ['surface', 'surface-2', 'hot', 'panel', 'ctl-bg'].map(bg => { const r = P.contrast(v.focus, v[bg]); return { fg: 'focus', bg, min: 3, rule: 'ART-C6', ratio: r, ok: r >= 3 }; });
+    const rows = P.contrastPairs(v).concat(focusPairs).map(p => `<tr><td>${esc(p.fg)} on ${esc(p.bg)}</td><td>${isNaN(p.ratio) ? '—' : p.ratio.toFixed(2) + ' : 1'}</td><td>${isNaN(p.ratio) ? 'not a plain colour' : p.ok ? '✓' : '✕ under ' + p.min}</td><td>${esc(p.rule)}</td></tr>`);
     const tb = section.querySelector('[data-g-pairs] tbody'); if (tb) tb.innerHTML = rows.join('');
   };
   paintPairs();
