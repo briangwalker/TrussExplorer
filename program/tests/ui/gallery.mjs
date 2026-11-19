@@ -93,7 +93,7 @@ try {
   }));
   check('the results card passing, failing and unstable, and a pop-up open (UI-G1)', await p.evaluate(() => { const t = document.getElementById('gallery').textContent; return /✓ PASSES/.test(t) && /✕ FAILS/.test(t) && /✕ UNSTABLE/.test(t); }) && await visible(p, '#g-pop'));
   check('every item names its rules (UI-G1)', await p.evaluate(() => [...document.querySelectorAll('#gallery .g-item')].every(f => /(UI|ART)-[A-Z]+\d/.test(f.querySelector('figcaption').textContent))));
-  check('pieces not built yet show as cards naming their rules (UI-G3)', await p.evaluate(() => document.querySelectorAll('#gallery [data-g-notbuilt]').length >= 9));
+  check('pieces not built yet show as cards naming their rules (UI-G3)', await p.evaluate(() => document.querySelectorAll('#gallery [data-g-notbuilt]').length >= 6 && [...document.querySelectorAll('#gallery [data-g-notbuilt]')].every(c => /(UI|ART)-[A-Z]+\d/.test(c.textContent))));
   check('the page ends with the coverage list (UI-G1)', await p.evaluate(() => /UI-A3/.test(document.querySelector('[data-g-shown]').textContent) && /UI-I8/.test(document.querySelector('[data-g-missing]').textContent)));
   check('the contrast table is filled from this theme\'s tokens', await p.evaluate(() => document.querySelectorAll('[data-g-pairs] tbody tr').length >= 10));
   await p.screenshot({ path: path.join(SHOTS, 'gallery-top.png') });
@@ -101,6 +101,13 @@ try {
   // ---------- use everything: clicks and keys must stay inside the gallery ----------
   await p.keyboard.press('Escape');
   check('Esc closes the open pop-up and returns focus to the results card (UI-W8)', !(await visible(p, '#g-pop')) && await p.evaluate(() => document.activeElement.id === 'g-res'));
+  // sheets, dialogs and toasts work on the gallery page (UI-A16, UI-W10, UI-W22)
+  await p.click('[data-act="g-open:g-dialog"]');   // the pop-up is closed by now, so this click is not eaten (UI-W8)
+  check('the gallery dialog opens with focus on its field (UI-W22)', await p.evaluate(() => document.getElementById('g-dialog').open && document.activeElement.id === 'g-dlg-n'));
+  await p.keyboard.press('Escape');
+  check('...and Esc closes it, focus back on its button', await p.evaluate(() => !document.getElementById('g-dialog').open && document.activeElement.dataset.act === 'g-open:g-dialog'));
+  await p.click('[data-act="g-toast"]');
+  check('the gallery toast shows, bottom centre, with Undo', await p.evaluate(() => { const t = document.querySelector('.te-toast'); return !!t && !t.hidden && /Undo/.test(t.textContent); }));
   await p.click('#win-g-left [data-step="shrink"]');
   await p.click('#gallery .te-chip[aria-pressed="false"]');
   await p.click('#gallery [role="switch"][aria-checked="false"]');
