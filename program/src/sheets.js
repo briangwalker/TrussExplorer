@@ -138,6 +138,8 @@ function toasts(doc, o) {
 }
 
 // The look, Wireframe values from --te-* tokens (themes win: their rules are more specific). Text 13 px or more.
+// Focus rings read ART-K17 --te-focus (amber accent only until a theme sets it; Graphics TE-B-411). The Cancel flash stays
+// amber: a moment of attention, not the focus mark. The toast has a 1 px line edge so it doesn't sink into a dark page.
 const CSS = `
 #stage dialog.te-sheet{padding:0;border:1px solid var(--te-line);border-radius:6px;background:var(--te-panel);color:var(--te-ink);
   width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:auto;font:400 14px var(--te-font-ui)}
@@ -149,15 +151,15 @@ const CSS = `
 #stage .te-sh-m{flex:1 1 auto;min-height:72px;overflow:auto;padding:12px;scroll-padding:12px}
 #stage .te-sh-b{position:sticky;bottom:0;z-index:1;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--te-line);background:var(--te-panel)}
 #stage .te-sh-b [data-main]{font-weight:700}
-#stage :where(dialog.te-sheet) :is(button,input,select,textarea,[tabindex]):focus-visible{outline:3px solid var(--te-accent);outline-offset:2px}
+#stage :where(dialog.te-sheet) :is(button,input,select,textarea,[tabindex]):focus-visible{outline:3px solid var(--te-focus, var(--te-accent));outline-offset:2px}
 #stage .te-flash{animation:te-flash .6s ease-out 1}
 @keyframes te-flash{0%,100%{box-shadow:none}30%{box-shadow:0 0 0 4px var(--te-accent)}}
-@media (prefers-reduced-motion: reduce){#stage .te-flash{animation:none;outline:3px solid var(--te-accent)}}
+@media (prefers-reduced-motion: reduce){#stage .te-flash{animation:none;outline:3px solid var(--te-focus, var(--te-accent))}}
 #stage .te-toast{position:fixed;left:50%;bottom:var(--te-toast-bottom,72px);transform:translateX(-50%);z-index:900;max-width:min(560px,calc(100vw - 32px));
-  display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:6px;background:var(--te-strong);color:var(--te-on-strong);font:400 14px var(--te-font-ui);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+  display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:6px;background:var(--te-strong);color:var(--te-on-strong);font:400 14px var(--te-font-ui);box-shadow:0 2px 8px rgba(0,0,0,.25);border:1px solid var(--te-line)}
 #stage .te-toast[hidden]{display:none}
 #stage .te-toast-u{font:700 14px var(--te-font-ui);color:var(--te-on-strong);background:transparent;border:1px solid var(--te-on-strong);border-radius:4px;padding:2px 10px;cursor:pointer}
-#stage .te-toast-u:focus-visible{outline:3px solid var(--te-accent);outline-offset:2px}`;
+#stage .te-toast-u:focus-visible{outline:3px solid var(--te-focus, var(--te-accent));outline-offset:2px}`;
 
 function install(doc) {
   if (!doc || doc.getElementById('te-sheets')) return false;
