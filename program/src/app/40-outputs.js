@@ -247,7 +247,35 @@ function renderDocDialog() {
       return `<tr${S.doc.over[j.n] ? ' style="background:var(--accent-soft)"' : ''}><td>${j.n}</td><td class="l"><select data-j="${j.n}" data-f="through">${opts}</select></td><td class="l"><select data-j="${j.n}" data-f="end">${ends}</select>${j.notes && j.notes.length ? `<div class="hint" style="margin:2px 0 0">Changed automatically: ${escH(j.notes.join('; '))}</div>` : ''}</td><td>${j.end === 'mitre' ? `<input type="number" min="5" max="95" step="5" value="${j.split}" data-j="${j.n}" data-f="split" style="width:60px">` : '—'}</td></tr>`;
     }).join('') + '</tbody>';
 }
-$('openDocs').addEventListener('click', () => { if (!res.stable) { toast('Make the design stable first: the build documents need a working bridge.', true); return; } renderDocDialog(); $('docModal').hidden = false; });
+// #285 (UI-W13): the dialog takes keyboard focus when it opens, keeps it inside, closes on Esc wherever focus is, comes
+// back to focus after the name pop-up of a download, and gives focus back to where it was opened from (or to ☰)
+let docOpener = null;
+const docFocusables = () => [...$('docModal').querySelectorAll('a[href], button, input, select, textarea')].filter(e => e.offsetParent && !e.disabled);
+function openDocModal() {
+  docOpener = document.activeElement; renderDocDialog(); $('docModal').hidden = false;
+  const h = $('docH'); h.tabIndex = -1; h.focus();
+}
+function closeDocModal() {
+  $('docModal').hidden = true; const o = docOpener; docOpener = null;
+  if (o && o.isConnected && o.offsetParent && typeof o.focus === 'function') o.focus(); else if ($('dockBtn')) $('dockBtn').focus();
+}
+$('openDocs').addEventListener('click', () => { if (!res.stable) { toast('Make the design stable first: the build documents need a working bridge.', true); return; } openDocModal(); });
+document.addEventListener('keydown', ev => {
+  const md = $('docModal'); if (md.hidden || !$('saveModal').hidden) return;   // the name pop-up handles its own keys
+  if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); closeDocModal(); return; }
+  if (ev.key === 'Tab') {
+    const f = docFocusables(); if (!f.length) return;
+    const i = f.indexOf(document.activeElement), n = ev.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i === f.length - 1 || i < 0 ? 0 : i + 1);
+    ev.preventDefault(); f[n].focus();
+  }
+}, true);
+// the name pop-up closes after a download: focus returns to the button that started it
+let docLastBtn = null;
+['docGo', 'docMini'].forEach(id => $(id).addEventListener('click', () => { docLastBtn = $(id); }, true));
+new MutationObserver(() => {
+  if (!$('saveModal').hidden || $('docModal').hidden || $('docModal').contains(document.activeElement)) return;
+  (docLastBtn && docLastBtn.offsetParent ? docLastBtn : $('docH')).focus();
+}).observe($('saveModal'), { attributes: true, attributeFilter: ['hidden'] });
 function showExport(x) {
   S.expTab = x; save(); $('s-export').open = true;
   document.querySelectorAll('#expTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.x === x)));
@@ -256,8 +284,7 @@ function showExport(x) {
 }
 $('expTabs').addEventListener('click', ev => { const b = ev.target.closest('[data-x]'); if (!b) return; ev.preventDefault(); ev.stopPropagation(); showExport(b.dataset.x); });
 showExport(S.expTab || 'bridge');
-$('docNo').addEventListener('click', () => { $('docModal').hidden = true; });
-$('docModal').addEventListener('keydown', ev => { if (ev.key === 'Escape') $('docModal').hidden = true; });
+$('docNo').addEventListener('click', closeDocModal);
 document.querySelectorAll('input[name="jstyle"]').forEach(r => r.addEventListener('change', () => { S.doc.style = r.value; save(); renderDocDialog(); }));
 document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.opts.tieJoint = r.value; update(); renderDocDialog(); }));
 $('docStock').addEventListener('change', () => guardNum('docStock', 50, 2000, S.doc.stock, v => { S.doc.stock = v; save(); renderDocDialog(); }, 'Stock stick length'));
