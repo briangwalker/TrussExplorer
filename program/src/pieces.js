@@ -323,7 +323,7 @@ const CSS = `
 #stage .te-tbl caption{text-align:left;font:600 13px var(--te-font-ui);padding:0 0 6px;color:var(--te-ink)}
 #stage .te-tbl :is(th,td){font-size:13px;padding:4px 8px;text-align:left;white-space:nowrap;color:var(--te-ink);background:inherit;outline:none}
 #stage .te-tbl thead th{position:sticky;top:0;background:var(--te-surface-2);font-weight:700;border-bottom:1px solid var(--te-line);z-index:2}
-#stage .te-tbl .rh{position:sticky;left:0;z-index:1;font-weight:700}
+#stage .te-tbl .rh{position:sticky;left:0;z-index:1;font-weight:700;box-shadow:inset -1px 0 0 var(--te-line)}
 #stage .te-tbl thead th.rh{z-index:3}
 #stage .te-tbl .num{text-align:right;font-family:var(--te-font-mono);font-variant-numeric:tabular-nums}
 #stage .te-tbl tbody tr{background:var(--te-surface);cursor:default}
