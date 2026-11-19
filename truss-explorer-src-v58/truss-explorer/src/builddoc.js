@@ -568,7 +568,7 @@ function finishedParts(tr, plan, b) {
   return plan.pieces.map((q, i) => {
     const sh = cutShapes(tr, { pieces: [q] }, b), one = sh.length === 1 && !q.bent ? sh[0] : null;
     return { piece: i, item: q.item, type: q.type, members: q.members.slice(), nodes: q.nodes.slice(), bent: !!q.bent, long: q.long, short: q.short,
-      poly: one ? one.poly : null, segs: sh.map(x => x.poly), ends: [end(q.cut0, q.nodes[0]), end(q.cut1, q.nodes[1])] };
+      poly: one ? one.poly : null, segs: sh.map(x => x.poly), shapes: sh, ends: [end(q.cut0, q.nodes[0]), end(q.cut1, q.nodes[1])] };
   });
 }
 // the checks every drawing must pass (TE-B-187a): returns [] when the parts are drawable as cut. For straight pieces:
@@ -592,6 +592,18 @@ function checkParts(parts, b, tol) {
   flat.forEach(P => flat.forEach(Q => { if (P === Q) return; P.poly.forEach(pt => { const d = inside(pt, Q.poly); if (d > tol) out.push({ kind: 'overlap', piece: P.piece, item: P.item, into: Q.piece, intoItem: Q.item, depth: +d.toFixed(2) }); }); }));
   return out;
 }
+// the drawable outlines, taken only from the finished-part layer (TE-B-187a part 2): the side view and the templates use this
+const partShapes = (tr, plan, b) => finishedParts(tr, plan, b).flatMap(P => P.shapes);
+// the guard every build document runs (TE-B-187a part 2): a drawn end that differs from the cut guide, an end past square,
+// or a corner more than 1 mm inside another piece (the kinked-chord corners under 1 mm are 'sand to fit', #342) stops
+// the set with a visible box on page 1, so a wrong picture can't be printed quietly.
+// the overlap the guard and parts.test.js allow, in mm: the kinked-chord corners are 0.72-0.88 mm today (Math, TE-B-275);
+// tighten to 0.6 when Math's 'lean' patch (#332) lands
+const PART_OVERLAP_MM = 1.0;
+function partGuard(tr, plan, b) {
+  const bad = checkParts(finishedParts(tr, plan, b), b, PART_OVERLAP_MM);
+  return { ok: !bad.length, bad, html: bad.length ? `<div class="partchk" data-partcheck="fail" style="border:1mm solid #000;padding:2mm;margin:2mm 0;font:bold 11pt Arial">DRAWING CHECK FAILED: ${bad.length} PIECE END${bad.length > 1 ? 'S' : ''} IN THE PICTURES ${bad.length > 1 ? 'DO' : 'DOES'} NOT MATCH THE CUT GUIDE (${esc(bad.slice(0, 4).map(x => 'ITEM ' + x.item + ' ' + x.kind.toUpperCase()).join(', '))}). DON'T PRINT. REPORT IT TO THE TEAM.</div>` : '' };
+}
 // side view as SVG. o: { highlight: Set, grey: Set, labels, balloons, b, color: 'part' | 'mono' | css colour, dash: true, dims: true }
 function sideSVG(tr, plan, o) {
   o = o || {};
@@ -601,7 +613,7 @@ function sideSVG(tr, plan, o) {
   const W = x1 - x0, H = y1 - y0, Y = y => y1 - y + y0;
   const b = o.b || 3.18, out = [];
   out.push(`<rect x="${x0}" y="${Y(0)}" width="${-x0}" height="${Math.min(10, -y0)}" fill="#e9e9e9"/><rect x="${tr.design.span || 200}" y="${Y(0)}" width="${x1 - (tr.design.span || 200)}" height="${Math.min(10, -y0)}" fill="#e9e9e9"/>`);
-  if (o.cut) cutShapes(tr, plan, b).forEach(s => {
+  if (o.cut) partShapes(tr, plan, b).forEach(s => {
     const hi = o.highlight ? s.members.some(k => o.highlight.has(k)) : true, gr = !!o.grey && s.members.every(k => o.grey.has(k));
     if (o.highlight && !hi && !gr) return;
     const col = gr ? '#c8c8c8' : o.color === 'part' ? colOf(s.item) : o.color === 'mono' ? '#fff' : (o.color || '#1f4e8c');
@@ -756,6 +768,7 @@ function documentHTML(tr, res, meta, plan, opt) {
   const stopItem = stops.length ? (() => { const q = { L: STOP_LEN, cut0: { kind: 'square', eA: 0, eB: 0, ang: 0 }, cut1: { kind: 'square', eA: 0, eB: 0, ang: 0 }, long: STOP_LEN, short: STOP_LEN, members: [] };
     return { no: plan.items.length + (cx ? cx.items.length : 0) + 1, type: 'stop', label: 'Edge stop (under each corner joint)', long: STOP_LEN, short: STOP_LEN, cc: STOP_LEN, cuts: [q.cut0, q.cut1], n: 1, view: 'side view', pieces: Array.from({ length: stops.length * nT }, () => q), Fmax: 0, kind: 'stop' }; })() : null;
   const allItems = plan.items.concat(cx ? cx.items : [], stopItem ? [stopItem] : []);
+  const guard = partGuard(tr, plan, b), gMeta = `<meta name="te-partcheck" content="${guard.ok ? 'ok' : 'fail'}">`;
   // end-angle templates A1, A2…: one per distinct whole-degree angle (bevels apart), shared by every page that names one
   const sqr = c => !c || ['through', 'end', 'free', 'square', 'splice', 'lap'].includes(c.kind) || Math.abs(c.ang || 0) < 0.5;
   // angle templates: one per distinct whole-degree angle (bevels apart), labelled with every item end that uses it
@@ -894,7 +907,7 @@ function documentHTML(tr, res, meta, plan, opt) {
   if (opt.templates) {
     const tw = 240, th = 160, xs = tr.nodes.map(p => p[0]), ys = tr.nodes.map(p => p[1]);
     const X0 = Math.min(...xs) - 6, X1 = Math.max(...xs) + 6, Y0 = Math.min(...ys, ...stops.map(s => s.y0)) - (mini && crossings.length ? 13 : 6), Y1 = Math.max(...ys) + (mini ? 10 : 6), hgt = Math.min(th, Y1 - Y0 + 24);
-    const edges = (mini ? cutShapes(tr, plan, b).map(s => `<polygon points="${s.poly.map(z2 => `${z2[0].toFixed(2)},${(Y1 - z2[1]).toFixed(2)}`).join(' ')}" fill="none" stroke="#000" stroke-width=".25"/><line x1="${s.a[0]}" y1="${Y1 - s.a[1]}" x2="${s.c[0]}" y2="${Y1 - s.c[1]}" stroke="#666" stroke-width=".12" stroke-dasharray="1 1"/>`).join('') + angleMarks(tr, plan, b, y => Y1 - y, { angles: 0.9, every: true, angId: c => angIdOf(c), maxX: mirror ? midXs + 0.5 : null }) + (mirror ? `<line x1="${midXs}" y1="${Y1 - Math.max(...ys) - 8}" x2="${midXs}" y2="${Y1 - Math.min(...ys) + 4}" stroke="#000" stroke-width=".25" stroke-dasharray="4 1.5 .8 1.5"/><text x="${midXs + 1.5}" y="${Y1 - Math.max(...ys) - 6}" font-size="3" font-family="Arial" font-weight="bold">MIRRORED ALONG THE DOTTED LINE</text>` : '')
+    const edges = (mini ? partShapes(tr, plan, b).map(s => `<polygon points="${s.poly.map(z2 => `${z2[0].toFixed(2)},${(Y1 - z2[1]).toFixed(2)}`).join(' ')}" fill="none" stroke="#000" stroke-width=".25"/><line x1="${s.a[0]}" y1="${Y1 - s.a[1]}" x2="${s.c[0]}" y2="${Y1 - s.c[1]}" stroke="#666" stroke-width=".12" stroke-dasharray="1 1"/>`).join('') + angleMarks(tr, plan, b, y => Y1 - y, { angles: 0.9, every: true, angId: c => angIdOf(c), maxX: mirror ? midXs + 0.5 : null }) + (mirror ? `<line x1="${midXs}" y1="${Y1 - Math.max(...ys) - 8}" x2="${midXs}" y2="${Y1 - Math.min(...ys) + 4}" stroke="#000" stroke-width=".25" stroke-dasharray="4 1.5 .8 1.5"/><text x="${midXs + 1.5}" y="${Y1 - Math.max(...ys) - 6}" font-size="3" font-family="Arial" font-weight="bold">MIRRORED ALONG THE DOTTED LINE</text>` : '')
       : drawSegs(tr, plan).map(({ e, a: p, c: q, item }) => { const d = unit(sub(q, p)), nv = mul(perp(d), b * Math.sqrt(e.n || 1) / 2);
       return `<polygon points="${[add(p, nv), add(q, nv), sub(q, nv), sub(p, nv)].map(z => `${z[0]},${Y1 - z[1]}`).join(' ')}" fill="${colourMode === 'part' ? colOf(item) : 'none'}" fill-opacity=".25" stroke="#000" stroke-width=".2"/><line x1="${p[0]}" y1="${Y1 - p[1]}" x2="${q[0]}" y2="${Y1 - q[1]}" stroke="#666" stroke-width=".15" stroke-dasharray="${dash ? dashOf(item) || '1 1' : '1 1'}"/>`; }).join(''))
       + crossMarks(y => Y1 - y, 3)
@@ -1128,7 +1141,7 @@ function documentHTML(tr, res, meta, plan, opt) {
       .tpl{height:auto;min-height:199mm}.pgno{font-size:8pt;font-weight:bold;margin:0 0 1mm;text-align:right}.tpl svg{display:block;margin:0 auto}
       .ftpls{display:flex;flex-wrap:wrap;gap:8mm;align-items:flex-end}.ftpl{margin:0}
       @media print{body{background:#fff}.pg,.sheet{margin:0}}`;
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name || 'Design')} · build set (black and white)</title><style>${css}</style></head><body>${pages.replace(/#c0392b|#3a6ea5|#0b6e4f/g, '#000').replace(/\b(red|green) (ticks|circles|marks)/g, '$2')}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name || 'Design')} · build set (black and white)</title>${gMeta}<style>${css}</style></head><body>${guard.html}${pages.replace(/#c0392b|#3a6ea5|#0b6e4f/g, '#000').replace(/\b(red|green) (ticks|circles|marks)/g, '$2')}</body></html>`;
   }
   const total = sheets.length + tpls.length;
   // every printed page carries its number (#157): the sheets in their title blocks, the templates in their header
@@ -1162,7 +1175,7 @@ function documentHTML(tr, res, meta, plan, opt) {
     .frames{display:grid;grid-template-columns:repeat(2,1fr);gap:4mm}.frames figure{margin:0;border:.3mm solid #ccc;padding:2mm}.frames svg{width:100%;height:62mm}
     .ftpls{display:flex;flex-wrap:wrap;gap:8mm;align-items:flex-end}.ftpl{margin:0}
     @media print{body{background:#fff}.sheet{margin:0;box-shadow:none}}`;
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name)} · build documents</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>${html}${tplPages}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name)} · build documents</title><meta name="viewport" content="width=device-width,initial-scale=1">${gMeta}<style>${css}</style></head><body>${guard.html}${html}${tplPages}</body></html>`;
 }
 
 // ===== The bending sheet (#282, TE-B-162): a work instruction for bending the top chord, built to Brian's Work Instruction
@@ -1292,6 +1305,6 @@ function bendingSheetHTML(tr, plan, res, meta, opt) {
     @media print{body{background:#fff}.pg{margin:0}}`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.name || 'Design')} · bending sheet</title><style>${css}</style></head><body>${pages.join('')}</body></html>`;
 }
-const api = { finishedParts, checkParts, bentCheck, bendingSheetHTML, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
+const api = { finishedParts, checkParts, partGuard, PART_OVERLAP_MM, bentCheck, bendingSheetHTML, edgeMarks, edgeStops, jointsOf, defaultJoint, cutPlan, stockPlan, documentHTML, sideSVG, partDetail, cutTxt, TL, colOf, dashOf, crossPlan, crossKind, view3, distinctFrames, XL };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.BuildDoc = api;
 })(typeof window !== 'undefined' ? window : globalThis);
