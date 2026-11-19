@@ -44,6 +44,12 @@ test('every shared piece, in every state, each item labelled with its rules (UI-
   assert.strictEqual((h.match(/<figure class="g-item"/g) || []).length, G.sections(P).length);
 });
 
+test('the grip shows only on the movable window, nowhere else on the page (UI-W20)', () => {
+  const h = G.pageHTML(P, { themes: null });
+  assert.strictEqual((h.match(/class="grip"/g) || []).length, 1, 'one grip on the page');
+  assert.match(h, /id="win-g-move"[^>]*data-movable[\s\S]{0,200}class="grip"/);
+});
+
 test('pieces that don\'t exist yet show as "not built yet" cards naming their rules (UI-G3)', () => {
   const h = G.pageHTML(P, { themes: null });
   assert.strictEqual((h.match(/data-g-notbuilt/g) || []).length, G.NOT_BUILT.length + 1, 'plus theme switching while there is no door');
