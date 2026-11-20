@@ -230,7 +230,9 @@ try {
   const before = await p.evaluate(() => JSON.stringify(__shell.state.w));
   await p.reload(); await p.waitForFunction(() => window.__dbg && __dbg.res && window.__shell); await p.waitForTimeout(400);
   check('window states and place survive a reload', (await p.evaluate(() => JSON.stringify(__shell.state.w))) === before);
-  check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
+    // #448 (UI-W20): a window the shell builds (View options, Sweep, Results) has no ⋮⋮ grip; only a movable piece shows one
+  check('UI-W20: no grip on View options, Sweep or Results (#448)', await p.evaluate(() => ['view', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !w.querySelector('.s-ph .grip'); })));
+check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
   await p.close();
 
   // ---------- phone width: nothing runs off the screen ----------
