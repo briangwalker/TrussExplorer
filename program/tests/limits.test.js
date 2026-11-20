@@ -153,6 +153,8 @@ test('warnings are separate: allowed but unusual values', () => {
   assert.deepStrictEqual(w('nTruss', 3), [], 'in 2D no warning');
   assert.strictEqual(w('nTruss', 3, { model: '3D' })[0].why, 'N3D'); assert.strictEqual(w('nTruss', 3, { model: '3D' })[0].msg, 'The 3D result models two trusses only.');
   assert.deepStrictEqual(w('nTruss', 2, { model: '3D' }), []);
+  for (const m of ['3d', '3D']) assert.strictEqual(w('nTruss', 3, { model: m })[0].why, 'N3D', 'model ' + m + ' (the app writes 3d, S.anaMode)');
+  for (const m of ['2d', '2D', '', undefined, null, 3, {}]) assert.deepStrictEqual(w('nTruss', 3, { model: m }), [], 'model ' + String(m));
   // M1 needs the geometry: not raised here
   assert.deepStrictEqual(w('sideAngle', 20), []);
 });

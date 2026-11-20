@@ -189,7 +189,7 @@ function checkInputs(values) {
 
 // warnInputs(values) -> warnings for values that are allowed but unusual: [{ id, value, why, msg }].
 //   why: 'warnMin' | 'warnMax' | 'STICK' | 'N3D'. Rule 'M1' needs the geometry, so it belongs to the validity unit (RMA-6), not here.
-//   A value that is an error gets no warning. 'N3D' reads values.model ('2D' or '3D').
+//   A value that is an error gets no warning. 'N3D' reads values.model ('2d', '2D', '3d' or '3D').
 function warnInputs(values) {
   const out = [];
   if (!isObj(values)) return out;
@@ -203,10 +203,13 @@ function warnInputs(values) {
     if (lo !== null && v < lo - EPS) add('warnMin', row.warnMsg || 'Below the usual minimum of ' + lo + '.');
     else if (hi !== null && v > hi + EPS) add('warnMax', row.warnMsg || 'Above the usual maximum of ' + hi + '.');
     if (row.warnRule === 'STICK' && Math.abs(v - STICK_MM) > EPS) add('STICK', row.warnMsg);
-    if (row.warnRule === 'N3D' && values.model === '3D' && v !== 2) add('N3D', row.warnMsg);
+    if (row.warnRule === 'N3D' && isModel3D(values.model) && v !== 2) add('N3D', row.warnMsg);
   }
   return out;
 }
+
+// the app's own mode id is lowercase ('2d' / '3d', S.anaMode); a file or a caller may write '3D': both mean 3D
+const isModel3D = m => typeof m === 'string' && m.toLowerCase() === '3d';
 
 const rowFor = id => TABLE.find(r => r.id === id) || null;
 
