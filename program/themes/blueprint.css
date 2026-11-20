@@ -5,12 +5,10 @@
   --te-surface:#173f73; --te-surface-2:#22538f; --te-line:#6f9bd1; --te-line-soft:#3f6ea8;
   --te-ink:#f2f6ff; --te-muted:#c8d6f0;
   --te-strong:#f0b45a; --te-on-strong:#1b1206;
-  --te-ctl-bg:#e9eef7; --te-ctl-line:#7d8fb0;
+  --te-ctl-bg:#1d4a85; --te-ctl-line:#8fb0dc;
   --te-tab:#f0b45a; --te-accent:#f0b45a; --te-accent-ink:#1b1206; --te-hot:#2c5f9e;
 }
-/* controls slot: buttons keep dark text on their light face */
-#stage[data-theme="blueprint"] [data-slot="ctl"][data-part="button"],
-#stage[data-theme="blueprint"] [data-slot="ctl"][data-part="icon-button"]{color:#14325c}
+/* controls slot: dark faces (ctl-bg), so buttons use the theme ink like every piece (#246, #458) */
 /* background slot: windows read as paper sheets on the blueprint */
 #stage[data-theme="blueprint"] [data-part="window"],#stage[data-theme="blueprint"] [data-part="sheet"]{border-style:dashed}
 /* display slot: the drawing sits on its own dark sheet; meaning colours are left alone */
