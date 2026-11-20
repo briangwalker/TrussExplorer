@@ -53,8 +53,10 @@ test('a value as text is read as a number; a file value is reported, not changed
   assert.strictEqual(errs[0].value, 5); assert.strictEqual(errs[3].value, 99);
 });
 
-test('whole numbers: panels, deskPanels and nTruss refuse 2.5 (step)', () => {
-  for (const id of ['panels', 'deskPanels', 'nTruss']) { const e = only(id, 2.5); assert.strictEqual(e.length, 1, id); assert.strictEqual(e[0].why, 'step'); }
+test('whole numbers: every count row refuses a fraction inside its range (step)', () => {
+  const frac = { panels: 2.5, deskPanels: 2.5, nTruss: 2.5, docBendN: 2.5, abSteps: 10.5, autoLimit: 100.5, bigCap: 2000.5 };
+  for (const id of Object.keys(frac)) { const e = only(id, frac[id]); assert.strictEqual(e.length, 1, id); assert.strictEqual(e[0].why, 'step', id); }
+  assert.deepStrictEqual(L.TABLE.filter(r => r.step === 1).map(r => r.id).sort(), Object.keys(frac).sort());
   assert.deepStrictEqual(only('ratio', 1.07), [], 'ratio step 0.05 is the box step, not a rule');
 });
 
@@ -140,7 +142,14 @@ test('warnings are separate: allowed but unusual values', () => {
   const w = (id, v, extra) => L.warnInputs(Object.assign({}, DEF, extra, { [id]: v })).filter(x => x.id === id);
   assert.strictEqual(w('E', 1000)[0].why, 'warnMin'); assert.deepStrictEqual(only('E', 1000), []);
   assert.match(w('E', 1000)[0].msg, /Outside 1500-6000 MPa/);
+  assert.strictEqual(only('E', 400)[0].msg, 'E must be 500 to 10000 MPa.', 'the hard message states its own range (v0.4)');
+  assert.strictEqual(only('rho', 40)[0].msg, 'Density must be 50 to 400 kg/m3.');
+  assert.deepStrictEqual(w('botEnd', 0), [], 'botEnd has no warning (v0.4)');
+  assert.deepStrictEqual(w('overlap', 0), [], 'no foot (0) is not below the minimum overlap');
+  assert.strictEqual(w('overlap', 6.5, { minOverlap: 10 })[0].why, 'warnMin'); assert.strictEqual(w('overlap', 6.5, { minOverlap: 10 })[0].msg, 'Below the minimum overlap you set.');
+  assert.match(w('mBook1', 11)[0].msg, /far beyond the course test/); assert.match(w('FS', 1.2)[0].msg, /the course uses 2/); assert.match(w('curve', 55, { height: 70 })[0].msg, /within 20 mm of the top chord/);
   assert.strictEqual(w('E', 7000)[0].why, 'warnMax'); assert.deepStrictEqual(w('E', 3000), []);
+  assert.match(w('height', 15)[0].msg, /buckling decides the capacity/);
   assert.strictEqual(w('height', 15)[0].why, 'warnMin'); assert.deepStrictEqual(w('height', 20), []);
   assert.strictEqual(w('mBook1', 11)[0].why, 'warnMax');
   assert.strictEqual(w('FS', 1.2)[0].why, 'warnMin');

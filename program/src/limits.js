@@ -1,5 +1,5 @@
 // ===== Truss limits: the table of allowed input values, and the input check (#420, #421; board TE-B-373, RMA-4) =====
-// Values: Math (v0.3, 11-13) and Physics. Format: Architecture Lead (TE-B-372b).
+// Values: Math (v0.4, 11-19, after Physics' review) and Physics. Format: Architecture Lead (TE-B-372b).
 // One data table (TABLE) read by the input boxes AND the file loader; it replaces both the box min/max and the slider range.
 // An out-of-range value is REJECTED with the row's message and never clamped; a value that came from a file is reported, never changed (UI-I10).
 // Row fields: id (the real input id), unit, min, max (a number or an expression), step (1 = whole numbers only),
@@ -26,29 +26,29 @@ const R = (id, unit, min, max, msg, status, more) => Object.assign({ id, unit, m
 const COURSE = 'Course balsa is E 3000, rho 160, sigT 7.5, sigC 4.5, stick 3.18.';
 
 const TABLE = Object.freeze([
-  R('height', 'mm', 10, 100, 'Height must be 10-100 mm (below 10 mm the members are shorter than two sticks).', 'math', { warnMin: 20, sliderMin: 10, sliderMax: 100 }),
-  R('curve', 'mm', -60, 'height-10', 'The bottom chord must stay at least 10 mm below the top chord.', 'math', { warnMax: 'height-20', when: { id: 'bottom', in: SHAPED }, sliderMin: -50, sliderMax: 100 }),
+  R('height', 'mm', 10, 100, 'Height must be 10-100 mm (below 10 mm the members are shorter than two sticks).', 'math', { warnMin: 20, warnMsg: 'Below 20 mm the top and bottom chords are close together, so buckling decides the capacity.', sliderMin: 10, sliderMax: 100 }),
+  R('curve', 'mm', -60, 'height-10', 'The bottom chord must stay at least 10 mm below the top chord.', 'math', { warnMax: 'height-20', warnMsg: 'The bottom chord is within 20 mm of the top chord.', when: { id: 'bottom', in: SHAPED }, sliderMin: -50, sliderMax: 100 }),
   R('topEnd', 'mm', '-min(tableThick,50)', 'height-10', 'Top chord end must be between the table face and 10 mm below the top.', 'math', { when: { id: 'topShape', in: SHAPED }, sliderMin: -30, sliderMax: 70 }),
-  R('botEnd', 'mm', 0, 'height-10', 'Bottom chord end must be 0 to height minus 10 mm.', 'math', { warnMin: 0, sliderMin: 0, sliderMax: 100 }),
+  R('botEnd', 'mm', 0, 'height-10', 'Bottom chord end must be 0 to height minus 10 mm.', 'math', { sliderMin: 0, sliderMax: 100 }),
   R('panels', 'count', 2, 12, 'Panels must be a whole number from 2 to 12.', 'measured', { step: 1, sliderMin: 2, sliderMax: 12 }),
   R('ratio', '-', 0.3, 3, 'Panel taper must be 0.3 to 3.', 'math', { step: 0.05, sliderMin: 0.5, sliderMax: 2 }),
   R('sideAngle', 'deg', 20, 90, 'Side angle must be 20 to 90 degrees.', 'math', { warnRule: 'M1', sliderMin: 30, sliderMax: 90 }),
   R('deskPanels', 'count', 0, 6, 'Desk panels must be a whole number from 0 to 6.', 'measured', { step: 1, warnRule: 'M1', sliderMin: 0, sliderMax: 4 }),
-  R('overlap', 'mm', 0, 50, 'Foot must be 0 (no foot) or at least two stick widths and at most 50 mm.', 'math', { zeroOr: 'stick2', warnMin: 'minOverlap', sliderMin: 0, sliderMax: 50 }),
+  R('overlap', 'mm', 0, 50, 'Foot must be 0 (no foot) or at least two stick widths and at most 50 mm.', 'math', { zeroOr: 'stick2', warnMin: 'minOverlap', warnMsg: 'Below the minimum overlap you set.', sliderMin: 0, sliderMax: 50 }),
   R('supportOffset', 'mm', 0, 50, 'Support must be 0 or at least two stick widths and at most 50 mm from the edge.', 'math', { zeroOr: 'stick2', sliderMin: 0, sliderMax: 50 }),
   R('bookLen', 'mm', 20, 400, 'Book length must be 20 to 400 mm.', 'math', { sliderMin: 100, sliderMax: 300 }),
   R('bookWidth', 'mm', 1, 400, 'Book width must be 1 to 400 mm.', 'math'),
   R('bookThick', 'mm', 1, 120, 'Book thickness must be 1 to 120 mm.', 'math'),
-  R('mBook1', 'kg', 0, 20, 'Book mass must be 0 to 20 kg.', 'math', { warnMax: 10 }),
-  R('mBook2', 'kg', 0, 20, 'Book mass must be 0 to 20 kg.', 'math', { warnMax: 10 }),
-  R('FS', '-', 1, 10, 'Factor of safety must be 1 to 10.', 'math', { warnMin: 1.5 }),
+  R('mBook1', 'kg', 0, 20, 'Book mass must be 0 to 20 kg.', 'math', { warnMax: 10, warnMsg: 'Above 10 kg is far beyond the course test (2.5 kg per book).' }),
+  R('mBook2', 'kg', 0, 20, 'Book mass must be 0 to 20 kg.', 'math', { warnMax: 10, warnMsg: 'Above 10 kg is far beyond the course test (2.5 kg per book).' }),
+  R('FS', '-', 1, 10, 'Factor of safety must be 1 to 10.', 'math', { warnMin: 1.5, warnMsg: 'Below 1.5 leaves little margin; the course uses 2.' }),
   R('nTruss', 'count', 1, 4, 'Number of trusses must be 1 to 4.', 'confirmed', { step: 1, warnRule: 'N3D', warnMsg: 'The 3D result models two trusses only.' }),
   R('width', 'mm', 20, 120, 'Truss width must be 20 to 120 mm.', 'measured'),
   R('tilt3d', 'deg', -30, 30, 'Tilt must be -30 to 30 degrees.', 'measured'),
   R('deflLimit', 'mm', 0.1, 20, 'Deflection limit must be 0.1 to 20 mm.', 'math'),
   R('minOverlap', 'mm', 0, 50, 'Minimum overlap cannot exceed the 50 mm foot.', 'math'),
-  R('E', 'MPa', 500, 10000, 'E for balsa is usually 1500 to 6000 MPa.', 'confirmed', { warnMin: 1500, warnMax: 6000, warnMsg: 'Outside 1500-6000 MPa. ' + COURSE }),
-  R('rho', 'kg/m3', 50, 400, 'Density for balsa is usually 100 to 250 kg/m3.', 'confirmed', { warnMin: 100, warnMax: 250, warnMsg: 'Outside 100-250 kg/m3. ' + COURSE }),
+  R('E', 'MPa', 500, 10000, 'E must be 500 to 10000 MPa.', 'confirmed', { warnMin: 1500, warnMax: 6000, warnMsg: 'Outside 1500-6000 MPa. ' + COURSE }),
+  R('rho', 'kg/m3', 50, 400, 'Density must be 50 to 400 kg/m3.', 'confirmed', { warnMin: 100, warnMax: 250, warnMsg: 'Outside 100-250 kg/m3. ' + COURSE }),
   R('sigT', 'MPa', 1, 60, 'Tension strength must be 1 to 60 MPa.', 'confirmed', { warnMin: 5, warnMax: 30, warnMsg: 'Outside 5-30 MPa. ' + COURSE }),
   R('sigC', 'MPa', 1, 40, 'Crush strength must be 1 to 40 MPa.', 'confirmed', { warnMin: 3, warnMax: 15, warnMsg: 'Outside 3-15 MPa. ' + COURSE }),
   R('bS', 'mm', 1, 10, 'Stick size must be 1 to 10 mm.', 'confirmed', { warnRule: 'STICK', warnMsg: 'Not the course stick. ' + COURSE }),
@@ -60,11 +60,11 @@ const TABLE = Object.freeze([
   R('impAlpha', '-', 0, 0.2, 'Bow must be 0 to 0.2.', 'math'),
   R('impBeta', '-', 0, 0.1, 'Sway must be 0 to 0.1.', 'math'),
   R('width3d', 'mm', 20, 120, 'Bridge width must be 20 to 120 mm.', 'math'),
-  R('docBendN', 'count', 1, 8, 'Bending forms must be 1 to 8.', 'math'),
+  R('docBendN', 'count', 1, 8, 'Bending forms must be 1 to 8.', 'math', { step: 1 }),
   R('docStock', 'mm', 50, 2000, 'Stock stick length must be 50 to 2000 mm.', 'math'),
   R('docKerf', 'mm', 0, 10, 'Saw kerf must be 0 to 10 mm.', 'math'),
-  R('autoLimit', 'count', 1, 'bigCap', 'Auto re-run limit must be 1 up to the max designs per run.', 'math'),
-  R('bigCap', 'count', 1000, 20000, 'Max designs per run must be 1000 to 20000.', 'math'),
+  R('autoLimit', 'count', 1, 'bigCap', 'Auto re-run limit must be 1 up to the max designs per run.', 'math', { step: 1 }),
+  R('bigCap', 'count', 1000, 20000, 'Max designs per run must be 1000 to 20000.', 'math', { step: 1 }),
   R('rcFS', '-', 1, 10, 'Factor of safety must be 1 to 10.', 'math'),
   R('rcBook', 'kg', 0, 20, 'Book mass must be 0 to 20 kg.', 'math'),
   R('rcDefl', 'mm', 0.1, 20, 'Deflection limit must be 0.1 to 20 mm.', 'math'),
@@ -72,7 +72,7 @@ const TABLE = Object.freeze([
   R('refStep', 'mm', 0.01, 20, 'Step must be 0.01 to 20 mm.', 'math'),
   R('woodBudget', 'mm', 0, 5000, 'Wood budget must be 0 to 5000 mm.', 'math'),
   R('loadTarget', 'kg', 0, 20, 'Book load must be 0 to 20 kg.', 'math'),
-  R('abSteps', 'count', 1, 200, 'Steps must be 1 to 200.', 'math'),
+  R('abSteps', 'count', 1, 200, 'Steps must be 1 to 200.', 'math', { step: 1 }),
   R('abExt', '%', 0, 100, 'Extension must be 0 to 100 percent.', 'math'),
 ]);
 
@@ -199,7 +199,8 @@ function warnInputs(values) {
     const raw = values[row.id], v = asNumber(raw);
     if (v === null) continue;
     const add = (why, msg) => out.push({ id: row.id, value: raw, why, msg });
-    const lo = row.warnMin === undefined ? null : bound(row.warnMin, values), hi = row.warnMax === undefined ? null : bound(row.warnMax, values);
+    const noFoot = row.zeroOr !== undefined && v === 0;                // a zero the row allows (no foot) is not 'below the minimum'
+    const lo = row.warnMin === undefined || noFoot ? null : bound(row.warnMin, values), hi = row.warnMax === undefined ? null : bound(row.warnMax, values);
     if (lo !== null && v < lo - EPS) add('warnMin', row.warnMsg || 'Below the usual minimum of ' + lo + '.');
     else if (hi !== null && v > hi + EPS) add('warnMax', row.warnMsg || 'Above the usual maximum of ' + hi + '.');
     if (row.warnRule === 'STICK' && Math.abs(v - STICK_MM) > EPS) add('STICK', row.warnMsg);
