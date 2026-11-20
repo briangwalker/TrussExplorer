@@ -232,11 +232,16 @@ try {
   check('window states and place survive a reload', (await p.evaluate(() => JSON.stringify(__shell.state.w))) === before);
     // #448 (UI-W20): a window the shell builds (View options, Sweep, Results) has no ⋮⋮ grip; only a movable piece shows one
   check('UI-W20: no grip on View options, Sweep or Results (#448)', await p.evaluate(() => ['view', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !w.querySelector('.s-ph .grip'); })));
+  // BPD-8 (UI-W20): the grip is on a window if and only if it can move; today none can, so none of the five has one, in any state
+  const gripless = () => p.evaluate(() => ['inputs', 'view', 'drawing', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !!w.querySelector('.s-ph .grip') === w.hasAttribute('data-movable') && !w.hasAttribute('data-movable'); }));
+  check('UI-W20: grip iff movable; none of the five windows moves, so none has a grip (1366x900)', await gripless());
+  for (const st of ['W', 'I', 'T']) { await p.evaluate(s => ['inputs', 'view', 'drawing', 'sweep', 'results'].forEach(id => __shell.setState(id, s)), st); await p.waitForTimeout(120); check('UI-W20: no grip in state ' + st, await gripless()); }
 check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
   await p.close();
 
   // ---------- phone width: nothing runs off the screen ----------
   const q = await openPage(b, srv.url, { width: 390, height: 844 }); await q.waitForTimeout(800);
+  check('UI-W20: no grip on any window at 390x844', await q.evaluate(() => ['inputs', 'view', 'drawing', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !w.querySelector('.s-ph .grip'); })));
   check('phone: no horizontal scroll', await q.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await q.screenshot({ path: path.join(SHOTS, 'shell-phone.png') });
   check('phone: no script errors', q.errs.length === 0, q.errs.slice(0, 2).join(' | '));
