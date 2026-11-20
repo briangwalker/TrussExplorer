@@ -172,7 +172,7 @@ const TOKEN_VALUE = /^(#[0-9a-fA-F]{3,8}|-?\d+(\.\d+)?(px|rem|em|%|deg)?|[A-Za-z
 // A file whose tokens are all dropped gives 'empty-theme'. (Wireframe's own tokens fit these kinds; its rgba() values are written #rrggbbaa in a file.)
 const THEME_KIND = Object.freeze({ page: 'colour', grid: 'colour', panel: 'colour', 'panel-peek': 'colour', surface: 'colour', 'surface-2': 'colour',
   line: 'colour', 'line-soft': 'colour', ink: 'colour', muted: 'colour', strong: 'colour', 'on-strong': 'colour', 'ctl-bg': 'colour', 'ctl-line': 'colour',
-  tab: 'colour', accent: 'colour', 'accent-ink': 'colour', hot: 'colour', 'font-ui': 'font', 'font-head': 'font', 'font-mono': 'font' });
+  tab: 'colour', focus: 'colour', accent: 'colour', 'accent-ink': 'colour', hot: 'colour', 'font-ui': 'font', 'font-head': 'font', 'font-mono': 'font' });
 // the fonts themes/fonts hosts, the generic families, and the names Wireframe's own stacks use (shell.css)
 const FONTS = Object.freeze(['Barlow Semi Condensed', 'Kalam', 'VT323', 'Barlow', 'IBM Plex Mono', 'Segoe UI', 'Arial Narrow', 'Menlo',
   'sans-serif', 'serif', 'monospace', 'system-ui', 'ui-monospace', 'cursive']);
