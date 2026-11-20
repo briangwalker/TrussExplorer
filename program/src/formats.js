@@ -162,7 +162,7 @@ const THEME_KEYS = ['format', 'version', 'id', 'name', 'savedAt', 'tokens', 'ima
 const TOKEN_NAME = /^[a-z][a-z0-9-]{0,39}$/;
 // TE-B-374 (#265): a theme file may set only the shell's own tokens (the --te-* names in shell.css's Wireframe block, without the
 // prefix) and never reuses a built-in theme's id. Meaning colours (comp, tens, zero, ok, bad) are not tokens, so they are refused (UI-A18).
-const THEME_TOKENS = Object.freeze(['page', 'grid', 'panel', 'panel-peek', 'surface', 'surface-2', 'line', 'line-soft', 'ink', 'muted', 'strong', 'on-strong', 'ctl-bg', 'ctl-line', 'tab', 'accent', 'accent-ink', 'hot', 'font-ui', 'font-head', 'font-mono']);
+const THEME_TOKENS = Object.freeze(['page', 'grid', 'panel', 'panel-peek', 'surface', 'surface-2', 'line', 'line-soft', 'ink', 'muted', 'strong', 'on-strong', 'ctl-bg', 'ctl-line', 'tab', 'focus', 'accent', 'accent-ink', 'hot', 'font-ui', 'font-head', 'font-mono']);
 const BUILTIN_THEME_IDS = Object.freeze(['wireframe', 'og', 'blueprint', 'notebook-calc', 'notebook-calc-gen', 'notebook-calc-calc']);   // themes/index.json; the test keeps this list in step
 const TOKEN_VALUE = /^(#[0-9a-fA-F]{3,8}|-?\d+(\.\d+)?(px|rem|em|%|deg)?|[A-Za-z][A-Za-z0-9 ,-]{0,59})$/;
 const IMAGE_FILE = /^[a-z0-9][a-z0-9_-]{0,39}\.(png|jpe?g|webp)$/;
