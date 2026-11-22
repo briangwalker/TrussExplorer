@@ -17,13 +17,14 @@ if (!SH_CLASSIC) {
   // shell / tool seam (TE-B-358): a second tool would hand the shell its own table.
   const TABLE = {
     places: ['truss', 'analysis'],
-    // id: where it lives, its title (a function, since Drawing is 'Chart key' in Analysis), its glyph, its width in W
+    // id: where it lives, its title (a function, since Drawing is 'Chart key' in Analysis), its glyph, its width in W,
+    // and movable (UI-W20): true only for a window you can drag; today none is, so none shows the ⋮⋮ grip. Flip it here when one moves.
     windows: {
-      inputs: { home: 'left', title: () => 'Inputs', glyph: '✎', w: 400 },
-      view: { home: 'top', title: () => 'View options', glyph: '◐' },
-      drawing: { home: 'right', title: () => place() === 'truss' ? 'Drawing' : 'Chart key', glyph: '▤', w: 340 },
-      sweep: { home: 'bottom', title: () => 'Sweep', glyph: '▶', w: 640 },
-      results: { home: 'res', title: () => 'Results', glyph: 'Σ', w: 540 },
+      inputs: { home: 'left', title: () => 'Inputs', glyph: '✎', w: 400, movable: false },
+      view: { home: 'top', title: () => 'View options', glyph: '◐', movable: false },
+      drawing: { home: 'right', title: () => place() === 'truss' ? 'Drawing' : 'Chart key', glyph: '▤', w: 340, movable: false },
+      sweep: { home: 'bottom', title: () => 'Sweep', glyph: '▶', w: 640, movable: false },
+      results: { home: 'res', title: () => 'Results', glyph: 'Σ', w: 540, movable: false },
     },
     // each place's window states (W words, I icons, T edge tab); a phone (under 700 px) starts with the picture
     states: { truss: { inputs: 'W', view: 'W', drawing: 'I', sweep: 'T', results: 'T' }, analysis: { inputs: 'T', view: 'W', drawing: 'W', sweep: 'T', results: 'T' } },
@@ -140,11 +141,11 @@ if (!SH_CLASSIC) {
   Object.entries(WIN).forEach(([id, w]) => {
     if (PIECE[id] != null) {
       const st = S.shell.w[place()][id];
-      stage.insertAdjacentHTML('beforeend', PC.windowHTML({ id, title: w.title(), home: w.home, state: st }) + PC.edgeTabHTML({ id, title: w.title(), home: w.home, state: st }));
+      stage.insertAdjacentHTML('beforeend', PC.windowHTML({ id, title: w.title(), home: w.home, state: st, movable: w.movable === true }) + PC.edgeTabHTML({ id, title: w.title(), home: w.home, state: st }));
       wins[id] = $('win-' + id); tabs[id] = stage.querySelector(`.tabE[data-tab="${id}"]`); return;
     }
-    const s = el('section', 's-pan'); s.dataset.win = id; s.dataset.home = w.home; s.setAttribute('aria-label', w.title()); s.id = 'win-' + id;
-    s.innerHTML = `<div class="s-ph"><span class="wt"></span><span class="stp"><button type="button" class="s-ic sm" data-step="shrink"></button><button type="button" class="s-ic sm" data-step="grow"></button></span></div>`
+    const s = el('section', 's-pan'); s.dataset.win = id; s.dataset.home = w.home; s.setAttribute('aria-label', w.title()); s.id = 'win-' + id; if (w.movable === true) s.dataset.movable = '';
+    s.innerHTML = `<div class="s-ph">${w.movable === true ? '<span class="grip" aria-hidden="true">⋮⋮</span>' : ''}<span class="wt"></span><span class="stp"><button type="button" class="s-ic sm" data-step="shrink"></button><button type="button" class="s-ic sm" data-step="grow"></button></span></div>`
       + (id === 'sweep' ? '<div class="s-sum"></div>' : '') + '<div class="s-bd"></div><div class="s-icons" role="toolbar"></div>';
     stage.appendChild(s); wins[id] = s;
     if (w.home !== 'res') { const t = el('button', 'tabE ' + ({ left: 'l', right: 'r', bottom: 'b', top: 't' })[w.home]); t.type = 'button'; t.dataset.tab = id; stage.appendChild(t); tabs[id] = t; }
