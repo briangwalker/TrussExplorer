@@ -160,14 +160,19 @@ function checkMaterial(m, errors, warnings) {
 // formats.js never accepts one. A theme can't reach the verdict, force colours or results card (#197).
 const THEME_KEYS = ['format', 'version', 'id', 'name', 'savedAt', 'tokens', 'images', 'fonts', 'notes'];
 const TOKEN_NAME = /^[a-z][a-z0-9-]{0,39}$/;
+// TE-B-374 (#265): a theme file may set only the shell's own tokens (the --te-* names in shell.css's Wireframe block, without the
+// prefix) and never reuses a built-in theme's id. Meaning colours (comp, tens, zero, ok, bad) are not tokens, so they are refused (UI-A18).
+const THEME_TOKENS = Object.freeze(['page', 'grid', 'panel', 'panel-peek', 'surface', 'surface-2', 'line', 'line-soft', 'ink', 'muted', 'strong', 'on-strong', 'ctl-bg', 'ctl-line', 'tab', 'focus', 'accent', 'accent-ink', 'hot', 'font-ui', 'font-head', 'font-mono']);
+const BUILTIN_THEME_IDS = Object.freeze(['wireframe', 'og', 'blueprint', 'notebook-calc', 'notebook-calc-gen', 'notebook-calc-calc']);   // themes/index.json; the test keeps this list in step
 const TOKEN_VALUE = /^(#[0-9a-fA-F]{3,8}|-?\d+(\.\d+)?(px|rem|em|%|deg)?|[A-Za-z][A-Za-z0-9 ,-]{0,59})$/;
 const IMAGE_FILE = /^[a-z0-9][a-z0-9_-]{0,39}\.(png|jpe?g|webp)$/;
 function checkTheme(t, errors, warnings) {
   if (typeof t.id !== 'string' || !/^[a-z0-9-]{1,40}$/.test(t.id)) errors.push('bad-value:id');
+  else if (BUILTIN_THEME_IDS.includes(t.id)) errors.push('bad-value:id');   // a file can't stand in for a built-in theme
   Object.keys(t).forEach(k => { if (!THEME_KEYS.includes(k)) errors.push('not-allowed:' + k); });   // css, js, script, html... are all refused
   if ('tokens' in t) {
     if (!isObj(t.tokens)) errors.push('bad-value:tokens');
-    else Object.keys(t.tokens).forEach(k => { const v = String(t.tokens[k]); if (!TOKEN_NAME.test(k) || !TOKEN_VALUE.test(v)) errors.push('bad-token:' + k); });
+    else Object.keys(t.tokens).forEach(k => { const v = String(t.tokens[k]); if (!TOKEN_NAME.test(k) || !THEME_TOKENS.includes(k) || !TOKEN_VALUE.test(v)) errors.push('bad-token:' + k); });
   }
   if ('images' in t && !(isObj(t.images) && Object.values(t.images).every(f => typeof f === 'string' && IMAGE_FILE.test(f)))) errors.push('bad-value:images');   // no SVG: it can carry script
   if ('fonts' in t && !(Array.isArray(t.fonts) && t.fonts.every(f => typeof f === 'string' && /^[A-Za-z][A-Za-z0-9 -]{0,39}$/.test(f)))) errors.push('bad-value:fonts');   // names of fonts the site hosts, never URLs
@@ -211,7 +216,11 @@ function check(doc, savedAs) {
 // 8 million designs is more than 512 MB of .tsweep can hold (about 6.3 million). They stop a crafted file, not a real one.
 // bridgeBytes: a bridge (truss) file is a few KB; nobody's saved bridge comes near 2 MB, so a bridge gets its own, much smaller
 // cap (per file kind, #296). The name allows an early refusal before reading; the content decides after parsing.
-const LIMITS = Object.freeze({ fileBytes: 512 * 1024 * 1024, unzipped: 512 * 1024 * 1024, rows: 8000000, bridgeBytes: 2 * 1024 * 1024 });
+// themeBytes, materialBytes: a theme or material file is a few hundred bytes of tokens or numbers (no images or fonts
+// inside, only their names), so each gets 64 KB, checked after parsing by what the file IS (WH-I8; Black Hat, TE-B-374 (c)).
+const LIMITS = Object.freeze({ fileBytes: 512 * 1024 * 1024, unzipped: 512 * 1024 * 1024, rows: 8000000, bridgeBytes: 2 * 1024 * 1024, themeBytes: 64 * 1024, materialBytes: 64 * 1024 });
+// the per-kind caps: kind -> its LIMITS key (sweeps keep fileBytes and rows)
+const KIND_BYTES = Object.freeze({ bridge: 'bridgeBytes', theme: 'themeBytes', material: 'materialBytes' });
 // a file NAME that says bridge: refuse it before reading if it's over bridgeBytes
 const BRIDGE_NAME = /\.(truss|bridge\.json)$/i;
 // any other name over bridgeBytes (a bridge renamed .txt, say): before reading the whole file, look at its first PEEK_BYTES.
@@ -234,8 +243,11 @@ function open(input, opts) {
   const L = limitsOf(opts);
   let raw = input;
   if (typeof input === 'string') { if (input.length > L.fileBytes) return { ok: false, errors: ['too-big'], warnings: [] }; try { raw = JSON.parse(input); } catch (e) { return { ok: false, errors: ['not-json'], warnings: [] }; } }
-  // a bridge over its own cap is refused before the deep clean, whatever the file was called (the content decides)
-  if (typeof input === 'string' && input.length > L.bridgeBytes && isObj(raw)) { let k = null; try { k = detect(raw).kind; } catch (e) {} if (k === 'bridge') return { ok: false, kind: 'bridge', errors: ['too-big'], warnings: [] }; }
+  // a bridge, theme or material file over its own cap is refused before the deep clean, whatever the file was called (the content decides)
+  if (typeof input === 'string' && input.length > Math.min(L.bridgeBytes, L.themeBytes, L.materialBytes) && isObj(raw)) {
+    let k = null; try { k = detect(raw).kind; } catch (e) {}
+    if (KIND_BYTES[k] && input.length > L[KIND_BYTES[k]]) return { ok: false, kind: k, errors: ['too-big'], warnings: [] };
+  }
   const clean = cleanData(raw);
   const det = detect(clean);
   if (!det.kind) return { ok: false, det, errors: [isObj(clean) ? 'not-truss-explorer' : 'not-an-object'], warnings: [] };
@@ -484,7 +496,7 @@ async function openBytes(input, opts) {
   return res;
 }
 
-const api = { KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain, LIMITS, BRIDGE_NAME, PEEK_BYTES, headMayBeBig };
+const api = { THEME_TOKENS, BUILTIN_THEME_IDS, KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain, LIMITS, BRIDGE_NAME, PEEK_BYTES, headMayBeBig };
 // what the Open buttons offer: every kind in the app (drafts aside), the old names, and plain JSON (TE-B-256)
 api.ACCEPT = [...new Set(Object.values(KINDS).filter(k => !k.draft).flatMap(k => [k.ext].concat(k.also || [])).concat(['.json', 'application/json']))].join(',');
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussFormats = api;
