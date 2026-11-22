@@ -216,7 +216,11 @@ function check(doc, savedAs) {
 // 8 million designs is more than 512 MB of .tsweep can hold (about 6.3 million). They stop a crafted file, not a real one.
 // bridgeBytes: a bridge (truss) file is a few KB; nobody's saved bridge comes near 2 MB, so a bridge gets its own, much smaller
 // cap (per file kind, #296). The name allows an early refusal before reading; the content decides after parsing.
-const LIMITS = Object.freeze({ fileBytes: 512 * 1024 * 1024, unzipped: 512 * 1024 * 1024, rows: 8000000, bridgeBytes: 2 * 1024 * 1024 });
+// themeBytes, materialBytes: a theme or material file is a few hundred bytes of tokens or numbers (no images or fonts
+// inside, only their names), so each gets 64 KB, checked after parsing by what the file IS (WH-I8; Black Hat, TE-B-374 (c)).
+const LIMITS = Object.freeze({ fileBytes: 512 * 1024 * 1024, unzipped: 512 * 1024 * 1024, rows: 8000000, bridgeBytes: 2 * 1024 * 1024, themeBytes: 64 * 1024, materialBytes: 64 * 1024 });
+// the per-kind caps: kind -> its LIMITS key (sweeps keep fileBytes and rows)
+const KIND_BYTES = Object.freeze({ bridge: 'bridgeBytes', theme: 'themeBytes', material: 'materialBytes' });
 // a file NAME that says bridge: refuse it before reading if it's over bridgeBytes
 const BRIDGE_NAME = /\.(truss|bridge\.json)$/i;
 // any other name over bridgeBytes (a bridge renamed .txt, say): before reading the whole file, look at its first PEEK_BYTES.
@@ -239,8 +243,11 @@ function open(input, opts) {
   const L = limitsOf(opts);
   let raw = input;
   if (typeof input === 'string') { if (input.length > L.fileBytes) return { ok: false, errors: ['too-big'], warnings: [] }; try { raw = JSON.parse(input); } catch (e) { return { ok: false, errors: ['not-json'], warnings: [] }; } }
-  // a bridge over its own cap is refused before the deep clean, whatever the file was called (the content decides)
-  if (typeof input === 'string' && input.length > L.bridgeBytes && isObj(raw)) { let k = null; try { k = detect(raw).kind; } catch (e) {} if (k === 'bridge') return { ok: false, kind: 'bridge', errors: ['too-big'], warnings: [] }; }
+  // a bridge, theme or material file over its own cap is refused before the deep clean, whatever the file was called (the content decides)
+  if (typeof input === 'string' && input.length > Math.min(L.bridgeBytes, L.themeBytes, L.materialBytes) && isObj(raw)) {
+    let k = null; try { k = detect(raw).kind; } catch (e) {}
+    if (KIND_BYTES[k] && input.length > L[KIND_BYTES[k]]) return { ok: false, kind: k, errors: ['too-big'], warnings: [] };
+  }
   const clean = cleanData(raw);
   const det = detect(clean);
   if (!det.kind) return { ok: false, det, errors: [isObj(clean) ? 'not-truss-explorer' : 'not-an-object'], warnings: [] };
