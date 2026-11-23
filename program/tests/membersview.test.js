@@ -126,3 +126,16 @@ test('CSS: tokens and the app\'s meaning colours only, 13 px or more', () => {
   const sizes = [...(P.CSS + V.CSS).matchAll(/(\d+)px var\(--te-font/g)].map(m => +m[1]);
   assert.ok(sizes.every(n => n >= 13), sizes.join(','));
 });
+
+test('the empty-table words come from TrussStrings, not literals (pieces 0.2.3; TE-B-387)', () => {
+  const T = require(path.join(SRC, 'strings.js'));
+  const MVs = require(path.join(SRC, 'membersview.js'));
+  const empty = P.tableHTML({ id: 'e', columns: [{ key: 'a', label: 'A' }], rows: [] });
+  assert.ok(empty.includes('>' + T.t('pieces.table.empty') + '<'), empty);
+  assert.ok(MVs.tableHTML(P, [], {}).includes(T.t('members.table.unstable')));
+  const fs = require('fs');
+  for (const f of ['pieces.js', 'membersview.js']) {
+    const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+    for (const k of ['pieces.table.empty', 'members.table.unstable']) assert.ok(!src.includes("'" + T.t(k) + "'"), `${f} still holds "${T.t(k)}" as a literal`);
+  }
+});
