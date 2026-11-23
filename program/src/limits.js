@@ -278,8 +278,25 @@ function checkGeometry(truss, values) {
   return out;
 }
 
+// ---------- fileReport: everything a file or a typed design breaks, in one object (board TE-B-459, RMA-8) ----------
+// fileReport(values, truss) -> { bad: checkInputs(values), geometry: checkGeometry(truss, values), warnings: warnInputs(values), noResult, summary }
+//   noResult: true when bad or geometry has any entry (no kg, no PASS, Physics' file rule); warnings alone never set it.
+//   summary: one plain line, kept as data at the top of the file; '' when there is nothing to say (rule 4i: a good file gets no new message).
+//   Pure: nothing is changed or clamped. A damaged values or truss reads as nothing to report (CODE-N2); nothing here throws for data.
+function fileReport(values, truss) {
+  const v = isObj(values) ? values : {};
+  const bad = checkInputs(v), geometry = checkGeometry(truss, v), warnings = warnInputs(v);
+  const ids = []; bad.forEach(b => { if (ids.indexOf(b.id) < 0) ids.push(b.id); });
+  const rules = []; geometry.forEach(g => { if (rules.indexOf(g.rule) < 0) rules.push(g.rule); });
+  const parts = [];
+  if (ids.length) parts.push(ids.length + (ids.length === 1 ? ' value is' : ' values are') + ' outside the limits: ' + ids.join(', ') + '.');
+  if (rules.length) parts.push('The shape breaks ' + (rules.length === 1 ? 'rule ' : 'rules ') + rules.join(', ') + '.');
+  const noResult = parts.length > 0;
+  return { bad, geometry, warnings, noResult, summary: noResult ? parts.join(' ') + ' Fix ' + (ids.length + rules.length > 1 ? 'them' : 'it') + ' to get a result.' : '' };
+}
+
 const rowFor = id => TABLE.find(r => r.id === id) || null;
 
-const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, rowFor };
+const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, fileReport, rowFor };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussLimits = api;
 })(typeof window !== 'undefined' ? window : globalThis);
