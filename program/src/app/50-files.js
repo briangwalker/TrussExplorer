@@ -94,9 +94,19 @@ $('filePick').addEventListener('change', async () => {
   const buf = new Uint8Array(await f.arrayBuffer());
   const o = TrussFormats.isTsweepBytes(buf) ? await TrussFormats.openBytes(buf) : TrussFormats.open(new TextDecoder().decode(buf)), doc = o.doc, kind = o.kind;
   const FILE_ERR = { 'not-json': 'That file is not a bridge or sweep file (it is not valid JSON).', 'not-an-object': 'That file is not a bridge or sweep file.', 'not-truss-explorer': 'That is not a bridge or sweep file from the Truss Explorer.', 'no-bridge': 'That bridge file has no bridge in it.', 'no-rows': 'That sweep file has no results in it.', 'no-usable-rows': 'That sweep file has no usable results.', 'not-tsweep': 'That file is not a bridge or sweep file from the Truss Explorer.', 'no-gzip': 'This browser can\'t open .tsweep files. Ask for the .sweep.json instead.', 'too-big': `That file is too big to open (a bridge file over ${TrussFormats.LIMITS.bridgeBytes / 1048576} MB, a theme or material file over ${TrussFormats.LIMITS.themeBytes / 1024} KB, any file over ${TrussFormats.LIMITS.fileBytes / 1048576} MB, or a .tsweep that unzips past ${TrussFormats.LIMITS.unzipped / 1048576} MB).`, 'too-many-rows': `That sweep file holds more than ${(TrussFormats.LIMITS.rows / 1e6).toLocaleString()} million designs, more than the Explorer opens.`, 'newer-layout': 'That .tsweep file was made by a newer release with a layout this one can\'t read.', 'damaged': 'That .tsweep file is damaged and could not be opened.' };
-  // either Open button takes either kind of file, and says which it was (#158); materials and themes don't open here yet
-  if (o.ok && kind !== 'bridge' && kind !== 'sweep') { toast('That is not a bridge or sweep file from the Truss Explorer.', true); return; }
+  // either Open button takes either kind of file, and says which it was (#158); materials don't open here yet
   if (!o.ok) { toast(FILE_ERR[o.errors[0]] || 'That file could not be opened.', true); return; }
+  // a theme file (#265): data only, already checked by formats.js; the shell checks its colour pairs and applies it, in memory only
+  if (kind === 'theme') {
+    const door = window.__shell && window.__shell.loadThemeFile;
+    if (!door) { toast('Theme files open only in the balsaPixel layout.', true); return; }
+    if (!doc.tokens || !Object.keys(doc.tokens).length) { toast('That theme file sets nothing the Explorer understands, so nothing was applied.', true); return; }
+    const r = door(doc);
+    if (!r.ok) { const e = r.errors[0]; toast(e === 'name:taken' ? 'That theme file uses a built-in theme\'s name; give it its own name.' : `That theme file was not applied: its ${e.slice(9).replace('/', ' on ')} colours don't have enough contrast to read.`, true); return; }
+    toast(`Theme "${doc.name || doc.id}" applied from the file. It isn't saved: a reload goes back to the built-in theme.${o.warnings && o.warnings.some(w => w.startsWith('dropped:')) ? ' Some of its values were not understood and were left out.' : ''}`);
+    return;
+  }
+  if (kind !== 'bridge' && kind !== 'sweep') { toast('That is not a bridge or sweep file from the Truss Explorer.', true); return; }
   const other = pickFor === 'bridge' && kind === 'sweep' ? 'That was a sweep file, so it opened as a sweep. ' : pickFor === 'sweep' && kind === 'bridge' ? 'That was a bridge file, so it opened as a bridge. ' : '';
   if (kind === 'bridge') {
     applyBridge(doc.bridge);
