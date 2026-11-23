@@ -283,20 +283,26 @@ function checkGeometry(truss, values) {
 //   noResult: true when bad or geometry has any entry (no kg, no PASS, Physics' file rule); warnings alone never set it.
 //   summary: one plain line, kept as data at the top of the file; '' when there is nothing to say (rule 4i: a good file gets no new message).
 //   Pure: nothing is changed or clamped. A damaged values or truss reads as nothing to report (CODE-N2); nothing here throws for data.
+// The words of the summary line, as data (Marketing may reword them; the code only fills in the counts and names).
+const SUMMARY_MSG = Object.freeze({
+  values: (n, ids) => n + (n === 1 ? ' value is' : ' values are') + ' outside the limits: ' + ids + '.',
+  shape: (n, rules) => 'The shape breaks ' + (n === 1 ? 'rule ' : 'rules ') + rules + '.',
+  fix: n => 'Fix ' + (n > 1 ? 'them' : 'it') + ' to get a result.',
+});
 function fileReport(values, truss) {
   const v = isObj(values) ? values : {};
   const bad = checkInputs(v), geometry = checkGeometry(truss, v), warnings = warnInputs(v);
   const ids = []; bad.forEach(b => { if (ids.indexOf(b.id) < 0) ids.push(b.id); });
   const rules = []; geometry.forEach(g => { if (rules.indexOf(g.rule) < 0) rules.push(g.rule); });
   const parts = [];
-  if (ids.length) parts.push(ids.length + (ids.length === 1 ? ' value is' : ' values are') + ' outside the limits: ' + ids.join(', ') + '.');
-  if (rules.length) parts.push('The shape breaks ' + (rules.length === 1 ? 'rule ' : 'rules ') + rules.join(', ') + '.');
+  if (ids.length) parts.push(SUMMARY_MSG.values(ids.length, ids.join(', ')));
+  if (rules.length) parts.push(SUMMARY_MSG.shape(rules.length, rules.join(', ')));
   const noResult = parts.length > 0;
-  return { bad, geometry, warnings, noResult, summary: noResult ? parts.join(' ') + ' Fix ' + (ids.length + rules.length > 1 ? 'them' : 'it') + ' to get a result.' : '' };
+  return { bad, geometry, warnings, noResult, summary: noResult ? parts.join(' ') + ' ' + SUMMARY_MSG.fix(ids.length + rules.length) : '' };
 }
 
 const rowFor = id => TABLE.find(r => r.id === id) || null;
 
-const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, fileReport, rowFor };
+const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, fileReport, SUMMARY_MSG, rowFor };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussLimits = api;
 })(typeof window !== 'undefined' ? window : globalThis);
