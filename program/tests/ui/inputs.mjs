@@ -34,8 +34,8 @@ try {
   // past a course rule: allowed, pink, the note names the rule (UI-I2, never clamped)
   await p.fill('#tH', '98'); await p.click('#away'); s = await st();
   check('past a course rule: committed on leaving the box, pink, the rule named (UI-I2)', s.commits === '80,98' && s.state === 'rule' && /course rule/.test(s.note), JSON.stringify(s));
-  const pink = await p.evaluate(() => { const i = document.getElementById('tH'), cs = getComputedStyle(i), t = document.createElement('span'); t.style.color = 'var(--rule)'; document.getElementById('inTest').appendChild(t); const want = getComputedStyle(t).color; t.remove(); return cs.color === want; });
-  check('the pink is the app\'s own --rule colour (UI-A18)', pink);
+  const pink = await p.evaluate(() => { const i = document.getElementById('tH'), cs = getComputedStyle(i), t = document.createElement('span'); t.style.color = 'var(--rule)'; t.style.borderColor = 'var(--te-ink)'; document.getElementById('inTest').appendChild(t); const want = getComputedStyle(t).color; t.style.color = 'var(--te-ink)'; const ink = getComputedStyle(t).color; t.remove(); return { edge: cs.borderTopColor === want, text: cs.color === ink }; });
+  check('the box\'s edge is the app\'s --rule pink and the number stays ink (UI-A18, ART-C1, Graphics TE-B-443)', pink.edge && pink.text, JSON.stringify(pink));
   // steppers and arrows: by the step, and they STOP at the wall
   await p.fill('#tH', '90'); await p.press('#tH', 'Enter');
   await p.click('#inTest .te-step[data-dir="1"]'); await p.click('#inTest .te-step[data-dir="1"]'); await p.click('#inTest .te-step[data-dir="1"]');
@@ -54,8 +54,21 @@ try {
   await p.evaluate(() => { document.getElementById('tH').value = '-300'; box.markFile('This file has a value no bridge can have: Height h -300 mm.'); });
   await p.click('#away'); s = await st();
   check('a bad value from a file stays as the file had it, marked and listed, nothing clamped (UI-I10)', s.v === '-300' && s.state === 'file' && /^⟂ This file has/.test(s.note) && s.inv === 'true', JSON.stringify(s));
+  // UI Designer's MUST (TE-B-454): a second impossible value, or Esc, goes back to the FILE's value, not an older one
+  await p.fill('#tH', '500'); await p.press('#tH', 'Enter'); s = await st();
+  check('another impossible value + Enter goes back to the file\'s -300, still marked (UI-I10)', s.v === '-300' && s.state === 'file' && /^⟂ This file has/.test(s.note) && s.commits.indexOf('-300') < 0, JSON.stringify(s));
+  await p.fill('#tH', '75'); await p.press('#tH', 'Escape'); s = await st();
+  check('Esc goes back to the file\'s -300 too', s.v === '-300' && s.state === 'file', JSON.stringify(s));
+  await p.evaluate(() => box.markFile(-7, 'This file has a value no bridge can have: Height h -7 mm.')); s = await st();
+  check('markFile(value, msg) puts the file\'s value in the box and marks it', s.v === '-7' && s.state === 'file', JSON.stringify(s));
   await p.fill('#tH', '60'); await p.press('#tH', 'Enter'); s = await st();
   check('typing a good value fixes it', s.v === '60' && s.good === 60 && s.state === '', JSON.stringify(s));
+  // the note is quiet while typing and speaks on Enter (UI Designer's SHOULD, TE-B-454)
+  await p.fill('#tH', '130');
+  const quiet = await p.evaluate(() => document.querySelector('#inTest .te-num-n').getAttribute('aria-live'));
+  await p.press('#tH', 'Enter');
+  const loud = await p.evaluate(() => document.querySelector('#inTest .te-num-n').getAttribute('aria-live'));
+  check('the note is silent while typing (aria-live off) and polite on Enter', quiet === 'off' && loud === 'polite', quiet + ' / ' + loud);
   // width grows with the value: 52-96 px (UI-I9)
   const w = await p.evaluate(async () => { const i = document.getElementById('tH'), out = []; for (const t of ['5', '60', '123456789012']) { i.value = t; i.dispatchEvent(new Event('input')); out.push(Math.round(i.getBoundingClientRect().width)); } return out; });
   check('the box is as wide as its value, 52-96 px (UI-I9)', w[0] >= 52 && w[2] <= 96 && w[1] <= w[2], w.join(','));

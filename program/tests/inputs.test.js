@@ -41,6 +41,10 @@ test('fromLimits: errors from the one limits table are refused ("limit"), warnin
   assert.strictEqual(c(50), null); assert.strictEqual(c(51).kind, 'limit');
   live = { height: 80 }; assert.strictEqual(c(51), null, 'the expression reads the live height');
   assert.throws(() => I.fromLimits({}, 'h'), /TrussLimits/);
+  // a course rule (UI-I2) passed in by the wiring: 'rule' sits between an error and a warning
+  const hr = I.fromLimits(L, 'height', () => live, v => (v > 95 ? 'Over the course rule h ≤ 95 mm.' : null));
+  assert.deepStrictEqual(hr(98), { kind: 'rule', msg: 'Over the course rule h ≤ 95 mm.' });
+  assert.strictEqual(hr(150).kind, 'limit', 'a limit wins over a rule'); assert.strictEqual(hr(70), null);
 });
 
 test('hostile text stays text; CSS: tokens only, 13 px or more, the focus ring reads --te-focus', () => {
