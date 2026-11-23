@@ -44,6 +44,14 @@ test('every shared piece, in every state, each item labelled with its rules (UI-
   assert.strictEqual((h.match(/<figure class="g-item"/g) || []).length, G.sections(P).length);
 });
 
+test('sheets, dialogs and toasts have their own items, closed until opened (UI-A16, UI-W10, UI-W22, UI-W23)', () => {
+  const h = G.pageHTML(P, { themes: null });
+  assert.match(h, /<dialog class="te-sheet" id="g-sheet" data-kind="sheet"/); assert.match(h, /<dialog class="te-sheet" id="g-dialog" data-kind="dialog"/);
+  assert.doesNotMatch(h, /<dialog[^>]* open/, 'nothing open on the page');
+  assert.match(h, /data-act="g-open:g-sheet"/); assert.match(h, /data-act="g-open:g-dialog"/); assert.match(h, /data-act="g-toast"/);
+  assert.doesNotMatch(h, /data-g-notbuilt[^>]*>[^<]*(Sheet|Toast|Dialog)/, 'no longer "not built yet"');
+});
+
 test('the grip shows only on the movable window, nowhere else on the page (UI-W20)', () => {
   const h = G.pageHTML(P, { themes: null });
   assert.strictEqual((h.match(/class="grip"/g) || []).length, 1, 'one grip on the page');
@@ -62,7 +70,7 @@ test('pieces that don\'t exist yet show as "not built yet" cards naming their ru
 test('the page ends with a coverage list: rules shown, and rules with no piece yet (UI-G1)', () => {
   const c = G.coverage(P, { themes: null });
   assert.ok(c.shown.includes('UI-A3') && c.shown.includes('ART-S5') && c.shown.includes('UI-K7'));
-  assert.ok(c.missing.includes('UI-I8') && c.missing.includes('UI-W10') && c.missing.includes('UI-W7'));
+  assert.ok(c.missing.includes('UI-I8') && c.missing.includes('UI-W7') && c.shown.includes('UI-W10') && c.shown.includes('UI-W23'));
   assert.ok(c.missing.every(r => !c.shown.includes(r)), 'a rule is in one list only');
   assert.ok(c.missing.includes('UI-G4') === false || !c.shown.includes('UI-G4'));
   const h = G.pageHTML(P, {});
