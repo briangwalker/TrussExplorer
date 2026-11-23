@@ -1,6 +1,6 @@
 # Truss Explorer Art Standard (themes and art assets)
 
-**Version 1.0.5 · 2026-11-19 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
+**Version 1.0.6 · 2026-11-19 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel **looks and moves**: themes, tokens, materials, pictures, icons, textures and motion. Every rule has a number (`ART-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -62,7 +62,7 @@ A built-in theme may add private tokens with its own prefix (Notebook + Calculat
 | ART-C2 | Lines, icons, focus rings and control edges are at least **3 : 1**. | | QA #68 | live |
 | ART-C3 | **Help text on wood** uses `--te-ink` (never `--te-muted`) and at least 14 px; on a busy texture it sits on a paper label (ART-W1). | Fixes "light help text on the wood Inputs tray" (TE-B-026). | TE-B-026 | planned #221 |
 | ART-C4 | **Dark mode** (`prefers-color-scheme: dark`, or the app's dark setting) uses generated wood, never the photo, and keeps every contrast above. | Notebook + Calculator: `wood = generated` in dark. | Brian, 2026-10-27 | live in kit |
-| ART-C6 | **Control edges per theme.** `ctl-line` on `ctl-bg` is at least 3 : 1 in every theme that ships or is shown in the gallery. Values: Wireframe `#7f8893` on `#fff` (3.59 : 1); Notebook + Calculator `#946832` on `#ebd09b` (3.27 : 1); Blueprint (a sample, not shipped) `#6a7ea3` on `#e9eef7` (3.52 : 1). `--te-muted` on `--te-panel` is at least 4.5 : 1 (ART-C1). `--te-focus` is at least 3 : 1 on `surface`, `surface-2`, `hot`, `panel` and `ctl-bg` (WCAG 1.4.11; ART-K17). These are the pairs `tests/themes.test.js` (#265) computes; a pair added there is added here. | Closes #288's three control-edge lines (#355 for Wireframe). | #288, TE-B-359 | live as a rule; the two theme files still hold the old values (#288) |
+| ART-C6 | **Control edges per theme.** `ctl-line` on `ctl-bg` is at least 3 : 1 in every theme that ships or is shown in the gallery. Values: Wireframe `#7f8893` on `#fff` (3.59 : 1); Notebook + Calculator `#946832` on `#ebd09b` (3.27 : 1); Blueprint (a sample, not shipped) `#8fb0dc` on `#1d4a85` (3.97 : 1); its controls are dark like the rest of the theme, so its light `ink` reads on them (8.18 : 1; #246). `--te-muted` on `--te-panel` is at least 4.5 : 1 (ART-C1). `--te-focus` is at least 3 : 1 on `surface`, `surface-2`, `hot`, `panel` and `ctl-bg` (WCAG 1.4.11; ART-K17). These are the pairs `tests/themes.test.js` (#265) computes; a pair added there is added here. | Closes #288's three control-edge lines (#355 for Wireframe). | #288, TE-B-359 | live as a rule; the two theme files still hold the old values (#288) |
 | ART-C5 | Group colours (isolation tools, #148) avoid the five meaning hues. | `#7048b8`, `#d0731f`, `#13878f`, `#8a7a1f` | #148 | planned |
 
 ## ART-T · Type
@@ -235,6 +235,7 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 
 ## Change log
 
+- **1.0.6 · 2026-11-19** Blueprint (sample) controls turn dark: `ctl-bg` `#1d4a85`, `ctl-line` `#8fb0dc` (3.97 : 1), so its light `ink` reads on unpicked choices (8.18 : 1; was 1.08 : 1, #246). 1.0.5's `#6a7ea3` fixed the edge but kept the light face. Theme file changed: `themes/blueprint.css` line 8. Spec rules met: ART-C1, ART-C2, ART-C6.
 - **1.0.5 · 2026-11-13** Closes #288's control-edge lines as values: new ART-C6 (Wireframe `#7f8893`, Notebook + Calculator `#946832`, Blueprint sample `#6a7ea3`, all at least 3 : 1) and ART-K7's Notebook value changes from `#a9804a` (2.39 : 1) to `#946832`. New ART-W14 (data table, answers gap G11, TE-B-339, TE-B-347) and ART-W15 (the model-values note's look, UI-W24, TE-B-342). Steps #211, #215 and #221 cite them. No look changes for users until the two theme files take the new values (#288). Spec rules met: ART-C2, ART-K7. **Amended 2026-11-19** (still 1.0.5, before merge): new ART-K17 `focus` token, `#8a5a2b` in Wireframe and Notebook + Calculator, because the amber ring was 1.58 : 1 on `hot` (TE-B-396); ART-S5 uses it; ART-K9 no longer names the ring; ART-C6 adds the focus pairs. ART-W14 takes the UI Designer's two MUSTs and the SHOULD on #430 (focus on the cell, sticky Member column, sort mark) for the FVL's A2 (TE-B-389).
 - **1.0.4 · 2026-10-31** Answers the UI Engineer's four art gaps (TE-B-239, TE-B-224 item 3): new ART-K16 (course-rule pink is a meaning colour, `#c8288c`, solid stripes), ART-S10 (Wireframe stick hover and pressed), ART-W12 (pop-up is paper), ART-W13 (tabs are a glued stick group; Wireframe segments keep an edge). ART-K7 Wireframe `ctl-line` is `#7f8893`, 3.59 : 1, which clears ART-C2 (#355, TE-B-232). Build steps #209, #215, #221 cite the new rules.
 
