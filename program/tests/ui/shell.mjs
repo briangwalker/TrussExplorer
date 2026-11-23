@@ -80,7 +80,9 @@ try {
   // ---------- the Drawing window: built from the window piece (UI-W5, UI-A4, UI-W8, UI-W9, UI-D6, UI-A3; BPD-3) ----------
   const TG = ['showDims', 'resOnDraw', 'showForces', 'd3ShowPlan', 'd3ShowSec', 'showGhosts', 'showIds', 'showElems', 'showDef'];
   check('the Drawing window is the window piece, at home on the right edge', await p.evaluate(() => { const w = document.getElementById('win-drawing'); return w.hasAttribute('data-pc') && w.dataset.part === 'window' && w.dataset.home === 'right' && w.getAttribute('role') === 'region'; }));
-  check('it starts as icons in Truss, one per drawing toggle', await st(p, 'drawing') === 'I' && (await p.locator('#win-drawing .s-icons [data-ic]').count()) === TG.length);
+  const ONLY3D = ['d3ShowPlan', 'd3ShowSec'], TG2 = TG.filter(k => !ONLY3D.includes(k));
+  check('UI-A8: on a fresh page in Truss 2D, the Plan view and End view toggles are already hidden', await p.evaluate(() => document.getElementById('tg-d3ShowPlan').closest('.te-togrow').hidden && document.getElementById('tg-d3ShowSec').closest('.te-togrow').hidden && !document.getElementById('tg-showDims').closest('.te-togrow').hidden));
+  check('it starts as icons in Truss, one per drawing toggle that works in 2D (BPD-9, UI-A8: no Plan view / End view icon in 2D)', await st(p, 'drawing') === 'I' && (await p.locator('#win-drawing .s-icons [data-ic]').count()) === TG2.length && (await p.locator('#win-drawing .s-icons [data-ic="d3ShowPlan"]').count()) === 0);
   { const was = await p.isChecked('#showIds'); await p.click('#win-drawing .s-icons [data-ic="showIds"]'); await p.waitForTimeout(200);
     check('an icon flips its toggle, and the toggle piece follows', (await p.isChecked('#showIds')) === !was && (await p.getAttribute('#win-drawing .s-icons [data-ic="showIds"]', 'aria-pressed')) === String(!was) && (await p.getAttribute('#tg-showIds', 'aria-checked')) === String(!was));
     await p.click('#win-drawing .s-icons [data-ic="showIds"]'); await p.waitForTimeout(150); }
@@ -91,14 +93,18 @@ try {
   check('every drawing option is a toggle piece with its words (the checkbox keeps its id)', await p.evaluate(TG => TG.every(k => { const t = document.getElementById('tg-' + k), c = document.getElementById(k); return t && t.getAttribute('role') === 'switch' && t.hasAttribute('data-pc') && c && c.type === 'checkbox' && t.getAttribute('aria-checked') === String(c.checked) && t.closest('label').textContent.trim().length > 3; }), TG));
   // every toggle still switches its layer: the checkbox, the app's setting and (in 2D) the drawing all follow
   const STATE = { showDims: 'S.showDims', resOnDraw: 'S.resOnDraw', showForces: 'S.showForces', d3ShowPlan: 'S.d3.showPlan', d3ShowSec: 'S.d3.showSec', showGhosts: 'S.showGhosts', showIds: 'S.showIds', showElems: 'S.showElems', showDef: 'S.showDef' };
-  const ONLY3D = ['d3ShowPlan', 'd3ShowSec'];
-  for (const k of TG) {
+  for (const k of TG2) {
     const read = () => p.evaluate(([k, path]) => { const S = __dbg.S, v = path.split('.').slice(1).reduce((o, x) => o && o[x], S); return { cb: document.getElementById(k).checked, s: v !== false && v != null && v !== 0 ? !!v : false, draw: document.getElementById('draw').innerHTML.length + ':' + document.getElementById('draw').querySelectorAll('*').length + ':' + (document.getElementById('resOv') ? document.getElementById('resOv').hidden : '-') }; }, [k, STATE[k]]);   // resOnDraw's layer is the #resOv overlay
     const a = await read(); await p.click('#tg-' + k); await p.waitForTimeout(250); const b = await read();
     const ok = b.cb === !a.cb && b.s === b.cb && (ONLY3D.includes(k) || a.draw !== b.draw);
     check(`toggle ${k}: switches its layer`, ok, JSON.stringify({ a, b }));
     await p.click('#tg-' + k); await p.waitForTimeout(200);
   }
+  // BPD-9: the 3D-only toggles are hidden in 2D (UI-A8), and nothing in the Drawing window sticks out past its edge (UI-W15)
+  check('UI-A8: Plan view and End view (3D only) are hidden in Truss 2D', !(await visible(p, '#tg-d3ShowPlan')) && !(await visible(p, '#tg-d3ShowSec')) && await visible(p, '#tg-showDims'));
+  check('UI-W15: the Drawing window\'s content stays inside it; the member table scrolls inside its own box', await p.evaluate(() => { const w = document.getElementById('win-drawing'), bd = w.querySelector('.s-bd'), R = w.getBoundingClientRect();
+    const kids = [...bd.children].filter(e => e.getBoundingClientRect().width), tbl = bd.querySelector('#s-members .bd, .bd'), ok = kids.every(e => e.getBoundingClientRect().right <= R.right + 1);
+    return ok && bd.scrollWidth <= bd.clientWidth + 1 && (!tbl || ['auto', 'scroll'].includes(getComputedStyle(tbl).overflowX)); }));
   check('UI-D6: no two toggle labels overlap', await p.evaluate(() => { const r = [...document.querySelectorAll('#win-drawing .te-togrow')].map(e => e.getBoundingClientRect()).filter(x => x.width); return r.every((a, i) => r.every((b, j) => i >= j || a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)); }));
   // UI-W8: windows aren't pop-ups, so a click on the picture leaves the Drawing window open
   await p.mouse.click(700, 700); await p.waitForTimeout(250);
@@ -131,6 +137,17 @@ try {
   { const v = await rect(p, '#win-view'), i = await rect(p, '#win-inputs');
     const both = await visible(p, '#win-view') && await visible(p, '#win-inputs');
     check('UI-W16: on the left edge, Inputs stacks under View options with an 8 px gap, never overlapping it', both && Math.abs(i.t - v.b - 8) <= 1 && i.t >= v.b, JSON.stringify({ viewB: v && v.b, inputsT: i && i.t, both })); }
+  { // BPD-9: in Truss 3D, Plan view and End view are back, as toggles and as icons, and they switch their layers
+    const icons3 = await p.locator('#win-drawing .s-icons [data-ic]').count();
+    await p.click('#win-drawing [data-step="grow"]').catch(() => {}); await p.waitForTimeout(300);
+    const shown = await visible(p, '#tg-d3ShowPlan') && await visible(p, '#tg-d3ShowSec');
+    const was = await p.evaluate(() => [__dbg.S.d3.showPlan !== false, document.getElementById('d3ShowPlan').checked]);
+    await p.click('#tg-d3ShowPlan'); await p.waitForTimeout(250);
+    const now = await p.evaluate(() => [__dbg.S.d3.showPlan !== false, document.getElementById('d3ShowPlan').checked]);
+    await p.click('#tg-d3ShowPlan'); await p.waitForTimeout(200);
+    check('UI-A8: in Truss 3D the Plan view and End view toggles are back and switch their layer', shown && now[0] === !was[0] && now[1] === !was[1], JSON.stringify({ shown, was, now, icons3 }));
+    await p.click('#win-drawing [data-step="shrink"]').catch(() => {}); await p.waitForTimeout(250);
+    check('UI-A8: and their icons are back in the icons state (one per toggle)', (await p.locator('#win-drawing .s-icons [data-ic]').count()) === TG.length); }
   check('Truss 3D: the analysis model is 3D and the 3D bridge fills the screen', await p.evaluate(() => __dbg.S.anaMode === '3d' && document.getElementById('fsFill').contains(document.getElementById('c3d'))));
   await p.click('#shellNav [data-sw="t:2"]'); await p.waitForTimeout(800);
   check('Truss 2D: back to the side view', await p.evaluate(() => __dbg.S.anaMode === '2d' && document.getElementById('fsFill').contains(document.getElementById('drawWrap'))));
@@ -232,11 +249,16 @@ try {
   check('window states and place survive a reload', (await p.evaluate(() => JSON.stringify(__shell.state.w))) === before);
     // #448 (UI-W20): a window the shell builds (View options, Sweep, Results) has no ⋮⋮ grip; only a movable piece shows one
   check('UI-W20: no grip on View options, Sweep or Results (#448)', await p.evaluate(() => ['view', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !w.querySelector('.s-ph .grip'); })));
+  // BPD-8 (UI-W20): the grip is on a window if and only if it can move; today none can, so none of the five has one, in any state
+  const gripless = () => p.evaluate(() => ['inputs', 'view', 'drawing', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !!w.querySelector('.s-ph .grip') === w.hasAttribute('data-movable') && !w.hasAttribute('data-movable'); }));
+  check('UI-W20: grip iff movable; none of the five windows moves, so none has a grip (1366x900)', await gripless());
+  for (const st of ['W', 'I', 'T']) { await p.evaluate(s => ['inputs', 'view', 'drawing', 'sweep', 'results'].forEach(id => __shell.setState(id, s)), st); await p.waitForTimeout(120); check('UI-W20: no grip in state ' + st, await gripless()); }
 check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
   await p.close();
 
   // ---------- phone width: nothing runs off the screen ----------
   const q = await openPage(b, srv.url, { width: 390, height: 844 }); await q.waitForTimeout(800);
+  check('UI-W20: no grip on any window at 390x844', await q.evaluate(() => ['inputs', 'view', 'drawing', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !w.querySelector('.s-ph .grip'); })));
   check('phone: no horizontal scroll', await q.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await q.screenshot({ path: path.join(SHOTS, 'shell-phone.png') });
   check('phone: no script errors', q.errs.length === 0, q.errs.slice(0, 2).join(' | '));

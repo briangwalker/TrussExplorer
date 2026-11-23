@@ -322,6 +322,25 @@ test('size limits: a bridge over its 2 MB cap is refused, by name before reading
   assert.ok(!F.open(JSON.stringify(sw)).errors.includes('too-big'));
 });
 
+// theme and material files have their own small caps (WH-I8; Black Hat, TE-B-374 (c)), checked by what the file is
+test('size limits: a theme or material file over its 64 KB cap is refused after parsing; the fixtures are far under it', () => {
+  const L = F.LIMITS;
+  assert.strictEqual(L.themeBytes, 64 * 1024); assert.strictEqual(L.materialBytes, 64 * 1024);
+  for (const f of ['v1-test-graph-paper.theme.json', 'v1-balsa-course.material.json']) {
+    assert.ok(fs.statSync(path.join(FIX, f)).size < 64 * 1024 / 20, f);   // rule 4i: real ones are tiny
+    assert.ok(!F.open(fix(f)).errors.includes('too-big'), f);
+    const big = JSON.parse(fix(f)); big.notes = 'x'.repeat(70 * 1024);
+    const r = F.open(JSON.stringify(big));
+    assert.deepStrictEqual(r.errors, ['too-big'], f); assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.kind, f.includes('theme') ? 'theme' : 'material');
+  }
+  // the same padding on a bridge (under 2 MB) and a sweep is fine: each kind keeps its own cap
+  for (const f of ['v2-v61-course-sample-2d.bridge.json', 'v2-v61-height-panels.sweep.json']) { const d = JSON.parse(fix(f)); d.notes = 'x'.repeat(70 * 1024); assert.ok(!F.open(JSON.stringify(d)).errors.includes('too-big'), f); }
+  // tests may pass smaller limits; a theme just over a 1 KB test cap is refused
+  const t = fix('v1-test-graph-paper.theme.json');
+  assert.deepStrictEqual(F.open(t, { limits: { themeBytes: t.length - 1 } }).errors, ['too-big']);
+});
+
 // any other name over the bridge cap (TE-B-343, White Hat's left-over on SEC-005): the file's head decides before it's read
 test('size limits: a big file with any other name is read only if its head says sweep (or it is gzip); every saved sweep does', async () => {
   const e = s => new TextEncoder().encode(s);
