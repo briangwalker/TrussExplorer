@@ -51,12 +51,23 @@ try {
       const after = await p.evaluate(k => ({ txt: document.querySelector('#memTbl tbody').textContent, kept: (document.querySelector(`#memTbl tbody tr[data-key="${k}"]`) || {}).ariaSelected }), k);
       check('it redraws when the bridge changes, and the pick stays', after.txt !== before && after.kept === 'true', JSON.stringify({ kept: after.kept }));
       // keys: one Tab stop, arrows move
-      await p.focus('#memTbl tbody tr[tabindex="0"]'); await p.keyboard.press('ArrowDown');
-      const keys = await p.evaluate(() => ({ focus: document.activeElement.closest && !!document.activeElement.closest('#memTbl'), stops: document.querySelectorAll('#memTbl tbody tr[tabindex="0"]').length }));
+      await p.focus('#memTbl tbody [tabindex="0"]'); await p.keyboard.press('ArrowDown');
+      const keys = await p.evaluate(() => ({ focus: document.activeElement.closest && !!document.activeElement.closest('#memTbl'), stops: document.querySelectorAll('#memTbl [tabindex="0"]').length }));
       check('one Tab stop, and the arrow keys move inside the table', keys.focus && keys.stops === 1, JSON.stringify(keys));
+      // UI-S6 1.5.5 / 1.5.7: the All columns switch and the Use sort (UI Engineer, #438)
+      const cols = () => p.evaluate(() => [...document.querySelectorAll('#memTbl thead th')].map(x => x.textContent.trim().replace(/\s*[▼▲]$/, '')));
+      check('the short column set by default', JSON.stringify(await cols()) === JSON.stringify(['Member', 'i–j', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?', 'Use']), JSON.stringify(await cols()));
+      await p.click('#memAll'); await p.waitForTimeout(150);
+      check('All columns adds Type, Sticks and Capacity, and the switch keeps focus', (await cols()).join() === 'Member,i–j,Type,Sticks,L (mm),F (N),T/C,P_cr (N),Buckling?,Capacity (N),Use' && await p.evaluate(() => document.activeElement.id === 'memAll' && document.activeElement.getAttribute('aria-checked') === 'true'), (await cols()).join());
+      const firstUse = () => p.evaluate(() => document.querySelector('#memTbl caption').textContent);
+      await p.click('#memTbl .te-sort'); await p.waitForTimeout(150);
+      check('the Use header sorts lowest first, and says so', /lowest use first/.test(await firstUse()) && await p.evaluate(() => document.querySelector('#memTbl [aria-sort]').getAttribute('aria-sort') === 'ascending' && document.activeElement.classList.contains('te-sort')), await firstUse());
+      const csvSame = await p.evaluate(() => { const V = window.TrussMembersView; return V.csvRows(TrussMembers.rows(__dbg.tr, __dbg.res), window.TrussExport.TYPE_LABEL)[0].length; });
+      check('the CSV keeps all 13 columns whatever the screen shows', csvSame === 13, String(csvSame));
       // after a reload, the tab is remembered
       await p.reload({ waitUntil: 'load' }); await p.waitForFunction(() => window.__dbg && window.__dbg.res); await p.waitForTimeout(600);
       check('the Members tab is remembered after a reload', await p.evaluate(() => __dbg.S.tab === 'mem' && !document.getElementById('memPanel').hidden && !!document.getElementById('memTbl')));
+      check('All columns and the sort are remembered after a reload (per viewer)', await p.evaluate(() => document.getElementById('memAll').getAttribute('aria-checked') === 'true' && /lowest use first/.test(document.querySelector('#memTbl caption').textContent)));
     }
     check('no script errors' + tag, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();

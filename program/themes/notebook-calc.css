@@ -22,8 +22,8 @@
   --te-line:#b48b52; --te-line-soft:rgba(110,80,40,.25);
   --te-ink:#23262b; --te-muted:#5b6774;
   --te-strong:#8c5e22; --te-on-strong:#fff8ec;
-  --te-ctl-bg:#ebd09b; --te-ctl-line:#a9804a;
-  --te-tab:#8a5a2b; --te-accent:#f0b45a; --te-accent-ink:#2a1a04; --te-hot:rgba(255,210,60,.38);
+  --te-ctl-bg:#ebd09b; --te-ctl-line:#946832;
+  --te-tab:#8a5a2b; --te-focus:#8a5a2b; --te-accent:#f0b45a; --te-accent-ink:#2a1a04; --te-hot:rgba(255,210,60,.38);
   --te-font-ui:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif; --te-font-head:"Kalam",cursive; --te-font-mono:"VT323",ui-monospace,monospace;
   --f-ui:var(--te-font-ui); --f-head:var(--te-font-head); --f-mono:var(--te-font-mono);
   --nc-face:linear-gradient(180deg, rgba(255,255,255,.32) 0, rgba(255,255,255,0) 8%, rgba(255,255,255,0) 60%, rgba(60,32,8,.34) 63%, rgba(60,32,8,.12) 67%, rgba(60,32,8,.18) 88%, rgba(40,20,4,.48) 100%);
