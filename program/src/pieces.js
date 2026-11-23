@@ -463,7 +463,7 @@ function mountSlider(el, opts) {
 //   The row holding focus, or under the pointer, is lit and reported: onHover(key); leaving the table reports onHover(null).
 //   Enter, Space or a click picks the row (aria-selected) and reports onPick(key); it stays picked (UI-H4).
 //   The sort header's button reports onSort(key) (the caller draws the table again). Sideways scrolling follows focus.
-// Returns { light(key), picked, focusKey(key), destroy() }: light(key) picks a row from outside (a member clicked on the bridge).
+// Returns { light(key), picked, focusKey(key, { col, focus }), destroy() }: light(key) picks a row from outside (a member clicked on the bridge).
 function mountTable(tbl, opts) {
   opts = opts || {};
   const doc = tbl.ownerDocument;
@@ -515,7 +515,15 @@ function mountTable(tbl, opts) {
   return {
     light(key) { pick(key == null ? null : String(key)); },
     // moves the Tab stop (and focus, if the table has it) to a row's first cell, e.g. after the caller draws the table again
-    focusKey(key) { const tr = rows().find(x => x.dataset.key === String(key)); if (!tr) return; const c = tr.firstElementChild; if (tbl.contains(doc.activeElement)) go(c); else { stop().forEach(x => { x.tabIndex = -1; }); c.tabIndex = 0; } },
+    // focusKey(key, { col, focus }): put the Tab stop on that row's cell col (default 0). With focus: true it also moves focus
+    // there, for a caller that has just drawn the table again while a cell had focus (the old cell is gone, so focus would
+    // fall to the page; Chaos Tester TE-B-462). A row that no longer exists falls back to the first row, so focus stays here.
+    focusKey(key, o) {
+      o = o || {};
+      const all = rows(), tr = all.find(x => x.dataset.key === String(key)) || (o.focus ? all[0] : null); if (!tr) return;
+      const cs = cellsOf(tr), c = cs[Math.max(0, Math.min(cs.length - 1, o.col | 0))];
+      if (o.focus || tbl.contains(doc.activeElement)) go(c); else { stop().forEach(x => { x.tabIndex = -1; }); c.tabIndex = 0; }
+    },
     get picked() { return picked; },
     destroy() { offs.forEach(f => f()); },
   };
