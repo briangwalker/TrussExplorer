@@ -113,6 +113,7 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 
 ## Change log
 
+- **inputs 0.2.0 · 2026-11-23** The ✎ value editor (UI-I8): value, joystick, sweep range, Done; 320 px, moves by its title bar; the 400-value cap is never cut (UI-I4). Stacked on #465.
 - **0.2.1 · 2026-11-13** The table is an APG grid (ui-spec 1.5.7 UI-S6; TE-B-346): `role="grid"`, one Tab stop that remembers the last cell, ↑ ↓ ← → by cell, Home/End along the row, Ctrl+Home/End to the first/last row, PageUp/PageDown 10 rows; ↑ from the first row reaches the header. One sort column (`sort`) carries the only `aria-sort` and a real button (`onSort`). A row-header column (`rowHeader`) and the header row stay in place when the table scrolls. Members view: the short column set and an *All columns* switch (UI-S6 1.5.5), sorting by Use both ways (the CSV keeps member order), the caption counts the members, and Graphics' four points (TE-B-347). Gallery: a Members table item.
 - **0.2 + movable · 2026-11-13** `windowHTML` takes `movable` (default false). The ⋮⋮ grip is drawn only on a window that can be moved, today the ✎ value editor and the PIP (UI-W20, Brian 55a, TE-B-301). The gallery shows one fixed and one movable window side by side.
 - **0.2 · 2026-11-05** The table piece (`tableHTML`, `mountTable`: hover, arrows, Enter or click lights a row, one Tab stop; UI-S6, UI-H4, UI-K7) and the Members tab view (`src/membersview.js`, #416, TE-B-332). Gap G11: no table-look rule yet.
@@ -139,7 +140,7 @@ These sit beside `pieces.js` and follow its rules: one global, pure builders, be
 
 **Not yet:** a gallery item for sheets, dialogs and toasts. It follows once #433 and #438 merge, since they also change gallery.js.
 
-## Number boxes and steppers (src/inputs.js, `TrussInputs` 0.1.1)
+## Number boxes and steppers (src/inputs.js, `TrussInputs` 0.2.0)
 
 These are for step 8, the Inputs (#215). They follow the same rules as the pieces. A box never holds its own limits: it asks a check function, and `fromLimits(TrussLimits, id, values)` builds that function from the one limits table (`src/limits.js`, RMA-4 #462), so the boxes and the file loader read the same rows (UI-I10).
 
@@ -147,4 +148,10 @@ These are for step 8, the Inputs (#215). They follow the same rules as the piece
 |---|---|---|---|---|
 | Number box + stepper | `numberHTML(P, { id, label, unit, value, title })`: a label, − and + buttons, a text box with `inputmode="decimal"`, the unit, and a `role="status"` note line | `mountNumber(el, { check, step, value, onCommit })` → `{ value, set, markFile, clear, destroy }`. While typing, the note says at once what the value would be. Enter or leaving the box commits. **limit**: refused, back to the last good value, ⟂ note. **rule**: committed; the box's edge is pink (`--rule`) and the number stays ink (ART-C1); the rule is named. Course rules come in through `fromLimits(L, id, values, rule)`. **warn**: committed, with a note. − / + and ↑ ↓ (Shift: ×10) move by the step and **stop at the wall**. Esc puts the last good value back. `markFile(value, msg)`: a file's bad value stays exactly as the file had it, marked, never clamped and never committed, until a good one is typed; a refused value or Esc goes back to the file's value. The note is quiet while typing and speaks on Enter, on leaving the box and on a stepper. The box grows with its value, 52–96 px. | UI-I2, UI-I3, UI-I9, UI-I10, ART-T2 | N: inputs.test.js; B: ui/inputs.mjs (19 checks without TrussLimits in the build, 20 with it) |
 
-**Not yet:** the ✎ value editor (UI-I8: the joystick, the sweep range and Done, 320 px, moves by its title bar). It is the next piece, built on this box. The course-rule table (UI-I2's h ≤ 100, width 50–75) isn't in `limits.js`; the Inputs wiring passes those rules in its own check until it is.
+### The ✎ value editor (`TrussInputs` 0.2.0, UI-I8)
+
+| Piece | Markup | Behaviour | Rules | Tests |
+|---|---|---|---|---|
+| ✎ value editor | `editorHTML(P, { id, label, unit, value, sweep: { on, from, to, step } })`: a 320 px `role="dialog"` pop-up with a ⋮⋮ title bar, the value (a number box), the joystick (`role="slider"`), the sweep range (From, To, Step and the `from → to · step = N values` line; only when `sweep` is given), then Done | `mountEditor(el, { check, sweepCheck, step, cap, opener, onCommit, onSweep, onClose })` → `{ value, show, close, destroy }`. The value commits as it changes (through the number box, so limits and rules act the same). Joystick: drag left or right, the rate grows with the square of the push (up to 20 steps/s), springs back on release, stops at a wall; ← → one step, Shift ×10. Title bar drag moves it, kept inside its container. Done applies the sweep range and closes; over the cap (400) Done is refused, nothing is cut, focus goes to Step. Esc or an outside click closes (UI-W8: that click does nothing else); focus goes back to the opener | UI-I8, UI-W20, UI-W8, UI-I1, UI-I3, UI-I4, ART-K17 | `tests/inputs.test.js`, `tests/ui/valueeditor.mjs` (17) |
+
+**Not yet:** `asked → run` and its ⓘ (UI-I5) need the sweep planner, so they sit in the Inputs wiring. Closing when you leave its screen is the wiring's job (call `close('screen')`). The course-rule table (UI-I2's h ≤ 100, width 50–75) isn't in `limits.js`; the Inputs wiring passes those rules in its own check until it is.
