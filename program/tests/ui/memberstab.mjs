@@ -54,6 +54,12 @@ try {
       await p.focus('#memTbl tbody [tabindex="0"]'); await p.keyboard.press('ArrowDown');
       const keys = await p.evaluate(() => ({ focus: document.activeElement.closest && !!document.activeElement.closest('#memTbl'), stops: document.querySelectorAll('#memTbl [tabindex="0"]').length }));
       check('one Tab stop, and the arrow keys move inside the table', keys.focus && keys.stops === 1, JSON.stringify(keys));
+      // a redraw while a cell has focus keeps focus on the same member and column (Chaos Tester TE-B-462)
+      await p.keyboard.press('ArrowRight'); await p.keyboard.press('ArrowRight');
+      const was = await p.evaluate(() => { const c = document.activeElement, tr = c.closest('tr'); return { k: tr.dataset.key, col: [...tr.children].indexOf(c) }; });
+      await p.evaluate(() => { const el = document.getElementById('height'); __dbg.S.height = (+__dbg.S.height || 60) - 5; if (el) { el.value = String(__dbg.S.height); el.dispatchEvent(new Event('change', { bubbles: true })); el.dispatchEvent(new Event('input', { bubbles: true })); } }); await p.waitForTimeout(300);
+      const now = await p.evaluate(() => { const c = document.activeElement, tr = c && c.closest && c.closest('#memTbl tbody tr'); return tr ? { k: tr.dataset.key, col: [...tr.children].indexOf(c), stops: document.querySelectorAll('#memTbl [tabindex="0"]').length } : { lost: c && c.tagName }; });
+      check('after a redraw, focus is still on the same member and column, one Tab stop', now.k === was.k && now.col === was.col && now.stops === 1, JSON.stringify({ was, now }));
       // UI-S6 1.5.5 / 1.5.7: the All columns switch and the Use sort (UI Engineer, #438)
       const cols = () => p.evaluate(() => [...document.querySelectorAll('#memTbl thead th')].map(x => x.textContent.trim().replace(/\s*[▼▲]$/, '')));
       check('the short column set by default', JSON.stringify(await cols()) === JSON.stringify(['Member', 'i–j', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?', 'Use']), JSON.stringify(await cols()));

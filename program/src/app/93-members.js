@@ -17,7 +17,10 @@ function renderMembers() {
   const rows = TrussMembers.rows(tr, res), keep = box.querySelector('.te-tbl-wrap, .tablewrap');
   const sx = keep ? keep.scrollLeft : 0, sy = keep ? keep.scrollTop : 0;
   if (memMount) { memMount.destroy(); memMount = null; }
-  const hadFocus = box.contains(document.activeElement), focusKey = hadFocus && document.activeElement.closest('tr[data-key]') ? document.activeElement.closest('tr[data-key]').dataset.key : null;
+  // a redraw while a cell has focus keeps focus on the same member and column (Chaos Tester TE-B-462); the switch and the
+  // sort button keep theirs through their own handlers below
+  const fCell = box.contains(document.activeElement) ? document.activeElement.closest('#memTbl tbody :is(td,th)') : null;
+  const focusKey = fCell ? fCell.parentElement.dataset.key : null, focusCol = fCell ? [...fCell.parentElement.children].indexOf(fCell) : 0;
   box.innerHTML = V.toolbarHTML(P, { all: memView.all, switchId: 'memAll' }) + `<div class="tablewrap" id="memWrap">${V.tableHTML(P, rows, { typeLabel: X.TYPE_LABEL, id: 'memTbl', lit: memPicked, all: memView.all, dir: memView.dir })}</div>`;
   const sw = $('memAll'); if (sw) P.mountToggle(sw, { onChange: on => { memView.all = !!on; memViewSave(); renderMembers(); const s2 = $('memAll'); if (s2) s2.focus(); } });
   const w = $('memWrap'); w.scrollLeft = sx; w.scrollTop = sy;
@@ -27,7 +30,7 @@ function renderMembers() {
     onPick: k => { memPicked = k; highlight(k == null ? -1 : +k); },
     onSort: () => { memView.dir = memView.dir === 'descending' ? 'ascending' : 'descending'; memViewSave(); renderMembers(); const b = document.querySelector('#memTbl .te-sort'); if (b) b.focus(); },
   });
-  if (memMount && focusKey != null) memMount.focusKey(focusKey);
+  if (memMount && focusKey != null) memMount.focusKey(focusKey, { col: focusCol, focus: true });
   if (memMount && memPicked != null && rows.some(r => String(r.k) === String(memPicked))) memMount.light(memPicked);
   memFit();
 }
