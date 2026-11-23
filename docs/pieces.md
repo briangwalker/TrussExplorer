@@ -138,4 +138,4 @@ These sit beside `pieces.js` and follow its rules: one global, pure builders, be
 
 **Words:** the sheets' own words (Close, Close (Esc), Undo) come from `src/strings.js` (`TrussStrings.t(key)`, plain text, keys `step.piece.name`; the Architecture Lead's pick, TE-B-387). The table's and the Members tab's defaults move there once #419 and #438 merge.
 
-**Not yet:** a gallery item for sheets, dialogs and toasts. It follows once #433 and #438 merge, since they also change gallery.js.
+**Gallery:** sheets, dialogs and toasts have their own items (open one, type in the dialog, show a toast); they're no longer 'not built yet' cards. Branch uie/gallery-sheets stacks on #438, #433 and #441.
