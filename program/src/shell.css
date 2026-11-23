@@ -24,6 +24,8 @@ body.shell .wrap,body.shell #dock>.dockbar,body.shell #backTab,body.shell #fsExi
 #stage .fsfill .chartbox canvas{height:100%!important}
 #stage .fsbar,#stage .fsfoot{display:none}
 #stage button:focus-visible{outline:3px solid var(--te-focus);outline-offset:3px}
+/* on the top bar and its folded tab the ground is strong / tab, not a light surface: the ring is the bar's own ink there (ART-C2 3:1; QA HOLD TE-B-460). The lit place pill (.vp.on) is surface, so it keeps --te-focus */
+#stage .nav .nb:focus-visible,#stage .nav .vp.off button:focus-visible,#stage #navTabBox button:focus-visible{outline-color:var(--te-on-strong)}
 
 /* ---------- contract components ---------- */
 #stage .s-pan{position:absolute;box-sizing:border-box;background:var(--te-panel);color:var(--te-ink);border:1px solid var(--te-line);border-radius:10px;box-shadow:0 4px 16px rgba(20,30,40,.12);z-index:76;display:flex;flex-direction:column;min-width:0}
