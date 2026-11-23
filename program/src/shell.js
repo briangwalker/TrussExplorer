@@ -367,11 +367,13 @@ if (!SH_CLASSIC) {
     const was = stage.dataset.theme;
     for (const k of Array.from(stage.style)) if (k.startsWith('--te-')) stage.style.removeProperty(k);
     stage.dataset.theme = FILE_ID;
-    const cs = getComputedStyle(stage), defaults = {};
+    const cs = getComputedStyle(stage), defaults = {}, meaning = {};
     for (const k of Object.keys(TrussThemeFile.PAIRS.reduce((m, [a, b]) => (m[a] = m[b] = 1, m), {}))) defaults[k] = cs.getPropertyValue('--te-' + k).trim();
+    // the meaning colours as the stage shows them: every theme but OG keeps ui.html's light set, and a file theme is never OG (ART-K14)
+    for (const m of Object.keys(TrussThemeFile.MEANING)) meaning[m] = cs.getPropertyValue('--' + m).trim();
     stage.dataset.theme = was; if (was === FILE_ID && fileTheme) for (const k of Object.keys(fileTheme.vars)) stage.style.setProperty(k, fileTheme.vars[k]);
     const name = typeof doc.name === 'string' && doc.name.trim() ? doc.name.trim().slice(0, 40) : String(doc.id || 'Theme');
-    const r = TrussThemeFile.check(tokens, defaults, { name, builtIn: THEME_LIST.map(t => t.name).concat(['Wireframe', 'OG']) });
+    const r = TrussThemeFile.check(tokens, defaults, { name, builtIn: THEME_LIST.map(t => t.name).concat(['Wireframe', 'OG']) }, meaning);
     if (!r.ok) return r;
     fileTheme = { id: FILE_ID, name, vars: TrussThemeFile.vars(tokens) };
     paintThemeSel(); applyTheme(FILE_ID);

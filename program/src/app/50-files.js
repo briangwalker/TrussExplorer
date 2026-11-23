@@ -102,8 +102,15 @@ $('filePick').addEventListener('change', async () => {
     if (!door) { toast('Theme files open only in the balsaPixel layout.', true); return; }
     if (!doc.tokens || !Object.keys(doc.tokens).length) { toast('That theme file sets nothing the Explorer understands, so nothing was applied.', true); return; }
     const r = door(doc);
-    if (!r.ok) { const e = r.errors[0]; toast(e === 'name:taken' ? 'That theme file uses a built-in theme\'s name; give it its own name.' : `That theme file was not applied: its ${e.slice(9).replace('/', ' on ')} colours don't have enough contrast to read.`, true); return; }
-    toast(`Theme "${doc.name || doc.id}" applied from the file. It isn't saved: a reload goes back to the built-in theme.${o.warnings && o.warnings.some(w => w.startsWith('dropped:')) ? ' Some of its values were not understood and were left out.' : ''}`);
+    if (!r.ok) {
+      const e = r.errors[0], pair = e.slice(e.indexOf(':') + 1).replace('/', ' on ');
+      toast(e === 'name:taken' ? 'That theme file uses a built-in theme\'s name; give it its own name.'
+        : e.startsWith('meaning:') ? `That theme file was not applied: its ${pair.replace(/^\w+/, w => ({ ok: 'pass', bad: 'fail', comp: 'compression', tens: 'tension', zero: 'zero-force', warn: 'warning' })[w] || w)} ground would hide a result colour.`
+        : `That theme file was not applied: its ${pair} colours don't have enough contrast to read.`, true);
+      return;
+    }
+    const shown = (typeof doc.name === 'string' && doc.name.trim() ? doc.name.trim() : String(doc.id || 'Theme')).slice(0, 40);
+    toast(`Theme "${shown}" applied from the file. It isn't saved: a reload goes back to the built-in theme.${o.warnings && o.warnings.some(w => w.startsWith('dropped:')) ? ' Some of its values were not understood and were left out.' : ''}`);
     return;
   }
   if (kind !== 'bridge' && kind !== 'sweep') { toast('That is not a bridge or sweep file from the Truss Explorer.', true); return; }

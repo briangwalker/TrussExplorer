@@ -107,6 +107,15 @@ try {
     await q3.click('#dockBtn'); await q3.waitForSelector('#dockMenu:not([hidden])');
     const [fcT4] = await Promise.all([q3.waitForEvent('filechooser'), q3.click('#dockMenu [data-click="loadBridge"]')]); await fcT4.setFiles(theme({ id: 'empty', tokens: { ink: 'red' } }, 'empty')); await q3.waitForTimeout(600);
     check('#265: a theme file whose every value was dropped (a colour name) applies nothing, and says so', await q3.evaluate(() => document.getElementById('stage').style.getPropertyValue('--te-ink') === '#2a2118' && /sets nothing the Explorer understands/.test(document.getElementById('toast').textContent)));
+    // SEC-007: every ground set to the pass green, every text pair white or black: the listed pairs pass, the verdict word would vanish
+    const green = '#2f7a4b', hideV = { page: green, surface: green, 'surface-2': green, panel: green, 'panel-peek': green, 'ctl-bg': green, hot: green, ink: '#ffffff', muted: '#ffffff', 'ctl-line': '#ffffff', focus: '#ffffff', strong: '#ffffff', tab: '#ffffff', 'on-strong': '#000000', accent: '#ffffff', 'accent-ink': '#000000' };
+    await q3.click('#dockBtn'); await q3.waitForSelector('#dockMenu:not([hidden])');
+    const [fcT5] = await Promise.all([q3.waitForEvent('filechooser'), q3.click('#dockMenu [data-click="loadBridge"]')]); await fcT5.setFiles(theme({ id: 'verdict', tokens: hideV }, 'verdict')); await q3.waitForTimeout(600);
+    const t5 = await q3.evaluate(() => ({ ink: document.getElementById('stage').style.getPropertyValue('--te-ink'), page: document.getElementById('stage').style.getPropertyValue('--te-page'), msg: document.getElementById('toast').textContent }));
+    check('SEC-007: a theme file whose grounds would hide the pass/fail colour is refused, with a message, and the last good theme stays', t5.ink === '#2a2118' && t5.page === '#f6f1e4' && /would hide a result colour/.test(t5.msg));
+    await q3.click('#dockBtn'); await q3.waitForSelector('#dockMenu:not([hidden])');
+    const [fcT6] = await Promise.all([q3.waitForEvent('filechooser'), q3.click('#dockMenu [data-click="loadBridge"]')]); await fcT6.setFiles(theme({ id: 'peek', tokens: { 'panel-peek': '#1d232a' } }, 'peek')); await q3.waitForTimeout(600);
+    check('SEC-007: a theme file that darkens only the peek panel is refused', await q3.evaluate(() => !document.getElementById('stage').style.getPropertyValue('--te-panel-peek') && /don't have enough contrast/.test(document.getElementById('toast').textContent)));
     await q3.click('#dockBtn'); await q3.waitForSelector('#dockMenu:not([hidden])');
     const [fcT3] = await Promise.all([q3.waitForEvent('filechooser'), q3.click('#dockMenu [data-click="loadBridge"]')]); await fcT3.setFiles(theme({ id: 'fake', name: 'Wireframe' }, 'fake')); await q3.waitForTimeout(600);
     check('#265: a theme file named after a built-in theme is refused', await q3.waitForFunction(() => /built-in theme's name/.test(document.getElementById('toast').textContent), null, { timeout: 5000 }).then(() => true, () => false));
