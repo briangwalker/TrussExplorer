@@ -4,6 +4,12 @@
 // "# " header lines and all, so the file is the same as the Drawing window's. Hovering or picking a row lights the
 // member in the drawing (highlight); a row picked stays picked across redraws.
 let memMount = null, memPicked = null;
+// the screen's view of the table, per viewer (UI-S6 1.5.5/1.5.7): All columns on or off, and the Use sort's direction.
+// Its own small key, not the app state, so saved bridge files never change (rule 4i); a blocked storage just forgets.
+const MEM_VIEW_KEY = 'te-members-view';
+let memView = { all: false, dir: 'descending' };
+try { const v = JSON.parse(localStorage.getItem(MEM_VIEW_KEY) || 'null'); if (v && typeof v === 'object') memView = { all: v.all === true, dir: v.dir === 'ascending' ? 'ascending' : 'descending' }; } catch (e) {}
+function memViewSave() { try { localStorage.setItem(MEM_VIEW_KEY, JSON.stringify(memView)); } catch (e) {} }
 function renderMembers() {
   const box = $('memPanel'), P = window.TrussPieces, V = window.TrussMembersView;
   if (!box || !P || !V || box.hidden) return;
@@ -11,13 +17,17 @@ function renderMembers() {
   const rows = TrussMembers.rows(tr, res), keep = box.querySelector('.te-tbl-wrap, .tablewrap');
   const sx = keep ? keep.scrollLeft : 0, sy = keep ? keep.scrollTop : 0;
   if (memMount) { memMount.destroy(); memMount = null; }
-  box.innerHTML = V.toolbarHTML(P) + `<div class="tablewrap" id="memWrap">${V.tableHTML(P, rows, { typeLabel: X.TYPE_LABEL, id: 'memTbl', lit: memPicked })}</div>`;
+  const hadFocus = box.contains(document.activeElement), focusKey = hadFocus && document.activeElement.closest('tr[data-key]') ? document.activeElement.closest('tr[data-key]').dataset.key : null;
+  box.innerHTML = V.toolbarHTML(P, { all: memView.all, switchId: 'memAll' }) + `<div class="tablewrap" id="memWrap">${V.tableHTML(P, rows, { typeLabel: X.TYPE_LABEL, id: 'memTbl', lit: memPicked, all: memView.all, dir: memView.dir })}</div>`;
+  const sw = $('memAll'); if (sw) P.mountToggle(sw, { onChange: on => { memView.all = !!on; memViewSave(); renderMembers(); const s2 = $('memAll'); if (s2) s2.focus(); } });
   const w = $('memWrap'); w.scrollLeft = sx; w.scrollTop = sy;
   const tbl = $('memTbl');
   if (tbl && tbl.tagName === 'TABLE') memMount = P.mountTable(tbl, {
     onHover: k => highlight(k == null ? (memPicked == null ? -1 : +memPicked) : +k),
     onPick: k => { memPicked = k; highlight(k == null ? -1 : +k); },
+    onSort: () => { memView.dir = memView.dir === 'descending' ? 'ascending' : 'descending'; memViewSave(); renderMembers(); const b = document.querySelector('#memTbl .te-sort'); if (b) b.focus(); },
   });
+  if (memMount && focusKey != null) memMount.focusKey(focusKey);
   if (memMount && memPicked != null && rows.some(r => String(r.k) === String(memPicked))) memMount.light(memPicked);
   memFit();
 }

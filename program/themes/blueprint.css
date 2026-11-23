@@ -6,7 +6,7 @@
   --te-ink:#f2f6ff; --te-muted:#c8d6f0;
   --te-strong:#f0b45a; --te-on-strong:#1b1206;
   --te-ctl-bg:#1d4a85; --te-ctl-line:#8fb0dc;
-  --te-tab:#f0b45a; --te-accent:#f0b45a; --te-accent-ink:#1b1206; --te-hot:#2c5f9e;
+  --te-tab:#f0b45a; --te-focus:#f0b45a; --te-accent:#f0b45a; --te-accent-ink:#1b1206; --te-hot:#2c5f9e;
 }
 /* controls slot: dark faces (ctl-bg), so buttons use the theme ink like every piece (#246, #458) */
 /* background slot: windows read as paper sheets on the blueprint */

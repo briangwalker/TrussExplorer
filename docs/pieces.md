@@ -20,7 +20,7 @@ This page holds no rules. The rules live in [ui-spec.md](ui-spec.md) (`UI-…`),
 | Slider | `sliderHTML({ key, label, min, max, step, value, from, to, wall, rule })`, `sliderValue()` | `mountSlider(el, { onInput })` | `.te-slider` `slider` > `.trk`, `.zone.rule`, `.zone.wall`, `.band` `slider-band`, `.th[data-end=from/to/val]` |
 | Results card | `resultsHTML({ checks, verdict })` | opens its full view with `popups()` | `.res` `results` · `.pill` `badge` |
 | Pop-up | — | `popups(doc).open(pop, opener)` / `.close(pop)` | `.te-pop` |
-| Table (0.2) | `tableHTML({ id, caption, columns, rows, lit, empty })` | `mountTable(tbl, { onHover, onPick })` → `{ light(key), picked }` | `.te-tbl` `table`: `th[scope=col]`, `td.num` right-aligned mono, `tr.lit` / `tr[aria-selected]` |
+| Table (0.2.1, an APG grid) | `tableHTML({ id, caption, columns: [{ key, label, num, sort }], rows, rowHeader, lit, empty })` | `mountTable(tbl, { onHover, onPick, onSort })` → `{ light(key), picked, focusKey(key) }` | `.te-tbl` `table[role=grid]`: `th[scope=col]`, one `th[aria-sort]` with a `.te-sort` button, `th.rh[scope=row]` held in place, `td.num` right-aligned mono, `tr.lit` / `tr[aria-selected]` |
 
 The Members tab (#416) is built from the table piece by `src/membersview.js` (`TrussMembersView`): `tableHTML(P, TrussMembers.rows(tr, res), { typeLabel, lit })`, `toolbarHTML(P)`, and `csvRows()` / `csvOf()`, which give exactly the app's `rowsForCsv()` / CSV text (Node: every case in tests/lib.js; browser: byte for byte against the app's Copy table as CSV). Tests: `tests/membersview.test.js`, `tests/ui/members.mjs`.
 
@@ -89,7 +89,7 @@ Building the pieces turned up ten questions no spec answered. Each one now has a
 | G8 | **The results card's full view.** UI-W18 (#364): a pop-up under the strip; checks with what governs them, the project facts, two links; 540 px. | UI | the pop-up piece; the content is #210's |
 | G9 | **The gallery page.** UI-G1–G5 (#364), place from TE-B-230. The theme switch it needs without saving (UI-G3, UI-G4) is the shell's `previewTheme(id)` door, decided on TE-B-251. | UI | the gallery PR (next), `src/gallery.js` |
 | G10 | **The restless-bridge stop rule.** UI-M8 (#364). | UI | not a piece (#144) |
-| G11 | **How a data table looks** (row height, header, zebra, the lit row, number font). No rule yet; the table piece uses ART-K3's `surface` / `surface-2` for rows, `--te-hot` for the lit row, 13 px text, mono numbers. Asked on the board (#416). | Graphics, UI | open |
+| G11 | **How a data table looks** (row height, header, zebra, the lit row, number font). Graphics: keep the look (TE-B-347): zebra ART-K3, header line ART-K4 `line`, the use bar's track a 1 px `line-soft` edge and its fill pass / fail only (never course-rule pink), zebra in every theme. UI: place, columns and keys in ui-spec 1.5.5 / 1.5.7 UI-S6. The ART- rule itself is Graphics' next art-spec. | Graphics, UI | answered |
 
 ## Not pieces (who builds them)
 
@@ -113,6 +113,7 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 
 ## Change log
 
+- **0.2.1 · 2026-11-13** The table is an APG grid (ui-spec 1.5.7 UI-S6; TE-B-346): `role="grid"`, one Tab stop that remembers the last cell, ↑ ↓ ← → by cell, Home/End along the row, Ctrl+Home/End to the first/last row, PageUp/PageDown 10 rows; ↑ from the first row reaches the header. One sort column (`sort`) carries the only `aria-sort` and a real button (`onSort`). A row-header column (`rowHeader`) and the header row stay in place when the table scrolls. Members view: the short column set and an *All columns* switch (UI-S6 1.5.5), sorting by Use both ways (the CSV keeps member order), the caption counts the members, and Graphics' four points (TE-B-347). Gallery: a Members table item.
 - **0.2 + movable · 2026-11-13** `windowHTML` takes `movable` (default false). The ⋮⋮ grip is drawn only on a window that can be moved, today the ✎ value editor and the PIP (UI-W20, Brian 55a, TE-B-301). The gallery shows one fixed and one movable window side by side.
 - **0.2 · 2026-11-05** The table piece (`tableHTML`, `mountTable`: hover, arrows, Enter or click lights a row, one Tab stop; UI-S6, UI-H4, UI-K7) and the Members tab view (`src/membersview.js`, #416, TE-B-332). Gap G11: no table-look rule yet.
 
@@ -122,3 +123,18 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 - **0.1.3 · 2026-10-31** ui-spec 1.5 (#364) answers G5–G10. The pieces follow UI-W15 (52 px icons, 28 px tabs, 40 % cap, 12 px edge gap) and UI-W17 (the peek sits 8 px beside its tab, lined up with its top, and closes after 400 ms).
 - **0.1.2 · 2026-10-31** Graphics' review (TE-B-232): pill 13 px (ART-T2); art-spec 1.0.4 values (#357): `ctl-line #7f8893` (#355), course-rule pink from `--rule` as solid stripes (ART-K16), edged Wireframe tabs (ART-W13), 13 px pop-up (ART-W12); two more contrast pairs. G1–G4 answered.
 - **0.1.1 · 2026-10-31** Added the Gaps table: what the pieces needed that no spec says (TE-B-224 item 3).
+
+## Sheets, dialogs and toasts (src/sheets.js, `TrussSheets` 0.1.0)
+
+These sit beside `pieces.js` and follow its rules: one global, pure builders, behaviour in mount functions, and CSS in `<style id="te-sheets">` scoped to `#stage`. Steps 10 and 2b (#217, #410, #411, #399) build on them.
+
+| Piece | Markup | Behaviour | Rules | Tests |
+|---|---|---|---|---|
+| Sheet / dialog | `sheetHTML(P, { id, kind: 'sheet'\|'dialog', title, body, buttons: [{ label, act, main, cancel }] })` (**`body` is HTML the caller builds and escapes**, as for `windowHTML`; the title and labels are escaped here): a native `<dialog>` with a fixed header (title, ✕), a middle that scrolls and a fixed button row. A dialog must have a main button that names its action; "OK", "Yes", "Go" and "Submit" are refused. | `modals(doc, { onClose, isDirty })` → `open(el, opener)`, `close(el, why)`, `flash(el)`, `top()`. Only one is open at a time. Esc closes it. A click on the backdrop closes it the same way and does nothing else on the page. A dialog with values typed but not applied yet (`data-dirty`, or `isDirty(el)`) ignores the backdrop click and flashes Cancel once. On open, focus goes to the first field, else the main button, else ✕. Tab stays inside. On close, focus returns to the opener. Whatever gets focus in the middle is scrolled fully into view. | UI-A16, UI-W8, UI-W13, UI-W22, UI-W23 | N: sheets.test.js; B: ui/sheets.mjs (button row and header on screen at 1366×768, 1440×900, 125 % zoom, 1366×600 and 1024×480; no field hidden while tabbing through 30 fields) |
+| Toast | — | `toasts(doc).show({ text, undo, ms })` → `{ close }`. One toast at a time, bottom centre (`--te-toast-bottom`), `role="status"`. It fades after about 4 s (longer for long text) and waits while the pointer or focus is on it. Undo appears when `undo` is given. | UI-W10, UI-W13, WCAG 2.2.1 | B: ui/sheets.mjs |
+
+**Gap G12 (for the UI Designer):** UI-W22 covers the backdrop click when a dialog holds typed values. It doesn't say whether **Esc** should also be refused then. Today Esc closes the dialog like Cancel, since Esc is a deliberate key.
+
+**Words:** the sheets' own words (Close, Close (Esc), Undo) come from `src/strings.js` (`TrussStrings.t(key)`, plain text, keys `step.piece.name`; the Architecture Lead's pick, TE-B-387). The table's and the Members tab's defaults move there once #419 and #438 merge.
+
+**Not yet:** a gallery item for sheets, dialogs and toasts. It follows once #433 and #438 merge, since they also change gallery.js.
