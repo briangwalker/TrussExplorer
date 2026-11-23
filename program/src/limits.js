@@ -223,11 +223,12 @@ const isModel3D = m => typeof m === 'string' && m.toLowerCase() === '3d';
 // are not looked at; a joined pair is covered by the member length.
 const TOL = 1e-6;
 const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+const fh = v => String(Math.round(v * 10) / 10);   // Physics' G3 wording: '(-5 mm)', no trailing .0
 const GEOMETRY_MSG = {
   G1: 'The span must be more than 0 mm.',
   G2: j => 'Joint ' + j[0] + ' is left of joint ' + j[1] + '. Panels must run left to right, each wider than 0 mm.',
   G2same: j => 'Joint ' + j[0] + ' is not to the right of joint ' + j[1] + '. Panels must run left to right, each wider than 0 mm.',
-  G3: (j, y) => 'Joint ' + j + ' is below the bottom line (' + f1(y) + ' mm). Heights can\'t be negative; it would swap which members pull and push.',
+  G3: (j, y) => 'Joint ' + j + ' is below the bottom line (' + fh(y) + ' mm). Heights can\'t be negative; it would swap which members pull and push.',
   G4: 'Every joint is on one line, so this truss can\'t carry load. No capacity is shown.',
   G5len: (m, len, min) => 'Member ' + m + ' is ' + f1(len) + ' mm long; the shortest allowed is ' + f1(min) + ' mm.',
   G5dup: (a, b) => 'Members ' + a + ' and ' + b + ' join the same two joints.',

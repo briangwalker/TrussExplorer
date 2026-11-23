@@ -222,7 +222,7 @@ test('G3: a joint below the bottom line is refused, with its height in the messa
   const t = goodTruss(); t.nodes[3][1] = -5;
   const r = L.checkGeometry(t, {}).filter(x => x.rule === 'G3');
   assert.strictEqual(r.length, 1); assert.deepStrictEqual(r[0].where, [3]);
-  assert.strictEqual(r[0].msg, 'Joint 4 is below the bottom line (-5.0 mm). Heights can\'t be negative; it would swap which members pull and push.');
+  assert.strictEqual(r[0].msg, 'Joint 4 is below the bottom line (-5 mm). Heights can\'t be negative; it would swap which members pull and push.');
   const two = goodTruss(); two.nodes[1][1] = -5; two.nodes[3][1] = -8; assert.strictEqual(L.checkGeometry(two, {}).filter(x => x.rule === 'G3').length, 2, 'every one is listed');
   // a shaped bottom chord sags below the desk line by design: down to its curve, no further
   const sag = goodTruss(); sag.nodes[2][1] = -30; sag.design = { bottom: 'parabola', curve: -30 };
