@@ -105,6 +105,7 @@ $('filePick').addEventListener('change', async () => {
     if (!r.ok) {
       const e = r.errors[0], pair = e.slice(e.indexOf(':') + 1).replace('/', ' on ');
       toast(e === 'name:taken' ? 'That theme file uses a built-in theme\'s name; give it its own name.'
+        : e.startsWith('opaque:') ? `That theme file was not applied: its ${pair} colour is see-through; grounds must be solid colours.`
         : e.startsWith('meaning:') ? `That theme file was not applied: its ${pair.replace(/^\w+/, w => ({ ok: 'pass', bad: 'fail', comp: 'compression', tens: 'tension', zero: 'zero-force', warn: 'warning' })[w] || w)} ground would hide a result colour.`
         : `That theme file was not applied: its ${pair} colours don't have enough contrast to read.`, true);
       return;
