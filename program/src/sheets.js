@@ -145,7 +145,7 @@ function toasts(doc, o) {
     if (cur.undo) {
       const u = doc.createElement('button'); u.type = 'button'; u.className = 'te-toast-u'; u.dataset.undo = '';
       u.textContent = t('toast.button.undo');
-      const k = doc.createElement('kbd'); k.className = 'te-toast-k'; k.textContent = t(mac() ? 'toast.key.undo.mac' : 'toast.key.undo'); u.append(' ', k);
+      const k = doc.createElement('kbd'); k.className = 'te-toast-k'; k.textContent = t(mac() ? 'toast.key.undoMac' : 'toast.key.undo'); u.append(' ', k);
       u.setAttribute('aria-keyshortcuts', 'Control+Z Meta+Z'); b.appendChild(u);
     }
     b.hidden = false; arm(ms);
