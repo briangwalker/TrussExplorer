@@ -187,3 +187,200 @@ test('height: 10 to 200 mm (Math, TE-B-520: 100 is the course rule, not a model 
   for (const [v, why] of [[9.9, 'min'], [200.1, 'max'], [1000, 'max'], ['abc', 'not-a-number']]) assert.strictEqual(L.checkInputs(Object.assign({}, DEF, { height: v })).filter(e => e.id === 'height')[0].why, why, 'height ' + v);
   const row = L.rowFor('height'); assert.strictEqual(row.max, 200); assert.strictEqual(row.msg, 'Height must be 10 to 200 mm.'); assert.strictEqual(row.sliderMax, 100); assert.strictEqual(row.sliderMin, 10);
 });
+
+// ---------- RMA-6 (TE-B-458): geometry rules G1-G5, checkGeometry(truss, values) (Physics' doc, TE-B-370) ----------
+const { C, design, cases, DEFAULT } = require(path.join(__dirname, 'lib.js'));
+const F = require(path.join(__dirname, '..', 'src', 'formats.js'));
+const rules = r => r.map(x => x.rule);
+// a small good truss: bottom chord B0..B4 at 0..220, top joint T2 at y 26
+const goodTruss = () => ({ nodes: [[0, 0], [55, 0], [110, 0], [165, 0], [220, 0], [110, 26]], keys: ['B0', 'B1', 'B2', 'B3', 'B4', 'T2'],
+  elems: [{ i: 0, j: 1 }, { i: 1, j: 2 }, { i: 2, j: 3 }, { i: 3, j: 4 }, { i: 0, j: 5 }, { i: 5, j: 4 }, { i: 1, j: 5 }, { i: 3, j: 5 }, { i: 2, j: 5 }] });
+const cloneT = t => JSON.parse(JSON.stringify(t));
+
+test('G1-G5: Physics\' good example passes clean, and nothing is changed', () => {
+  const t = goodTruss(), copy = cloneT(t);
+  assert.deepStrictEqual(L.checkGeometry(t, {}), []);
+  assert.deepStrictEqual(L.checkGeometry(deepFreeze(t), { bS: 3.18, hS: 3.18 }), []);
+  assert.deepStrictEqual(t, copy);
+});
+
+test('G1: a span of 0 is refused (all joints at one x)', () => {
+  const t = { nodes: [[0, 0], [0, 10], [0, 26]], elems: [{ i: 0, j: 1 }, { i: 1, j: 2 }] };
+  const r = L.checkGeometry(t, {});
+  assert.ok(rules(r).includes('G1')); assert.strictEqual(r.find(x => x.rule === 'G1').msg, 'The span must be more than 0 mm.');
+  assert.ok(!rules(L.checkGeometry(goodTruss(), {})).includes('G1'));
+});
+
+test('G2: panel points must run left to right, each panel wider than 0', () => {
+  const t = goodTruss(); t.nodes[2][0] = 40;              // B2 at 40 is left of B1 at 55 (B0, B1, B2 = joints 1, 2, 3)
+  const r = L.checkGeometry(t, {}).filter(x => x.rule === 'G2');
+  assert.strictEqual(r.length, 1); assert.strictEqual(r[0].msg, 'Joint 3 is left of joint 2. Panels must run left to right, each wider than 0 mm.'); assert.deepStrictEqual(r[0].where, [2, 1]);
+  const same = goodTruss(); same.nodes[2][0] = 55;        // a panel of width 0
+  assert.strictEqual(L.checkGeometry(same, {}).find(x => x.rule === 'G2').msg, 'Joint 3 is not to the right of joint 2. Panels must run left to right, each wider than 0 mm.');
+  const pp = Object.assign(goodTruss(), { panelPts: [0, 80, 60, 220] });   // Physics' bad example, through panelPts
+  assert.strictEqual(L.checkGeometry(pp, {}).find(x => x.rule === 'G2').msg, 'Joint 3 is left of joint 2. Panels must run left to right, each wider than 0 mm.');
+  assert.deepStrictEqual(rules(L.checkGeometry(Object.assign(goodTruss(), { panelPts: [0, 55, 110, 165, 220] }), {})), []);
+  const two = goodTruss(); two.nodes[1][0] = 10; two.nodes[2][0] = 5;      // several bad panels: every one is listed (F2)
+  assert.ok(L.checkGeometry(two, {}).filter(x => x.rule === 'G2').length >= 1);
+});
+
+test('G3: a joint below the bottom line is refused, with its height in the message', () => {
+  const t = goodTruss(); t.nodes[3][1] = -5;
+  const r = L.checkGeometry(t, {}).filter(x => x.rule === 'G3');
+  assert.strictEqual(r.length, 1); assert.deepStrictEqual(r[0].where, [3]);
+  assert.strictEqual(r[0].msg, 'Joint 4 is below the bottom line (-5 mm). Heights can\'t be negative; it would swap which members pull and push.');
+  const two = goodTruss(); two.nodes[1][1] = -5; two.nodes[3][1] = -8; assert.strictEqual(L.checkGeometry(two, {}).filter(x => x.rule === 'G3').length, 2, 'every one is listed');
+  // a shaped bottom chord sags below the desk line by design: down to its curve, no further
+  const sag = goodTruss(); sag.nodes[2][1] = -30; sag.design = { bottom: 'parabola', curve: -30 };
+  assert.ok(!rules(L.checkGeometry(sag, {})).includes('G3'));
+  sag.nodes[2][1] = -35; assert.ok(rules(L.checkGeometry(sag, {})).includes('G3'));
+  sag.design = { bottom: 'flat', curve: -30 }; sag.nodes[2][1] = -30; assert.ok(rules(L.checkGeometry(sag, {})).includes('G3'), 'a flat bottom does not sag');
+});
+
+// Brian's final design (Math's file 'BrianFinalV2 option A + h26 (checked)': flat bottom, catenary top, topEnd -15, tableThick 30, 4 panels, h 26).
+// Its arch ends sit 15 mm below the deck line by design, so they must not read as G3 (Physics, TE-B-470). No fixture in tests/formats/fixtures has a
+// negative topEnd, nor do the 36 built-in cases, which is how this was missed; this design is the one that covers it.
+const FINAL = { family: 'grid', height: 26, panels: 4, ratio: 0.5, sideAngle: 90, sideLean: 'in', overall: 296.8, bookLen: 242, approachDiag: 'X', edgeVert: true, deskVert: true,
+  deskMode: 'length', deskPanels: 1, bottom: 'flat', curve: -30, deskEnds: 'feet', supportMode: 'all', topShape: 'catenary', topEnd: -15, botEnd: 0, tableThick: 30, overlap: 10,
+  diagLeft: ['N', 'P'], diagMiddle: 'X', vertLeft: [true, true] };
+const finalTruss = () => C.buildTruss(design(Object.assign({}, DEFAULT, FINAL)));
+
+test('G3: Brian\'s final design (catenary top, topEnd -15) gives [], and a joint below its own lowest end still gives G3', () => {
+  const t = finalTruss();
+  assert.ok(t.nodes.some(p => p[1] < -14.9), 'the design really has joints at -15');
+  assert.deepStrictEqual(L.checkGeometry(t, {}), []);
+  const lower = cloneT(t); const k = lower.nodes.findIndex(p => p[1] < -14.9); lower.nodes[k][1] = -16;
+  const r = L.checkGeometry(lower, {}).filter(x => x.rule === 'G3');
+  assert.strictEqual(r.length, 1); assert.deepStrictEqual(r[0].where, [k]);
+  // the flat top does not get the allowance, and a shaped top with a positive topEnd does not either
+  const flatTop = cloneT(t); flatTop.design.topShape = 'flat'; assert.ok(rules(L.checkGeometry(flatTop, {})).includes('G3'));
+  const pos = cloneT(t); pos.design.topEnd = 10; assert.ok(rules(L.checkGeometry(pos, {})).includes('G3'));
+});
+
+test('G4: every joint on one line is a mechanism: unstable, and only G4 is said', () => {
+  const flat = { nodes: [[0, 0], [55, 0], [110, 0], [220, 0]], elems: [{ i: 0, j: 1 }, { i: 1, j: 2 }, { i: 2, j: 3 }, { i: 0, j: 0 }, { i: 1, j: 1 }] };
+  const r = L.checkGeometry(flat, {});
+  assert.deepStrictEqual(rules(r), ['G4'], 'not a wall of G5s'); assert.strictEqual(r[0].unstable, true);
+  assert.strictEqual(r[0].msg, 'Every joint is on one line, so this truss can\'t carry load. No capacity is shown.');
+  const slanted = { nodes: [[0, 0], [50, 50], [100, 100]], elems: [{ i: 0, j: 1 }, { i: 1, j: 2 }] };
+  assert.ok(rules(L.checkGeometry(slanted, {})).includes('G4'), 'any one line, not only y = 0');
+  assert.ok(!rules(L.checkGeometry(goodTruss(), {})).includes('G4'));
+  assert.strictEqual(L.checkGeometry(goodTruss(), {}).find(x => x.unstable), undefined);
+});
+
+test('G5: members at least two stick widths long, and no two members join the same joints', () => {
+  const t = goodTruss(); t.nodes[1] = [5, 0]; t.nodes[0] = [0, 0];       // member 1 (B0-B1) is 5 mm
+  const r = L.checkGeometry(t, {}).filter(x => x.rule === 'G5');
+  assert.ok(r.some(x => x.msg === 'Member 1 is 5.0 mm long; the shortest allowed is 6.4 mm.' && x.where[0] === 0));
+  const ok = goodTruss(); ok.nodes[1] = [6.36, 0];                          // exactly two sticks (6.36): allowed
+  assert.ok(!L.checkGeometry(ok, {}).some(x => x.rule === 'G5' && x.where[0] === 0));
+  const stick5 = goodTruss(); stick5.nodes[1] = [8, 0];                    // 8 mm is long enough for 3.18, not for a 5 mm stick (10 mm)
+  assert.ok(!L.checkGeometry(stick5, {}).some(x => x.rule === 'G5' && x.where[0] === 0));
+  assert.ok(L.checkGeometry(stick5, { bS: 5 }).some(x => x.rule === 'G5' && x.where[0] === 0 && /shortest allowed is 10\.0 mm/.test(x.msg)));
+  assert.ok(L.checkGeometry(stick5, { bS: 'abc', hS: -1 }).every(x => x.where[0] !== 0 || x.rule !== 'G5'), 'a bad stick size reads as the course stick');
+  const dup = goodTruss(); dup.elems.push({ i: 4, j: 3 });                // members 4 (3-4) and 10 (4-3)
+  const d = L.checkGeometry(dup, {}).filter(x => x.rule === 'G5');
+  assert.strictEqual(d.length, 1); assert.strictEqual(d[0].msg, 'Members 4 and 10 join the same two joints.'); assert.deepStrictEqual(d[0].where, [3, 9]);
+});
+
+test('damaged or odd input reads as nothing to report, and never throws (CODE-N2)', () => {
+  for (const bad of [null, undefined, 'x', 42, [], {}, { nodes: [] }, { nodes: [[0, 0]] }, { nodes: 'x' }, { nodes: [[0, 0], [1, 'a']] }, { nodes: [[0, 0], [NaN, 1]] }, { nodes: [null, [1, 1]] }])
+    assert.deepStrictEqual(L.checkGeometry(bad, {}), [], JSON.stringify(bad));
+  const t = goodTruss(); t.elems = [null, 5, { i: 0 }, { i: 99, j: 0 }, { i: 0, j: 1.5 }, { i: 'a', j: 'b' }, { i: 0, j: 1 }];
+  assert.doesNotThrow(() => L.checkGeometry(t, null)); assert.deepStrictEqual(L.checkGeometry(t, null), []);
+  assert.deepStrictEqual(L.checkGeometry(Object.assign(goodTruss(), { elems: 'x', keys: 5, panelPts: 'y', design: 7 }), 3), []);
+  assert.ok(Object.keys(L).includes('checkGeometry'));
+});
+
+test('the built-in cases pass the geometry rules clean (rule 4i): no new message on a good design', () => {
+  const list = cases().filter(cs => !cs.name.startsWith('saved:')); assert.ok(list.length >= 30);
+  for (const cs of list) assert.deepStrictEqual(L.checkGeometry(C.buildTruss(design(cs.state)), {}), [], cs.name);
+});
+
+test('every bridge fixture in tests/formats/fixtures passes the geometry rules clean', () => {
+  const dir = path.join(__dirname, 'formats', 'fixtures'), files = fs.readdirSync(dir).filter(f => f.endsWith('.bridge.json'));
+  assert.ok(files.length >= 4); let built = 0;
+  for (const f of files) {
+    const o = F.open(fs.readFileSync(path.join(dir, f), 'utf8')); assert.ok(o.ok, f);
+    const st = Object.assign({}, DEFAULT, o.doc.bridge);
+    let tr; try { tr = C.buildTruss(design(st)); } catch (e) { continue; }
+    built++; assert.deepStrictEqual(L.checkGeometry(tr, {}), [], f);
+  }
+  assert.ok(built >= 3, 'built ' + built);
+});
+
+test('file cases F1, F2 and F4 where they fit G1-G5: bad values listed, a good file untouched', () => {
+  const t = goodTruss(); t.nodes[4][0] = 100; t.nodes[3][1] = -5; t.nodes[1] = [5, 0];       // F2: several bad values, every one listed
+  const r = L.checkGeometry(t, {}); assert.ok(['G2', 'G3', 'G5'].every(x => rules(r).includes(x)));
+  assert.ok(r.every(x => typeof x.msg === 'string' && Array.isArray(x.where)));              // F1: each one names where, so the page can mark it
+  assert.deepStrictEqual(L.checkGeometry(goodTruss(), {}), []);                                // F4: a good file gives nothing
+});
+
+// ---------- RMA-8 (TE-B-459): fileReport(values, truss) and Physics' file cases F1-F6 ----------
+const hasNaN = rep => /NaN|undefined/.test(JSON.stringify(rep));
+
+test('fileReport: the shape, and a good file gets nothing new (F4, rule 4i)', () => {
+  const rep = L.fileReport({}, goodTruss());
+  assert.deepStrictEqual(Object.keys(rep).sort(), ['bad', 'geometry', 'noResult', 'summary', 'warnings']);
+  assert.deepStrictEqual(rep, { bad: [], geometry: [], warnings: [], noResult: false, summary: '' });
+  for (const cs of cases().filter(c => !c.name.startsWith('saved:'))) {
+    const rep2 = L.fileReport(DEF, C.buildTruss(design(cs.state)));
+    assert.strictEqual(rep2.noResult, false, cs.name); assert.strictEqual(rep2.summary, '', cs.name); assert.deepStrictEqual(rep2.geometry, [], cs.name);
+  }
+  // Brian's final design (catenary top, topEnd -15) is a good file too (Physics, TE-B-470)
+  assert.deepStrictEqual(L.fileReport(DEF, finalTruss()), { bad: [], geometry: [], warnings: [], noResult: false, summary: '' });
+});
+
+test('fileReport F1: a G2 bad value is listed with where, and there is no result', () => {
+  const t = goodTruss(); t.nodes[2][0] = 40;
+  const rep = L.fileReport({}, t);
+  assert.strictEqual(rep.noResult, true); assert.strictEqual(rep.geometry[0].rule, 'G2'); assert.deepStrictEqual(rep.geometry[0].where, [2, 1]);
+  assert.strictEqual(rep.summary, 'The shape breaks rule G2. Fix it to get a result.');
+});
+
+test('fileReport F2: several bad values are all listed, not only the first; summary counts them', () => {
+  const t = goodTruss(); t.nodes[4][0] = 100; t.nodes[3][1] = -5;
+  const rep = L.fileReport({ height: 500, E: 'abc' }, t);
+  assert.ok(rep.bad.length >= 2 && rep.geometry.length >= 2); assert.strictEqual(rep.noResult, true);
+  assert.strictEqual(rep.summary, '2 values are outside the limits: Height, Stiffness (E). The shape breaks rules G2, G3. Fix them to get a result.');
+  assert.strictEqual(L.fileReport({ height: 500 }, null).summary, '1 value is outside the limits: Height. Fix it to get a result.');
+});
+
+test('fileReport F3: a bad number-box value in a file is reported exactly as a typed entry (checkInputs)', () => {
+  const vals = { height: 500, panels: 2.5, E: -3000 };
+  assert.deepStrictEqual(L.fileReport(vals, goodTruss()).bad, L.checkInputs(vals));
+  assert.deepStrictEqual(L.fileReport(vals, goodTruss()).warnings, L.warnInputs(vals));
+});
+
+test('fileReport F5: fixing the bad value clears the mark and the result returns; warnings alone never block', () => {
+  const t = goodTruss(); t.nodes[2][0] = 40;
+  assert.strictEqual(L.fileReport({ height: 500 }, t).noResult, true);
+  const fixed = L.fileReport({ height: 50 }, goodTruss());
+  assert.strictEqual(fixed.noResult, false); assert.deepStrictEqual(fixed.bad, []); assert.deepStrictEqual(fixed.geometry, []);
+  const warn = L.fileReport({ bS: 20, hS: 20 }, goodTruss());
+  if (warn.warnings.length) { assert.strictEqual(warn.noResult, warn.bad.length > 0 || warn.geometry.length > 0); }
+});
+
+test('fileReport F6: -300, 1e9 and abc in any number box: no crash, no NaN shown, never silently fine for abc', () => {
+  for (const r of L.TABLE) for (const x of [-300, 1e9, 'abc']) {
+    let rep; assert.doesNotThrow(() => { rep = L.fileReport(Object.assign({ bottom: 'parabola', topShape: 'arc', model: '2D' }, { [r.id]: x }), goodTruss()); }, r.id + ' ' + x);
+    assert.ok(!hasNaN(rep), r.id + ' ' + x);
+    if (x === 'abc') { assert.ok(rep.bad.some(b => b.id === r.id), r.id + ' abc is reported'); assert.strictEqual(rep.noResult, true); }
+  }
+});
+
+test('fileReport: damaged values or truss read as nothing to report (CODE-N2), nothing is changed', () => {
+  for (const bad of [null, undefined, 'x', 7, [], NaN]) assert.doesNotThrow(() => L.fileReport(bad, bad));
+  assert.deepStrictEqual(L.fileReport(null, null), { bad: [], geometry: [], warnings: [], noResult: false, summary: '' });
+  const vals = { height: 500 }, t = goodTruss(), v0 = JSON.stringify(vals), t0 = JSON.stringify(t);
+  L.fileReport(vals, t); assert.strictEqual(JSON.stringify(vals), v0); assert.strictEqual(JSON.stringify(t), t0);
+  assert.ok(Object.keys(L).includes('fileReport'));
+});
+
+test('fileReport: the summary names the people-readable labels, every table id has one, and an unknown id prints as it is', () => {
+  for (const r of L.TABLE) assert.ok(typeof L.LABELS[r.id] === 'string' && L.LABELS[r.id].length, r.id + ' has a label');
+  assert.deepStrictEqual(Object.keys(L.LABELS).filter(k => !L.rowFor(k)), [], 'no label without a row');
+  assert.strictEqual(L.labelFor('bS'), 'Stick width'); assert.strictEqual(L.labelFor('__proto__'), '__proto__'); assert.strictEqual(L.labelFor('nope'), 'nope');
+  assert.ok(Object.isFrozen(L.LABELS));
+  assert.strictEqual(L.fileReport({ bS: 50, hS: 50, mBook1: -1 }, null).summary, '3 values are outside the limits: Book mass 1, Stick width, Stick depth. Fix them to get a result.');
+});
