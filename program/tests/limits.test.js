@@ -309,3 +309,72 @@ test('file cases F1, F2 and F4 where they fit G1-G5: bad values listed, a good f
   assert.ok(r.every(x => typeof x.msg === 'string' && Array.isArray(x.where)));              // F1: each one names where, so the page can mark it
   assert.deepStrictEqual(L.checkGeometry(goodTruss(), {}), []);                                // F4: a good file gives nothing
 });
+
+// ---------- RMA-8 (TE-B-459): fileReport(values, truss) and Physics' file cases F1-F6 ----------
+const hasNaN = rep => /NaN|undefined/.test(JSON.stringify(rep));
+
+test('fileReport: the shape, and a good file gets nothing new (F4, rule 4i)', () => {
+  const rep = L.fileReport({}, goodTruss());
+  assert.deepStrictEqual(Object.keys(rep).sort(), ['bad', 'geometry', 'noResult', 'summary', 'warnings']);
+  assert.deepStrictEqual(rep, { bad: [], geometry: [], warnings: [], noResult: false, summary: '' });
+  for (const cs of cases().filter(c => !c.name.startsWith('saved:'))) {
+    const rep2 = L.fileReport(DEF, C.buildTruss(design(cs.state)));
+    assert.strictEqual(rep2.noResult, false, cs.name); assert.strictEqual(rep2.summary, '', cs.name); assert.deepStrictEqual(rep2.geometry, [], cs.name);
+  }
+  // Brian's final design (catenary top, topEnd -15) is a good file too (Physics, TE-B-470)
+  assert.deepStrictEqual(L.fileReport(DEF, finalTruss()), { bad: [], geometry: [], warnings: [], noResult: false, summary: '' });
+});
+
+test('fileReport F1: a G2 bad value is listed with where, and there is no result', () => {
+  const t = goodTruss(); t.nodes[2][0] = 40;
+  const rep = L.fileReport({}, t);
+  assert.strictEqual(rep.noResult, true); assert.strictEqual(rep.geometry[0].rule, 'G2'); assert.deepStrictEqual(rep.geometry[0].where, [2, 1]);
+  assert.strictEqual(rep.summary, 'The shape breaks rule G2. Fix it to get a result.');
+});
+
+test('fileReport F2: several bad values are all listed, not only the first; summary counts them', () => {
+  const t = goodTruss(); t.nodes[4][0] = 100; t.nodes[3][1] = -5;
+  const rep = L.fileReport({ height: 500, E: 'abc' }, t);
+  assert.ok(rep.bad.length >= 2 && rep.geometry.length >= 2); assert.strictEqual(rep.noResult, true);
+  assert.strictEqual(rep.summary, '2 values are outside the limits: Height, Stiffness (E). The shape breaks rules G2, G3. Fix them to get a result.');
+  assert.strictEqual(L.fileReport({ height: 500 }, null).summary, '1 value is outside the limits: Height. Fix it to get a result.');
+});
+
+test('fileReport F3: a bad number-box value in a file is reported exactly as a typed entry (checkInputs)', () => {
+  const vals = { height: 500, panels: 2.5, E: -3000 };
+  assert.deepStrictEqual(L.fileReport(vals, goodTruss()).bad, L.checkInputs(vals));
+  assert.deepStrictEqual(L.fileReport(vals, goodTruss()).warnings, L.warnInputs(vals));
+});
+
+test('fileReport F5: fixing the bad value clears the mark and the result returns; warnings alone never block', () => {
+  const t = goodTruss(); t.nodes[2][0] = 40;
+  assert.strictEqual(L.fileReport({ height: 500 }, t).noResult, true);
+  const fixed = L.fileReport({ height: 50 }, goodTruss());
+  assert.strictEqual(fixed.noResult, false); assert.deepStrictEqual(fixed.bad, []); assert.deepStrictEqual(fixed.geometry, []);
+  const warn = L.fileReport({ bS: 20, hS: 20 }, goodTruss());
+  if (warn.warnings.length) { assert.strictEqual(warn.noResult, warn.bad.length > 0 || warn.geometry.length > 0); }
+});
+
+test('fileReport F6: -300, 1e9 and abc in any number box: no crash, no NaN shown, never silently fine for abc', () => {
+  for (const r of L.TABLE) for (const x of [-300, 1e9, 'abc']) {
+    let rep; assert.doesNotThrow(() => { rep = L.fileReport(Object.assign({ bottom: 'parabola', topShape: 'arc', model: '2D' }, { [r.id]: x }), goodTruss()); }, r.id + ' ' + x);
+    assert.ok(!hasNaN(rep), r.id + ' ' + x);
+    if (x === 'abc') { assert.ok(rep.bad.some(b => b.id === r.id), r.id + ' abc is reported'); assert.strictEqual(rep.noResult, true); }
+  }
+});
+
+test('fileReport: damaged values or truss read as nothing to report (CODE-N2), nothing is changed', () => {
+  for (const bad of [null, undefined, 'x', 7, [], NaN]) assert.doesNotThrow(() => L.fileReport(bad, bad));
+  assert.deepStrictEqual(L.fileReport(null, null), { bad: [], geometry: [], warnings: [], noResult: false, summary: '' });
+  const vals = { height: 500 }, t = goodTruss(), v0 = JSON.stringify(vals), t0 = JSON.stringify(t);
+  L.fileReport(vals, t); assert.strictEqual(JSON.stringify(vals), v0); assert.strictEqual(JSON.stringify(t), t0);
+  assert.ok(Object.keys(L).includes('fileReport'));
+});
+
+test('fileReport: the summary names the people-readable labels, every table id has one, and an unknown id prints as it is', () => {
+  for (const r of L.TABLE) assert.ok(typeof L.LABELS[r.id] === 'string' && L.LABELS[r.id].length, r.id + ' has a label');
+  assert.deepStrictEqual(Object.keys(L.LABELS).filter(k => !L.rowFor(k)), [], 'no label without a row');
+  assert.strictEqual(L.labelFor('bS'), 'Stick width'); assert.strictEqual(L.labelFor('__proto__'), '__proto__'); assert.strictEqual(L.labelFor('nope'), 'nope');
+  assert.ok(Object.isFrozen(L.LABELS));
+  assert.strictEqual(L.fileReport({ bS: 50, hS: 50, mBook1: -1 }, null).summary, '3 values are outside the limits: Book mass 1, Stick width, Stick depth. Fix them to get a result.');
+});
