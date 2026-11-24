@@ -113,6 +113,8 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 
 ## Change log
 
+- **0.2.3 · 2026-11-23** The table's empty line ('Nothing to show.') and the Members tab's unstable line now come from TrussStrings (`pieces.table.empty`, `members.table.unstable`), not literals (TE-B-387). The Drawing window's old Member forces table (app/30-drawing.js) keeps its own copy until #453 takes it out.
+- **0.2.2 · 2026-11-23** `mountTable(...).focusKey(key, { col, focus })`: after a caller redraws the table while a cell had focus, focus goes back to the same row and column (a vanished row falls back to the first row), so it never drops to the page (Chaos Tester, TE-B-462). The Members tab uses it.
 - **0.2.1 · 2026-11-13** The table is an APG grid (ui-spec 1.5.7 UI-S6; TE-B-346): `role="grid"`, one Tab stop that remembers the last cell, ↑ ↓ ← → by cell, Home/End along the row, Ctrl+Home/End to the first/last row, PageUp/PageDown 10 rows; ↑ from the first row reaches the header. One sort column (`sort`) carries the only `aria-sort` and a real button (`onSort`). A row-header column (`rowHeader`) and the header row stay in place when the table scrolls. Members view: the short column set and an *All columns* switch (UI-S6 1.5.5), sorting by Use both ways (the CSV keeps member order), the caption counts the members, and Graphics' four points (TE-B-347). Gallery: a Members table item.
 - **0.2 + movable · 2026-11-13** `windowHTML` takes `movable` (default false). The ⋮⋮ grip is drawn only on a window that can be moved, today the ✎ value editor and the PIP (UI-W20, Brian 55a, TE-B-301). The gallery shows one fixed and one movable window side by side.
 - **0.2 · 2026-11-05** The table piece (`tableHTML`, `mountTable`: hover, arrows, Enter or click lights a row, one Tab stop; UI-S6, UI-H4, UI-K7) and the Members tab view (`src/membersview.js`, #416, TE-B-332). Gap G11: no table-look rule yet.
@@ -137,7 +139,7 @@ These sit beside `pieces.js` and follow its rules: one global, pure builders, be
 
 **Words:** the sheets' own words (Close, Close (Esc), Undo) come from `src/strings.js` (`TrussStrings.t(key)`, plain text, keys `step.piece.name`; the Architecture Lead's pick, TE-B-387). The table's and the Members tab's defaults move there once #419 and #438 merge.
 
-**Not yet:** a gallery item for sheets, dialogs and toasts. It follows once #433 and #438 merge, since they also change gallery.js.
+**Gallery:** sheets, dialogs and toasts have their own items (open one, type in the dialog, show a toast); they're no longer 'not built yet' cards. Branch uie/gallery-sheets stacks on #438, #433 and #441.
 
 ## Number boxes and steppers (src/inputs.js, `TrussInputs` 0.1.1)
 
