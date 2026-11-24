@@ -229,10 +229,11 @@ function draw3Ghosts(ctx, proj, h) {
   legend.forEach(([col, t], i) => { const s = 'sweep ' + t, wd = ctx.measureText(s).width + 6; ctx.fillStyle = cssv('--sheet'); ctx.globalAlpha = 0.85; ctx.fillRect(9, y0 + 15 * i - 11, wd, 14); ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.fillText(s, 12, y0 + 15 * i); });
   ctx.restore();
 }
-// every 3D member in one table (the 2D table below is one side truss, where sticks are set)
+// every 3D member in one read-only table, in Analysis > Members (the side truss is where sticks are set, UI-S10)
+let tbl3Show = false;   // the Members tab's Whole bridge (3D) view is showing (UI-S10 5)
 function renderTable3() {
   const box = $('tbl3Box'); if (!box) return;
-  box.hidden = S.anaMode !== '3d' || !m3;
+  box.hidden = S.anaMode !== '3d' || !m3 || !tbl3Show;
   if (box.hidden) return;
   if (!r3 || !r3.stable) { $('tbl3').innerHTML = '<tbody><tr><td class="l">No 3D results: the 3D model is unstable. Add bracing in the 3D section.</td></tr></tbody>'; $('tbl3Note').textContent = ''; return; }
   const where = e => e.side === 'cross' ? ({ top: 'top plane (xy)', bottom: 'bottom plane (xy)', frame: 'cross-frame (zy)' })[e.plane] || (e.type === 'tie' ? 'tie across' : 'cross') : e.side + ' truss';
@@ -247,6 +248,15 @@ function renderTable3() {
   $('tbl3').querySelectorAll('tbody tr').forEach(r => { r.addEventListener('mouseenter', () => { v3.hl = +r.dataset.k3; draw3D(); }); r.addEventListener('mouseleave', () => { v3.hl = -1; draw3D(); }); });
   const nT = r3.members.filter(m => m.F > 0).length, nC = r3.members.filter(m => m.F < 0).length;
   $('tbl3Note').innerHTML = `${r3.members.length} members: ${nT} in tension, ${nC} in compression, ${r3.members.length - nT - nC} at zero force. Names: 12f / 12b = member 12 of the front / back truss (the 2D number), T = ties, L = lateral bracing (xy planes), S = sway diagonals (zy cross-frames). Joints: 4f / 4b front / back, M = mid-width joints. Hover a row to find it on the 3D bridge.`;
+}
+// the 3D table as CSV (UI-S10 5: Copy and CSV give the view that is showing); same cells as the screen
+function csv3Text() {
+  if (!m3 || !r3 || !r3.stable) return '';
+  const where = e => e.side === 'cross' ? ({ top: 'top plane (xy)', bottom: 'bottom plane (xy)', frame: 'cross-frame (zy)' })[e.plane] || (e.type === 'tie' ? 'tie across' : 'cross') : e.side + ' truss';
+  const nm = e => X.TYPE_LABEL[e.type] || ({ tie: 'Tie', lat: 'Lateral brace', sway: 'Sway diagonal' })[e.type];
+  const rows = [['Member', 'i', 'j', 'Where', 'Type', 'Sticks', 'L (mm)', 'F (N)', 'T/C', 'Use (%)']].concat(r3.members.map((m, k) => { const e = m3.elems[k];
+    return [m3.elemLab[k], m3.nodeLab[e.i], m3.nodeLab[e.j], where(e), nm(e), e.n, m.L.toFixed(1), m.F.toFixed(2), m.F < 0 ? 'C' : m.F > 0 ? 'T' : '0', (m.util * 100).toFixed(0)]; }));
+  return infoLines().map(l => '# ' + l).join('\n') + '\n' + csvOf(rows);
 }
 // plan (xy) and end (zy) views of the 3D model
 function draw3Views() {

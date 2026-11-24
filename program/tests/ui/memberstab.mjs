@@ -24,7 +24,7 @@ try {
         btns: [...panel.querySelectorAll('[data-act]')].map(x => x.dataset.act).join() };
     });
     check('the tab shows the table on screen, every member, highest use first' + tag, t.shown && t.onScreen && t.n === t.want && t.n > 0 && t.sorted && t.sel === 'true', JSON.stringify(t));
-    check('Copy table and Download CSV are there, on screen and not under a window (UI-A21)' + tag, t.btns === 'members-copy,members-csv' && t.clear, JSON.stringify({ btns: t.btns, clear: t.clear }));
+    check('Copy table and Download CSV are there, on screen and not under a window (UI-A21)' + tag, /^mem-reset,members-copy,members-csv$/.test(t.btns.split(',').filter(a => !/^mem-(less|more|bundle|focus)$/.test(a)).join()) && t.clear, JSON.stringify({ btns: t.btns, clear: t.clear }));
     check('the table scrolls inside the free part of the screen, nothing off the page' + tag, t.wrapIn);
     if (vp.width === 1280) {
       // Download gives the app's own CSV, byte for byte (the Drawing window's file)
