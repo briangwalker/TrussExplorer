@@ -113,6 +113,7 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 
 ## Change log
 
+- **sheets 0.1.2 · 2026-11-24** QA's two MUSTs on the Undo toast (TE-B-502): Ctrl+Z / ⌘Z runs Undo while a toast is up, but not while a text field has focus (the browser's own undo stays); the button shows the key in a `<kbd>` and has `aria-keyshortcuts`. Its focus ring is `--te-on-strong`, the colour of the toast's strong ground (ART-S5 1.0.7), 3:1 or better in every theme. New strings: `toast.key.undo`, `toast.key.undo.mac`.
 - **sheets 0.1.1 · 2026-11-24** A toast that holds focus (Undo pressed with the keyboard, or a new toast replacing it) gives focus back to where it was before, never to the page (WCAG 2.4.3). Found in my look at #482's Undo toasts.
 - **0.2.3 · 2026-11-23** The table's empty line ('Nothing to show.') and the Members tab's unstable line now come from TrussStrings (`pieces.table.empty`, `members.table.unstable`), not literals (TE-B-387). The Drawing window's old Member forces table (app/30-drawing.js) keeps its own copy until #453 takes it out.
 - **0.2.2 · 2026-11-23** `mountTable(...).focusKey(key, { col, focus })`: after a caller redraws the table while a cell had focus, focus goes back to the same row and column (a vanished row falls back to the first row), so it never drops to the page (Chaos Tester, TE-B-462). The Members tab uses it.
