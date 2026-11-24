@@ -397,6 +397,8 @@ if (!SH_CLASSIC) {
   // The pair check uses the built-in values the file doesn't set, read from the page with the file's own variables cleared.
   function loadThemeFile(doc) {
     const tokens = doc && doc.tokens && typeof doc.tokens === 'object' ? doc.tokens : {};
+    // a file that sets no token would only rename Wireframe; the door refuses it itself, not only the Open button (Black Hat SEC-007 NOTE 3)
+    if (!Object.keys(tokens).length) return { ok: false, errors: ['empty'], pairs: [] };
     const was = stage.dataset.theme;
     for (const k of Array.from(stage.style)) if (k.startsWith('--te-')) stage.style.removeProperty(k);
     stage.dataset.theme = FILE_ID;

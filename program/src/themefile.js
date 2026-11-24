@@ -7,7 +7,9 @@
 // Pure: no DOM, no app state, so Node tests load it (CODE-F1 one global, CODE-F4: the shell calls it, nothing else).
 // Rules: (a) a text colour and the ground it sits on must keep ART-C contrast, so 'transparent', #0000 or ink = surface
 // can't hide text; a pair is checked with the file's value where it has one and the built-in default otherwise.
-// (b) a file theme's display name may not copy a built-in theme's name; the picker always adds '(from a file)'.
+// (b) a file theme's display name may not copy a built-in theme's name (invisible characters ignored); the picker always adds '(from a file)'.
+// (c) the solid grounds must be opaque and the two panels at least 80% opaque, so what a ground shows is close to what was checked
+// ('hot' is a tint and may be see-through).
 (function (root) {
 'use strict';
 
@@ -24,6 +26,9 @@ const PAIRS = Object.freeze([
 // faint grey of a member carrying nothing, which the built-in themes keep at about 2.2-2.5:1 on purpose, so it only has to stay visible (2:1).
 const GROUNDS = Object.freeze(['page', 'surface', 'surface-2', 'panel', 'panel-peek', 'ctl-bg', 'hot']);
 const MEANING = Object.freeze({ ok: 4.5, bad: 4.5, comp: 3, tens: 3, zero: 2, warn: 3 });
+// grounds that float over the drawing and may be a little see-through, and how see-through at most (the lowest built-in is .80)
+const SEE_THROUGH = Object.freeze(['panel', 'panel-peek']);
+const MIN_PANEL_ALPHA = 0.8;
 
 // #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(r,g,b), rgba(r,g,b,a) -> [r, g, b, a] in 0..1, or null
 function rgba(s) {
@@ -72,6 +77,13 @@ function check(tokens, defaults, names, meaning) {
   }
   for (const g of GROUNDS) {
     if (!(g in tokens)) continue;
+    // a ground with alpha shows whatever lies under it, which check() can't know (it lays it over white) (Black Hat's SHOULD on
+    // SEC-007: #ffffff80 on surface was accepted). So the solid grounds must be opaque, and the two floating panels, which sit over
+    // the drawing and are see-through on purpose in the built-in themes (Wireframe .94/.86, Blueprint .92/.80), keep alpha down to
+    // MIN_PANEL_ALPHA and no lower. 'hot' is a highlight TINT laid on grounds that are already checked (Notebook's is .38 on purpose),
+    // so less alpha only brings it closer to a checked ground; it isn't held to this rule. Unreadable values are left to the pairs above.
+    const c = rgba(tokens[g]), floor = SEE_THROUGH.includes(g) ? MIN_PANEL_ALPHA : g === 'hot' ? 0 : 1;
+    if (c && c[3] < floor) errors.push('opaque:' + g);
     for (const m of Object.keys(MEANING)) {
       const r = contrast(meaning[m], tokens[g]);
       pairs.push({ fg: m, bg: g, need: MEANING[m], ratio: r });
@@ -79,8 +91,10 @@ function check(tokens, defaults, names, meaning) {
     }
   }
   if (names && typeof names.name === 'string' && Array.isArray(names.builtIn)) {
-    const n = names.name.trim().toLowerCase();
-    if (names.builtIn.some(b => typeof b === 'string' && b.trim().toLowerCase() === n)) errors.push('name:taken');
+    // invisible format characters (zero-width space, joiners, direction marks) are dropped before the compare, so 'OG' + U+200B is 'OG'
+    const bare = t => t.replace(/\p{Cf}/gu, '').trim().toLowerCase();
+    const n = bare(names.name);
+    if (names.builtIn.some(b => typeof b === 'string' && bare(b) === n)) errors.push('name:taken');
   }
   return { ok: errors.length === 0, errors, pairs };
 }
@@ -92,6 +106,6 @@ function vars(tokens) {
   return out;
 }
 
-const api = Object.freeze({ PAIRS, GROUNDS, MEANING, contrast, check, vars });
+const api = Object.freeze({ PAIRS, GROUNDS, MEANING, SEE_THROUGH, MIN_PANEL_ALPHA, contrast, check, vars });
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussThemeFile = api;
 })(typeof window !== 'undefined' ? window : globalThis);
