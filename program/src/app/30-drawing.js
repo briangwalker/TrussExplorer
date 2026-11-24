@@ -477,7 +477,7 @@ function drawingSVG(design, opts) {
   // UI-A13 / UI-D3: the books are drawn as books, stacked on the deck (ART-D3: cover colour, page edges, spine band); book1 under book2.
   // A theme may supply books.svg (UI-T4, ART-H5): TrussDrawPics.books = { viewBox, inner }; the built-in shapes are the fallback.
   const bkW = Math.max(6, b1 - b0), bkH = 6.5, bkBase = deckY + 12, nBk = 2;
-  const pic = (name, x, yy, w, h, builtin) => { const P = window.TrussDrawPics && window.TrussDrawPics[name]; return P && P.viewBox && typeof P.inner === 'string' ? `<svg class="te-drawpic" data-pic="${name}" x="${x}" y="${yy}" width="${w}" height="${h}" viewBox="${P.viewBox}" preserveAspectRatio="xMidYMid meet">${P.inner}</svg>` : `<g data-pic="${name}" data-builtin="1">${builtin}</g>`; };
+  const pic = (name, x, yy, w, h, builtin) => { const P = window.TrussDrawPics && window.TrussDrawPics[name]; return P && /^[\d. -]{1,40}$/.test(String(P.viewBox)) && typeof P.inner === 'string' ? `<svg class="te-drawpic" data-pic="${name}" x="${x}" y="${yy}" width="${w}" height="${h}" viewBox="${P.viewBox}" preserveAspectRatio="xMidYMid meet">${P.inner}</svg>` : `<g data-pic="${name}" data-builtin="1">${builtin}</g>`; };
   let bk = '';
   for (let n = 0; n < nBk; n++) {
     const bx = b0 + n * 2.2, bw = bkW - n * 4.4, by = Y(bkBase + (n + 1) * bkH);
@@ -668,7 +668,7 @@ function renderStats() {
   const tiesLen = res.nTies * S.opts.width;
   st.innerHTML = `
     <div class="stat"><span class="k">Wood used ΣL</span><span class="v">${res.wood.toFixed(0)} mm</span><span class="s">${res.mode3 ? `3D: both trusses + ${res.mode3.bracingWood.toFixed(0)} mm ties and bracing` : `${res.totalLen.toFixed(0)} mm per truss × ${S.load.nTruss}${S.opts.crossTies ? ` + ${tiesLen.toFixed(0)} mm ties` : ''}`} · M = ${res.massTruss.toFixed(2)} g${S.opts.crossTies ? ` (${res.massTotal.toFixed(2)} g with ties)` : ''}</span></div>
-    <div class="stat"><span class="k">D<sub>max</sub> mid-span</span><span class="v" style="color:${res.deflOK ? 'inherit' : 'var(--bad)'}">${res.midDefl.toFixed(3)} mm</span></div>
+    <div class="stat"><span class="k">D<sub>max</sub> mid-span</span><span class="v" style="color:${res.deflOK ? 'inherit' : 'var(--bad)'}">${res.midDefl.toFixed(3)} mm</span><span class="s">limit ${(+S.opts.deflLimit).toFixed(1)} mm</span></div>
     <div class="stat"><span class="k">Capacity</span><span class="v" style="color:${uCol}">${isFinite(res.capKg) ? res.capKg.toFixed(1) + ' kg' : '—'}</span><span class="s">${isFinite(res.capFactor) ? res.capFactor.toFixed(1) + '× the books' : ''} · most-used member ${worst.k} at ${(res.maxUtil * 100).toFixed(0)}% (${worst.mode || 'no load'})</span></div>
     <div class="stat"><span class="k">Determinacy m + r vs 2j</span><span class="v">${res.m + res.r} vs ${2 * res.j}</span></div>`;
   if (f.length) {

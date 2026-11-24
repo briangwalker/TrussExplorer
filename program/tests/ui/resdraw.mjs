@@ -38,7 +38,7 @@ try {
     check(`${tag}: three callouts (determinacy, deflection, fits)`, ['det', 'defl', 'fits'].every(k => r.call[k]), Object.keys(r.call).join());
     check(`${tag}: the deflection callout carries the pass/fail colour`, r.call.defl && r.call.defl.stroke === (r.res.deflOK ? 'var(--ok)' : 'var(--bad)'), r.call.defl && r.call.defl.stroke);
     check(`${tag}: callout words are in the text, not only in colour`, r.call.defl && /✓|✕/.test(r.call.defl.text) && r.call.fits && /✓|✕/.test(r.call.fits.text));
-    check(`${tag}: the results card holds numbers only (no determinacy or limit sentence)`, !/determinate|supports|limit|joint \d/.test(r.card), r.card.replace(/\s+/g, ' ').slice(0, 200));
+    check(`${tag}: the results card holds numbers only (no determinacy or joint sentence; the deflection limit number stays, TE-B-500)`, !/determinate|supports|joint \d/.test(r.card) && /limit \d+(\.\d+)? mm/.test(r.card), r.card.replace(/\s+/g, ' ').slice(0, 200));
     check(`${tag}: text never overlaps text on the drawing (UI-D6)`, r.overlap.length === 0, r.overlap.slice(0, 4).join(' ; '));
     check(`${tag}: callouts and pile stay inside the drawing`, r.inside);
     check(`${tag}: the tables run to both edges and end in a double-rule break line each (UI-S1, UI-D2)`, r.brk.length === 2 && r.brk.every(k => k.lines === 2 && k.len > 40) && Math.abs(r.brk.find(k => k.side === 'left').x - r.vb[0]) < 6 && Math.abs(r.brk.find(k => k.side === 'right').x - (r.vb[0] + r.vb[2])) < 6, JSON.stringify([r.brk, r.vb]));
@@ -52,6 +52,14 @@ try {
       check('1366x900: more panels, more wood, a wider pile', r2.pile && r2.pile.n > r.pile.n && r2.pile.w >= before, `${r.pile.n}/${before} -> ${r2.pile && r2.pile.n}/${r2.pile && r2.pile.w}`);
       check('1366x900: still no text overlap with 12 panels', r2.overlap.length === 0, r2.overlap.slice(0, 4).join(' ; '));
     } else await p.screenshot({ path: path.join(SHOTS, 'resdraw-390.png') });
+    if (vp.width >= 700) {
+      // White Hat (TE-B-503): a theme picture is used only with a plain viewBox; anything else falls back to the built-in shape
+      const pics = bad => p.evaluate(bad => { window.TrussDrawPics = { books: { viewBox: bad ? '0 0 10 10" onload="x' : '0 0 10 10', inner: '<rect width="10" height="10"/>' } }; document.getElementById('height').dispatchEvent(new Event('change', { bubbles: true })); const g = document.querySelector('#draw [data-pic="books"], #draw [data-book]'); return { pic: !!document.querySelector('#draw svg.te-drawpic'), builtin: !!document.querySelector('#draw [data-book]') }; }, bad);
+      const ok = await pics(false); await p.waitForTimeout(300); const ok2 = await p.evaluate(() => ({ pic: !!document.querySelector('#draw svg.te-drawpic') }));
+      const bad = await pics(true); await p.waitForTimeout(300); const bad2 = await p.evaluate(() => ({ pic: !!document.querySelector('#draw svg.te-drawpic'), builtin: !!document.querySelector('#draw [data-book]') }));
+      check(`${tag}: a picture with a plain viewBox is used, one with a hostile viewBox falls back (WH-T4)`, ok2.pic && !bad2.pic && bad2.builtin, JSON.stringify({ ok2, bad2 }));
+      await p.evaluate(() => { delete window.TrussDrawPics; });
+    }
     check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
   }
