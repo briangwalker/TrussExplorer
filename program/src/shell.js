@@ -27,8 +27,8 @@ if (!SH_CLASSIC) {
       results: { home: 'res', title: () => 'Results', glyph: 'Σ', w: 540, movable: false },
     },
     // each place's window states (W words, I icons, T edge tab); a phone (under 700 px) starts with the picture
-    states: { truss: { inputs: 'W', view: 'W', drawing: 'I', sweep: 'T', results: 'T' }, analysis: { inputs: 'T', view: 'W', drawing: 'W', sweep: 'T', results: 'T' } },
-    phoneStates: { truss: { inputs: 'T', view: 'I', drawing: 'T', sweep: 'T', results: 'T' }, analysis: { inputs: 'T', view: 'I', drawing: 'T', sweep: 'T', results: 'T' } },
+    states: { truss: { inputs: 'W', view: 'W', drawing: 'I', sweep: 'W', results: 'T' }, analysis: { inputs: 'T', view: 'W', drawing: 'W', sweep: 'W', results: 'T' } },
+    phoneStates: { truss: { inputs: 'T', view: 'I', drawing: 'T', sweep: 'I', results: 'T' }, analysis: { inputs: 'T', view: 'I', drawing: 'T', sweep: 'I', results: 'T' } },
     // windows built from the window piece (#356), with the arrow their edge tab shows (UI-W4 ▸ INPUTS, UI-W5 ◂ DRAWING)
     pieceArrows: { drawing: '◂ ', inputs: '▸ ' },
     // the Drawing window's toggles: checkbox id -> [icon, label] (UI-W5)
@@ -241,11 +241,30 @@ if (!SH_CLASSIC) {
     if (id === 'results') return [R.stats, R.msgs];
     return [];
   }
+  // ---------- the sweep bar (UI-A2, UI-W15, UI-S5, UI-S9) ----------
+  // One row, bottom-left, always on screen: Run sweep, the count line, the progress bar, Cancel while a search runs, and the Resume offer (the app
+  // writes it into #bigMsg, so moving that element brings it). Every element keeps its id and its listeners: they are moved, never re-wired.
+  // The rest of the sweep (the other buttons, the ranges, the tables) sits under 'Sweep settings' in the same window. The orange stripe follows
+  // the app's own out-of-date banner (.staleMsg), so nothing here reads the sweep's variables.
+  function fillSweepBar() {
+    const W = wins.sweep, sum = W.querySelector('.s-sum'), body = W.querySelector('.s-bd');
+    sum.classList.add('te-sweepbar');
+    const prog = $('sweepBar') && $('sweepBar').parentNode;
+    [$('runSweep'), R.sweepCount, prog, $('bigMsg'), $('bigCancel')].forEach(n => mv(n, sum));
+    if (prog) prog.classList.add('te-sweepprog');
+    let tg = $('sweepMore'); if (!tg) { tg = el('button', 'btn ghost sm'); tg.type = 'button'; tg.id = 'sweepMore'; tg.setAttribute('aria-expanded', 'false'); tg.textContent = 'Sweep settings ▾'; tg.addEventListener('click', () => { const o = W.dataset.more !== '1'; W.dataset.more = o ? '1' : ''; tg.setAttribute('aria-expanded', String(o)); tg.textContent = o ? 'Sweep settings ▴' : 'Sweep settings ▾'; layout(); }); }
+    sum.appendChild(tg);   // last, also after a later fill() (a place switch)
+    // the buttons that stay in the old summary row go to the top of the body, so the bar itself stays one row
+    let more = body.querySelector(':scope > .te-sweepmore'); if (!more) { more = el('div', 'te-sweepmore'); body.insertBefore(more, body.firstChild); }
+    mv(R.sweepBtns, more);
+    const st = document.querySelector('.staleMsg');
+    if (st && !W._stale) { const paint = () => W.classList.toggle('stale', !st.hidden); W._stale = new MutationObserver(paint); W._stale.observe(st, { attributes: true, attributeFilter: ['hidden'] }); paint(); }
+  }
   function fill() {
     Object.keys(WIN).forEach(id => {
       const body = wins[id].querySelector('.s-bd'), nodes = contents(id).filter(Boolean);
       nodes.forEach(n => mv(n, body));
-      if (id === 'sweep') { const sum = wins.sweep.querySelector('.s-sum'); mv(R.sweepBtns, sum); mv(R.sweepCount, sum); }
+      if (id === 'sweep') fillSweepBar();
       wins[id].dataset.empty = nodes.length ? '' : '1';
     });
     paintWins();
@@ -301,7 +320,7 @@ if (!SH_CLASSIC) {
     else Object.assign(I.style, { width: iW + 'px' });
     const iShown = shown('inputs'), leftUsed = iShown ? iW + 2 * M : 0;
     // sweep at the bottom, beside the inputs
-    const W = wins.sweep, sl = leftUsed || M, sW = eff('sweep') === 'W' ? Math.max(260, Math.min(WIN.sweep.w, vw - sl - M - rightUsed)) : 'auto';
+    const W = wins.sweep, sl = leftUsed || M, sW = eff('sweep') === 'W' ? Math.max(260, Math.min(WIN.sweep.w, vw - sl - M - Math.max(rightUsed, vw >= 1100 ? 370 : 0))) : 'auto';
     Object.assign(W.style, { left: sl + 'px', bottom: M + 'px', top: 'auto', width: typeof sW === 'number' ? sW + 'px' : sW, maxHeight: Math.round(vh * .55) + 'px', right: 'auto' });
     // the full results under the card
     const RS = wins.results;
@@ -341,12 +360,16 @@ if (!SH_CLASSIC) {
   const kb = [...dockMenu.querySelectorAll('details.dsec')].find(d => /Keybinding|Mouse and keys/.test(d.querySelector('summary').textContent));
   if (kb) { kb.querySelector('summary').textContent = 'Mouse and keys'; look.appendChild(kb); kb.classList.add('sub'); }
   dockMenu.insertBefore(look, dockMenu.firstChild);
-  // Only built-in themes for now: a theme people load or share will be data (tokens and images) checked by formats.js,
-  // never raw CSS (White Hat, board TE-B-014; #197).
+  // Built-in themes are reviewed CSS. A theme from a FILE is data only (tokens checked by formats.js, RMA-5/RMA-7; the pairs
+  // by TrussThemeFile), never raw CSS (White Hat, TE-B-014; #197, #265). One file theme at a time, kept in memory only: it is
+  // not saved, so a reload comes back on the built-in theme (nothing from a file ever reaches storage, WH-S1).
+  let fileTheme = null;   // { id: 'file', name, vars: { '--te-ink': '#...' } }
+  const FILE_ID = 'file';
   // OG is listed only once it's unlocked (UI-T6); the OG badge sits by the picker while OG is the look
   const themeList = () => THEME_LIST.filter(t => t.id !== 'og' || ogUnlocked());
   function paintThemeSel() {
-    $('themeSel').innerHTML = themeList().map(t => `<option value="${escH(t.id)}">${escH(t.name)}</option>`).join('');
+    $('themeSel').innerHTML = themeList().map(t => `<option value="${escH(t.id)}">${escH(t.name)}</option>`).join('')
+      + (fileTheme ? `<option value="${FILE_ID}">${escH(fileTheme.name)} (from a file)</option>` : '');
     $('themeSel').value = stage.dataset.theme;
     $('themeBadge').hidden = stage.dataset.theme !== 'og';
     $('themeNote').textContent = 'Themes change the look only. The meaning colours on the drawing (C red, T blue, zero grey, fails, passes) never change.'
@@ -357,15 +380,38 @@ if (!SH_CLASSIC) {
   function applyTheme(id, opts) {
     const keep = !(opts && opts.save === false);
     let css = '';
+    if (id === FILE_ID && !fileTheme) id = 'wireframe';   // a saved 'file' pick with no file loaded (a reload) falls back
     if (id === 'og' && keep && !ogUnlocked()) id = 'wireframe';   // UI-T6: OG only once it's unlocked (a saved 'og' falls back; a gallery preview may still show it, UI-G3)
-    if (id !== 'wireframe' && id !== 'og') { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
+    if (id !== 'wireframe' && id !== 'og' && id !== FILE_ID) { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
     themeStyle.textContent = css; stage.dataset.theme = id;
+    // a file theme sits on the Wireframe base: its tokens go on as inline variables (values only, set one by one, never a style string)
+    for (const k of Array.from(stage.style)) if (k.startsWith('--te-')) stage.style.removeProperty(k);
+    if (id === FILE_ID) for (const k of Object.keys(fileTheme.vars)) stage.style.setProperty(k, fileTheme.vars[k]);
     if (keep) { S.shell.theme = id; save(); if ($('themeSel')) { $('themeSel').value = id; $('themeBadge').hidden = id !== 'og'; } }
     tagAll(); lastFree = ''; layoutSoon();
   }
   // the shell's theme door for the gallery (CODE-F4): the built-in list, read-only, and a preview that saves nothing
-  const THEMES = Object.freeze(THEME_LIST.map(t => Object.freeze({ id: t.id, name: t.name })));
+  const themes = () => Object.freeze(THEME_LIST.map(t => Object.freeze({ id: t.id, name: t.name })).concat(fileTheme ? [Object.freeze({ id: FILE_ID, name: fileTheme.name + ' (from a file)', file: true })] : []));
   const previewTheme = id => applyTheme(id, { save: false });
+  // the file door (#265): doc is a theme TrussFormats.open() accepted. Returns { ok, errors } ; ok applies it and picks it.
+  // The pair check uses the built-in values the file doesn't set, read from the page with the file's own variables cleared.
+  function loadThemeFile(doc) {
+    const tokens = doc && doc.tokens && typeof doc.tokens === 'object' ? doc.tokens : {};
+    const was = stage.dataset.theme;
+    for (const k of Array.from(stage.style)) if (k.startsWith('--te-')) stage.style.removeProperty(k);
+    stage.dataset.theme = FILE_ID;
+    const cs = getComputedStyle(stage), defaults = {}, meaning = {};
+    for (const k of Object.keys(TrussThemeFile.PAIRS.reduce((m, [a, b]) => (m[a] = m[b] = 1, m), {}))) defaults[k] = cs.getPropertyValue('--te-' + k).trim();
+    // the meaning colours as the stage shows them: every theme but OG keeps ui.html's light set, and a file theme is never OG (ART-K14)
+    for (const m of Object.keys(TrussThemeFile.MEANING)) meaning[m] = cs.getPropertyValue('--' + m).trim();
+    stage.dataset.theme = was; if (was === FILE_ID && fileTheme) for (const k of Object.keys(fileTheme.vars)) stage.style.setProperty(k, fileTheme.vars[k]);
+    const name = typeof doc.name === 'string' && doc.name.trim() ? doc.name.trim().slice(0, 40) : String(doc.id || 'Theme');
+    const r = TrussThemeFile.check(tokens, defaults, { name, builtIn: THEME_LIST.map(t => t.name).concat(['Wireframe', 'OG']) }, meaning);
+    if (!r.ok) return r;
+    fileTheme = { id: FILE_ID, name, vars: TrussThemeFile.vars(tokens) };
+    paintThemeSel(); applyTheme(FILE_ID);
+    return r;
+  }
   $('themeSel').addEventListener('change', ev => applyTheme(ev.target.value));
   // ---------- toasts (UI-W10): one TrussSheets toast box for the shell and the app (step 2b's Undo toasts read it too) ----------
   const SH = window.TrussSheets || null; if (SH) SH.install(document);
@@ -422,6 +468,6 @@ if (!SH_CLASSIC) {
   applyTheme(S.shell.theme); paintThemeSel();
   go(place(), true);
   setTimeout(() => { paintCard(); paintNav(); lastFree = ''; layout(); }, 60);
-  window.__shell = { go, setState, applyTheme, layout, themes: THEMES, previewTheme, noteUnlock, ogUnlocked, toasts, get unlockState() { return UNL ? unlockState() : null; }, get state() { return S.shell; } };
+  window.__shell = { go, setState, applyTheme, layout, get themes() { return themes(); }, previewTheme, loadThemeFile, noteUnlock, ogUnlocked, toasts, get unlockState() { return UNL ? unlockState() : null; }, get state() { return S.shell; } };
 }
 })();
