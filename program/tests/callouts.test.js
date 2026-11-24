@@ -25,7 +25,7 @@ test('a passing result gives exactly three ok callouts, in order, with the expec
 
 test('each failure flips its own callout only', () => {
   const d = K.callouts(Object.assign(good(), { midDefl: 2.31, deflOK: false }), OPTS);
-  assert.deepStrictEqual(d.map(x => x.ok), [true, false, true]); assert.strictEqual(d[1].text, 'δ 2.310 mm > 2 mm');
+  assert.deepStrictEqual(d.map(x => x.ok), [true, false, true]); assert.strictEqual(d[1].text, 'δ 2.310 mm is over the 2 mm limit');
   const e = K.callouts(Object.assign(good(), { envelope: ['Height is 120 mm.', 'second'] }), OPTS);
   assert.deepStrictEqual(e.map(x => x.ok), [true, true, false]); assert.strictEqual(e[2].text, 'Height is 120 mm.', 'the first reason');
   const o = K.callouts(Object.assign(good(), { edgeOK: false, overlap: 12.4 }), OPTS);

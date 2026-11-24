@@ -29,7 +29,7 @@ function fill(key, map) {
 function callouts(res, opts) {
   const r = res && typeof res === 'object' ? res : {}, o = opts && typeof opts === 'object' ? opts : {};
   const mk = (i, ok, text) => ({ id: IDS[i].id, ok, text, at: IDS[i].at });
-  if (r.stable === false) { const t = fill('callout.unstable', {}); return [mk(0, false, t), mk(1, false, t), mk(2, false, t)]; }
+  if (r.stable === false) { const t = fill('callout.all.unstable', {}); return [mk(0, false, t), mk(1, false, t), mk(2, false, t)]; }
 
   // determinacy: ok unless the truss is unstable; the text shows m + r against 2j and the word
   const have = isNum(r.m) && isNum(r.r) && isNum(r.j) && (r.det === 'determinate' || r.det === 'indeterminate' || r.det === 'unstable');
@@ -45,8 +45,8 @@ function callouts(res, opts) {
   const env = Array.isArray(r.envelope) ? r.envelope.filter(e => typeof e === 'string' && e) : null;
   let fits;
   if (env === null || typeof r.edgeOK !== 'boolean') fits = mk(2, false, fill('callout.fits.missing', {}));
-  else if (env.length) fits = mk(2, false, fill('callout.fits.bad.envelope', { reason: env[0] }));
-  else if (!r.edgeOK) fits = mk(2, false, isNum(r.overlap) && isNum(+o.minOverlap) ? fill('callout.fits.bad.desk', { ov: r.overlap.toFixed(0), min: (+o.minOverlap).toFixed(0) }) : fill('callout.fits.missing', {}));
+  else if (env.length) fits = mk(2, false, fill('callout.fits.envelope', { reason: env[0] }));
+  else if (!r.edgeOK) fits = mk(2, false, isNum(r.overlap) && isNum(+o.minOverlap) ? fill('callout.fits.desk', { ov: r.overlap.toFixed(0), min: (+o.minOverlap).toFixed(0) }) : fill('callout.fits.missing', {}));
   else fits = mk(2, true, fill('callout.fits.ok', {}));
   return [det, delta, fits];
 }

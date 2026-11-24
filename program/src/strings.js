@@ -20,13 +20,13 @@ const TEXT = Object.freeze({
   'callout.determinacy.bad': '{mr} vs {j2} · m + r vs 2j · {det}',
   'callout.determinacy.missing': 'm + r vs 2j: not available',
   'callout.delta.ok': 'δ {d} mm ≤ {limit} mm',
-  'callout.delta.bad': 'δ {d} mm > {limit} mm',
+  'callout.delta.bad': 'δ {d} mm is over the {limit} mm limit',
   'callout.delta.missing': 'δ: not available',
   'callout.fits.ok': 'Fits the envelope and both desks',
-  'callout.fits.bad.envelope': '{reason}',
-  'callout.fits.bad.desk': 'Each end reaches only {ov} mm onto the desks; the edge check needs at least {min} mm, or a slightly off-centre bridge could slip into the gap. Add desk panels or lengthen the bridge.',
+  'callout.fits.envelope': '{reason}',
+  'callout.fits.desk': 'Each end reaches only {ov} mm onto the desks; the edge check needs at least {min} mm, or a slightly off-centre bridge could slip into the gap. Add desk panels or lengthen the bridge.',
   'callout.fits.missing': 'Fit: not available',
-  'callout.unstable': 'No results: the truss is unstable.',
+  'callout.all.unstable': 'No results: the truss is unstable.',
 });
 
 function t(key) {
