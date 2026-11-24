@@ -1,6 +1,6 @@
 # Truss Explorer UI Standard
 
-**Version 1.5.8 · 2026-11-24 · owner: UI Designer · creative sign-off: Brian**
+**Version 1.5.9 · 2026-11-24 · owner: UI Designer · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel looks and behaves. Every rule has a number (`UI-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -52,7 +52,7 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 | UI-W7 | **PIP** | bottom right, above ⓘ; the tab is **always there** | the other screen, live | numbers only | ◂ ⧉ PIP |
 | UI-W8 | **Pop-ups close on an outside click** | — | A pointer-down outside any pop-up (☰, results card, ✎ editor, picker lists, ⓘ box, PIP ▾, sweep ▾) closes it and **does nothing else**. Esc closes the top-most pop-up and returns focus to its opener. Windows (UI-W1–W7) aren't pop-ups. | | |
 | UI-W9 | **Peek** | — | Hovering a tab peeks at its window without covering the tab; clicking anywhere on the peek keeps it open. | | |
-| UI-W10 | **Toasts** | bottom centre | fade after about 4 s, never cover a control, and carry Undo after a change ("Changed h 70 → 80 · Undo"). | | |
+| UI-W10 | **Toasts** | bottom centre | fade after about 4 s, never cover a control, and carry Undo after a change ("Changed h 70 → 80 · Undo"). **Only a person's own change makes a change toast:** never the page's start-up, a saved state being restored, a file or preset opening, or the app setting a value for itself, and nothing is announced to a screen reader for them (#502). **Opening a bridge, file or preset starts a new Undo baseline:** an open change toast closes, and the next toast and Undo speak only about the bridge now on screen (#501). | | |
 | UI-W11 | **Chart key / legend** | **bottom edge, centred; opens folded to icons** (one swatch per group) | swatches with names, plus an **eye** on each to show or hide that group; a hidden group's swatch is crossed out and the key says "N groups hidden · Show all" | swatches only | ▴ KEY |
 | UI-W12 | **Project facts stay visible** | in the results card's full view (▾) and the Pass rules card | The fixed facts of the project are always one click away: span, desk overlap, the envelope, the books' total mass, FS, the material and the rules preset's name (#132). The results strip shows each checked number next to its limit (UI-W2). | | |
 | UI-W13 | **Dialogs say what they'll do** | centre, one at a time | The main button names the action and its size ("Run 3,518,580 designs", never "OK"). Rows in a dialog stay editable until you confirm. Drop-downs of numbers also take a typed value. After a dialog closes, a toast says what changed, offers the next step and Undo (UI-W10). | | |
@@ -125,6 +125,7 @@ The link carries only the release, the model and the 8-character bridge code, ne
 - **UI-D4** An unstable bridge turns grey (there are no forces to colour). The loose part is outlined in magenta (a ring for a joint, a box for a panel) with a plain-words reason, and the results show ✕ UNSTABLE with *Find the closest stable bridge* and *Undo*. In 3D the message names the plane or frame that needs bracing.
 - **UI-D5** **Picked member:** a halo, an ink outline, ink rings on its two joints and its number in a flag. The other members fade only slightly. Tokens: `--te-mem-hi`, `--te-mem-hi-ink`, `--te-mem-dim`, `--te-mem-hi-flag`.
 - **UI-D6** Text never overlaps text. In particular, the books ✎ tag sits above the books and replaces the plain books label when dimensions are on.
+- **UI-D7** **The Home view frames the drawing in the free part of the stage.** Home (UI-V6, UI-K2), the first view and a new bridge fit the whole drawing, with its labels, sweep legend and the three result callouts (UI-A13), into the stage area that the windows leave free **in their default homes** (UI-W16, UI-W19), with a 16 px margin. The picture still fills the stage (UI-A3), and moving or folding a window never refits it; only Home does. Labels, the sweep legend and callouts never sit on the books or the wood pile (UI-D3, UI-D6). If the free area is narrower than 480 px (phone, UI-S8), the drawing fits the whole stage instead. (#503; FVL TE-B-529 (2).)
 
 ## UI-V · 3D view controls (view cube, style D)
 
@@ -195,7 +196,7 @@ The link carries only the release, the model and the 8-character bridge code, ne
 - **UI-K1** The focus order is the same in every view: top bar, results card, Inputs, the picture, the view control, View options (Analysis), Drawing window, sweep bar, PIP, ⓘ.
 - **UI-K2** F6 jumps window to window, Tab moves inside a window, and Esc returns focus to the opener (Brian, 2026-10-28, TE-B-117). The Home view is the Home key, double-click middle (UI-V9) and ⌂ (UI-V6); F6 no longer goes Home, as it did in v61.
 - **UI-K3** Arrow keys move between chart dots: focus previews, Enter loads, P pins.
-- **UI-K4** Each window is a named region, and the drawing has a text twin. Toasts and sweep progress are read politely, at most once every 5 s. The focus ring is a 3 px outline in `--te-focus` (ART-K17), 3 px outside the control, that every theme keeps and that reaches 3:1 against what it is actually drawn on (measured on the pixels, not on the control's parent; QA's method, TE-B-471). On the top bar's strong and tab grounds the ring takes the bar's ink (`--te-on-strong`); on the lit place pill, which is only a few px larger than its buttons, the ring sits **inside** the pill (offset 0) so it lands on the pill, not on the bar. QA's keyboard script (#218) is the test.
+- **UI-K4** Each window is a named region, and the drawing has a text twin. Toasts and sweep progress are read politely, at most once every 5 s. The focus ring is a 3 px outline, 3 px outside the control, that every theme keeps and that reaches 3:1 against what it is actually drawn on (measured on the pixels, not on the control's parent; QA's method, TE-B-471). Its **colour** is ART-S5's (art-spec 1.0.7): `--te-focus` (ART-K17) by default; `--te-on-strong` on the strong and tab grounds (the top bar, its folded tab, a lit place pill, a toast); otherwise whichever of `focus`, `on-strong` or `ink` reaches 3:1. A theme may give the ring its own shape (Notebook's dashes) but not a thinner line. On the lit place pill, which is only a few px larger than its buttons, the ring sits **inside** the pill (offset 0) so it lands on the pill, not on the bar. QA's keyboard script (#218) is the test.
 - **UI-K5 Every binding can be changed** (Brian, TE-B-117). ☰ › Look and controls › Mouse and keys lists every key and mouse binding in UI-K, UI-N, UI-H, UI-V and UI-A15, F6 included, each with its action in words.
   - Click a row (or Enter), then press the new key or mouse action. If it's already used, the row says so and offers **Swap** · Cancel ("H already clears the screen · Swap").
   - *Reset to defaults* resets all; each changed row has its own ↺.
@@ -298,6 +299,7 @@ Every rule above must be cited by a build issue. These weren't, until now:
 | UI-W24 | steps 8 and 10 (and the tour, step 13) | in the step table since 1.5.7 |
 | UI-W22, UI-W23, UI-A21 | #410, #411 on the live alpha's current sheets (the release after 1.0.0-alpha.3, Brian 2a, TE-B-320) | then again in step 10 (#217) |
 | UI-W14 | #115 (stretch for 11-04; on mainv and alpha, TE-B-132) | not one of the 14 steps |
+| UI-D7 | #503 (alpha.7) | the default fit at 1366 and 1024 |
 
 ---
 
@@ -325,6 +327,7 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 
 ## Change log
 
+- **1.5.9 · 2026-11-24** From the alpha.6 gate (TE-B-528, TE-B-529, TE-B-530). UI-W10: only a person's own change makes a change toast (never start-up, restore, open or the app's own set), and opening a bridge starts a new Undo baseline (#502, #501). UI-K4: the ring's colour is ART-S5's (art-spec 1.0.7: toasts on-strong; the focus / on-strong / ink fallback), and a theme's ring may change shape but not get thinner than 3 px (UI Designer on #485). New UI-D7: Home frames the drawing, its labels, legend and callouts in the stage area the windows leave free in their default homes, and nothing sits on the books or pile (#503; FVL TE-B-529 (2)). Coverage adds UI-D7.
 - **1.5.8 · 2026-11-24** New UI-S10: the Members tab also sets sticks (− / + and row / 2×2, with Undo), marks focus members (◎), resets all to 1 stick, holds the Design facts and switches to the 3D every-member table, so the old table can leave the Drawing window (#453; TE-B-496, TE-B-499). UI-K4: the ring is `--te-focus`, 3:1 measured on its real ground; on-strong on the bar; inside the lit pill (TE-B-468, TE-B-471). UI-I2: the box is marked pink, the number stays ink. UI-A13: what 'numbers only' keeps (TE-B-488). Step 4 adds UI-S10.
 - **1.5.7 · 2026-11-13** For the UI and theme push (TE-B-359, TE-B-364). UI-S6: the Members table is an APG grid (one Tab stop, arrows by cell, the lit member follows the focused row, aria-selected on the picked row, aria-sort on Use only, CSV keeps member order, count in the caption). UI-W23: focus is never hidden under the fixed header or button row (WCAG 2.4.11). New UI-I10: invalid geometry: boxes refuse, a file opens with its bad values kept, marked and listed, No result until fixed, nothing clamped. UI-W14: the link also carries Technical details (TE-B-323). Step table: new 2b row (#399); W24 in steps 8 and 10; I10 in step 8.
 - **1.5.6 · 2026-11-06** TE-B-342 (Physics' visible line, TE-B-318 b): new UI-W24 says where the model-limits sentence goes: ☰ › Help › About, the tour's last card (no new step), and a short note beside the Material inputs; nowhere else, so the 52a line stays the only small print.
