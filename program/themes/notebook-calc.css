@@ -155,10 +155,11 @@
 #stage[data-theme^="notebook-calc"] .te-line label{ font:400 16px var(--f-head); color:#3b220c; }
 #stage[data-theme^="notebook-calc"] .te-range{ font:400 15px var(--f-head); color:#5a3d1c; }
 /* numbers: little calculator readouts set into the wood */
-#stage[data-theme^="notebook-calc"] .te-num{ min-height:24px; height:24px; border:0; border-radius:2px; font:18px/1 var(--f-mono); color:#1d2a1e; text-align:right; padding:0 4px;
-  background:var(--nc-lcd); box-shadow:inset 0 2px 4px rgba(0,0,0,.35), 0 0 0 2px #2a2d33, 0 0 0 3px #16181c; margin:0 3px; }
-#stage[data-theme^="notebook-calc"] .te-num:focus{ outline:none; background:#1d2a1e; color:#c8d2b3; }
-#stage[data-theme^="notebook-calc"] .te-num[aria-invalid="true"]{ border:0; background:#b0237f; color:#fff; box-shadow:inset 0 2px 4px rgba(0,0,0,.35), 0 0 0 3px #b0237f, 0 0 0 4px #16181c; }
+/* the readout is the box's input (.te-num-i); .te-num is the number box's wrapper (label + − box unit +, inputs.js), never the readout */
+#stage[data-theme^="notebook-calc"] .te-num-i{ min-height:24px; height:24px; border:0; border-radius:2px; font:18px/1 var(--f-mono); color:#1d2a1e; text-align:right; padding:0 4px;
+  background:var(--nc-lcd); box-shadow:inset 0 2px 4px rgba(0,0,0,.35), 0 0 0 2px #2a2d33, 0 0 0 3px #16181c; margin:0 3px; width:auto; field-sizing:content; }
+#stage[data-theme^="notebook-calc"] .te-num-i:focus{ background:#1d2a1e; color:#c8d2b3; }
+#stage[data-theme^="notebook-calc"] span.te-num{ min-width:0; max-width:none; }   /* the wrapper keeps the piece's own size (the width rules further down predate the piece) */
 #stage[data-theme^="notebook-calc"] .te-err{ font:700 15px var(--f-head); color:#b0237f; }
 /* chips and sweep toggles: short sticks; picked = stained and pressed in */
 #stage[data-theme^="notebook-calc"] :is(.te-chip, .te-swt, .te-pick, .te-noteopt){ border:0; border-radius:4px 4px 1px 1px; color:#3d2610; font:700 13px var(--f-ui); letter-spacing:.02em;
@@ -197,7 +198,7 @@
 #stage[data-theme^="notebook-calc"] .te-editor > :first-child{ border-radius:4px 4px 0 0; } #stage[data-theme^="notebook-calc"] .te-editor > :last-child{ border-radius:0 0 4px 4px; }
 #stage[data-theme^="notebook-calc"] .te-editor .s-ph{ font:20px var(--f-mono); text-transform:uppercase; color:#1d2a1e; border-bottom:2px solid #1d2a1e; }
 #stage[data-theme^="notebook-calc"] .te-editor :is(.smut, label, span){ font-family:var(--f-mono); color:#1d2a1e; }
-#stage[data-theme^="notebook-calc"] .te-editor .te-num{ box-shadow:none; background:transparent; border-bottom:2px solid #1d2a1e; border-radius:0; }
+#stage[data-theme^="notebook-calc"] .te-editor .te-num-i{ box-shadow:none; background:transparent; border-bottom:2px solid #1d2a1e; border-radius:0; }
 #stage[data-theme^="notebook-calc"] .te-editor :is(.s-b, .s-ic){ font:19px var(--f-mono); color:#1d2a1e; border:2px solid #1d2a1e; border-radius:0; padding:0 8px; box-shadow:2px 2px 0 #1d2a1e; background:#ecd29f url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAICAYAAACYhf2vAAAAn0lEQVR4AayRzQ2AIBSDCXu4gFcdy528OozGxIMLeHUHpcQXC0JA1KRSoHyPH70v/fGn5qE7QorV0Ns6KZYyH/ff+qpuVEgxjvbDpn4Q4OekjzzrLjSag412CmPWXD+svazSYkpagAELqzUHaS3Wn8egjD2eANBcAQLYFzlPwCDAU+J8qXdugAvKLeSAJZvTgse55A1wOOZ54ymPDXDmBAAA//80aF++AAAABklEQVQDAOczRVbU4QanAAAAAElFTkSuQmCC") 0 0 / 96px 24px; image-rendering:pixelated; text-shadow:1px 0 0 currentColor; }
 #stage[data-theme^="notebook-calc"] .te-editor .s-b.dark{ background:#8c5e22 url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAICAYAAACYhf2vAAAAn0lEQVR4AayRzQ2AIBSDCXu4gFcdy528OozGxIMLeHUHpcQXC0JA1KRSoHyPH70v/fGn5qE7QorV0Ns6KZYyH/ff+qpuVEgxjvbDpn4Q4OekjzzrLjSag412CmPWXD+svazSYkpagAELqzUHaS3Wn8egjD2eANBcAQLYFzlPwCDAU+J8qXdugAvKLeSAJZvTgse55A1wOOZ54ymPDXDmBAAA//80aF++AAAABklEQVQDAOczRVbU4QanAAAAAElFTkSuQmCC") 0 0 / 96px 24px; background-blend-mode:multiply; color:#fff3dc; }
 /* joystick (on the calculator screen) */
