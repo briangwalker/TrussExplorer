@@ -193,3 +193,18 @@ function update() {
 }
 let res2d = null;
 function setVal(id, v) { const el = $(id); if (document.activeElement !== el) el.value = v; }
+
+// ---------- step 8 ahead (TE-B-494): the number rows on the limits table, OFF until step 8 (#215) turns the flag on ----------
+// ?limits=1 turns it on for the tests. The app's own boxes stay (hidden) and keep every handler above; see src/limitrows.js.
+window.TE_FLAGS = Object.assign({ limitsBoxes: false }, window.TE_FLAGS);
+try { if (new URLSearchParams(location.search).get('limits') === '1') window.TE_FLAGS.limitsBoxes = true; } catch (e) {}
+let limitRows = null;
+if (window.TE_FLAGS.limitsBoxes && window.TrussLimitRows && window.TrussInputs && window.TrussLimits && window.TrussPieces) {
+  TrussInputs.install(document); TrussLimitRows.install(document);
+  limitRows = TrussLimitRows.mount(document, {
+    P: TrussPieces, I: TrussInputs, L: TrussLimits, pane: $('inputsPane'),
+    extra: () => ({ bottom: S.bottom, topShape: S.topShape, model: S.anaMode }),
+    // the course rules the limits table doesn't hold (UI-I2): allowed, marked pink, the design runs and fails
+    rule: (id, v) => (id === 'width' && (v < 50 || v > 75) ? 'Course rule: the bridge width is 50 to 75 mm.' : null),
+  });
+}
