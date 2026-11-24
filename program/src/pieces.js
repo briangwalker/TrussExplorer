@@ -14,7 +14,9 @@
 (function (root) {
 'use strict';
 
-const VERSION = '0.2.1';
+// words from TrussStrings (src/strings.js), looked up when used, so load order doesn't matter
+function words(key) { const T = root.TrussStrings || (typeof require === 'function' ? require('./strings.js') : null); if (!T) throw new Error('TrussStrings is missing'); return T.t(key); }
+const VERSION = '0.2.3';
 
 // ---------- text ----------
 // Everything a caller passes is text, never markup (CODE-S1).
@@ -237,7 +239,7 @@ function tableHTML(o) {
   };
   const body = rows.length ? rows.map((r, n) => `<tr data-key="${escH(r.key)}"${r.cls ? ` class="${escH(r.cls)}"` : ''}${String(r.key) === String(o.lit) ? ' aria-selected="true"' : ''}>`
     + cols.map((c, ci) => cell(r, c, n, ci)).join('') + '</tr>').join('')
-    : `<tr class="empty"><td colspan="${cols.length}" tabindex="0">${escH(o.empty || 'Nothing to show.')}</td></tr>`;
+    : `<tr class="empty"><td colspan="${cols.length}" tabindex="0">${escH(o.empty || words('pieces.table.empty'))}</td></tr>`;
   return `<table class="te-tbl" role="grid" data-part="table" data-slot="disp" data-pc${attr('id', o.id)}>${o.caption ? `<caption>${escH(o.caption)}</caption>` : ''}${head}<tbody>${body}</tbody></table>`;
 }
 
@@ -463,7 +465,7 @@ function mountSlider(el, opts) {
 //   The row holding focus, or under the pointer, is lit and reported: onHover(key); leaving the table reports onHover(null).
 //   Enter, Space or a click picks the row (aria-selected) and reports onPick(key); it stays picked (UI-H4).
 //   The sort header's button reports onSort(key) (the caller draws the table again). Sideways scrolling follows focus.
-// Returns { light(key), picked, focusKey(key), destroy() }: light(key) picks a row from outside (a member clicked on the bridge).
+// Returns { light(key), picked, focusKey(key, { col, focus }), destroy() }: light(key) picks a row from outside (a member clicked on the bridge).
 function mountTable(tbl, opts) {
   opts = opts || {};
   const doc = tbl.ownerDocument;
@@ -515,7 +517,15 @@ function mountTable(tbl, opts) {
   return {
     light(key) { pick(key == null ? null : String(key)); },
     // moves the Tab stop (and focus, if the table has it) to a row's first cell, e.g. after the caller draws the table again
-    focusKey(key) { const tr = rows().find(x => x.dataset.key === String(key)); if (!tr) return; const c = tr.firstElementChild; if (tbl.contains(doc.activeElement)) go(c); else { stop().forEach(x => { x.tabIndex = -1; }); c.tabIndex = 0; } },
+    // focusKey(key, { col, focus }): put the Tab stop on that row's cell col (default 0). With focus: true it also moves focus
+    // there, for a caller that has just drawn the table again while a cell had focus (the old cell is gone, so focus would
+    // fall to the page; Chaos Tester TE-B-462). A row that no longer exists falls back to the first row, so focus stays here.
+    focusKey(key, o) {
+      o = o || {};
+      const all = rows(), tr = all.find(x => x.dataset.key === String(key)) || (o.focus ? all[0] : null); if (!tr) return;
+      const cs = cellsOf(tr), c = cs[Math.max(0, Math.min(cs.length - 1, o.col | 0))];
+      if (o.focus || tbl.contains(doc.activeElement)) go(c); else { stop().forEach(x => { x.tabIndex = -1; }); c.tabIndex = 0; }
+    },
     get picked() { return picked; },
     destroy() { offs.forEach(f => f()); },
   };

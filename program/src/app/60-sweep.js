@@ -372,6 +372,8 @@ function nextTick(f) { tickFn = f; tickCh.port2.postMessage(0); }   // message t
 let wakeLock = null;
 async function holdAwake(on) { try { if (on && !wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; } } catch (e) {} }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && big.running) holdAwake(true); });
+// a sweep the person started has finished (a pilot or a full search, not cancelled): the shell's OG unlock hears it (UI-T6, #162)
+function sweepFinished() { try { if (window.__shell && window.__shell.noteUnlock) window.__shell.noteUnlock('sweep-finished'); } catch (e) {} }
 function runChunks(n, body, progress, done, start) {
   let i = start || 0; const t0 = performance.now(); big.lastTick = performance.now(); big.tickGen = (big.tickGen || 0) + 1; const gen = big.tickGen;
   const tick = () => {
@@ -469,6 +471,7 @@ $('bigSearch').addEventListener('click', () => {
     big.running = false; sweepBusy = false;
     if (big.cancel) { $('bigMsg').textContent = 'Pilot cancelled.'; setBigButtons(); return; }
     big.pilot = { Dm, total: Dm.total, n: done, msPer: ms / Math.max(1, done), rows, why, unstable, au, sig };
+    sweepFinished();
     SweepState.set(rows, { top: rows.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30) });
     lastSig = sig; sweepMode = 'pilot';
     $('bigMsg').textContent = ''; renderPilot(); renderSweep(); drawTrackers(); paintBigMode(); setBigButtons(); checkStale();
@@ -495,6 +498,7 @@ function pilot3D(Dm, n, ms2, rows2, why2, unstable2, au, sig, st) {
     if (big.cancel) { $('bigMsg').textContent = 'Pilot cancelled.'; setBigButtons(); return; }
     const ms2per = ms2 / Math.max(1, n), ms3per = st.ms3 / Math.max(1, done);
     big.pilot = { Dm, total: Dm.total, n: done, msPer: ms2per + ms3per, ms2per, ms3per, rows, why, unstable, au, sig, st, rows2d: rows2, unstable2 };
+    sweepFinished();
     SweepState.set(rows, { top: rows.filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30) });
     lastSig = sig; sweepMode = 'pilot';
     $('bigMsg').textContent = ''; renderPilot(); renderSweep(); drawTrackers(); paintBigMode(); setBigButtons(); checkStale();
@@ -651,6 +655,7 @@ function runFull(ck) {
       const msg = `${big.timeUp ? `Time limit (${big.hrs} h) reached:` : big.cancel ? 'Cancelled after' : 'Full search:'} ${done.toLocaleString()} designs${pick ? ` (random, out of ${P.total.toLocaleString()})` : ''}${Math.ceil(done / B) > 1 ? ` in ${Math.ceil(done / B)} batches` : ''} in ${fmtTime(ms).replace('about ', '')} · ${passN.toLocaleString()} pass · ${(seen - passN).toLocaleString()} fail a check · ${unstable.toLocaleString()} unstable${pre ? ` · ${screened.toLocaleString()} skipped by the 2D pre-screen (failed clearly in 2D; not on the charts)` : ''}.${whyText(why, seen)} The best-trade lines on the charts are exact; the grey cloud is a random ${Math.min(RES, seen).toLocaleString()} of the stable designs.`;
       $('sweepMsg').textContent = msg; $('bigMsg').textContent = '';
       big.running = false; sweepBusy = false; sweepMode = 'full'; lastSig = sig;
+      if (!big.cancel) sweepFinished();
       renderSweep(); drawTrackers(); paintBigMode(); setBigButtons(); checkStale();
       idbPut('last', { when: new Date().toISOString(), msg, rows: sweepAll, top, ctx: sweepCtx, sig }).catch(() => { $('bigMsg').textContent = 'Could not save the results in this browser.'; });
       idbPut('ckpt', null).catch(() => {});

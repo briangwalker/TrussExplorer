@@ -30,6 +30,7 @@ try {
   const opts = await p.$$eval('#themeSel option', o => o.map(x => x.value).filter(v => v !== 'og' && v !== 'wireframe'));
   for (const t of opts) { await pick(p, t); await p.waitForTimeout(300); const s = await swatches(p);
     check(`#393 dark mode, ${t}: light meaning colours on the stage`, s.ok === LIGHT.ok && s.bad === LIGHT.bad, JSON.stringify(s)); }
+  await p.evaluate(() => __shell.noteUnlock('sweep-finished'));   // OG is locked until a finished sweep or 20 minutes (UI-T6, #221)
   await pick(p, 'og'); await p.waitForTimeout(300); const o = await swatches(p);
   check('#393 dark mode, OG: the stage keeps the page\'s dark-mode colours, as today (ART-K15)', o.ok === DARK.ok && o.bad === DARK.bad, JSON.stringify(o));
   const charts = readFileSync(new URL('../../src/app/70-charts.js', import.meta.url), 'utf8');
