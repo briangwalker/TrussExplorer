@@ -122,6 +122,20 @@ try {
       const ring = await p.evaluate(() => { const u = T.el.querySelector('.te-toast-u'), cs = getComputedStyle(u), bg = getComputedStyle(T.el).backgroundColor; const P = window.TrussPieces; return { oc: cs.outlineColor, bg, style: cs.outlineStyle, ratio: P.contrast(cs.outlineColor, bg) }; });
       check('the Undo focus ring is 3 : 1 or better on the toast', ring.style !== 'none' && ring.ratio >= 3, JSON.stringify(ring));
       await p.evaluate(() => T.hide());
+      // …in every built-in theme, a theme's catch-all button ring included (QA TE-B-510b: Notebook's was 1.00 : 1)
+      const themes = await p.evaluate(() => [...document.querySelectorAll('#themeSel option')].map(o => o.value).filter(v => v && v !== 'og' && v !== 'file'));
+      const per = [];
+      for (const th of themes) {
+        per.push(await p.evaluate(th => {
+          const sel = document.getElementById('themeSel'); sel.value = th; sel.dispatchEvent(new Event('change', { bubbles: true }));
+          document.getElementById('opener').focus(); T.show({ text: 'ring ' + th, undo: () => {}, ms: 8000 });
+          const u = T.el.querySelector('.te-toast-u'); u.focus({ focusVisible: true });
+          const cs = getComputedStyle(u), r = TrussPieces.contrast(cs.outlineColor, getComputedStyle(T.el).backgroundColor);
+          const o = { th, r: +r.toFixed(2), style: cs.getPropertyValue('outline-style'), conn: u.isConnected, fv: u.matches(':focus-visible') }; T.hide(); return o;
+        }, th));
+      }
+      check('the Undo ring is 3 : 1 or better on the toast in every built-in theme', themes.length >= 3 && per.every(x => x.r >= 3 && x.style !== 'none'), JSON.stringify(per));
+      await p.evaluate(() => { const sel = document.getElementById('themeSel'); sel.value = 'wireframe'; sel.dispatchEvent(new Event('change', { bubbles: true })); });
       await p.evaluate(() => { T.show({ text: 'one', ms: 5000 }); T.show({ text: 'two', ms: 5000 }); });
       check('one toast at a time: a new one replaces the old', await p.evaluate(() => document.querySelectorAll('.te-toast').length <= 2 && !T.el.hidden && T.el.textContent === 'two'));
       // contrast of the toast and the dialog text (ART-C1)
