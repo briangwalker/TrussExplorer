@@ -11,6 +11,8 @@ const TEXT = Object.freeze({
   'sheets.close.title': 'Close (Esc)',
   // toasts (UI-W10)
   'toast.button.undo': 'Undo',
+  'toast.key.undo': 'Ctrl+Z',        // shown beside Undo, and the key works while the toast is up (QA TE-B-502)
+  'toast.key.undoMac': '⌘Z',
   // the sweep bar (src/sweepbar.js; UI-A2, UI-S5, UI-S9): one line per state; {n}, {total}, {eta} are filled in by TrussSweepBar; plain text only
   'sweepbar.state.idle': 'Run a sweep to list the best designs here.',
   'sweepbar.state.pilotRunning': 'Pilot: {n} of {total} designs…',
