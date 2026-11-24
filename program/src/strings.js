@@ -15,6 +15,18 @@ const TEXT = Object.freeze({
   // still says the unstable line itself until #453 takes that table out)
   'pieces.table.empty': 'Nothing to show.',
   'members.table.unstable': 'No results: the truss is unstable.',
+  // callouts (src/callouts.js; UI-A13): the three result words on the drawing. {name} is filled in by TrussCallouts.fill; plain text only.
+  'callout.determinacy.ok': '{mr} vs {j2} · m + r vs 2j · {det}',
+  'callout.determinacy.bad': '{mr} vs {j2} · m + r vs 2j · {det}',
+  'callout.determinacy.missing': 'm + r vs 2j: not available',
+  'callout.delta.ok': 'δ {d} mm ≤ {limit} mm',
+  'callout.delta.bad': 'δ {d} mm > {limit} mm',
+  'callout.delta.missing': 'δ: not available',
+  'callout.fits.ok': 'Fits the envelope and both desks',
+  'callout.fits.bad.envelope': '{reason}',
+  'callout.fits.bad.desk': 'Each end reaches only {ov} mm onto the desks; the edge check needs at least {min} mm, or a slightly off-centre bridge could slip into the gap. Add desk panels or lengthen the bridge.',
+  'callout.fits.missing': 'Fit: not available',
+  'callout.unstable': 'No results: the truss is unstable.',
 });
 
 function t(key) {
