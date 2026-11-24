@@ -17,6 +17,15 @@ const STICK_MM = 3.18;                  // the course stick, in mm
 const SHAPED = ['parabola', 'arc', 'catenary'];
 
 // Named values usable inside expressions, defined once (Math: 'stick2' = two stick widths, 6.36 mm at the course stick).
+// Plain names of the inputs, for a line a person reads (fileReport's summary). The page may use its own box labels, and Marketing may reword these.
+const LABELS = Object.freeze({ height: 'Height', curve: 'Curve', topEnd: 'Top end', botEnd: 'Bottom end', panels: 'Panels', ratio: 'Panel ratio', sideAngle: 'Side angle',
+  deskPanels: 'Desk panels', overlap: 'Desk overlap', supportOffset: 'Support offset', bookLen: 'Book length', bookWidth: 'Book width', bookThick: 'Book thickness',
+  mBook1: 'Book mass 1', mBook2: 'Book mass 2', FS: 'Safety factor', nTruss: 'Trusses', width: 'Width', tilt3d: 'Tilt', deflLimit: 'Deflection limit', minOverlap: 'Minimum overlap',
+  E: 'Stiffness (E)', rho: 'Density', sigT: 'Tension strength', sigC: 'Compression strength', bS: 'Stick width', hS: 'Stick depth', fricMu: 'Friction', fricK: 'Friction stiffness',
+  tableThick: 'Table thickness', braceDepth: 'Brace depth', impAlpha: 'Imperfection alpha', impBeta: 'Imperfection beta', width3d: '3D width', docBendN: 'Bend count',
+  docStock: 'Stick length', docKerf: 'Saw cut', autoLimit: 'Auto limit', bigCap: 'Sweep cap', rcFS: 'Check safety factor', rcBook: 'Check book mass', rcDefl: 'Check deflection',
+  rcOv: 'Check overlap', refStep: 'Refine step', woodBudget: 'Wood budget', loadTarget: 'Load target', abSteps: 'Steps', abExt: 'Extent' });
+const labelFor = id => (Object.prototype.hasOwnProperty.call(LABELS, id) ? LABELS[id] : String(id));
 const DERIVED = Object.freeze({ stick2: '2*max(bS,hS)' });
 
 // Ids a row's `when` may test that are not number boxes: the bottom and top chord shapes, and the model.
@@ -302,7 +311,7 @@ function fileReport(values, truss) {
   const ids = []; bad.forEach(b => { if (ids.indexOf(b.id) < 0) ids.push(b.id); });
   const rules = []; geometry.forEach(g => { if (rules.indexOf(g.rule) < 0) rules.push(g.rule); });
   const parts = [];
-  if (ids.length) parts.push(SUMMARY_MSG.values(ids.length, ids.join(', ')));
+  if (ids.length) parts.push(SUMMARY_MSG.values(ids.length, ids.map(labelFor).join(', ')));
   if (rules.length) parts.push(SUMMARY_MSG.shape(rules.length, rules.join(', ')));
   const noResult = parts.length > 0;
   return { bad, geometry, warnings, noResult, summary: noResult ? parts.join(' ') + ' ' + SUMMARY_MSG.fix(ids.length + rules.length) : '' };
@@ -310,6 +319,6 @@ function fileReport(values, truss) {
 
 const rowFor = id => TABLE.find(r => r.id === id) || null;
 
-const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, fileReport, SUMMARY_MSG, rowFor };
+const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, fileReport, SUMMARY_MSG, LABELS, labelFor, rowFor };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussLimits = api;
 })(typeof window !== 'undefined' ? window : globalThis);

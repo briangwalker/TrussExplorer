@@ -321,6 +321,8 @@ test('fileReport: the shape, and a good file gets nothing new (F4, rule 4i)', ()
     const rep2 = L.fileReport(DEF, C.buildTruss(design(cs.state)));
     assert.strictEqual(rep2.noResult, false, cs.name); assert.strictEqual(rep2.summary, '', cs.name); assert.deepStrictEqual(rep2.geometry, [], cs.name);
   }
+  // Brian's final design (catenary top, topEnd -15) is a good file too (Physics, TE-B-470)
+  assert.deepStrictEqual(L.fileReport(DEF, finalTruss()), { bad: [], geometry: [], warnings: [], noResult: false, summary: '' });
 });
 
 test('fileReport F1: a G2 bad value is listed with where, and there is no result', () => {
@@ -334,8 +336,8 @@ test('fileReport F2: several bad values are all listed, not only the first; summ
   const t = goodTruss(); t.nodes[4][0] = 100; t.nodes[3][1] = -5;
   const rep = L.fileReport({ height: 500, E: 'abc' }, t);
   assert.ok(rep.bad.length >= 2 && rep.geometry.length >= 2); assert.strictEqual(rep.noResult, true);
-  assert.strictEqual(rep.summary, '2 values are outside the limits: height, E. The shape breaks rules G2, G3. Fix them to get a result.');
-  assert.strictEqual(L.fileReport({ height: 500 }, null).summary, '1 value is outside the limits: height. Fix it to get a result.');
+  assert.strictEqual(rep.summary, '2 values are outside the limits: Height, Stiffness (E). The shape breaks rules G2, G3. Fix them to get a result.');
+  assert.strictEqual(L.fileReport({ height: 500 }, null).summary, '1 value is outside the limits: Height. Fix it to get a result.');
 });
 
 test('fileReport F3: a bad number-box value in a file is reported exactly as a typed entry (checkInputs)', () => {
@@ -367,4 +369,12 @@ test('fileReport: damaged values or truss read as nothing to report (CODE-N2), n
   const vals = { height: 500 }, t = goodTruss(), v0 = JSON.stringify(vals), t0 = JSON.stringify(t);
   L.fileReport(vals, t); assert.strictEqual(JSON.stringify(vals), v0); assert.strictEqual(JSON.stringify(t), t0);
   assert.ok(Object.keys(L).includes('fileReport'));
+});
+
+test('fileReport: the summary names the people-readable labels, every table id has one, and an unknown id prints as it is', () => {
+  for (const r of L.TABLE) assert.ok(typeof L.LABELS[r.id] === 'string' && L.LABELS[r.id].length, r.id + ' has a label');
+  assert.deepStrictEqual(Object.keys(L.LABELS).filter(k => !L.rowFor(k)), [], 'no label without a row');
+  assert.strictEqual(L.labelFor('bS'), 'Stick width'); assert.strictEqual(L.labelFor('__proto__'), '__proto__'); assert.strictEqual(L.labelFor('nope'), 'nope');
+  assert.ok(Object.isFrozen(L.LABELS));
+  assert.strictEqual(L.fileReport({ bS: 50, hS: 50, mBook1: -1 }, null).summary, '3 values are outside the limits: Book mass 1, Stick width, Stick depth. Fix them to get a result.');
 });
