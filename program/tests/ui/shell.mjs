@@ -186,7 +186,9 @@ try {
   check('☰ opens the drawer, Look and controls first', await visible(p, '#dockMenu') && (await p.textContent('#dockMenu .dsec summary')).trim() === 'Look and controls');
   await p.click('#lookSec > summary');
   const opts = await p.$$eval('#themeSel option', o => o.map(x => x.value));
-  check('the theme picker lists Wireframe, OG, Blueprint and Notebook + Calculator', ['wireframe', 'og', 'blueprint', 'notebook-calc'].every(x => opts.includes(x)), opts.join(', '));
+  check('the theme picker lists Wireframe, Blueprint and Notebook + Calculator, and not OG before it is unlocked (UI-T6, #221)', ['wireframe', 'blueprint', 'notebook-calc'].every(x => opts.includes(x)) && !opts.includes('og'), opts.join(', '));
+  await p.evaluate(() => __shell.noteUnlock('sweep-finished')); await p.waitForTimeout(100);   // a finished sweep unlocks OG (tests/ui/ogunlock.mjs has the detail)
+  check('after a finished sweep the picker lists OG too', await p.$$eval('#themeSel option', o => o.map(x => x.value).includes('og')));
   const meaning = () => p.evaluate(() => ['--comp', '--tens', '--zero', '--ok', '--bad'].map(v => getComputedStyle(document.querySelector('#draw')).getPropertyValue(v).trim()).join(' '));
   const m0 = await meaning();
   for (const t of ['blueprint', 'notebook-calc', 'notebook-calc-calc', 'og', 'wireframe']) {
