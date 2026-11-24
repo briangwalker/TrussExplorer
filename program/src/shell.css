@@ -112,3 +112,12 @@ body.shell .wrap,body.shell #dock>.dockbar,body.shell #backTab,body.shell #fsExi
 #stage .themerow .ogbadge{font:700 11px var(--te-font-head);letter-spacing:.08em;border:1.5px solid currentColor;border-radius:10px;padding:1px 7px;color:var(--te-strong)}
 @media (prefers-reduced-motion:reduce){#stage *{transition:none!important;animation:none!important}}
 @media (max-width:700px){#stage .s-pan[data-win="inputs"][data-state="W"]{width:auto!important;right:10px}}
+
+/* the sweep bar (UI-A2): one row; the settings fold under it; orange stripe when the results are out of date (UI-S5) */
+#stage .s-pan[data-win="sweep"] .s-sum.te-sweepbar{flex-wrap:nowrap;overflow:hidden}
+#stage .s-pan[data-win="sweep"] .s-sum .note{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto;margin:0}
+#stage .te-sweepprog{flex:1 1 90px;min-width:60px;max-width:200px}
+#stage .s-pan[data-win="sweep"] #sweepMore{margin-left:auto;flex:0 0 auto}
+#stage .s-pan[data-win="sweep"]:not([data-more="1"])>.s-bd{display:none}
+#stage .s-pan[data-win="sweep"] .te-sweepmore{display:flex;flex-wrap:wrap;gap:6px}
+#stage .s-pan[data-win="sweep"].stale{box-shadow:inset 0 5px 0 0 #d9822b;background-image:repeating-linear-gradient(135deg,rgba(217,130,43,.28) 0 6px,transparent 6px 12px)}
