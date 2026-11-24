@@ -11,7 +11,8 @@ const TEXT = Object.freeze({
   'sheets.close.title': 'Close (Esc)',
   // toasts (UI-W10)
   'toast.button.undo': 'Undo',
-  // the table piece and the Members tab (moved here from pieces.js and membersview.js once #419 / #438 merge)
+  // the table piece and the Members tab (pieces.js, membersview.js; the Drawing window's old table in app/30-drawing.js
+  // still says the unstable line itself until #453 takes that table out)
   'pieces.table.empty': 'Nothing to show.',
   'members.table.unstable': 'No results: the truss is unstable.',
 });
