@@ -142,9 +142,9 @@ const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) +
 const PAIRS = [['ink', 'page', 4.5], ['ink', 'panel', 4.5], ['ink', 'surface', 4.5], ['ink', 'surface-2', 4.5], ['muted', 'page', 4.5], ['muted', 'panel', 4.5], ['muted', 'surface', 4.5], ['muted', 'surface-2', 4.5],
   ['on-strong', 'strong', 4.5], ['accent-ink', 'accent', 4.5], ['ctl-line', 'ctl-bg', 3],
   ['focus', 'surface', 3], ['focus', 'surface-2', 3], ['focus', 'hot', 3], ['focus', 'panel', 3], ['focus', 'ctl-bg', 3]];   // ART-K17, ART-C6 (TE-B-396)
-// filed and owned by Graphics (the token values are theirs): these print as KNOWN and don't fail
-const KNOWN = { 'blueprint focus/ctl-bg': 'TE-B-396 (Graphics: Blueprint is a sample; its focus value passes on hot only)',
-  'blueprint ctl-line/ctl-bg': '#458 (Graphics: Blueprint dark controls set both values; TE-B-432)' };   // Wireframe's and Notebook's ctl-line pairs now pass (ART-C6 values)
+// filed and owned by Graphics (the token values are theirs): these print as KNOWN and don't fail. Empty since #458 (Blueprint's
+// dark controls, art-spec 1.0.6): Blueprint's focus/ctl-bg and ctl-line/ctl-bg pairs pass, as do Wireframe's and Notebook's (ART-C6 values).
+const KNOWN = {};
 test('contrast: the text and control-edge token pairs of each built-in theme', () => {
   const shell = fs.readFileSync(path.join(ROOT, 'src', 'shell.css'), 'utf8');
   const themes = { wireframe: tokens(shell, null) };
