@@ -140,6 +140,7 @@ function placeTopView() {
   $('drawWrap').hidden = on; $('d3Facts').hidden = !on;
   $('topViewSeg').hidden = S.anaMode !== '3d'; paintSeg('topViewSeg', on ? '3d' : '2d');
   $('viewTitle').textContent = `${on ? '3D bridge' : 'Side view'} · ${S.name}`;
+  paintLook();   // Look from shows only on the 3D bridge (step 7)
 }
 function render3D() {
   if (!window.Truss3D) return;
@@ -251,6 +252,7 @@ function renderTable3() {
 // plan (xy) and end (zy) views of the 3D model
 function draw3Views() {
   if (!m3) return;
+  paintLook();   // step 7: the Top or End look (UI-V7) follows every change of the 3D model
   const forceCol = k => { const m = r3 && r3.stable ? r3.members[k] : null; return !m ? 'var(--ink)' : m.fails ? 'var(--bad)' : m.F < 0 ? 'var(--comp)' : m.F > 0 ? 'var(--tens)' : 'var(--zero)'; };
   // plan: x to the right, y up
   const xs = m3.nodes.map(p => p[0]), ys = m3.nodes.map(p => p[1]);
@@ -423,6 +425,163 @@ attachOrbit($('c3d'), v3, () => { $('d3Tip').hidden = true; draw3D(); }, { home:
   });
   paintFree3d();
 })();
+// ---------- step 7 (#214): Look from Side / Top / End on the view cube (UI-V7, UI-S2, UI-W19, UI-W21)
+// Top draws both bracing planes and End draws one cross-frame, both from the 3D model's own members (m3) in the meaning
+// colours of r3 (UI-A18); the bracing-plane or frame chips sit under the button (UI-V7). Drawing only: nothing here
+// changes the model, the results or the saved file. v3.look is 'side', 'top', 'end' or null (the free 3D view).
+v3.look = null; v3.lookPlane = 'both';
+const LOOKS = [['side', 'Side', 'Look from the side: the front truss straight on'], ['top', 'Top', 'Look from the top: both bracing planes'], ['end', 'End', 'Look from the end: one cross-frame at a time']];
+// the members each look draws, by index into m3.elems (the tests compare these with the model)
+function lookMembers(view, sec) {
+  if (!m3) return [];
+  const out = [];
+  if (view === 'top') {
+    m3.elems.forEach((e, k) => { if (e.side === 'cross' ? e.plane === 'top' || e.plane === 'bottom' : e.type === 'top' || e.type === 'bot') out.push(k); });
+    return out;
+  }
+  const fr = m3.frames[sec]; if (!fr) return out;
+  const sj = new Set([fr.t, fr.t + m3.n, fr.b, fr.b + m3.n]);
+  m3.nodes.forEach((p, i) => { if (i >= 2 * m3.n && Math.abs(p[0] - fr.x) < 1.5) sj.add(i); });
+  m3.elems.forEach((e, k) => { if (sj.has(e.i) && sj.has(e.j)) out.push(k); });
+  return out;
+}
+// which bracing plane a Top member belongs to: the top chords and top-plane bracing, or the bottom ones
+const lookPlaneOf = e => e.side === 'cross' ? e.plane : e.type === 'top' ? 'top' : 'bottom';
+(function () {
+  const host = $('c3d').parentElement;
+  const wrap = document.createElement('div'); wrap.className = 'lookfrom'; wrap.id = 'lookFrom';
+  wrap.innerHTML = `<button type="button" class="ncb lookbtn" id="lookBtn" aria-haspopup="true" aria-expanded="false" aria-controls="lookList" title="Look from: Side, Top or End">Look from <span aria-hidden="true">▾</span></button>`
+    + `<div class="looklist" id="lookList" role="group" aria-label="Look from" hidden>${LOOKS.map(([id, t, tip]) => `<button type="button" class="ncb" data-look="${id}" aria-pressed="false" title="${tip}">${t}</button>`).join('')}</div>`
+    + `<div class="lookchips" id="lookChips" role="group" hidden></div>`;
+  host.appendChild(wrap);
+  const view = document.createElement('div'); view.className = 'lookview'; view.id = 'lookView'; view.hidden = true;
+  view.innerHTML = '<svg id="lookSvg" role="img" aria-labelledby="lookTitle"><title id="lookTitle"></title></svg><div class="lookkey" id="lookKey"></div>';
+  host.appendChild(view);
+  const st = document.createElement('style'); st.id = 'lookCss';
+  st.textContent = `.lookfrom{position:absolute;top:84px;right:6px;z-index:6;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.lookfrom.onstage{z-index:80}
+.lookfrom[hidden],.lookview[hidden],.looklist[hidden],.lookchips[hidden]{display:none!important}
+.lookfrom .ncb{position:static;width:auto;height:auto;min-height:24px;padding:3px 8px;font:600 12px var(--f-body,sans-serif);white-space:nowrap}
+.lookfrom .ncb[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink,#fff);border-color:var(--accent)}
+.lookfrom .looklist,.lookfrom .lookchips{display:flex;flex-direction:column;align-items:stretch;gap:3px}
+.lookfrom .lookchips{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;max-width:240px}
+.lookview{position:absolute;inset:0;z-index:2;background:var(--paper,var(--sheet))}
+.lookview svg{position:absolute;inset:0;width:100%;height:100%}
+.looking .d3labs{display:none!important}
+.lookkey{position:absolute;display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font:12px var(--f-body,sans-serif);color:var(--ink);background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+.lookkey i{display:inline-block;width:18px;height:0;border-top:3px solid;vertical-align:middle;margin-right:5px}`;
+  document.head.appendChild(st);
+  const list = $('lookList'), btn = $('lookBtn');
+  const openList = on => { list.hidden = !on; btn.setAttribute('aria-expanded', String(on)); };
+  wrap.addEventListener('mouseenter', () => openList(true));
+  wrap.addEventListener('mouseleave', () => { if (!wrap.contains(document.activeElement)) openList(false); });
+  let quiet = false;   // focus handed back to the button after a pick doesn't reopen the list
+  wrap.addEventListener('focusin', () => { if (quiet) { quiet = false; return; } openList(true); });
+  wrap.addEventListener('focusout', ev => { if (!wrap.contains(ev.relatedTarget)) openList(false); });
+  wrap.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !list.hidden) { ev.stopPropagation(); openList(false); btn.focus(); } });
+  ['mousedown', 'pointerdown', 'wheel'].forEach(t => wrap.addEventListener(t, ev => ev.stopPropagation()));
+  btn.addEventListener('click', ev => { ev.stopPropagation(); openList(list.hidden); });
+  document.addEventListener('click', ev => { if (!list.hidden && !wrap.contains(ev.target)) openList(false); });   // a pop-up closes on an outside click (UI-W8)
+  list.addEventListener('click', ev => { const b = ev.target.closest('[data-look]'); if (!b) return; ev.stopPropagation(); setLook(b.dataset.look); openList(false); if (document.activeElement === b) { quiet = true; btn.focus(); } });
+  $('lookChips').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-chip]'); if (!b) return; ev.stopPropagation();
+    if (v3.look === 'top') v3.lookPlane = b.dataset.chip; else { S.d3.sec = +b.dataset.chip; save(); paint3Chips(); draw3Views(); return; }
+    paintLook();
+  });
+  // the cube itself (a face, the ring, ⌂, a turn) leaves Top and End: the 3D view is back under the pointer
+  const cube = () => host.querySelector('.navcube');
+  host.addEventListener('click', ev => { const c = cube(); if (v3.look && c && c.contains(ev.target)) { v3.look = null; paintLook(); } }, true);
+})();
+// where the button sits. On the page it is in the cube's own box. In the window layout the windows are a layer above the
+// picture, so the control goes on the stage above them, beside the cube's lower half and above the right-edge windows'
+// top (they start under the results card); its list may open over the Drawing window (UI-W19).
+function placeLook(wrap, cubeBox) {
+  const stage = $('stage'), host = $('c3d').parentElement, inStage = !!stage && stage.contains(host) && getComputedStyle(stage).position === 'fixed';
+  if (!inStage) { if (wrap.parentElement !== host) host.appendChild(wrap); wrap.classList.remove('onstage'); Object.assign(wrap.style, { top: '', right: '' }); return; }
+  if (wrap.parentElement !== stage) stage.appendChild(wrap);
+  wrap.classList.add('onstage');
+  if (wrap.hidden || !cubeBox) return;
+  const c = cubeBox.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+  Object.assign(wrap.style, { top: Math.round(c.top - sr.top + 34) + 'px', right: Math.round(sr.right - c.left + 2) + 'px' });
+}
+function setLook(id) {
+  const back = v3.look === id;   // clicking the active view again returns to 3D (UI-V7)
+  v3.look = back ? null : id;
+  if (back) tween(v3, { yaw: -0.55, pitch: 0.42 }, draw3D);
+  else if (id === 'side') tween(v3, { yaw: 0, pitch: 0 }, draw3D);
+  paintLook();
+}
+function paintLook() {
+  const wrap = $('lookFrom'); if (!wrap) return;
+  const cubeBox = $('c3d').parentElement.querySelector('.navcube');
+  wrap.hidden = !m3 || !topOn() || !cubeBox || cubeBox.hidden || getComputedStyle(cubeBox).display === 'none';
+  placeLook(wrap, cubeBox);
+  if (wrap.hidden && v3.look) v3.look = null;
+  wrap.querySelectorAll('[data-look]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.look === v3.look)));
+  const flat = v3.look === 'top' || v3.look === 'end';
+  $('lookView').hidden = !flat; $('c3d').parentElement.classList.toggle('looking', flat);   // the ✎ labels belong to the 3D view
+  const chips = $('lookChips'); chips.hidden = !flat;
+  if (!flat) { chips.innerHTML = ''; return; }
+  if (v3.look === 'top') {
+    chips.setAttribute('aria-label', 'Bracing planes');
+    chips.innerHTML = [['both', 'Both planes'], ['top', 'Top plane'], ['bottom', 'Bottom plane']].map(([id, t]) => `<button type="button" class="ncb" data-chip="${id}" aria-pressed="${v3.lookPlane === id}">${t}</button>`).join('');
+  } else {
+    chips.setAttribute('aria-label', 'Cross-frames');
+    chips.innerHTML = m3.frames.map((f, i) => `<button type="button" class="ncb" data-chip="${i}" aria-pressed="${S.d3.sec === i}" title="Station ${i + 1} at x = ${f.x.toFixed(0)} mm">Frame ${i + 1}</button>`).join('');
+  }
+  drawLook();
+}
+// the flat Top or End drawing, fitted into the part of the stage the windows leave free (UI-D7)
+function drawLook() {
+  const svg = $('lookSvg'), host = $('lookView'); if (!svg || host.hidden || !m3) return;
+  const col = k => { const m = r3 && r3.stable ? r3.members[k] : null; return !m ? 'var(--ink)' : m.fails ? 'var(--bad)' : Math.abs(m.F) < 0.005 ? 'var(--zero)' : m.F < 0 ? 'var(--comp)' : 'var(--tens)'; };
+  const zero = k => { const m = r3 && r3.stable ? r3.members[k] : null; return !!m && Math.abs(m.F) < 0.005; };
+  const top = v3.look === 'top', sec = Math.min(S.d3.sec || 0, m3.frames.length - 1);
+  const ks = lookMembers(v3.look, sec).filter(k => !top || v3.lookPlane === 'both' || lookPlaneOf(m3.elems[k]) === v3.lookPlane);
+  // 2D coordinates: Top is x right, y up; End is y right, z up
+  const P = i => { const p = m3.nodes[i]; return top ? [p[0], p[1]] : [p[1], p[2]]; };
+  const js = new Set(); ks.forEach(k => { js.add(m3.elems[k].i); js.add(m3.elems[k].j); });
+  const pts = [...js].map(P); if (!pts.length) { svg.innerHTML = ''; return; }
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  // free area: the stage minus the windows in their homes on the left and right edges, 16 px margin (UI-D7)
+  const R = host.getBoundingClientRect(); let L = 16, Rt = R.width - 16, T = 16 + fsTopPad(), B = R.height - 16;
+  [['win-inputs', 'l'], ['win-view', 'l'], ['win-drawing', 'r'], ['win-sweep', 'b']].forEach(([id, side]) => {
+    const el = document.getElementById(id); if (!el || el.hidden) return; const r = el.getBoundingClientRect(); if (!r.width) return;
+    if (side === 'l' && r.right - R.left < R.width / 2) L = Math.max(L, r.right - R.left + 16);
+    if (side === 'r' && r.left - R.left > R.width / 2) { Rt = Math.min(Rt, r.left - R.left - 16); T = Math.max(T, r.top - R.top); }
+    if (side === 'b' && r.top - R.top > R.height / 2) B = Math.min(B, r.top - R.top - 16);
+  });
+  T += 44;   // room for the view's name and its key above the drawing
+  const lf = $('lookFrom').getBoundingClientRect(); if (lf.width && lf.left - R.left > R.width / 2) Rt = Math.min(Rt, lf.left - R.left - 16);
+  if (Rt - L < 480) { L = 16; Rt = R.width - 16; }   // phone width: the whole stage (UI-D7)
+  const sc = Math.min((Rt - L) / Math.max(1, x1 - x0), (B - T) / Math.max(1, y1 - y0), 6), cx = (L + Rt) / 2, cy = (T + B) / 2;
+  const X = x => cx + (x - (x0 + x1) / 2) * sc, Y = y => cy - (y - (y0 + y1) / 2) * sc;
+  let s = '';
+  ks.forEach(k => {
+    const e = m3.elems[k], [ax, ay] = P(e.i), [bx, by] = P(e.j), m = r3 && r3.stable ? r3.members[k] : null;
+    const dash = zero(k) ? ' stroke-dasharray="7 5"' : top && lookPlaneOf(e) === 'bottom' && v3.lookPlane === 'both' ? ' stroke-dasharray="10 4" opacity=".8"' : '';
+    s += `<line data-k3="${k}" x1="${X(ax).toFixed(1)}" y1="${Y(ay).toFixed(1)}" x2="${X(bx).toFixed(1)}" y2="${Y(by).toFixed(1)}" stroke="${col(k)}" stroke-width="${(e.side === 'cross' ? 2.5 : 3.5) * Math.sqrt(e.n)}" stroke-linecap="round"${dash}><title>${m3.elemLab[k]}${m ? ` · ${Math.abs(m.F).toFixed(2)} N ${m.F < -0.005 ? 'compression' : m.F > 0.005 ? 'tension' : 'zero force'}` : ''}</title></line>`;
+    if (m && (S.showForces || S.showElems)) {
+      const t = `${S.showElems ? m3.elemLab[k] : ''}${S.showElems && S.showForces ? ' ' : ''}${S.showForces ? (zero(k) ? '0' : Math.abs(m.F).toFixed(1) + (m.F < 0 ? ' C' : ' T')) : ''}`;
+      s += `<text x="${((X(ax) + X(bx)) / 2).toFixed(1)}" y="${((Y(ay) + Y(by)) / 2 - 5).toFixed(1)}" font-size="11" text-anchor="middle" fill="${col(k)}" paint-order="stroke" stroke="var(--sheet)" stroke-width="3">${t}</text>`;
+    }
+  });
+  // joints; seen from above or along the bridge, two joints can be at one spot, so they share one label ("3f / 10f")
+  const at = new Map(); js.forEach(i => { const [a, b] = P(i), key = X(a).toFixed(0) + ',' + Y(b).toFixed(0); if (!at.has(key)) at.set(key, { a, b, labs: [] }); at.get(key).labs.push(m3.nodeLab[i]); });
+  at.forEach(({ a, b, labs }) => { s += `<circle cx="${X(a).toFixed(1)}" cy="${Y(b).toFixed(1)}" r="3" fill="var(--sheet)" stroke="var(--ink)" stroke-width="1"/>`;
+    if (S.showIds) s += `<text x="${X(a).toFixed(1)}" y="${(Y(b) - 7).toFixed(1)}" font-size="11" text-anchor="middle" fill="var(--accent)" paint-order="stroke" stroke="var(--sheet)" stroke-width="3">${labs.join(' / ')}</text>`; });
+  const fr = m3.frames[sec];
+  const name = top ? `Look from the top: ${v3.lookPlane === 'both' ? 'both bracing planes (bottom plane dashed)' : `the ${v3.lookPlane} bracing plane`}, ${ks.length} members`
+    : `Look from the end: frame ${sec + 1} of ${m3.frames.length} at x = ${fr.x.toFixed(0)} mm (${FRAME_SYM[fr.code]}), ${ks.length} members`;
+  svg.innerHTML = `<title id="lookTitle">${name}</title>` + s + `<text x="${L}" y="${T - 30}" font-size="13" font-weight="600" fill="var(--ink)">${top ? 'Top' : 'End'} · ${top ? 'x right, y up' : 'y right, z up'}</text>`;
+  svg.dataset.view = v3.look; svg.dataset.members = ks.join(',');
+  // the key: what each colour and line means (UI-A18: colour never alone, so words go with it)
+  const key = [['var(--comp)', 'compression'], ['var(--tens)', 'tension'], ['var(--zero)', 'zero force (dashed)'], ['var(--bad)', 'over the limit']];
+  Object.assign($('lookKey').style, { left: L + 'px', top: (T - 24) + 'px' });
+  $('lookKey').innerHTML = key.map(([c, t]) => `<span><i style="border-color:${c}"></i>${t}</span>`).join('') + (top && v3.lookPlane === 'both' ? '<span>long dashes: bottom plane</span>' : '');
+}
+window.addEventListener('resize', () => { clearTimeout(window._lookT); window._lookT = setTimeout(paintLook, 120); });
 $('c3d').addEventListener('mousemove', ev => {
   if (v3.drag || !v3.segs) return;
   const r = $('c3d').getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
