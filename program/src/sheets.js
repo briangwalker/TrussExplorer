@@ -157,7 +157,9 @@ function toasts(doc, o) {
 
 // The look, Wireframe values from --te-* tokens (themes win: their rules are more specific). Text 13 px or more.
 // Focus rings read ART-K17 --te-focus (amber accent only until a theme sets it; Graphics TE-B-411), except on the toast:
-// it sits on --te-strong, so its ring is --te-on-strong (ART-S5 1.0.7, the ring takes its ground's colour; QA TE-B-502 MUST B). The Cancel flash stays
+// it sits on --te-strong, so its ring is --te-on-strong (ART-S5 1.0.7, the ring takes its ground's colour; QA TE-B-502 MUST B).
+// Only its COLOUR is pinned, with !important, because a theme's catch-all 'button:focus-visible{outline:… !important}' (Notebook)
+// would otherwise paint the ring in the toast's own colour, 1.00:1 (QA TE-B-510b). The theme still sets its style and width. The Cancel flash stays
 // amber: a moment of attention, not the focus mark. The toast has a 1 px line edge so it doesn't sink into a dark page.
 const CSS = `
 #stage dialog.te-sheet{padding:0;border:1px solid var(--te-line);border-radius:6px;background:var(--te-panel);color:var(--te-ink);
@@ -179,6 +181,7 @@ const CSS = `
 #stage .te-toast[hidden]{display:none}
 #stage .te-toast-u{font:700 14px var(--te-font-ui);color:var(--te-on-strong);background:transparent;border:1px solid var(--te-on-strong);border-radius:4px;padding:2px 10px;cursor:pointer}
 #stage .te-toast-u:focus-visible{outline:3px solid var(--te-on-strong);outline-offset:2px}
+#stage .te-toast > .te-toast-u:focus-visible{outline-color:var(--te-on-strong) !important}
 #stage .te-toast-k{font:400 13px var(--te-font-ui);color:inherit;margin-left:2px}`;
 
 function install(doc) {
@@ -186,6 +189,6 @@ function install(doc) {
   const st = doc.createElement('style'); st.id = 'te-sheets'; st.textContent = CSS; doc.head.appendChild(st); return true;
 }
 
-const api = { VERSION: '0.1.2', sheetHTML, modals, toasts, CSS, install };
+const api = { VERSION: '0.1.3', sheetHTML, modals, toasts, CSS, install };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussSheets = api;
 })(typeof window !== 'undefined' ? window : globalThis);

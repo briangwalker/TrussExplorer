@@ -180,6 +180,8 @@ Two kinds of theme, with different rules (White Hat, board TE-B-014):
 | Images are file names in the theme's own folder: `.png`, `.jpg`, `.webp` | no paths, no SVG (it can carry script) |
 | Fonts are names of fonts the site hosts | never URLs (the website's CSP stays `'self'`) |
 
+**Opening a theme file (#265, balsaPixel only):** the Open button takes a `.theme.json` like any other file. After `check()`, the shell's door `__shell.loadThemeFile(doc)` runs two more checks in `src/themefile.js`: (a) every text-on-ground pair the file touches keeps its contrast (ART-C1 4.5:1 for text, 3:1 for control edges and the focus ring), using the file's value where it has one and the Wireframe default otherwise, so `transparent`, `#00000000` or ink = surface can't hide text, and every ground the file sets (page, surface, surface-2, panel, panel-peek, ctl-bg, hot) must keep the page's meaning colours visible (the verdict's pass and fail at 4.5:1, the member colours at 3:1), so a theme can't hide what a result says (#197); (b) its display name may not copy a built-in theme's. A file that passes is applied as CSS variables on the Wireframe base, listed in the picker as "<name> (from a file)", and kept **in memory only**: nothing from a file reaches storage, so a reload comes back on the built-in theme (WH-S1). A file whose every value was dropped applies nothing.
+
 **A theme can never change what a result says:** the verdict, the member-force colours and the numbers in the results card are drawn where theme styles can't reach them, and build documents always print with a built-in theme (#197).
 
 ## Browser storage (never renamed)
