@@ -139,3 +139,11 @@ test('the empty-table words come from TrussStrings, not literals (pieces 0.2.3; 
     for (const k of ['pieces.table.empty', 'members.table.unstable']) assert.ok(!src.includes("'" + T.t(k) + "'"), `${f} still holds "${T.t(k)}" as a literal`);
   }
 });
+
+test('the table piece: cells that hold controls are marked for grid editing (pieces 0.2.4; UI-S10, TE-B-500)', () => {
+  const h = P.tableHTML({ id: 'e', columns: [{ key: 'k', label: 'Member' }, { key: 's', label: 'Sticks', edit: 'cell' }, { key: 'f', label: 'Focus', edit: 'widget' }],
+    rows: [{ key: '1', cells: { k: '1' }, html: { s: '<button type="button">+</button>', f: '<button type="button" aria-pressed="false">◎</button>' } }] });
+  assert.match(h, /<td data-edit="cell" tabindex="-1"><button type="button">\+<\/button><\/td>/);
+  assert.match(h, /<td data-edit="widget" tabindex="-1"><button type="button" aria-pressed="false">◎<\/button><\/td>/);
+  assert.throws(() => P.tableHTML({ columns: [{ key: 'a', label: 'A', edit: 'yes' }], rows: [] }), /edit is cell or widget/);
+});
