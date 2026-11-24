@@ -404,7 +404,7 @@ function currentDesign() { return { tr, res, S }; }
 function renderDrawing(target, design, opts) {
   const main = !target || target === $('draw');
   const svg = target || $('draw');
-  opts = Object.assign(main ? { hl: hlElem, ghosts: S.showGhosts !== false, dims: S.showDims !== false } : { hl: -1, ghosts: false, dims: false }, opts);
+  opts = Object.assign(main ? { hl: hlElem, ghosts: S.showGhosts !== false, dims: S.showDims !== false, results: true } : { hl: -1, ghosts: false, dims: false, results: false }, opts);
   const d = drawingSVG(design || currentDesign(), opts);
   if (main) { renderDrawing.base = d.base; applyV2(); paintResOverlay(); }
   else svg.setAttribute('viewBox', d.base.join(' '));
@@ -425,7 +425,7 @@ function drawingSVG(design, opts) {
   const { tr, res, S } = design;   // the design's own, never the shared ones
   const xs = tr.nodes.map(n => n[0]);
   const x0 = Math.min(-70, Math.min(...xs) - 22), x1 = Math.max(270, Math.max(...xs) + 22);
-  const yTop = Math.max(128, +S.height + 46), yBot = -76;
+  const yTop = Math.max(128, +S.height + 46), yBot = opts.results ? -112 : -76;   // the results strip (callouts, wood pile) needs the extra floor
   const base = [x0, 0, x1 - x0, yTop - yBot];
   const Y = y => yTop - y;
   const o = [];
@@ -434,16 +434,19 @@ function drawingSVG(design, opts) {
   o.push(`<rect x="-50" y="${Y(100)}" width="300" height="100" fill="var(--env)" stroke="var(--envline)" stroke-dasharray="3 2.5" stroke-width=".6"/>`);
   o.push(t(-50, Y(100) - 2.5, 'allowable envelope · 100 mm above deck · 300 mm max length', 4.2, 'start'));
   o.push(`<rect x="0" y="${Y(0)}" width="200" height="50" fill="none" stroke="var(--envline)" stroke-dasharray="3 2.5" stroke-width=".5"/>`);
-  o.push(t(100, Y(-50) + 5.5, '50 mm max below deck', 4.2));
+  o.push(t(204, Y(-50) + 5.5, '50 mm max below deck', 4.2, 'start'));
   const Tt = Math.max(0, +S.tableThick || 0), tH = Math.min(Tt, 76);
   o.push(`<rect x="${x0}" y="${Y(0)}" width="${-x0}" height="76" fill="var(--desk)" fill-opacity=".35"/>`);
   o.push(`<rect x="200" y="${Y(0)}" width="${x1 - 200}" height="76" fill="var(--desk)" fill-opacity=".35"/>`);
   o.push(`<rect x="${x0}" y="${Y(0)}" width="${-x0}" height="${tH}" fill="var(--desk)"/>`);
   o.push(`<rect x="200" y="${Y(0)}" width="${x1 - 200}" height="${tH}" fill="var(--desk)"/>`);
+  // UI-S1 / UI-D2: the tables run to both edges of the drawing and end in break lines. ART-spec has no break-line rule yet, so this is a plain
+  // 1 px double rule (non-scaling) across the table block; Graphics may replace it with a drawn break.
+  [[x0, 1], [x1, -1]].forEach(([bx, sg], n) => o.push(`<g data-break="${n ? 'right' : 'left'}" fill="none" stroke="var(--ink)" stroke-width="1" stroke-linecap="butt" aria-hidden="true"><line vector-effect="non-scaling-stroke" x1="${bx + sg * 1}" y1="${Y(0)}" x2="${bx + sg * 1}" y2="${Y(0) + 76}"/><line vector-effect="non-scaling-stroke" x1="${bx + sg * 2.8}" y1="${Y(0)}" x2="${bx + sg * 2.8}" y2="${Y(0) + 76}"/></g>`));
   if (Tt > 0) { o.push(t(x0 + 6, Y(-Tt) + 6, `table top ${Tt.toFixed(0)} mm`, 3.8, 'start')); o.push(t(x1 - 6, Y(-Tt) + 6, `table top ${Tt.toFixed(0)} mm`, 3.8, 'end')); }
   o.push(t(x0 + 6, Y(-22), 'DESK', 5, 'start')); o.push(t(x1 - 6, Y(-22), 'DESK', 5, 'end'));
   o.push(`<g stroke="var(--muted)" stroke-width=".4"><line x1="0" y1="${Y(-64)}" x2="200" y2="${Y(-64)}"/><line x1="0" y1="${Y(-61)}" x2="0" y2="${Y(-67)}"/><line x1="200" y1="${Y(-61)}" x2="200" y2="${Y(-67)}"/></g>`);
-  o.push(t(100, Y(-64) + 6, 'clear span 200 mm', 4.4));
+  o.push(t(-4, Y(-64) + 6, 'clear span 200 mm', 4.4, 'end'));
   const hx = Math.min(...xs) - 12;
 
   const ok = res.stable;
@@ -471,12 +474,24 @@ function drawingSVG(design, opts) {
   // books + load arrows
   const [b0, b1] = tr.bookSpan;
   const deckY = S.height;
-  o.push(`<rect x="${b0}" y="${Y(deckY + 32)}" width="${b1 - b0}" height="8" fill="var(--book)" stroke="var(--tens)" stroke-width=".5"/>`);
-  o.push(t((b0 + b1) / 2, Y(deckY + 32) + 5.6, `books · ${(b1 - b0).toFixed(0)} mm · ${res.Ptruss.toFixed(2)} N on this truss`, 4.2, 'middle', 'var(--ink)'));
+  // UI-A13 / UI-D3: the books are drawn as books, stacked on the deck (ART-D3: cover colour, page edges, spine band); book1 under book2.
+  // A theme may supply books.svg (UI-T4, ART-H5): TrussDrawPics.books = { viewBox, inner }; the built-in shapes are the fallback.
+  const bkW = Math.max(6, b1 - b0), bkH = 6.5, bkBase = deckY + 12, nBk = 2;
+  const pic = (name, x, yy, w, h, builtin) => { const P = window.TrussDrawPics && window.TrussDrawPics[name]; return P && /^[\d. -]{1,40}$/.test(String(P.viewBox)) && typeof P.inner === 'string' ? `<svg class="te-drawpic" data-pic="${name}" x="${x}" y="${yy}" width="${w}" height="${h}" viewBox="${P.viewBox}" preserveAspectRatio="xMidYMid meet">${P.inner}</svg>` : `<g data-pic="${name}" data-builtin="1">${builtin}</g>`; };
+  let bk = '';
+  for (let n = 0; n < nBk; n++) {
+    const bx = b0 + n * 2.2, bw = bkW - n * 4.4, by = Y(bkBase + (n + 1) * bkH);
+    bk += `<g data-book="book${n + 1}"><rect x="${bx}" y="${by}" width="${bw}" height="${bkH}" rx=".8" fill="var(--book)" stroke="var(--tens)" stroke-width=".5"/>`
+      + `<rect x="${bx + 3}" y="${by + 1.1}" width="${Math.max(1, bw - 4.5)}" height="${bkH - 2.2}" fill="var(--sheet)" stroke="var(--tens)" stroke-width=".25"/>`
+      + `<rect x="${bx}" y="${by}" width="2.6" height="${bkH}" rx=".8" fill="var(--tens)" fill-opacity=".55"/></g>`;
+  }
+  const bkTop = Y(bkBase + nBk * bkH);
+  o.push(`<g aria-hidden="true">${pic('books', b0, bkTop, bkW, nBk * bkH, bk)}</g>`);
+  o.push(t((b0 + b1) / 2, bkTop - 2.4, `books · ${(b1 - b0).toFixed(0)} mm · ${res.Ptruss.toFixed(2)} N on this truss`, 4.2, 'middle', 'var(--ink)'));
   const maxF = Math.max(...res.Fval.map(f => -f[2]), 1e-9);
   res.Fval.forEach(([n, , v]) => {
     const [x, y] = tr.nodes[n];
-    const len = 4 + 18 * (-v / maxF);
+    const len = 2 + 5 * (-v / maxF);   // arrows end under the books (UI-A13)
     o.push(`<g stroke="var(--accent)" fill="var(--accent)" stroke-width=".8"><line x1="${x}" y1="${Y(y + 3 + len)}" x2="${x}" y2="${Y(y + 5)}"/><path d="M${x - 1.8} ${Y(y + 6.4)} L${x + 1.8} ${Y(y + 6.4)} L${x} ${Y(y + 3)} Z"/></g>`);
   });
   // supports
@@ -523,6 +538,37 @@ function drawingSVG(design, opts) {
     const col = m.fails ? 'var(--bad)' : F < 0 ? 'var(--comp)' : F > 0 ? 'var(--tens)' : 'var(--zero)';
     o.push(`<g pointer-events="none"><rect x="${mx - wd / 2}" y="${Y(my) - 3.3}" width="${wd}" height="5.6" rx="1" fill="var(--sheet)" fill-opacity=".9" stroke="${col}" stroke-width=".3"/><text x="${mx}" y="${Y(my) + 1.2}" font-family="${MONO}" font-size="3.9" font-weight="600" fill="${col}" text-anchor="middle">${txt}</text></g>`);
   });
+  // UI-A13 results strip (main view only): the wood pile on the floor under the bridge, and three callouts, each with a leader to where it applies.
+  // The results card keeps the numbers; the words for these three live here (UI-D3, UI-D6: text never overlaps text).
+  if (opts.results && ok) {
+    const FL = -106, ink = 'var(--ink)', okc = c => c ? 'var(--ok)' : 'var(--bad)';
+    o.push(`<line x1="${x0}" y1="${Y(FL)}" x2="${x1}" y2="${Y(FL)}" stroke="var(--line)" stroke-width=".5"/>`);
+    const lowY = Math.min(...tr.nodes.map(n => n[1])), cx = (Math.min(...xs) + Math.max(...xs)) / 2, mn = tr.nodes[res.midNode] || [100, 0];
+    const fitsOK = !!res.edgeOK && !(res.envelope && res.envelope.length);
+    const nFit = (res.envelope ? res.envelope.length : 0) + (res.edgeOK ? 0 : 1);
+    const lim = (+S.opts.deflLimit).toFixed(1);
+    const chips = [
+      { k: 'det', x: -64, lab: 'determinacy', val: `${res.m + res.r} vs ${2 * res.j} · ${res.det}`, col: ink, ax: cx, ay: lowY, alt: `Determinacy: m + r = ${res.m + res.r} against 2j = ${2 * res.j}, ${res.det}` },
+      { k: 'defl', x: 24, lab: `mid-span deflection · joint ${res.midNode}`, val: `${res.midDefl.toFixed(3)} mm ${res.deflOK ? '✓' : '✕'} limit ${lim}`, col: okc(res.deflOK), ax: mn[0], ay: mn[1], alt: `Mid-span deflection ${res.midDefl.toFixed(3)} mm, limit ${lim} mm, ${res.deflOK ? 'passes' : 'fails'}` },
+      { k: 'fits', x: 112, lab: 'fits the envelope and the desks', val: fitsOK ? 'fits ✓' : `✕ ${nFit} problem${nFit > 1 ? 's' : ''}, see the list`, col: okc(fitsOK), ax: Math.max(...xs), ay: Math.max(...tr.nodes.map(n => n[1])) * 0.5, alt: fitsOK ? 'Fits the allowable envelope and reaches the desks' : `Does not fit: ${nFit} problem${nFit > 1 ? 's' : ''}, listed under the results` },
+    ];
+    chips.forEach(c => {
+      const w = 84, top = Y(-80), h = 19;
+      o.push(`<g data-callout="${c.k}"><title>${c.alt}</title>`
+        + `<line x1="${c.x + w / 2}" y1="${top}" x2="${c.ax}" y2="${Y(c.ay) + 2}" stroke="${c.col}" stroke-opacity=".6" stroke-width=".3" stroke-dasharray="1.2 1"/><circle cx="${c.ax}" cy="${Y(c.ay) + 2}" r="1" fill="${c.col}"/>`
+        + `<rect x="${c.x}" y="${top}" width="${w}" height="${h}" rx="1.5" fill="var(--sheet)" stroke="${c.col}" stroke-width=".5"/>`
+        + t(c.x + 3, top + 6.4, c.lab, 3.5, 'start') + t(c.x + 3, top + 14.4, c.val, 4.7, 'start', c.col) + '</g>');
+    });
+    // the wood pile: sticks end-on (square, end-grain ring), two twine loops; its size follows the wood used ΣL (240 mm sticks)
+    const nSt = Math.max(1, Math.round((res.wood || 0) / 240)), cols = Math.max(1, Math.ceil(Math.sqrt(nSt * 1.8))), rows = Math.ceil(nSt / cols), cell = 4.2, px = 208, pw = cols * cell, ph = rows * cell;
+    let pile = '';
+    for (let n = 0; n < nSt; n++) {
+      const cxx = px + (n % cols) * cell, cyy = Y(FL) - ph + Math.floor(n / cols) * cell;
+      pile += `<rect x="${cxx + .2}" y="${cyy + .2}" width="${cell - .4}" height="${cell - .4}" fill="var(--sheet)" stroke="var(--ink)" stroke-width=".3"/><circle cx="${cxx + cell / 2}" cy="${cyy + cell / 2}" r="${cell * 0.24}" fill="none" stroke="var(--muted)" stroke-width=".25"/>`;
+    }
+    pile += `<line x1="${px - .6}" y1="${Y(FL) - ph * 0.28}" x2="${px + pw + .6}" y2="${Y(FL) - ph * 0.28}" stroke="var(--accent)" stroke-width=".7"/><line x1="${px - .6}" y1="${Y(FL) - ph * 0.72}" x2="${px + pw + .6}" y2="${Y(FL) - ph * 0.72}" stroke="var(--accent)" stroke-width=".7"/>`;
+    o.push(`<g data-pile="${nSt}" data-pile-w="${pw.toFixed(1)}"><title>Wood used: ${res.wood.toFixed(0)} mm, about ${nSt} sticks of 240 mm</title>${pic('woodpile', px, Y(FL) - ph, pw, ph, pile)}</g>`);
+  }
   // swept ranges as dashed outlines, then the clickable dimension labels (main view only: they read the screen's sweep and editor)
   if (opts.ghosts) o.push(sweepGhosts(Y));
   if (opts.dims) o.push(dimLabels(Y, x0, x1));
@@ -604,7 +650,7 @@ function renderStats() {
     }
     st.innerHTML = `<div class="stat"><span class="k">Wood used ΣL</span><span class="v">${(lengths().reduce((s, v) => s + v, 0) * S.load.nTruss).toFixed(0)} mm</span><span class="s">both side trusses</span></div>
       <div class="stat"><span class="k">D<sub>max</sub></span><span class="v">—</span></div><div class="stat"><span class="k">Capacity</span><span class="v">—</span></div>
-      <div class="stat"><span class="k">Determinacy</span><span class="v">${res.m + res.r} vs ${2 * res.j}</span><span class="s">m + r vs 2j · ${res.det}</span></div>`;
+      <div class="stat"><span class="k">Determinacy m + r vs 2j</span><span class="v">${res.m + res.r} vs ${2 * res.j}</span></div>`;
     const names = (res.loose || []).map(n => `${n} (${tr.keys[n]})`).join(', ');
     li.unshift(['bad', '<button type="button" class="btn acc sm" data-findstable="1">Find the closest stable bridge</button> This truss is a mechanism: the stiffness matrix cannot be solved. ' + (names ? `Joint${res.loose.length > 1 ? 's' : ''} ${names} ${res.loose.length > 1 ? 'are' : 'is'} only held by members in one straight line, so nothing stops ${res.loose.length > 1 ? 'them' : 'it'} moving sideways. Add a vertical or a diagonal there.` : 'No single joint is loose, so a whole block of the truss can swing. Usually that is two parts joined at just one joint (for example where an arch touches the top chord, which makes a hinge) or a four-sided panel with no diagonal.')]);
     msgs.innerHTML = li.map(([c, s]) => `<li class="${c}">${s}</li>`).join('');
@@ -622,9 +668,9 @@ function renderStats() {
   const tiesLen = res.nTies * S.opts.width;
   st.innerHTML = `
     <div class="stat"><span class="k">Wood used ΣL</span><span class="v">${res.wood.toFixed(0)} mm</span><span class="s">${res.mode3 ? `3D: both trusses + ${res.mode3.bracingWood.toFixed(0)} mm ties and bracing` : `${res.totalLen.toFixed(0)} mm per truss × ${S.load.nTruss}${S.opts.crossTies ? ` + ${tiesLen.toFixed(0)} mm ties` : ''}`} · M = ${res.massTruss.toFixed(2)} g${S.opts.crossTies ? ` (${res.massTotal.toFixed(2)} g with ties)` : ''}</span></div>
-    <div class="stat"><span class="k">D<sub>max</sub> mid-span</span><span class="v" style="color:${res.deflOK ? 'inherit' : 'var(--bad)'}">${res.midDefl.toFixed(3)} mm</span><span class="s">joint ${res.midNode} · limit ${(+S.opts.deflLimit).toFixed(1)} mm</span></div>
+    <div class="stat"><span class="k">D<sub>max</sub> mid-span</span><span class="v" style="color:${res.deflOK ? 'inherit' : 'var(--bad)'}">${res.midDefl.toFixed(3)} mm</span><span class="s">limit ${(+S.opts.deflLimit).toFixed(1)} mm</span></div>
     <div class="stat"><span class="k">Capacity</span><span class="v" style="color:${uCol}">${isFinite(res.capKg) ? res.capKg.toFixed(1) + ' kg' : '—'}</span><span class="s">${isFinite(res.capFactor) ? res.capFactor.toFixed(1) + '× the books' : ''} · most-used member ${worst.k} at ${(res.maxUtil * 100).toFixed(0)}% (${worst.mode || 'no load'})</span></div>
-    <div class="stat"><span class="k">Determinacy</span><span class="v">${res.m + res.r} vs ${2 * res.j}</span><span class="s">m + r vs 2j · ${res.det} · ${res.activeSupports.length} supports</span></div>`;
+    <div class="stat"><span class="k">Determinacy m + r vs 2j</span><span class="v">${res.m + res.r} vs ${2 * res.j}</span></div>`;
   if (f.length) {
     const by = {}; f.forEach(m => { (by[m.mode] = by[m.mode] || []).push(m.k); });
     Object.entries(by).forEach(([mode, ks]) => li.push(['bad', `${mode === 'buckling' ? 'Buckles' : mode === 'crushing' ? 'Crushes' : 'Breaks in tension'}: member${ks.length > 1 ? 's' : ''} ${ks.join(', ')}.`]));
