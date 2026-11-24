@@ -24,10 +24,13 @@
 # themes: packed CSS and the files the packer reads (WH-T1-T6)
 /program/themes/ @briangwalker
 /program/tools/themepack.py @briangwalker
+# a theme loaded from a FILE (#265): the pair checks and the variables it may set
+/program/src/themefile.js @briangwalker
 
 # the tests that guard the lines above: a PR must not be able to weaken them and pass its own checks
 /program/tests/run_all.sh @briangwalker
 /program/tests/formats.test.js @briangwalker
+/program/tests/themefile.test.js @briangwalker
 /program/tests/formats/ @briangwalker
 /program/tests/theme-file.test.js @briangwalker
 /program/tests/csvsafe.test.js @briangwalker
