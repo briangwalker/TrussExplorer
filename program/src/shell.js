@@ -341,12 +341,16 @@ if (!SH_CLASSIC) {
   const kb = [...dockMenu.querySelectorAll('details.dsec')].find(d => /Keybinding|Mouse and keys/.test(d.querySelector('summary').textContent));
   if (kb) { kb.querySelector('summary').textContent = 'Mouse and keys'; look.appendChild(kb); kb.classList.add('sub'); }
   dockMenu.insertBefore(look, dockMenu.firstChild);
-  // Only built-in themes for now: a theme people load or share will be data (tokens and images) checked by formats.js,
-  // never raw CSS (White Hat, board TE-B-014; #197).
+  // Built-in themes are reviewed CSS. A theme from a FILE is data only (tokens checked by formats.js, RMA-5/RMA-7; the pairs
+  // by TrussThemeFile), never raw CSS (White Hat, TE-B-014; #197, #265). One file theme at a time, kept in memory only: it is
+  // not saved, so a reload comes back on the built-in theme (nothing from a file ever reaches storage, WH-S1).
+  let fileTheme = null;   // { id: 'file', name, vars: { '--te-ink': '#...' } }
+  const FILE_ID = 'file';
   // OG is listed only once it's unlocked (UI-T6); the OG badge sits by the picker while OG is the look
   const themeList = () => THEME_LIST.filter(t => t.id !== 'og' || ogUnlocked());
   function paintThemeSel() {
-    $('themeSel').innerHTML = themeList().map(t => `<option value="${escH(t.id)}">${escH(t.name)}</option>`).join('');
+    $('themeSel').innerHTML = themeList().map(t => `<option value="${escH(t.id)}">${escH(t.name)}</option>`).join('')
+      + (fileTheme ? `<option value="${FILE_ID}">${escH(fileTheme.name)} (from a file)</option>` : '');
     $('themeSel').value = stage.dataset.theme;
     $('themeBadge').hidden = stage.dataset.theme !== 'og';
     $('themeNote').textContent = 'Themes change the look only. The meaning colours on the drawing (C red, T blue, zero grey, fails, passes) never change.'
@@ -357,15 +361,38 @@ if (!SH_CLASSIC) {
   function applyTheme(id, opts) {
     const keep = !(opts && opts.save === false);
     let css = '';
+    if (id === FILE_ID && !fileTheme) id = 'wireframe';   // a saved 'file' pick with no file loaded (a reload) falls back
     if (id === 'og' && keep && !ogUnlocked()) id = 'wireframe';   // UI-T6: OG only once it's unlocked (a saved 'og' falls back; a gallery preview may still show it, UI-G3)
-    if (id !== 'wireframe' && id !== 'og') { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
+    if (id !== 'wireframe' && id !== 'og' && id !== FILE_ID) { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
     themeStyle.textContent = css; stage.dataset.theme = id;
+    // a file theme sits on the Wireframe base: its tokens go on as inline variables (values only, set one by one, never a style string)
+    for (const k of Array.from(stage.style)) if (k.startsWith('--te-')) stage.style.removeProperty(k);
+    if (id === FILE_ID) for (const k of Object.keys(fileTheme.vars)) stage.style.setProperty(k, fileTheme.vars[k]);
     if (keep) { S.shell.theme = id; save(); if ($('themeSel')) { $('themeSel').value = id; $('themeBadge').hidden = id !== 'og'; } }
     tagAll(); lastFree = ''; layoutSoon();
   }
   // the shell's theme door for the gallery (CODE-F4): the built-in list, read-only, and a preview that saves nothing
-  const THEMES = Object.freeze(THEME_LIST.map(t => Object.freeze({ id: t.id, name: t.name })));
+  const themes = () => Object.freeze(THEME_LIST.map(t => Object.freeze({ id: t.id, name: t.name })).concat(fileTheme ? [Object.freeze({ id: FILE_ID, name: fileTheme.name + ' (from a file)', file: true })] : []));
   const previewTheme = id => applyTheme(id, { save: false });
+  // the file door (#265): doc is a theme TrussFormats.open() accepted. Returns { ok, errors } ; ok applies it and picks it.
+  // The pair check uses the built-in values the file doesn't set, read from the page with the file's own variables cleared.
+  function loadThemeFile(doc) {
+    const tokens = doc && doc.tokens && typeof doc.tokens === 'object' ? doc.tokens : {};
+    const was = stage.dataset.theme;
+    for (const k of Array.from(stage.style)) if (k.startsWith('--te-')) stage.style.removeProperty(k);
+    stage.dataset.theme = FILE_ID;
+    const cs = getComputedStyle(stage), defaults = {}, meaning = {};
+    for (const k of Object.keys(TrussThemeFile.PAIRS.reduce((m, [a, b]) => (m[a] = m[b] = 1, m), {}))) defaults[k] = cs.getPropertyValue('--te-' + k).trim();
+    // the meaning colours as the stage shows them: every theme but OG keeps ui.html's light set, and a file theme is never OG (ART-K14)
+    for (const m of Object.keys(TrussThemeFile.MEANING)) meaning[m] = cs.getPropertyValue('--' + m).trim();
+    stage.dataset.theme = was; if (was === FILE_ID && fileTheme) for (const k of Object.keys(fileTheme.vars)) stage.style.setProperty(k, fileTheme.vars[k]);
+    const name = typeof doc.name === 'string' && doc.name.trim() ? doc.name.trim().slice(0, 40) : String(doc.id || 'Theme');
+    const r = TrussThemeFile.check(tokens, defaults, { name, builtIn: THEME_LIST.map(t => t.name).concat(['Wireframe', 'OG']) }, meaning);
+    if (!r.ok) return r;
+    fileTheme = { id: FILE_ID, name, vars: TrussThemeFile.vars(tokens) };
+    paintThemeSel(); applyTheme(FILE_ID);
+    return r;
+  }
   $('themeSel').addEventListener('change', ev => applyTheme(ev.target.value));
   // ---------- toasts (UI-W10): one TrussSheets toast box for the shell and the app (step 2b's Undo toasts read it too) ----------
   const SH = window.TrussSheets || null; if (SH) SH.install(document);
@@ -422,6 +449,6 @@ if (!SH_CLASSIC) {
   applyTheme(S.shell.theme); paintThemeSel();
   go(place(), true);
   setTimeout(() => { paintCard(); paintNav(); lastFree = ''; layout(); }, 60);
-  window.__shell = { go, setState, applyTheme, layout, themes: THEMES, previewTheme, noteUnlock, ogUnlocked, toasts, get unlockState() { return UNL ? unlockState() : null; }, get state() { return S.shell; } };
+  window.__shell = { go, setState, applyTheme, layout, get themes() { return themes(); }, previewTheme, loadThemeFile, noteUnlock, ogUnlocked, toasts, get unlockState() { return UNL ? unlockState() : null; }, get state() { return S.shell; } };
 }
 })();
