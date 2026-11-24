@@ -222,8 +222,11 @@ const isModel3D = m => typeof m === 'string' && m.toLowerCase() === '3d';
 // Not checked here: G6 (merged into G5), G7-G10 and M1-M4 (a later row). Two joints that sit close together but are not joined by a member
 // are not looked at; a joined pair is covered by the member length.
 const TOL = 1e-6;
-const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
-const fh = v => String(Math.round(v * 10) / 10);   // Physics' G3 wording: '(-5 mm)', no trailing .0
+// One decimal: lengths print '5.0' (G5), heights print '-5' (G3, Physics' wording), so a flag keeps the .0 or drops it.
+const r1 = (v, keep) => { const x = Math.round(v * 10) / 10; return keep ? x.toFixed(1) : String(x); };
+const f1 = v => r1(v, true), fh = v => r1(v, false);
+const minOf = a => { let m = Infinity; for (let i = 0; i < a.length; i++) if (a[i] < m) m = a[i]; return m; };   // loops, not apply: no row count can overflow the stack
+const maxOf = a => { let m = -Infinity; for (let i = 0; i < a.length; i++) if (a[i] > m) m = a[i]; return m; };
 const GEOMETRY_MSG = {
   G1: 'The span must be more than 0 mm.',
   G2: j => 'Joint ' + j[0] + ' is left of joint ' + j[1] + '. Panels must run left to right, each wider than 0 mm.',
@@ -241,7 +244,7 @@ function checkGeometry(truss, values) {
   if (!truss.nodes.every(ok)) return out;
   const N = truss.nodes;
   // G1: span is more than 0 (the nodes' reach left to right)
-  const xs = N.map(p => p[0]), span = Math.max.apply(null, xs) - Math.min.apply(null, xs);
+  const xs = N.map(p => p[0]), span = maxOf(xs) - minOf(xs);
   if (!(span > TOL)) out.push({ rule: 'G1', msg: GEOMETRY_MSG.G1, where: [] });
   // G2: joints run left to right, each panel wider than 0: the panel points (panelPts, else the bottom chord B0, B1 ...)
   let pts = null;
@@ -254,10 +257,14 @@ function checkGeometry(truss, values) {
     const j = [pts[a].n + 1, pts[a - 1].n + 1];
     out.push({ rule: 'G2', msg: (pts[a].x < pts[a - 1].x - TOL ? GEOMETRY_MSG.G2 : GEOMETRY_MSG.G2same)(j), where: [pts[a].n, pts[a - 1].n] });
   }
-  // G3: heights are 0 or more. The bottom line is y = 0, except that a shaped bottom chord (parabola, arc, catenary) sags below the desk line
-  // by design (curve, 'p' in the app, min -60): then the lowest allowed joint is that sag. Without the design, the line is y = 0 (strict).
+  // G3: heights are 0 or more, but the lowest allowed joint is the design's own lowest shaped end (Physics, TE-B-470): a shaped bottom chord sags
+  // to its curve (a negative number), and a shaped top chord may end below the deck line at topEnd (the arch pressing on the table faces).
+  // botEnd is 0 or more, so it adds nothing. Without the design, or with flat chords, the line is y = 0 (strict). Anything lower is still G3.
   const dz = isObj(truss.design) ? truss.design : null;
-  const sag = dz && typeof dz.bottom === 'string' && dz.bottom !== 'flat' && isNum(+dz.curve) ? Math.min(0, +dz.curve) : 0;
+  const shaped = k => dz && typeof dz[k] === 'string' && SHAPED.indexOf(dz[k]) >= 0;
+  let sag = 0;
+  if (shaped('bottom') && isNum(+dz.curve)) sag = Math.min(sag, +dz.curve);
+  if (shaped('topShape') && isNum(+dz.topEnd)) sag = Math.min(sag, +dz.topEnd);
   N.forEach((p, i) => { if (p[1] < sag - TOL) out.push({ rule: 'G3', msg: GEOMETRY_MSG.G3(i + 1, p[1]), where: [i] }); });
   // G4: not every joint on one line (a flat line, or any one straight line): a mechanism, 'unstable', and nothing more is said about it
   const a0 = N[0], far = N.reduce((b, p) => (Math.hypot(p[0] - a0[0], p[1] - a0[1]) > Math.hypot(b[0] - a0[0], b[1] - a0[1]) ? p : b), a0);

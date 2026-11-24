@@ -231,6 +231,26 @@ test('G3: a joint below the bottom line is refused, with its height in the messa
   sag.design = { bottom: 'flat', curve: -30 }; sag.nodes[2][1] = -30; assert.ok(rules(L.checkGeometry(sag, {})).includes('G3'), 'a flat bottom does not sag');
 });
 
+// Brian's final design (Math's file 'BrianFinalV2 option A + h26 (checked)': flat bottom, catenary top, topEnd -15, tableThick 30, 4 panels, h 26).
+// Its arch ends sit 15 mm below the deck line by design, so they must not read as G3 (Physics, TE-B-470). No fixture in tests/formats/fixtures has a
+// negative topEnd, nor do the 36 built-in cases, which is how this was missed; this design is the one that covers it.
+const FINAL = { family: 'grid', height: 26, panels: 4, ratio: 0.5, sideAngle: 90, sideLean: 'in', overall: 296.8, bookLen: 242, approachDiag: 'X', edgeVert: true, deskVert: true,
+  deskMode: 'length', deskPanels: 1, bottom: 'flat', curve: -30, deskEnds: 'feet', supportMode: 'all', topShape: 'catenary', topEnd: -15, botEnd: 0, tableThick: 30, overlap: 10,
+  diagLeft: ['N', 'P'], diagMiddle: 'X', vertLeft: [true, true] };
+const finalTruss = () => C.buildTruss(design(Object.assign({}, DEFAULT, FINAL)));
+
+test('G3: Brian\'s final design (catenary top, topEnd -15) gives [], and a joint below its own lowest end still gives G3', () => {
+  const t = finalTruss();
+  assert.ok(t.nodes.some(p => p[1] < -14.9), 'the design really has joints at -15');
+  assert.deepStrictEqual(L.checkGeometry(t, {}), []);
+  const lower = cloneT(t); const k = lower.nodes.findIndex(p => p[1] < -14.9); lower.nodes[k][1] = -16;
+  const r = L.checkGeometry(lower, {}).filter(x => x.rule === 'G3');
+  assert.strictEqual(r.length, 1); assert.deepStrictEqual(r[0].where, [k]);
+  // the flat top does not get the allowance, and a shaped top with a positive topEnd does not either
+  const flatTop = cloneT(t); flatTop.design.topShape = 'flat'; assert.ok(rules(L.checkGeometry(flatTop, {})).includes('G3'));
+  const pos = cloneT(t); pos.design.topEnd = 10; assert.ok(rules(L.checkGeometry(pos, {})).includes('G3'));
+});
+
 test('G4: every joint on one line is a mechanism: unstable, and only G4 is said', () => {
   const flat = { nodes: [[0, 0], [55, 0], [110, 0], [220, 0]], elems: [{ i: 0, j: 1 }, { i: 1, j: 2 }, { i: 2, j: 3 }, { i: 0, j: 0 }, { i: 1, j: 1 }] };
   const r = L.checkGeometry(flat, {});
