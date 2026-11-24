@@ -109,5 +109,6 @@ body.shell .wrap,body.shell #dock>.dockbar,body.shell #backTab,body.shell #fsExi
 #stage #dockMenu.drawer{position:absolute;display:block;left:10px;top:60px;z-index:86;max-height:calc(100vh - 70px);overflow:auto;width:340px;background:var(--te-surface);color:var(--te-ink);border:1px solid var(--te-ctl-line);border-radius:12px;box-shadow:0 12px 40px rgba(20,30,40,.25);padding:10px 12px}
 #stage .themerow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #stage .themerow select{flex:1;min-width:0}
+#stage .themerow .ogbadge{font:700 11px var(--te-font-head);letter-spacing:.08em;border:1.5px solid currentColor;border-radius:10px;padding:1px 7px;color:var(--te-strong)}
 @media (prefers-reduced-motion:reduce){#stage *{transition:none!important;animation:none!important}}
 @media (max-width:700px){#stage .s-pan[data-win="inputs"][data-state="W"]{width:auto!important;right:10px}}

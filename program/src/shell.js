@@ -43,7 +43,16 @@ if (!SH_CLASSIC) {
   const sh0 = S.shell && typeof S.shell === 'object' ? S.shell : {};
   if (!sh0.w && innerWidth < 700) { DEF.w = TABLE.phoneStates; DEF.bar = 'I'; }   // a phone starts with the picture
   S.shell = { place: PLACES.includes(sh0.place) ? sh0.place : DEF.place, bar: STATES.includes(sh0.bar) ? sh0.bar : DEF.bar,
-    hist: Array.isArray(sh0.hist) ? sh0.hist.filter(p => PLACES.includes(p)).slice(-20) : [], theme: typeof sh0.theme === 'string' ? sh0.theme : DEF.theme, w: {} };
+    hist: Array.isArray(sh0.hist) ? sh0.hist.filter(p => PLACES.includes(p)).slice(-20) : [], theme: typeof sh0.theme === 'string' ? sh0.theme : DEF.theme, w: {},
+    unlocks: window.TrussUnlocks ? window.TrussUnlocks.fresh() : null };
+  // ---------- OG unlock (UI-T6, #162, #221): TrussUnlocks (src/unlocks.js) keeps the rule; the shell keeps the state in S.shell.unlocks ----------
+  const UNL = window.TrussUnlocks || null;
+  if (UNL) S.shell.unlocks = UNL.note(sh0.unlocks, 'none', 0);   // a clean copy of the saved state, or fresh() if it's damaged
+  // This visit's use time stays in memory (useMs) and folds into S.shell.unlocks only in whole 5-minute blocks, at the unlock,
+  // after a sweep and on pagehide: a quiet page then writes nothing to storage by itself (the gallery's UI-G4 guard).
+  let useMs = 0, lastTick = null;
+  const unlockState = () => { const u = UNL.note(S.shell.unlocks, 'none', 0); u.usedMs += useMs; return u; };
+  const ogUnlocked = () => !UNL || UNL.unlocked(unlockState()).og;
   PLACES.forEach(p => { S.shell.w[p] = {}; Object.keys(DEF.w[p]).forEach(k => { const v = sh0.w && sh0.w[p] && sh0.w[p][k]; S.shell.w[p][k] = STATES.includes(v) ? v : DEF.w[p][k]; }); });
   S.wide = false; S.inputsFirst = false;   // the v61 view switch has no meaning here
 
@@ -326,7 +335,7 @@ if (!SH_CLASSIC) {
   const look = el('details', 'dsec'); look.id = 'lookSec';
   look.innerHTML = `<summary class="dlab">Look and controls</summary>
     <span class="dlab" style="margin-top:6px">Theme</span>
-    <div class="themerow"><select id="themeSel" aria-label="Theme"></select></div>
+    <div class="themerow"><select id="themeSel" aria-label="Theme"></select><span class="pill ogbadge" id="themeBadge" data-part="badge" data-slot="disp" title="The v61 look, kept as it was" hidden>OG</span></div>
     <span class="dnote" id="themeNote"></span>
     <label class="tsw"><input type="checkbox" id="swClassic"><span class="track"></span>Use the v61 page layout (reloads)</label>`;
   const kb = [...dockMenu.querySelectorAll('details.dsec')].find(d => /Keybinding|Mouse and keys/.test(d.querySelector('summary').textContent));
@@ -337,11 +346,15 @@ if (!SH_CLASSIC) {
   // not saved, so a reload comes back on the built-in theme (nothing from a file ever reaches storage, WH-S1).
   let fileTheme = null;   // { id: 'file', name, vars: { '--te-ink': '#...' } }
   const FILE_ID = 'file';
+  // OG is listed only once it's unlocked (UI-T6); the OG badge sits by the picker while OG is the look
+  const themeList = () => THEME_LIST.filter(t => t.id !== 'og' || ogUnlocked());
   function paintThemeSel() {
-    $('themeSel').innerHTML = THEME_LIST.map(t => `<option value="${escH(t.id)}">${escH(t.name)}</option>`).join('')
+    $('themeSel').innerHTML = themeList().map(t => `<option value="${escH(t.id)}">${escH(t.name)}</option>`).join('')
       + (fileTheme ? `<option value="${FILE_ID}">${escH(fileTheme.name)} (from a file)</option>` : '');
     $('themeSel').value = stage.dataset.theme;
-    $('themeNote').textContent = 'Themes change the look only. The meaning colours on the drawing (C red, T blue, zero grey, fails, passes) never change.';
+    $('themeBadge').hidden = stage.dataset.theme !== 'og';
+    $('themeNote').textContent = 'Themes change the look only. The meaning colours on the drawing (C red, T blue, zero grey, fails, passes) never change.'
+      + (ogUnlocked() ? '' : ' The OG (v61) look unlocks after your first finished sweep, or after 20 minutes.');
   }
   // ONE theme path (Architecture Lead, TE-B-251). opts.save === false is a preview: it changes the look exactly as a pick
   // does, but leaves S.shell.theme, the saved state and #themeSel alone (the gallery, UI-G3 and UI-G4). layout() never saves.
@@ -349,12 +362,13 @@ if (!SH_CLASSIC) {
     const keep = !(opts && opts.save === false);
     let css = '';
     if (id === FILE_ID && !fileTheme) id = 'wireframe';   // a saved 'file' pick with no file loaded (a reload) falls back
+    if (id === 'og' && keep && !ogUnlocked()) id = 'wireframe';   // UI-T6: OG only once it's unlocked (a saved 'og' falls back; a gallery preview may still show it, UI-G3)
     if (id !== 'wireframe' && id !== 'og' && id !== FILE_ID) { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
     themeStyle.textContent = css; stage.dataset.theme = id;
     // a file theme sits on the Wireframe base: its tokens go on as inline variables (values only, set one by one, never a style string)
     for (const k of Array.from(stage.style)) if (k.startsWith('--te-')) stage.style.removeProperty(k);
     if (id === FILE_ID) for (const k of Object.keys(fileTheme.vars)) stage.style.setProperty(k, fileTheme.vars[k]);
-    if (keep) { S.shell.theme = id; save(); if ($('themeSel')) $('themeSel').value = id; }
+    if (keep) { S.shell.theme = id; save(); if ($('themeSel')) { $('themeSel').value = id; $('themeBadge').hidden = id !== 'og'; } }
     tagAll(); lastFree = ''; layoutSoon();
   }
   // the shell's theme door for the gallery (CODE-F4): the built-in list, read-only, and a preview that saves nothing
@@ -380,6 +394,33 @@ if (!SH_CLASSIC) {
     return r;
   }
   $('themeSel').addEventListener('change', ev => applyTheme(ev.target.value));
+  // ---------- toasts (UI-W10): one TrussSheets toast box for the shell and the app (step 2b's Undo toasts read it too) ----------
+  const SH = window.TrussSheets || null; if (SH) SH.install(document);
+  const toasts = SH ? SH.toasts(document) : { show() { return { close() {} }; }, hide() {} };
+  // the app tells the shell about use ('tick') and finished sweeps ('sweep-finished'); the first unlock says so once
+  // A tick changes S.shell.unlocks in memory only: it rides along with the next save() (every input change saves) and with
+  // pagehide, so a quiet page writes nothing to storage on its own (the gallery's UI-G4 guard). A sweep or the unlock saves at once.
+  const FOLD_MS = 300000;
+  function foldUse(all) {   // move this visit's use time into the saved state: whole 5-minute blocks, or all of it
+    const add = all ? useMs : Math.floor(useMs / FOLD_MS) * FOLD_MS; if (add <= 0) return false;
+    const u = UNL.note(S.shell.unlocks, 'none', 0); u.usedMs += add; u.lastTickMs = null; S.shell.unlocks = u; useMs -= add; save(); return true;
+  }
+  function noteUnlock(ev) {
+    if (!UNL) return false;
+    if (!S.shell.unlocks || typeof S.shell.unlocks !== 'object') S.shell.unlocks = UNL.fresh();   // a damaged state reads as fresh (CODE-N2)
+    const was = ogUnlocked(), now0 = Date.now();
+    if (ev === 'tick') { if (lastTick !== null) useMs += Math.min(UNL.TICK_MAX_MS, Math.max(0, now0 - lastTick)); lastTick = now0; }
+    else if (ev === 'sweep-finished') { S.shell.unlocks = UNL.note(S.shell.unlocks, ev, now0); save(); }
+    const now = ogUnlocked();
+    if (now && !was) { foldUse(true); paintThemeSel(); toasts.show({ text: 'OG (v61) look unlocked: ☰ › Look and controls › Theme', ms: 6000 }); }
+    return now;
+  }
+  // use counts only while the page is on screen; a tick can add at most TrussUnlocks.TICK_MAX_MS, so a closed laptop adds nothing
+  if (UNL) {
+    noteUnlock('tick'); setInterval(() => { if (document.visibilityState === 'visible') noteUnlock('tick'); }, 30000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') noteUnlock('tick'); else foldUse(false); });
+    window.addEventListener('pagehide', () => foldUse(false));
+  }
   $('swClassic').addEventListener('change', ev => { if (ev.target.checked) { S.layout = 'classic'; save(); location.reload(); } });
 
   // ---------- the contract: data-slot / data-part, and the class names themes style ----------
@@ -408,6 +449,6 @@ if (!SH_CLASSIC) {
   applyTheme(S.shell.theme); paintThemeSel();
   go(place(), true);
   setTimeout(() => { paintCard(); paintNav(); lastFree = ''; layout(); }, 60);
-  window.__shell = { go, setState, applyTheme, layout, get themes() { return themes(); }, previewTheme, loadThemeFile, get state() { return S.shell; } };
+  window.__shell = { go, setState, applyTheme, layout, get themes() { return themes(); }, previewTheme, loadThemeFile, noteUnlock, ogUnlocked, toasts, get unlockState() { return UNL ? unlockState() : null; }, get state() { return S.shell; } };
 }
 })();
