@@ -34,7 +34,20 @@ test('each failure flips its own callout only', () => {
   assert.strictEqual(K.callouts(Object.assign(good(), { envelope: ['x'], edgeOK: false }), OPTS)[2].text, 'x', 'the envelope reason comes before the desk one');
   const u = K.callouts(Object.assign(good(), { det: 'unstable', m: 5, r: 3, j: 5 }), OPTS);
   assert.deepStrictEqual(u.map(x => x.ok), [false, true, true]); assert.strictEqual(u[0].text, '8 vs 10 · m + r vs 2j · unstable');
-  assert.strictEqual(K.callouts(Object.assign(good(), { det: 'indeterminate' }), OPTS)[0].ok, true);
+  const ind = K.callouts(Object.assign(good(), { det: 'indeterminate', m: 10 }), OPTS)[0];
+  assert.strictEqual(ind.ok, true); assert.strictEqual(ind.text, '13 vs 12 · m + r vs 2j · indeterminate: assumes tight joints');
+});
+
+test('dim: 3 counts 3j; anything else reads as 2 (Physics, TE-B-521)', () => {
+  const r = Object.assign(good(), { j: 8, m: 20, r: 6 });
+  assert.strictEqual(K.callouts(r, Object.assign({ dim: 3 }, OPTS))[0].text, '26 vs 24 · m + r vs 3j · determinate');
+  for (const d of [undefined, 2, '3', 4, null, NaN]) assert.strictEqual(K.callouts(r, Object.assign({ dim: d }, OPTS))[0].text, '26 vs 16 · m + r vs 2j · determinate', String(d));
+  assert.strictEqual(K.callouts(Object.assign(r, { det: 'indeterminate' }), Object.assign({ dim: 3 }, OPTS))[0].text, '26 vs 24 · m + r vs 3j · indeterminate: assumes tight joints');
+});
+
+test('odd limit values give no verdict: a number is a number (true, text, spaces are not)', () => {
+  for (const v of [true, '2', '  ', null, NaN, {}]) assert.strictEqual(K.callouts(good(), { deflLimit: v, minOverlap: 20 })[1].ok, false, String(v));
+  assert.strictEqual(K.callouts(Object.assign(good(), { edgeOK: false, overlap: 12 }), { deflLimit: 2, minOverlap: '20' })[2].text, S.t('callout.fits.missing'));
 });
 
 test('an unstable result (stable false) gives three bad callouts with the unstable words', () => {
