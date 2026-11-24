@@ -1,6 +1,6 @@
 # Truss Explorer UI Standard
 
-**Version 1.5.7 · 2026-11-13 · owner: UI Designer · creative sign-off: Brian**
+**Version 1.5.8 · 2026-11-24 · owner: UI Designer · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel looks and behaves. Every rule has a number (`UI-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -29,7 +29,7 @@ Words: **window** = a floating panel with three states (UI-W). **Pop-up** = a me
 | UI-A10 | **Hover previews, click loads** | Dots and History or Winners rows preview on hover and load on click. There are no Load buttons on rows. P pins a preview to compare. |
 | UI-A11 | **A preview never looks loaded** | A preview is drawn dashed and "taped on" with NOT LOADED; the loaded bridge is solid. The Truss view always shows a state badge under the results strip: **✓ LOADED #id**, or **PREVIEW #id · NOT LOADED** with *Load it* and *Back to #id*. |
 | UI-A12 | **Inputs live on the drawing** | Every input is an engineering dimension with a ✎ value tag. The Inputs window is for fine-tuning; the Inputs screen is for precise sweeps. |
-| UI-A13 | **Results live on the drawing** | The books stack on the deck, the wood pile sits on the floor under the bridge, and δ, determinacy and "fits" are callouts. The results card then shows numbers only. |
+| UI-A13 | **Results live on the drawing** | The books stack on the deck, the wood pile sits on the floor under the bridge, and δ, determinacy and "fits" are callouts. The results card then shows numbers only: its number rows (wood, δ against its limit, the kg against the required kg, FS) and the PASS / FAIL pill stay; the words that explain them (the determinacy sentence, the fits verdict) move to the callouts and are not repeated in the card (TE-B-488). |
 | UI-A14 | **Never a blank screen** | Before a sweep, the chart shows your bridge as one dot and points to Run sweep. Stale or partial results say so and offer the fix (UI-S5). |
 | UI-A15 | **Start small** | Windows open as icons; only one window per side is wide. H clears the screen; hovering a tab peeks. |
 | UI-A16 | **Rare things live in ☰** | Export, files, theme, view settings (cube, ring, Home, restless bridge, transitions), keys and help. Sheets open in the middle, one at a time; Esc closes them. |
@@ -96,6 +96,7 @@ The link carries only the release, the model and the 8-character bridge code, ne
 | UI-S7 | **Compare** | hover a design, press P | The PIP shows loaded vs pinned side by side with the differences; its header has the Truss 2D/3D switch. ⛶ opens a full-screen compare. |
 | UI-S9 | **Long jobs** | — | Leaving or reloading the page while a sweep runs asks first. After a reload, the sweep bar offers **Resume** with the count done. A sweep bigger than the per-run maximum runs a **pilot first** (about 1,000 designs), shows what the pilot found, and asks before running the rest. |
 | UI-S8 | **Phone** (< 700 px) | — | The top bar opens icons-only. Options become a bottom sheet, the PIP docks above the sweep bar, and the Inputs screen shows one category at a time. |
+| UI-S10 | **What the Members tab also sets** (TE-B-496, TE-B-499; replaces the old Member forces table in the Drawing window, #453) | Analysis › Members (UI-S6) | The old table in the Drawing window did four jobs besides showing forces. They all move to the Members tab, so the Drawing window holds only the drawing toggles and Scale (UI-W21) and nothing a person relies on goes missing (rule 4i). **(1) Sticks.** The Sticks column is a **control**, always shown (also with All columns off). Each cell has − and + (1 to 4 sticks, the app's present range) and, at 4 sticks, a **row / 2×2** switch for how they are glued. A change applies to the member and its mirror image, as today. In the grid (UI-K7), Enter or F2 on a Sticks cell enters it: − / + or ← → change the count, Space toggles row / 2×2, Esc or Enter leaves it (APG grid editing); a click on − / + works directly. Every change is a design change: the results update at once, a toast says "Member 7: 1 → 2 sticks · Undo" (UI-W10), and the sweep is marked out of date (UI-S5). **(2) Focus (◎).** A **Focus** column, always shown, holds one toggle button per member (`aria-pressed`, label "Focus member 7 in the sweep"). On, it shows ● and adds the member (and its mirror) to the sweep's focus list, whose chips stay in the Inputs window; the chips' empty text points here: "Mark members with ◎ in Analysis › Members." **(3) All members to 1 stick** is a button in the table's own toolbar, beside **All columns**, with an Undo toast. **(4) Design facts.** Below the table, a closed **Design facts (hand-check)** section (a disclosure, UI-K) lists today's facts with today's words: design load per truss, book footprint, diagonal and side angles, bottom chord, overlap on each desk, panels, reactions, wood for one truss and the whole bridge. They are numbers to check by hand, not results, so they don't go in the results card (UI-A13) or in Report a bug's Technical details (UI-W14, which is for the browser, not the design). Copy table and Download CSV are unchanged (13 columns; the facts are not in them). **(5) 3D.** When the analysis is 3D, a two-way switch above the table picks **Side truss (2D)** (the default; the only view where Sticks and Focus can be set) or **Whole bridge (3D)**, which shows the 3D every-member table read-only, with its note. Copy and CSV give the view that is showing. **From Truss** the Members tab is one click away on the last-tab icon (UI-N3); no second editable table appears anywhere. | | |
 
 ## UI-N · Navigation
 
@@ -148,7 +149,7 @@ The link carries only the release, the model and the 8-character bridge code, ne
 ## UI-I · Inputs and limits
 
 - **UI-I1** The ⇄ sweep chip sits on the input's own line. A swept number shows `from → to · step = N values` inline under it, and the slider shows the swept band and both ends.
-- **UI-I2** **Course rule** (h ≤ 100 mm, width 50–75 mm): never clamped. The value turns **pink** while you type or drag, whether or not the input is swept, and the design still runs and is marked failing with the rule named. Sliders show a pink hatched zone.
+- **UI-I2** **Course rule** (h ≤ 100 mm, width 50–75 mm): never clamped. The box is marked **pink** (its edge; the number itself stays readable ink, ART-C1) while you type or drag, whether or not the input is swept, and the design still runs and is marked failing with the rule named. Sliders show a pink hatched zone.
 - **UI-I3** **Model limit** (Δh or Δp below the −30 mm table face or above h, support past the overlap, tilt over 30°): the value can't be built. The input stops at the wall and a ⟂ note says why. Sliders show a grey wall zone.
 - **UI-I4** **Software cap** (400 values in one range): never cut silently. Run sweep is blocked, with two choices: a coarser step, or sample 400 evenly.
 - **UI-I5** A swept range shows `asked → run` when the two differ, and ⓘ lists the reasons with counts. Dependent pairs are counted per combination, duplicate designs never run, and the sweep bar shows how many were skipped.
@@ -194,7 +195,7 @@ The link carries only the release, the model and the 8-character bridge code, ne
 - **UI-K1** The focus order is the same in every view: top bar, results card, Inputs, the picture, the view control, View options (Analysis), Drawing window, sweep bar, PIP, ⓘ.
 - **UI-K2** F6 jumps window to window, Tab moves inside a window, and Esc returns focus to the opener (Brian, 2026-10-28, TE-B-117). The Home view is the Home key, double-click middle (UI-V9) and ⌂ (UI-V6); F6 no longer goes Home, as it did in v61.
 - **UI-K3** Arrow keys move between chart dots: focus previews, Enter loads, P pins.
-- **UI-K4** Each window is a named region, and the drawing has a text twin. Toasts and sweep progress are read politely, at most once every 5 s. The focus ring is a 3 px amber outline that every theme keeps. QA's keyboard script (#218) is the test.
+- **UI-K4** Each window is a named region, and the drawing has a text twin. Toasts and sweep progress are read politely, at most once every 5 s. The focus ring is a 3 px outline in `--te-focus` (ART-K17), 3 px outside the control, that every theme keeps and that reaches 3:1 against what it is actually drawn on (measured on the pixels, not on the control's parent; QA's method, TE-B-471). On the top bar's strong and tab grounds the ring takes the bar's ink (`--te-on-strong`); on the lit place pill, which is only a few px larger than its buttons, the ring sits **inside** the pill (offset 0) so it lands on the pill, not on the bar. QA's keyboard script (#218) is the test.
 - **UI-K5 Every binding can be changed** (Brian, TE-B-117). ☰ › Look and controls › Mouse and keys lists every key and mouse binding in UI-K, UI-N, UI-H, UI-V and UI-A15, F6 included, each with its action in words.
   - Click a row (or Enter), then press the new key or mouse action. If it's already used, the row says so and offers **Swap** · Cancel ("H already clears the screen · Swap").
   - *Reset to defaults* resets all; each changed row has its own ↺.
@@ -310,7 +311,7 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 | 2 · Truss 2D full screen | #209 | **UI-A3**, UI-A7, UI-A12, UI-A13, UI-A17, UI-A19, UI-S1, UI-D1–D6, UI-W3, UI-W4, UI-W5, UI-W10, UI-W15, UI-W16, UI-W17, UI-W19, UI-W20, UI-W21, UI-V8, UI-V9 |
 | 2b · Results on the drawing, toasts, tables | #399 | UI-A13, UI-W10, UI-S1 |
 | 3 · Sweep bar, results card, PIP | #210 | UI-A2, UI-W2, UI-W12, UI-W18, UI-W6, UI-W7, UI-W8, UI-A11, UI-H5–H8 |
-| 4 · Analysis full screen | #211 | **UI-A3**, UI-A1, UI-A7, UI-A17, UI-A8, UI-S4, UI-S6, UI-C1, UI-C4, UI-C6–C8, UI-W3, UI-W11, UI-W19, UI-W21, UI-N1–N3 |
+| 4 · Analysis full screen | #211 | **UI-A3**, UI-A1, UI-A7, UI-A17, UI-A8, UI-S4, UI-S6, UI-S10, UI-C1, UI-C4, UI-C6–C8, UI-W3, UI-W11, UI-W19, UI-W21, UI-N1–N3 |
 | 5 · Hover previews, click loads | #212 | UI-A10, UI-A11, UI-H1, UI-H2, UI-H4 |
 | 6 · Compare | #213 | UI-H3, UI-S7 |
 | 7 · 3D Look from | #214 | UI-S2, UI-V1–V7, UI-V9 (and #33) |
@@ -324,6 +325,7 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 
 ## Change log
 
+- **1.5.8 · 2026-11-24** New UI-S10: the Members tab also sets sticks (− / + and row / 2×2, with Undo), marks focus members (◎), resets all to 1 stick, holds the Design facts and switches to the 3D every-member table, so the old table can leave the Drawing window (#453; TE-B-496, TE-B-499). UI-K4: the ring is `--te-focus`, 3:1 measured on its real ground; on-strong on the bar; inside the lit pill (TE-B-468, TE-B-471). UI-I2: the box is marked pink, the number stays ink. UI-A13: what 'numbers only' keeps (TE-B-488). Step 4 adds UI-S10.
 - **1.5.7 · 2026-11-13** For the UI and theme push (TE-B-359, TE-B-364). UI-S6: the Members table is an APG grid (one Tab stop, arrows by cell, the lit member follows the focused row, aria-selected on the picked row, aria-sort on Use only, CSV keeps member order, count in the caption). UI-W23: focus is never hidden under the fixed header or button row (WCAG 2.4.11). New UI-I10: invalid geometry: boxes refuse, a file opens with its bad values kept, marked and listed, No result until fixed, nothing clamped. UI-W14: the link also carries Technical details (TE-B-323). Step table: new 2b row (#399); W24 in steps 8 and 10; I10 in step 8.
 - **1.5.6 · 2026-11-06** TE-B-342 (Physics' visible line, TE-B-318 b): new UI-W24 says where the model-limits sentence goes: ☰ › Help › About, the tour's last card (no new step), and a short note beside the Material inputs; nowhere else, so the 52a line stays the only small print.
 - **1.5.5 · 2026-11-05** TE-B-332 / TE-B-339 (gap G11): UI-S6 says where the Members tab sits (last tab in Analysis › View options) and which columns show: the report's columns plus Use by default, an All columns switch for the rest, and Copy/CSV always all 13.
