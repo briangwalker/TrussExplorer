@@ -27,6 +27,8 @@ try {
   await p.click('#pen');
   const box = await p.evaluate(() => { const r = document.getElementById('veH').getBoundingClientRect(); return { w: Math.round(r.width), open: !document.getElementById('veH').hidden, f: document.activeElement.id }; });
   check('opens from ✎, 320 px wide, focus in the value box (UI-I8)', box.open && box.w === 320 && box.f === 'veH-v', JSON.stringify(box));
+  const ttl = await p.evaluate(() => { const t = veH.querySelector('.te-ve-t'); return { txt: t.innerText, tt: getComputedStyle(t).textTransform }; });
+  check('the title keeps the symbol\'s case: "✎ Height h", not upper-cased (UI-A17)', ttl.txt === '✎ Height h' && ttl.tt === 'none', JSON.stringify(ttl));
   const cnt = await p.textContent('#veH .te-ve-count');
   check('the sweep line reads from → to · step = N values (UI-I1)', cnt === '50 → 90 mm · step 5 = 9 values', cnt);
 

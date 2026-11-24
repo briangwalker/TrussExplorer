@@ -155,6 +155,7 @@ function editorHTML(P, o) {
       + numberHTML(P, { id: o.id + '-to', label: 'To', unit: o.unit, value: sw.to })
       + numberHTML(P, { id: o.id + '-step', label: 'Step', unit: o.unit, value: sw.step })
       + `<p class="te-ve-count" role="status"></p></fieldset>` : '';
+  // the title keeps the label's case: h and H are different inputs (UI-A17), so no page h2 rule may upper-case it
   return `<section class="te-ve" id="${id}" data-part="value-editor" data-slot="bg" data-movable data-pc role="dialog" aria-labelledby="${id}-t" hidden>`
     + `<div class="te-ve-h" data-part="window-title"><span class="grip" aria-hidden="true">⋮⋮</span><h2 class="te-ve-t" id="${id}-t">✎ ${esc(o.label)}</h2></div>`
     + `<div class="te-ve-b">` + numberHTML(P, { id: o.id + '-v', label: o.label, unit: o.unit, value: o.value })
@@ -277,7 +278,7 @@ const CSS = `
 #stage .te-ve{position:absolute;z-index:700;width:320px;box-sizing:border-box;background:var(--te-panel);color:var(--te-ink);border:1px solid var(--te-line);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.25);font:400 13px var(--te-font-ui)}
 #stage .te-ve[hidden]{display:none}
 #stage .te-ve-h{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--te-line);cursor:move;touch-action:none;user-select:none}
-#stage .te-ve-t{margin:0;font:700 14px var(--te-font-head);color:var(--te-ink)}
+#stage .te-ve-t{margin:0;font:700 14px var(--te-font-head);color:var(--te-ink);text-transform:none;letter-spacing:normal}
 #stage .te-ve-b{display:flex;flex-direction:column;gap:10px;padding:10px}
 #stage .te-ve-joy{position:relative;height:28px;border:1px solid var(--te-ctl-line);border-radius:14px;background:var(--te-ctl-bg);touch-action:none;cursor:ew-resize}
 #stage .te-ve-knob{position:absolute;left:calc(50% - 12px);top:1px;width:24px;height:24px;border-radius:50%;background:var(--te-ink);transition:transform .12s ease-out}
