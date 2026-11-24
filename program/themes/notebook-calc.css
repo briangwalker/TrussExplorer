@@ -122,8 +122,6 @@
 #stage[data-theme^="notebook-calc"] .toast button{ border:0; border-radius:50% 46% 52% 44% / 58% 50% 46% 54%; font:700 19px var(--f-head); color:#23262b; padding:0 8px;
   text-decoration:underline 1.5px dotted #6f7680; text-underline-offset:4px; box-shadow:0 0 0 0 transparent; transition:box-shadow 160ms; }
 #stage[data-theme^="notebook-calc"] .toast button:hover, #stage[data-theme^="notebook-calc"] .toast button:focus-visible{ text-decoration-color:transparent; box-shadow:0 0 0 2px #c23a2b, 3px -2px 0 -1px #c23a2b; outline:none !important; }
-/* the Undo toast (TrussSheets, UI-W10) is the brown bar: its focus ring is the light on-strong ring, not the dashed brown one, which vanished on it (QA TE-B-510b MUST B; ART-S5, ART-C2) */
-#stage[data-theme^="notebook-calc"] .te-toast-u:focus-visible{ outline:3px solid var(--te-on-strong) !important; outline-offset:2px !important; box-shadow:none; }
 
 /* tour marks and focus use the highlighter */
 #stage[data-theme^="notebook-calc"] .mark{ border-color:#f0b45a; border-radius:6px 10px 7px 12px; }
