@@ -1,0 +1,80 @@
+# One-click releases (TE-B-570; Brian 2026-11-24 decision 1a, Decisions row 183).
+# - Runs when a pull request into balsaPixel-1.0 whose title starts 'Release name 1.0.0-' is MERGED (closed and merged).
+#   The gate (QA, UI Designer and Chaos Tester PASS rows, no White Hat hold, the FVL's look line) happens on that
+#   pull request's head BEFORE it merges; merging it is the Dev Lead's one press. Brian's one press is the deploy approval.
+# - Reads the version from the title ('Release name 1.0.0-alpha.7 ...' -> 1.0.0-alpha.7), checks the merge commit says the
+#   same name (APP_RELEASE in program/src/app/10-state.js) and carries its notes (docs/release-notes/1.0.0-alpha.7.md),
+#   makes the annotated tag v1.0.0-alpha.7 on the MERGE COMMIT and publishes the pre-release with those notes.
+# - Uses only the workflow's own GITHUB_TOKEN ('contents: write' on the tag job alone): no secret is added.
+# - A tag made with GITHUB_TOKEN does NOT start other workflows (GitHub never starts a workflow from its own token's events,
+#   except workflow_dispatch and repository_dispatch), so this workflow CALLS deploy.yml (workflow_call) with the tag.
+#   deploy's test job, its 'production' approval (Brian) and its upload are unchanged; a tag pushed by hand still works as before.
+# - No third-party actions; actions/checkout is pinned by commit SHA (#264). The title is untrusted text: it only reaches the
+#   shell as an environment variable and is matched against a fixed pattern, never run.
+name: release
+on:
+  pull_request:
+    types: [closed]
+    branches: [balsaPixel-1.0]
+permissions:
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.title, 'Release name 1.0.0-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.name.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
+      - name: The version from the title, checked against the merge commit
+        id: name
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -eu
+          v=$(printf '%s' "${TITLE}" | sed -nE 's/^Release name (1\.0\.0-(alpha|beta|rc)\.[0-9]+)([^0-9A-Za-z.].*)?$/\1/p')
+          if [ -z "${v}" ]; then echo "The title must start 'Release name 1.0.0-alpha.N' (or beta.N, rc.N) followed by a space or nothing"; exit 1; fi
+          if ! grep -qF "APP_RELEASE = '${v}'" program/src/app/10-state.js; then echo "program/src/app/10-state.js doesn't say APP_RELEASE = '${v}' (release checklist 2: the page must give the same name)"; exit 1; fi
+          notes="docs/release-notes/${v}.md"
+          if [ ! -s "${notes}" ]; then echo "${notes} is missing or empty: copy the row from the Release Notes sheet into it on the release-name pull request"; exit 1; fi
+          kind=$(printf '%s' "${v}" | sed -nE 's/^1\.0\.0-(alpha|beta|rc)\.([0-9]+)$/\1/p'); n=$(printf '%s' "${v}" | sed -nE 's/^1\.0\.0-(alpha|beta|rc)\.([0-9]+)$/\2/p')
+          case "${kind}" in alpha) word=Alpha;; beta) word=Beta;; rc) word="Release candidate";; esac
+          echo "tag=v${v}" >> "${GITHUB_OUTPUT}"
+          echo "title=balsaPixel 1.0.0 ${word} ${n}" >> "${GITHUB_OUTPUT}"
+          echo "notes=${notes}" >> "${GITHUB_OUTPUT}"
+          echo "Release v${v} ('balsaPixel 1.0.0 ${word} ${n}') on ${SHA}, notes from ${notes}"
+      - name: Annotated tag on the merge commit, then the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.name.outputs.tag }}
+          TITLE: ${{ steps.name.outputs.title }}
+          NOTES: ${{ steps.name.outputs.notes }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -eu
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" >/dev/null 2>&1; then echo "The tag ${TAG} already exists: nothing is moved. Delete it first if it is on the wrong commit."; exit 1; fi
+          if gh release view "${TAG}" >/dev/null 2>&1; then echo "A release ${TAG} already exists: nothing is changed."; exit 1; fi
+          obj=$(gh api -X POST "repos/${GITHUB_REPOSITORY}/git/tags" -f tag="${TAG}" -f message="${TITLE} (pre-release), the gate commit of pull request #${PR}. Made by the release workflow." -f object="${SHA}" -f type=commit --jq .sha)
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${TAG}" -f sha="${obj}" >/dev/null
+          echo "Tag ${TAG} -> ${SHA} (annotated ${obj})"
+          gh release create "${TAG}" --verify-tag --prerelease --title "${TITLE}" --notes-file "${NOTES}"
+          echo "Pre-release ${TAG} published. deploy.yml runs next with this tag and waits for the production approval."
+  # GitHub won't start deploy.yml from the tag this job made (GITHUB_TOKEN), so it is called here instead: same tests, same approval.
+  deploy:
+    needs: tag
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
