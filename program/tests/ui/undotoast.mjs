@@ -41,8 +41,26 @@ async function run(p, tag) {
   check(`${tag}: Undo re-presses the old choice`, await p.evaluate(f => document.querySelector('#bottom button[aria-pressed="true"]').textContent.trim() === f, segd && segd.from));
   check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
 }
+// the Undo button's focus ring must show on the toast in every theme (QA TE-B-510b MUST B; ART-S5, ART-C2: 3:1)
+async function ringCheck(p, theme) {
+  await p.evaluate(t => __shell.applyTheme(t), theme); await p.waitForTimeout(150);
+  await p.evaluate(() => { const e = document.getElementById('height'); e.value = +e.value + 1; e.dispatchEvent(new Event('change', { bubbles: true })); }); await p.waitForTimeout(150);
+  // reach Undo by keyboard, so :focus-visible applies as it does for a keyboard user
+  for (let i = 0; i < 60 && !(await p.evaluate(() => document.activeElement && document.activeElement.matches('.te-toast [data-undo]'))); i++) await p.keyboard.press('Tab');
+  const r = await p.evaluate(() => {
+    const u = document.querySelector('.te-toast [data-undo]'); if (!u || document.activeElement !== u) return { err: 'undo not reached by Tab' };
+    const cs = getComputedStyle(u), bg = getComputedStyle(u.closest('.te-toast')).backgroundColor;
+    const lum = c => { const m = c.match(/[\d.]+/g); if (!m) return null; const [r, g, b] = m.slice(0, 3).map(v => { v = +v / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const l1 = lum(cs.outlineColor), l2 = lum(bg); const ratio = l1 === null || l2 === null ? 0 : (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    return { style: cs.outlineStyle, width: parseFloat(cs.outlineWidth), ratio: Math.round(ratio * 100) / 100, bg, ring: cs.outlineColor };
+  });
+  check(`${theme}: a focused Undo has a visible ring, 3:1 or better on the toast`, r.style && r.style !== 'none' && r.width >= 2 && r.ratio >= 3, JSON.stringify(r));
+  await p.click('.te-toast [data-undo]'); await p.waitForTimeout(100);
+}
 try {
-  const p = await openPage(b, srv.url, { width: 1366, height: 900 }); await run(p, '1366'); await p.close();
+  const p = await openPage(b, srv.url, { width: 1366, height: 900 }); await run(p, '1366');
+  for (const t of ['wireframe', 'notebook-calc', 'notebook-calc-calc', 'blueprint']) await ringCheck(p, t);
+  await p.close();
   const q = await openPage(b, srv.url, { width: 390, height: 844 }); await run(q, '390'); await q.close();
 } finally { await b.close(); srv.close(); }
 const fails = check.results.filter(x => !x.ok);
