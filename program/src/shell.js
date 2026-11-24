@@ -27,8 +27,8 @@ if (!SH_CLASSIC) {
       results: { home: 'res', title: () => 'Results', glyph: 'Σ', w: 540, movable: false },
     },
     // each place's window states (W words, I icons, T edge tab); a phone (under 700 px) starts with the picture
-    states: { truss: { inputs: 'W', view: 'W', drawing: 'I', sweep: 'T', results: 'T' }, analysis: { inputs: 'T', view: 'W', drawing: 'W', sweep: 'T', results: 'T' } },
-    phoneStates: { truss: { inputs: 'T', view: 'I', drawing: 'T', sweep: 'T', results: 'T' }, analysis: { inputs: 'T', view: 'I', drawing: 'T', sweep: 'T', results: 'T' } },
+    states: { truss: { inputs: 'W', view: 'W', drawing: 'I', sweep: 'W', results: 'T' }, analysis: { inputs: 'T', view: 'W', drawing: 'W', sweep: 'W', results: 'T' } },
+    phoneStates: { truss: { inputs: 'T', view: 'I', drawing: 'T', sweep: 'I', results: 'T' }, analysis: { inputs: 'T', view: 'I', drawing: 'T', sweep: 'I', results: 'T' } },
     // windows built from the window piece (#356), with the arrow their edge tab shows (UI-W4 ▸ INPUTS, UI-W5 ◂ DRAWING)
     pieceArrows: { drawing: '◂ ', inputs: '▸ ' },
     // the Drawing window's toggles: checkbox id -> [icon, label] (UI-W5)
@@ -241,11 +241,30 @@ if (!SH_CLASSIC) {
     if (id === 'results') return [R.stats, R.msgs];
     return [];
   }
+  // ---------- the sweep bar (UI-A2, UI-W15, UI-S5, UI-S9) ----------
+  // One row, bottom-left, always on screen: Run sweep, the count line, the progress bar, Cancel while a search runs, and the Resume offer (the app
+  // writes it into #bigMsg, so moving that element brings it). Every element keeps its id and its listeners: they are moved, never re-wired.
+  // The rest of the sweep (the other buttons, the ranges, the tables) sits under 'Sweep settings' in the same window. The orange stripe follows
+  // the app's own out-of-date banner (.staleMsg), so nothing here reads the sweep's variables.
+  function fillSweepBar() {
+    const W = wins.sweep, sum = W.querySelector('.s-sum'), body = W.querySelector('.s-bd');
+    sum.classList.add('te-sweepbar');
+    const prog = $('sweepBar') && $('sweepBar').parentNode;
+    [$('runSweep'), R.sweepCount, prog, $('bigMsg'), $('bigCancel')].forEach(n => mv(n, sum));
+    if (prog) prog.classList.add('te-sweepprog');
+    let tg = $('sweepMore'); if (!tg) { tg = el('button', 'btn ghost sm'); tg.type = 'button'; tg.id = 'sweepMore'; tg.setAttribute('aria-expanded', 'false'); tg.textContent = 'Sweep settings ▾'; tg.addEventListener('click', () => { const o = W.dataset.more !== '1'; W.dataset.more = o ? '1' : ''; tg.setAttribute('aria-expanded', String(o)); tg.textContent = o ? 'Sweep settings ▴' : 'Sweep settings ▾'; layout(); }); }
+    sum.appendChild(tg);   // last, also after a later fill() (a place switch)
+    // the buttons that stay in the old summary row go to the top of the body, so the bar itself stays one row
+    let more = body.querySelector(':scope > .te-sweepmore'); if (!more) { more = el('div', 'te-sweepmore'); body.insertBefore(more, body.firstChild); }
+    mv(R.sweepBtns, more);
+    const st = document.querySelector('.staleMsg');
+    if (st && !W._stale) { const paint = () => W.classList.toggle('stale', !st.hidden); W._stale = new MutationObserver(paint); W._stale.observe(st, { attributes: true, attributeFilter: ['hidden'] }); paint(); }
+  }
   function fill() {
     Object.keys(WIN).forEach(id => {
       const body = wins[id].querySelector('.s-bd'), nodes = contents(id).filter(Boolean);
       nodes.forEach(n => mv(n, body));
-      if (id === 'sweep') { const sum = wins.sweep.querySelector('.s-sum'); mv(R.sweepBtns, sum); mv(R.sweepCount, sum); }
+      if (id === 'sweep') fillSweepBar();
       wins[id].dataset.empty = nodes.length ? '' : '1';
     });
     paintWins();
@@ -301,7 +320,7 @@ if (!SH_CLASSIC) {
     else Object.assign(I.style, { width: iW + 'px' });
     const iShown = shown('inputs'), leftUsed = iShown ? iW + 2 * M : 0;
     // sweep at the bottom, beside the inputs
-    const W = wins.sweep, sl = leftUsed || M, sW = eff('sweep') === 'W' ? Math.max(260, Math.min(WIN.sweep.w, vw - sl - M - rightUsed)) : 'auto';
+    const W = wins.sweep, sl = leftUsed || M, sW = eff('sweep') === 'W' ? Math.max(260, Math.min(WIN.sweep.w, vw - sl - M - Math.max(rightUsed, vw >= 1100 ? 370 : 0))) : 'auto';
     Object.assign(W.style, { left: sl + 'px', bottom: M + 'px', top: 'auto', width: typeof sW === 'number' ? sW + 'px' : sW, maxHeight: Math.round(vh * .55) + 'px', right: 'auto' });
     // the full results under the card
     const RS = wins.results;
