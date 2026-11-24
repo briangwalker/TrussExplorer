@@ -7,12 +7,13 @@ const path = require('path');
 const SRC = path.join(__dirname, '..', 'src');
 const B = require(path.join(SRC, 'sweepbar.js'));
 const S = require(path.join(SRC, 'strings.js'));
+const key = k => 'sweepbar.state.' + k.replace(/-([a-z])/g, (m, c) => c.toUpperCase());
 const base = () => ({ mode: 'none', running: false, pilot: false, cancel: false, busy: false, stale: false, rows: 0 });
 const st = (o, p) => B.state(Object.assign(base(), o), p);
 
 test('one case per kind: the kind, the counts, the buttons and the words from strings.js', () => {
   let s = st({});
-  assert.strictEqual(s.kind, 'idle'); assert.strictEqual(s.msg, S.t('sweepbar.idle')); assert.deepStrictEqual([s.canRun, s.canCancel, s.canResume, s.canDiscard], [true, false, false, false]);
+  assert.strictEqual(s.kind, 'idle'); assert.strictEqual(s.msg, S.t(key('idle'))); assert.deepStrictEqual([s.canRun, s.canCancel, s.canResume, s.canDiscard], [true, false, false, false]);
   s = st({ running: true, busy: true }, { i: 250, n: 1000, eta: '2 min' });
   assert.strictEqual(s.kind, 'pilot-running'); assert.strictEqual(s.msg, 'Pilot: 250 of 1,000 designs…'); assert.deepStrictEqual([s.count, s.total, s.eta], [250, 1000, '2 min']);
   assert.deepStrictEqual([s.canRun, s.canCancel, s.canResume, s.canDiscard], [false, true, false, false]);
@@ -23,7 +24,7 @@ test('one case per kind: the kind, the counts, the buttons and the words from st
   s = st({ mode: 'full', rows: 12345 });
   assert.strictEqual(s.kind, 'done'); assert.strictEqual(s.msg, '12,345 designs tested.'); assert.strictEqual(st({ mode: 'sweep', rows: 4 }).kind, 'done');
   s = st({ mode: 'sweep', rows: 40, stale: true });
-  assert.strictEqual(s.kind, 'out-of-date'); assert.strictEqual(s.msg, S.t('sweepbar.out-of-date')); assert.strictEqual(s.canRun, true);
+  assert.strictEqual(s.kind, 'out-of-date'); assert.strictEqual(s.msg, S.t(key('out-of-date'))); assert.strictEqual(s.canRun, true);
   s = st({ resumable: { done: 4000, total: 90000 } });
   assert.strictEqual(s.kind, 'resumable'); assert.strictEqual(s.msg, 'A full search stopped at 4,000 of 90,000 designs. Resume it, or discard it.');
   assert.deepStrictEqual([s.canRun, s.canCancel, s.canResume, s.canDiscard], [false, false, true, true]);
@@ -61,9 +62,9 @@ test('extra fields are ignored; odd ones read as off; damaged input reads as idl
   assert.strictEqual(B.state(null).kind, 'idle');
 });
 
-test('the words: every kind has a sweepbar.<kind> key in strings.js, and every such key is a kind', () => {
-  for (const k of B.KINDS) assert.doesNotThrow(() => S.t('sweepbar.' + k), k);
-  assert.deepStrictEqual(Object.keys(S.TEXT).filter(k => k.startsWith('sweepbar.')).map(k => k.slice(9)).sort(), B.KINDS.slice().sort());
+test('the words: every kind has a sweepbar.state.<kind> key in strings.js, and every such key is a kind', () => {
+  for (const k of B.KINDS) assert.doesNotThrow(() => S.t(key(k)), k);
+  assert.deepStrictEqual(Object.keys(S.TEXT).filter(k => k.startsWith('sweepbar.')).map(k => k.slice(15)).sort(), B.KINDS.map(k => k.replace(/-([a-z])/g, (m, c) => c.toUpperCase())).sort());
 });
 
 test('pure: no DOM or timers (CODE-F5), a frozen standalone global (CODE-F1), the facts() getter is plain data', () => {
