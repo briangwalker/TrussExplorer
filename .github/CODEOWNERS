@@ -1,43 +1,8 @@
-# Brian approves only the security-sensitive paths below; anything else merges on green checks (TE-B-447, White Hat).
-# Keep this list in step with checklist 1.1's 'security: boundary' paths. Changing this file needs Brian (it's under .github/).
-
-# CI, deploy, PR rules and this file itself: whoever can change these can change every other guard
+# Brian is code owner of only these two paths on balsaPixel-1.0 (decisions 178-181, TE-B-525, 2026-11-24):
+# CI, deploy, PR rules and this file itself, and the deploy step that uploads to the live site.
+# Every other security-sensitive path (file reading: formats.js, 50-files.js, 85-sweep-sheets.js; 92-report.js;
+# export.js, 95-keep-safe.js; themes/, themepack.py, themefile.js; package*.json; build.py; the guarding tests;
+# docs/security-checklist.md) merges only with White Hat's AND Black Hat's OK lines at the PR's head and the
+# 'security: boundary' label (White Hat checklist 1.1). main keeps the full list.
 /.github/ @briangwalker
-# the deploy step that uploads to the live site
 /program/deploy/ @briangwalker
-# writes the page and its Content-Security-Policy (script hashes, connect-src 'self')
-/program/build.py @briangwalker
-# dependencies (supply chain): a new package runs code in CI and could land in the page
-/program/package.json @briangwalker
-/program/package-lock.json @briangwalker
-/program/tests/requirements.txt @briangwalker
-
-# the import door: every file a stranger can send us goes through these (R3, R9)
-/program/src/formats.js @briangwalker
-/program/src/app/50-files.js @briangwalker
-/program/src/app/85-sweep-sheets.js @briangwalker
-# Report a bug: the form link and what it carries (WH-F1-F3)
-/program/src/app/92-report.js @briangwalker
-# what goes out: the .py export's name escaping (SEC-003) and the stored-backup reader (escH, cleanData on storage)
-/program/src/export.js @briangwalker
-/program/src/app/95-keep-safe.js @briangwalker
-# themes: packed CSS and the files the packer reads (WH-T1-T6)
-/program/themes/ @briangwalker
-/program/tools/themepack.py @briangwalker
-# a theme loaded from a FILE (#265): the pair checks and the variables it may set
-/program/src/themefile.js @briangwalker
-
-# the tests that guard the lines above: a PR must not be able to weaken them and pass its own checks
-/program/tests/run_all.sh @briangwalker
-/program/tests/formats.test.js @briangwalker
-/program/tests/themefile.test.js @briangwalker
-/program/tests/formats/ @briangwalker
-/program/tests/theme-file.test.js @briangwalker
-/program/tests/csvsafe.test.js @briangwalker
-/program/tests/exports.test.js @briangwalker
-/program/tests/deploy.test.js @briangwalker
-/program/tests/ui/csp.mjs @briangwalker
-/program/tests/ui/reportbug.mjs @briangwalker
-
-# the security checklist itself
-/docs/security-checklist.md @briangwalker
