@@ -97,6 +97,31 @@ try {
       check('it waits while the pointer is on it (WCAG 2.2.1)', await p.evaluate(() => !T.el.hidden));
       await (await p.evaluateHandle(() => T.el.querySelector('.te-toast-u'))).click();
       check('Undo runs the undo and closes the toast', await p.evaluate(() => undone === 1 && T.el.hidden));
+      // Undo by keyboard: focus goes back where it was, not to the page (WCAG 2.4.3; UI Engineer's look at #482)
+      await p.evaluate(() => { document.getElementById('opener').focus(); T.show({ text: 'Changed h 80 → 75', undo: () => { undone++; }, ms: 5000 }); });
+      await p.evaluate(() => T.el.querySelector('.te-toast-u').focus()); await p.keyboard.press('Enter');
+      const kf = await p.evaluate(() => ({ undone, hidden: T.el.hidden, f: document.activeElement.id }));
+      check('Undo with the keyboard: it runs, the toast closes, and focus goes back to where it was', kf.undone === 2 && kf.hidden && kf.f === 'opener', JSON.stringify(kf));
+      await p.evaluate(() => { document.getElementById('opener').focus(); T.show({ text: 'a', undo: () => {}, ms: 5000 }); T.el.querySelector('.te-toast-u').focus(); T.show({ text: 'b', ms: 5000 }); });
+      check('a new toast replacing a focused one gives focus back too', await p.evaluate(() => document.activeElement.id === 'opener'));
+      // Ctrl+Z / ⌘Z runs Undo while the toast is up, but not inside a text field (QA TE-B-502 MUST A)
+      await p.evaluate(() => { document.getElementById('opener').focus(); T.show({ text: 'Changed h 75 → 70', undo: () => { undone++; }, ms: 5000 }); });
+      const kb = await p.evaluate(() => { const u = T.el.querySelector('.te-toast-u'); return { ks: u.getAttribute('aria-keyshortcuts'), key: u.querySelector('kbd') && u.querySelector('kbd').textContent }; });
+      check('the Undo button shows its key and names it for screen readers', kb.ks === 'Control+Z Meta+Z' && /^(Ctrl\+Z|⌘Z)$/.test(kb.key), JSON.stringify(kb));
+      await p.keyboard.press('Control+z');
+      let ku = await p.evaluate(() => ({ undone, hidden: T.el.hidden }));
+      check('Ctrl+Z runs the Undo and closes the toast', ku.undone === 3 && ku.hidden, JSON.stringify(ku));
+      await p.evaluate(() => { const i = document.createElement('input'); i.id = 'tx'; i.type = 'text'; document.getElementById('stage').appendChild(i); i.focus(); T.show({ text: 'Changed w 50 → 60', undo: () => { undone++; }, ms: 5000 }); });
+      await p.keyboard.press('Control+z');
+      ku = await p.evaluate(() => ({ undone, hidden: T.el.hidden }));
+      check('…but not while a text field has focus (the browser\'s own undo stays)', ku.undone === 3 && !ku.hidden, JSON.stringify(ku));
+      await p.evaluate(() => { document.getElementById('tx').remove(); T.hide(); });
+      // the Undo ring on the toast's strong ground: 3 : 1 or better (QA TE-B-502 MUST B, ART-S5 1.0.7)
+      await p.evaluate(() => { document.getElementById('opener').focus(); T.show({ text: 'ring', undo: () => {}, ms: 8000 }); });
+      await p.evaluate(() => T.el.querySelector('.te-toast-u').focus({ focusVisible: true }));
+      const ring = await p.evaluate(() => { const u = T.el.querySelector('.te-toast-u'), cs = getComputedStyle(u), bg = getComputedStyle(T.el).backgroundColor; const P = window.TrussPieces; return { oc: cs.outlineColor, bg, style: cs.outlineStyle, ratio: P.contrast(cs.outlineColor, bg) }; });
+      check('the Undo focus ring is 3 : 1 or better on the toast', ring.style !== 'none' && ring.ratio >= 3, JSON.stringify(ring));
+      await p.evaluate(() => T.hide());
       await p.evaluate(() => { T.show({ text: 'one', ms: 5000 }); T.show({ text: 'two', ms: 5000 }); });
       check('one toast at a time: a new one replaces the old', await p.evaluate(() => document.querySelectorAll('.te-toast').length <= 2 && !T.el.hidden && T.el.textContent === 'two'));
       // contrast of the toast and the dialog text (ART-C1)
