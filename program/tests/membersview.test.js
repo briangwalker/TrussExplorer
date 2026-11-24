@@ -95,12 +95,12 @@ test('the table piece: the Tab stop starts on the lit row; a row-header column; 
   assert.throws(() => P.tableHTML({ columns: [{ key: 'a', sort: 'up' }] }), /descending or ascending/);
 });
 
-test('Members on screen: the short set by default, All columns adds Type, Sticks, Capacity; Copy/CSV keep all 13 (UI-S6 1.5.5)', () => {
-  assert.deepStrictEqual(V.columns(false).map(c => c.label), ['Member', 'i–j', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?', 'Use']);
-  assert.deepStrictEqual(V.columns(true).map(c => c.label), ['Member', 'i–j', 'Type', 'Sticks', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?', 'Capacity (N)', 'Use']);
+test('Members on screen: the short set by default (Sticks and Focus always shown, UI-S10), All columns adds Type and Capacity; Copy/CSV keep all 13 (UI-S6 1.5.5)', () => {
+  assert.deepStrictEqual(V.columns(false).map(c => c.label), ['Member', 'i–j', 'Sticks', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?', 'Use', 'Focus']);
+  assert.deepStrictEqual(V.columns(true).map(c => c.label), ['Member', 'i–j', 'Type', 'Sticks', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?', 'Capacity (N)', 'Use', 'Focus']);
   const { tr, res } = solve2D(DEFAULT); const rows = M.rows(tr, res, {});
   const short = V.tableHTML(P, rows, { typeLabel: X.TYPE_LABEL }), all = V.tableHTML(P, rows, { typeLabel: X.TYPE_LABEL, all: true });
-  assert.doesNotMatch(short, />Capacity \(N\)</); assert.match(all, />Capacity \(N\)</); assert.match(all, />Sticks</);
+  assert.doesNotMatch(short, />Capacity \(N\)</); assert.match(all, />Capacity \(N\)</); assert.match(all, />Sticks</); assert.match(short, />Sticks</);
   assert.strictEqual(V.csvRows(rows, X.TYPE_LABEL)[0].length, 13);
   assert.match(short, new RegExp(`<caption>${rows.length} members, highest use first</caption>`));
   assert.match(short, /<th scope="row" class="num rh" tabindex="0">/, 'Member is the row header and holds the Tab stop');
@@ -146,4 +146,18 @@ test('the table piece: cells that hold controls are marked for grid editing (pie
   assert.match(h, /<td data-edit="cell" tabindex="-1"><button type="button">\+<\/button><\/td>/);
   assert.match(h, /<td data-edit="widget" tabindex="-1"><button type="button" aria-pressed="false">◎<\/button><\/td>/);
   assert.throws(() => P.tableHTML({ columns: [{ key: 'a', label: 'A', edit: 'yes' }], rows: [] }), /edit is cell or widget/);
+});
+
+test('Members: with edit on, Sticks holds − / + (and row / 2×2 at 4) and Focus one toggle per member (UI-S10)', () => {
+  const { tr, res } = solve2D(DEFAULT); const rows = M.rows(tr, res, {});
+  const plain = V.tableHTML(P, rows, { typeLabel: X.TYPE_LABEL }), ed = V.tableHTML(P, rows, { typeLabel: X.TYPE_LABEL, edit: true, isFocus: k => k === rows[0].k });
+  assert.doesNotMatch(plain, /data-act="mem-more"/, 'no controls unless the app asks for them');
+  assert.strictEqual((ed.match(/data-act="mem-more"/g) || []).length, rows.length);
+  assert.strictEqual((ed.match(/data-act="mem-focus"/g) || []).length, rows.length);
+  assert.strictEqual((ed.match(/data-edit="cell"/g) || []).length >= rows.length, true, 'the Sticks cells are editing cells');
+  assert.strictEqual((ed.match(/aria-pressed="true"[^>]*>●/g) || []).length + (ed.match(/>●</g) || []).length > 0, true, 'a focused member shows ●');
+  assert.match(ed, /aria-label="Focus member \d+ in the sweep"/); assert.match(ed, /aria-label="Fewer sticks, member \d+"/);
+  assert.match(V.sticksHTML(P, { k: 7, sticks: 4, compact: true }), /data-act="mem-bundle"[^>]*aria-pressed="true"/, 'at 4 sticks the 2×2 switch is there');
+  assert.doesNotMatch(V.sticksHTML(P, { k: 7, sticks: 3 }), /mem-bundle/);
+  assert.match(V.toolbarHTML(P, {}), /All members to 1 stick/);
 });

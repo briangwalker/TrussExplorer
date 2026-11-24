@@ -62,9 +62,9 @@ try {
       check('after a redraw, focus is still on the same member and column, one Tab stop', now.k === was.k && now.col === was.col && now.stops === 1, JSON.stringify({ was, now }));
       // UI-S6 1.5.5 / 1.5.7: the All columns switch and the Use sort (UI Engineer, #438)
       const cols = () => p.evaluate(() => [...document.querySelectorAll('#memTbl thead th')].map(x => x.textContent.trim().replace(/\s*[▼▲]$/, '')));
-      check('the short column set by default', JSON.stringify(await cols()) === JSON.stringify(['Member', 'i–j', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?', 'Use']), JSON.stringify(await cols()));
+      check('the short column set by default (Sticks and Focus always shown, UI-S10)', JSON.stringify(await cols()) === JSON.stringify(['Member', 'i–j', 'Sticks', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?', 'Use', 'Focus']), JSON.stringify(await cols()));
       await p.click('#memAll'); await p.waitForTimeout(150);
-      check('All columns adds Type, Sticks and Capacity, and the switch keeps focus', (await cols()).join() === 'Member,i–j,Type,Sticks,L (mm),F (N),T/C,P_cr (N),Buckling?,Capacity (N),Use' && await p.evaluate(() => document.activeElement.id === 'memAll' && document.activeElement.getAttribute('aria-checked') === 'true'), (await cols()).join());
+      check('All columns adds Type and Capacity, and the switch keeps focus', (await cols()).join() === 'Member,i–j,Type,Sticks,L (mm),F (N),T/C,P_cr (N),Buckling?,Capacity (N),Use,Focus' && await p.evaluate(() => document.activeElement.id === 'memAll' && document.activeElement.getAttribute('aria-checked') === 'true'), (await cols()).join());
       const firstUse = () => p.evaluate(() => document.querySelector('#memTbl caption').textContent);
       await p.click('#memTbl .te-sort'); await p.waitForTimeout(150);
       check('the Use header sorts lowest first, and says so', /lowest use first/.test(await firstUse()) && await p.evaluate(() => document.querySelector('#memTbl [aria-sort]').getAttribute('aria-sort') === 'ascending' && document.activeElement.classList.contains('te-sort')), await firstUse());
