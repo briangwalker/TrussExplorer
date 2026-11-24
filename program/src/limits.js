@@ -8,7 +8,7 @@
 // Expressions: numbers, input ids, derived names (DERIVED), + - * /, unary minus, brackets, min() and max(). They are read by the small
 // parser below, never run as code. Anything else throws a TypeError (CODE-N3: a programmer error).
 // A missing or damaged input list, or a missing value, is not an error here: that row is skipped (CODE-N2).
-// This is the first half of the validity function: the geometry rules G1-G10 and M1-M4 are a later row (RMA-6).
+// This is the validity function: checkInputs and warnInputs (the table), and checkGeometry (G1-G5, RMA-6). G6-G10 and M1-M4 are a later row.
 // No DOM, no app state (CODE-F1, CODE-F4, CODE-F5): Node tests load it directly; build.py inlines it before app.js.
 (function (root) {
 'use strict';
@@ -212,8 +212,81 @@ function warnInputs(values) {
 // the app's own mode id is lowercase ('2d' / '3d', S.anaMode); a file or a caller may write '3D': both mean 3D
 const isModel3D = m => typeof m === 'string' && m.toLowerCase() === '3d';
 
+// ---------- geometry rules G1-G5 (Physics' doc, TE-B-370; board TE-B-458, RMA-6): the second half of the validity function ----------
+// checkGeometry(truss, values) -> [{ rule: 'G1'..'G5', msg, where: [indexes] }], in rule order; empty = fine. Pure: nothing is changed.
+//   truss: what core.js's buildTruss returns, or a file's truss in the same shape: nodes [[x, y], ...] (mm, y up), elems [{ i, j, ... }, ...]
+//   (member k joins nodes i and j), keys (a name per node; 'B0', 'B1' ... are the bottom chord, left to right) and panelPts (the panel
+//   points' x, left to right) when the truss has them. values: the stick size, bS and hS in mm (a missing or bad one reads as the course stick).
+//   where: 0-based node indexes (G1 to G4) or member indexes (G5); the messages count from 1, as the people reading them do.
+// G4 carries unstable: true. A flat line gives only G4, not a wall of G5 (Physics). A damaged truss gives [] (CODE-N2); nothing here throws.
+// Not checked here: G6 (merged into G5), G7-G10 and M1-M4 (a later row). Two joints that sit close together but are not joined by a member
+// are not looked at; a joined pair is covered by the member length.
+const TOL = 1e-6;
+// One decimal: lengths print '5.0' (G5), heights print '-5' (G3, Physics' wording), so a flag keeps the .0 or drops it.
+const r1 = (v, keep) => { const x = Math.round(v * 10) / 10; return keep ? x.toFixed(1) : String(x); };
+const f1 = v => r1(v, true), fh = v => r1(v, false);
+const minOf = a => { let m = Infinity; for (let i = 0; i < a.length; i++) if (a[i] < m) m = a[i]; return m; };   // loops, not apply: no row count can overflow the stack
+const maxOf = a => { let m = -Infinity; for (let i = 0; i < a.length; i++) if (a[i] > m) m = a[i]; return m; };
+const GEOMETRY_MSG = {
+  G1: 'The span must be more than 0 mm.',
+  G2: j => 'Joint ' + j[0] + ' is left of joint ' + j[1] + '. Panels must run left to right, each wider than 0 mm.',
+  G2same: j => 'Joint ' + j[0] + ' is not to the right of joint ' + j[1] + '. Panels must run left to right, each wider than 0 mm.',
+  G3: (j, y) => 'Joint ' + j + ' is below the bottom line (' + fh(y) + ' mm). Heights can\'t be negative; it would swap which members pull and push.',
+  G4: 'Every joint is on one line, so this truss can\'t carry load. No capacity is shown.',
+  G5len: (m, len, min) => 'Member ' + m + ' is ' + f1(len) + ' mm long; the shortest allowed is ' + f1(min) + ' mm.',
+  G5dup: (a, b) => 'Members ' + a + ' and ' + b + ' join the same two joints.',
+};
+
+function checkGeometry(truss, values) {
+  const out = [];
+  if (!isObj(truss) || !Array.isArray(truss.nodes) || truss.nodes.length < 2) return out;
+  const ok = p => Array.isArray(p) && isNum(p[0]) && isNum(p[1]);
+  if (!truss.nodes.every(ok)) return out;
+  const N = truss.nodes;
+  // G1: span is more than 0 (the nodes' reach left to right)
+  const xs = N.map(p => p[0]), span = maxOf(xs) - minOf(xs);
+  if (!(span > TOL)) out.push({ rule: 'G1', msg: GEOMETRY_MSG.G1, where: [] });
+  // G2: joints run left to right, each panel wider than 0: the panel points (panelPts, else the bottom chord B0, B1 ...)
+  let pts = null;
+  if (Array.isArray(truss.panelPts) && truss.panelPts.length >= 2 && truss.panelPts.every(isNum)) pts = truss.panelPts.map((x, i) => ({ x, n: i }));
+  else if (Array.isArray(truss.keys) && truss.keys.length === N.length) {
+    pts = truss.keys.map((k, i) => ({ k, i })).filter(o => typeof o.k === 'string' && /^B\d+$/.test(o.k)).sort((a, b) => +a.k.slice(1) - +b.k.slice(1)).map(o => ({ x: N[o.i][0], n: o.i }));
+    if (pts.length < 2) pts = null;
+  }
+  if (pts) for (let a = 1; a < pts.length; a++) if (!(pts[a].x > pts[a - 1].x + TOL)) {
+    const j = [pts[a].n + 1, pts[a - 1].n + 1];
+    out.push({ rule: 'G2', msg: (pts[a].x < pts[a - 1].x - TOL ? GEOMETRY_MSG.G2 : GEOMETRY_MSG.G2same)(j), where: [pts[a].n, pts[a - 1].n] });
+  }
+  // G3: heights are 0 or more, but the lowest allowed joint is the design's own lowest shaped end (Physics, TE-B-470): a shaped bottom chord sags
+  // to its curve (a negative number), and a shaped top chord may end below the deck line at topEnd (the arch pressing on the table faces).
+  // botEnd is 0 or more, so it adds nothing. Without the design, or with flat chords, the line is y = 0 (strict). Anything lower is still G3.
+  const dz = isObj(truss.design) ? truss.design : null;
+  const shaped = k => dz && typeof dz[k] === 'string' && SHAPED.indexOf(dz[k]) >= 0;
+  let sag = 0;
+  if (shaped('bottom') && isNum(+dz.curve)) sag = Math.min(sag, +dz.curve);
+  if (shaped('topShape') && isNum(+dz.topEnd)) sag = Math.min(sag, +dz.topEnd);
+  N.forEach((p, i) => { if (p[1] < sag - TOL) out.push({ rule: 'G3', msg: GEOMETRY_MSG.G3(i + 1, p[1]), where: [i] }); });
+  // G4: not every joint on one line (a flat line, or any one straight line): a mechanism, 'unstable', and nothing more is said about it
+  const a0 = N[0], far = N.reduce((b, p) => (Math.hypot(p[0] - a0[0], p[1] - a0[1]) > Math.hypot(b[0] - a0[0], b[1] - a0[1]) ? p : b), a0);
+  const dx = far[0] - a0[0], dy = far[1] - a0[1], len0 = Math.hypot(dx, dy);
+  const oneLine = len0 <= TOL || N.every(p => Math.abs(dx * (p[1] - a0[1]) - dy * (p[0] - a0[0])) / len0 <= TOL);
+  if (oneLine) { out.push({ rule: 'G4', msg: GEOMETRY_MSG.G4, where: [], unstable: true }); return out; }
+  // G5: every member at least two stick widths long (2 x max(bS, hS)), and no two members join the same two joints
+  const E = Array.isArray(truss.elems) ? truss.elems : [];
+  const stick = v => (isObj(values) && isNum(asNumber(values[v])) && asNumber(values[v]) > 0 ? asNumber(values[v]) : STICK_MM);
+  const min2 = 2 * Math.max(stick('bS'), stick('hS')), seen = new Map();
+  E.forEach((e, m) => {
+    if (!isObj(e) || !Number.isInteger(e.i) || !Number.isInteger(e.j) || !N[e.i] || !N[e.j]) return;
+    const L = Math.hypot(N[e.i][0] - N[e.j][0], N[e.i][1] - N[e.j][1]);
+    if (L < min2 - TOL) out.push({ rule: 'G5', msg: GEOMETRY_MSG.G5len(m + 1, L, min2), where: [m] });
+    const key = Math.min(e.i, e.j) + '-' + Math.max(e.i, e.j);
+    if (seen.has(key)) out.push({ rule: 'G5', msg: GEOMETRY_MSG.G5dup(seen.get(key) + 1, m + 1), where: [seen.get(key), m] }); else seen.set(key, m);
+  });
+  return out;
+}
+
 const rowFor = id => TABLE.find(r => r.id === id) || null;
 
-const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, rowFor };
+const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, rowFor };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussLimits = api;
 })(typeof window !== 'undefined' ? window : globalThis);
