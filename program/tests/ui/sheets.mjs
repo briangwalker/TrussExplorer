@@ -97,6 +97,13 @@ try {
       check('it waits while the pointer is on it (WCAG 2.2.1)', await p.evaluate(() => !T.el.hidden));
       await (await p.evaluateHandle(() => T.el.querySelector('.te-toast-u'))).click();
       check('Undo runs the undo and closes the toast', await p.evaluate(() => undone === 1 && T.el.hidden));
+      // Undo by keyboard: focus goes back where it was, not to the page (WCAG 2.4.3; UI Engineer's look at #482)
+      await p.evaluate(() => { document.getElementById('opener').focus(); T.show({ text: 'Changed h 80 → 75', undo: () => { undone++; }, ms: 5000 }); });
+      await p.evaluate(() => T.el.querySelector('.te-toast-u').focus()); await p.keyboard.press('Enter');
+      const kf = await p.evaluate(() => ({ undone, hidden: T.el.hidden, f: document.activeElement.id }));
+      check('Undo with the keyboard: it runs, the toast closes, and focus goes back to where it was', kf.undone === 2 && kf.hidden && kf.f === 'opener', JSON.stringify(kf));
+      await p.evaluate(() => { document.getElementById('opener').focus(); T.show({ text: 'a', undo: () => {}, ms: 5000 }); T.el.querySelector('.te-toast-u').focus(); T.show({ text: 'b', ms: 5000 }); });
+      check('a new toast replacing a focused one gives focus back too', await p.evaluate(() => document.activeElement.id === 'opener'));
       await p.evaluate(() => { T.show({ text: 'one', ms: 5000 }); T.show({ text: 'two', ms: 5000 }); });
       check('one toast at a time: a new one replaces the old', await p.evaluate(() => document.querySelectorAll('.te-toast').length <= 2 && !T.el.hidden && T.el.textContent === 'two'));
       // contrast of the toast and the dialog text (ART-C1)

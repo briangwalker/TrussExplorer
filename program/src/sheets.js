@@ -104,7 +104,7 @@ function modals(doc, opts) {
 
 function toasts(doc, o) {
   doc = doc || document; o = o || {};
-  let box = null, timer = null, cur = null;
+  let box = null, timer = null, cur = null, back = null;   // back: where focus was before it came into the toast
   function ensure() {
     if (box && box.isConnected) return box;
     box = doc.createElement('div');
@@ -114,7 +114,7 @@ function toasts(doc, o) {
     const hold = () => { clearTimeout(timer); timer = null; };
     const resume = () => { if (cur && !box.matches(':hover') && !box.contains(doc.activeElement)) arm(cur.ms); };
     box.addEventListener('pointerenter', hold); box.addEventListener('pointerleave', resume);
-    box.addEventListener('focusin', hold); box.addEventListener('focusout', ev => { if (!box.contains(ev.relatedTarget)) resume(); });
+    box.addEventListener('focusin', ev => { if (ev.relatedTarget && !box.contains(ev.relatedTarget)) back = ev.relatedTarget; hold(); }); box.addEventListener('focusout', ev => { if (!box.contains(ev.relatedTarget)) resume(); });
     box.addEventListener('click', ev => {
       if (!ev.target.closest('[data-undo]') || !cur) return;
       const fn = cur.undo; hide(); if (fn) fn();
@@ -122,16 +122,19 @@ function toasts(doc, o) {
     return box;
   }
   function arm(ms) { clearTimeout(timer); timer = setTimeout(hide, ms); }
-  function hide() { clearTimeout(timer); timer = null; cur = null; if (box) { box.hidden = true; box.textContent = ''; } }
+  // closing a toast that holds focus (Undo by keyboard) puts focus back where it was, never on the page (WCAG 2.4.3)
+  function giveBack(had) { const to = back; back = null; if (had && to && to.isConnected && !box.contains(to)) to.focus(); }
+  function hide() { clearTimeout(timer); timer = null; cur = null; if (box) { const had = box.contains(doc.activeElement); box.hidden = true; box.textContent = ''; giveBack(had); } }
   function show(m) {
     if (!m || !m.text) throw new Error('TrussSheets: a toast needs text');
-    const b = ensure();
+    const b = ensure(), had = b.contains(doc.activeElement);
     const ms = m.ms || Math.max(4000, String(m.text).length * 70);
     cur = { undo: typeof m.undo === 'function' ? m.undo : null, ms };
     b.textContent = '';
     const s = doc.createElement('span'); s.className = 'te-toast-t'; s.textContent = m.text; b.appendChild(s);
     if (cur.undo) { const u = doc.createElement('button'); u.type = 'button'; u.className = 'te-toast-u'; u.dataset.undo = ''; u.textContent = t('toast.button.undo'); b.appendChild(u); }
     b.hidden = false; arm(ms);
+    if (had) giveBack(true);           // a new toast replaced the one that held focus
     return { close: hide };
   }
   return { show, hide, get el() { return box; } };
@@ -166,6 +169,6 @@ function install(doc) {
   const st = doc.createElement('style'); st.id = 'te-sheets'; st.textContent = CSS; doc.head.appendChild(st); return true;
 }
 
-const api = { VERSION: '0.1.0', sheetHTML, modals, toasts, CSS, install };
+const api = { VERSION: '0.1.1', sheetHTML, modals, toasts, CSS, install };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussSheets = api;
 })(typeof window !== 'undefined' ? window : globalThis);
