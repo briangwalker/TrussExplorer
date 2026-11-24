@@ -542,14 +542,17 @@ function setLook(v) {
 function placeLookFrom() {
   const lf = $('lookFrom'); if (!lf) return;
   const box = lf.parentElement, cube = box.querySelector('.navcube');
-  if (cube && !cube.hidden && cube.offsetWidth) { lf.style.top = (cube.offsetTop + cube.offsetHeight - 6) + 'px'; lf.style.right = Math.max(4, box.clientWidth - cube.offsetLeft - cube.offsetWidth) + 'px'; }
-  else { lf.style.top = (fsTopPad() + 8) + 'px'; lf.style.right = '8px'; }
-  // until the right-edge window opens 8 px under the cube's box (UI-W19, the shell's), keep the button clear of it
-  const win = document.getElementById('win-drawing');
-  if (win && win.offsetWidth && getComputedStyle(win).display !== 'none') {
+  // Look from lives on the cube (UI-V7): where the cube is not shown (the locked page view, or the cube turned off) it goes too
+  const shown = !!(cube && !cube.hidden && cube.offsetWidth);
+  lf.hidden = !shown; if (!shown) { openLookMenu(false); return; }
+  lf.style.top = (cube.offsetTop + cube.offsetHeight - 6) + 'px'; lf.style.right = Math.max(4, box.clientWidth - cube.offsetLeft - cube.offsetWidth) + 'px';
+  // until the right-edge window opens 8 px under the cube's box (UI-W19, the shell's), keep the button clear of it and of Lock view
+  ['win-drawing', 'free3d'].forEach(id => {
+    const win = document.getElementById(id);
+    if (!win || !win.offsetWidth || getComputedStyle(win).display === 'none') return;
     const w = win.getBoundingClientRect(), r = lf.getBoundingClientRect(), b = box.getBoundingClientRect();
     if (r.right > w.left - 4 && r.left < w.right && r.bottom > w.top && r.top < w.bottom) lf.style.right = Math.max(4, b.right - w.left + 8) + 'px';
-  }
+  });
 }
 (function () {
   const box = $('c3d').parentElement;

@@ -385,6 +385,7 @@ body.compact .controls .grp .in > .swblock:not(.inl):not(.on) { flex-basis: auto
 .chartbox:has(.navcube) .tip { z-index: 5; }
 /* step 7 (#214, UI-V7): Look from, one button at the view cube's bottom-right; the list opens downward under it */
 .lookfrom { position: absolute; top: 86px; right: 6px; z-index: 4; }
+.lookfrom[hidden] { display: none; }
 .lookfrom .lookbtn { font: 600 11px var(--f-body); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); cursor: pointer; white-space: nowrap; }
 .lookfrom .lookbtn:hover, .lookfrom .lookbtn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
 .lookmenu { position: absolute; top: calc(100% + 4px); right: 0; display: flex; flex-direction: column; gap: 2px; background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
