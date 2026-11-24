@@ -472,7 +472,7 @@ function lookSets() {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.id = 'lookSvg'; svg.setAttribute('role', 'img'); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   Object.assign(svg.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', background: 'var(--sheet)', zIndex: '2' });
-  svg.hidden = true; host.appendChild(svg);
+  svg.style.display = 'none'; host.appendChild(svg);   // an <svg> has no hidden property: display does it
   const open = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', String(on)); };
   box.addEventListener('mouseenter', () => open(true));
   box.addEventListener('mouseleave', () => { if (!box.contains(document.activeElement)) open(false); });
@@ -543,7 +543,7 @@ function lookSets() {
     svg.setAttribute('aria-label', title);
     svg.innerHTML = s;
   };
-  if (window.ResizeObserver) new ResizeObserver(() => { if (!svg.hidden && lookPaint) lookPaint(); }).observe(host);
+  if (window.ResizeObserver) new ResizeObserver(() => { if (svg.style.display !== 'none' && lookPaint) lookPaint(); }).observe(host);
   lookPaint = () => {
     const sets = lookSets();
     const cube = host.querySelector('.navcube'), shown = !!sets && !(cube && cube.hidden);
@@ -551,7 +551,7 @@ function lookSets() {
     menu.querySelectorAll('[data-look]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.look === v3.look)));
     btn.textContent = v3.look === '3d' ? 'Look from ▾' : `${VIEWS.find(x => x[0] === v3.look)[1]} ▾`;
     const flat = shown && (v3.look === 'top' || v3.look === 'end');
-    svg.hidden = !flat; $('c3d').style.visibility = flat ? 'hidden' : '';
+    svg.style.display = flat ? '' : 'none'; $('c3d').style.visibility = flat ? 'hidden' : '';
     const labs = host.querySelector('.d3labs'); if (labs) labs.style.visibility = flat ? 'hidden' : '';   // the ✎ labels belong to the 3D picture
     if ($('d3Views')) $('d3Views').style.visibility = flat ? 'hidden' : '';
     chips.hidden = !flat;

@@ -12,7 +12,7 @@ const check = checker();
 // (UI-W19's 'Drawing opens 8 px below the view control' is shell.js's, not this step's; see the PR)
 const sw = (p, d) => p.evaluate(d => { const x = document.querySelector(`[data-sw="t:${d}"]`); if (x) x.click(); return !!x; }, d);
 const st = p => p.evaluate(() => {
-  const vis = el => !!el && !el.hidden && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+  const vis = el => !!el && !el.hidden && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none';
   const svg = document.getElementById('lookSvg'), menu = document.getElementById('lookMenu'), chips = document.getElementById('lookChips');
   return { view: window.__look.view, svg: vis(svg), menu: vis(menu), chips: vis(chips), canvas: vis(document.getElementById('c3d')),
     drawn: svg ? [...svg.querySelectorAll('line.lookm')].map(l => +l.dataset.k).sort((x, y) => x - y) : [],
@@ -29,6 +29,8 @@ for (const vp of [{ width: 1366, height: 900 }, { width: 390, height: 844 }]) {
   const btnOk = await p.evaluate(() => { const bt = document.getElementById('lookBtn'), cube = bt && bt.closest('.chartbox').querySelector('.navcube');
     if (!bt || !cube) return { bt: !!bt, cube: !!cube }; const r = bt.getBoundingClientRect(), c = cube.getBoundingClientRect();
     return { vis: r.width > 0, right: Math.abs(r.right - c.right) <= 2, below: r.top >= c.top + c.height / 2 }; });
+  const top3d = await p.evaluate(() => { const c = document.getElementById('c3d'), r = c.getBoundingClientRect(); const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return el === c || !!(el && el.closest('.d3labs')); });
+  check(tag + 'in 3D nothing of Look from covers the 3D picture (a drag still turns it)', top3d);
   check(tag + 'Look from is one button at the view cube\'s bottom-right (UI-V7)', btnOk.vis && btnOk.right && btnOk.below, JSON.stringify(btnOk));
   await p.focus('#lookBtn'); await p.waitForTimeout(100);
   let s = await st(p);
