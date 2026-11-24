@@ -147,7 +147,7 @@ function render3D() {
   const mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
   m3 = Truss3D.build3D(tr, { width: +S.opts.width || 60, tilt: +S.d3.tilt, bottomTies: S.d3.botTies, topPat: S.d3.topPat, botPat: S.d3.botPat, framePat: S.d3.framePat });
   r3 = Truss3D.analyze3D(m3, mat, S.load, imperfOpt());
-  draw3D(); paint3Chips(); draw3Views(); renderTable3();
+  draw3D(); paint3Chips(); draw3Views(); renderTable3(); if (lookPaint) lookPaint();
   const cap2 = res.stable ? res.capKg : NaN;
   $('d3Status').textContent = r3.stable ? `${r3.failing.length ? 'fails' : 'passes strength'} · capacity ${r3.capKg.toFixed(1)} kg` : 'unstable';
   if (!r3.stable) { $('d3Facts').innerHTML = `<b style="color:var(--bad)">Unstable in 3D.</b> With pin joints the two trusses can sway or rack sideways. Brace both the top and bottom planes (xy), and add cross-frames (zy) at least at the ends; a plane with no bracing lets its chord swing sideways between frames.${m3.warn.length ? ' ' + m3.warn.join(' ') : ''}`; return; }
@@ -434,6 +434,146 @@ $('c3d').addEventListener('mousemove', ev => {
   showTip($('d3Tip'), $('c3d'), { q: { x: mx, y: my } }, `<b>${m3.elemLab[best.k]}</b> · ${nm} (${best.e.side}) · joints ${m3.nodeLab[best.e.i]}–${m3.nodeLab[best.e.j]}${best.e.n > 1 ? ` · ${best.e.n} sticks` : ''}<br>${best.m.F.toFixed(2)} N ${best.m.F < 0 ? 'compression' : best.m.F > 0 ? 'tension' : ''} · L ${best.m.L.toFixed(1)} mm · use ${(best.m.util * 100).toFixed(0)}%`);
 });
 $('c3d').addEventListener('mouseleave', () => { $('d3Tip').hidden = true; if (v3.hl !== -1) { v3.hl = -1; draw3D(); } });
+// ---------- step 7 (#214, UI-S2, UI-V7): Look from Side / Top / End, one button at the view cube's bottom-right.
+// Hovering or focusing it opens Side / Top / End downward under the button (never over the cube). Top draws one bracing
+// plane, End one cross-frame, straight on and from the 3D model's own members, in the meaning colours (UI-A18); the
+// plane or frame chips sit below. Clicking the active view again goes back to 3D. The view is not saved (it is a view).
+var lookPaint = null;
+// the joints of one plane or frame, and the members with both ends on them (exported for the tests through __look)
+function lookSets() {
+  if (!m3) return null;
+  const n = m3.n, both = list => { const s = new Set(); list.forEach(i => { s.add(i); s.add(i + n); }); return s; };
+  const mids = []; m3.nodes.forEach((p, i) => { if (i >= 2 * n) mids.push(i); });
+  const topJ = both(m3.top); mids.forEach(i => topJ.add(i));
+  const botJ = both(m3.bottom);
+  const members = J => m3.elems.map((e, k) => (J.has(e.i) && J.has(e.j) ? k : -1)).filter(k => k >= 0);
+  const frames = m3.frames.map(fr => {
+    const J = new Set([fr.t, fr.t + n, fr.b, fr.b + n]);
+    mids.forEach(i => { if (Math.abs(m3.nodes[i][0] - fr.x) < 1.5) J.add(i); });
+    return { x: fr.x, code: fr.code, joints: [...J], members: members(J) };
+  });
+  return { top: { joints: [...topJ], members: members(topJ) }, bottom: { joints: [...botJ], members: members(botJ) }, frames };
+}
+(function () {
+  const host = $('c3d').parentElement;
+  const FRAME_WORD = { N: 'no bracing', D: 'one diagonal', E: 'one diagonal', X: 'crossed diagonals', K: 'K-frame' };
+  const VIEWS = [['side', 'Side'], ['top', 'Top'], ['end', 'End']];
+  v3.look = '3d'; v3.lookPlane = 'top'; v3.lookFrame = 0;
+  const box = document.createElement('div'); box.className = 'lookfrom';
+  Object.assign(box.style, { position: 'absolute', top: '88px', right: '6px', zIndex: '4', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' });
+  box.innerHTML = `<button type="button" class="ncb lookbtn" id="lookBtn" aria-haspopup="true" aria-expanded="false" aria-controls="lookMenu" title="Look from: Side, Top or End">Look from ▾</button>
+    <div class="lookmenu" id="lookMenu" role="group" aria-label="Look from" hidden>${VIEWS.map(([k, t]) => `<button type="button" class="btn ghost sm" data-look="${k}" aria-pressed="false">${t}</button>`).join('')}</div>
+    <div class="lookchips chips" id="lookChips" role="group" hidden></div>`;
+  host.appendChild(box);
+  const btn = box.querySelector('#lookBtn'), menu = box.querySelector('#lookMenu'), chips = box.querySelector('#lookChips');
+  Object.assign(btn.style, { position: 'static', width: 'auto', padding: '0 8px', fontSize: '11px', whiteSpace: 'nowrap' });
+  Object.assign(menu.style, { display: 'flex', flexDirection: 'column', gap: '2px', padding: '4px', background: 'var(--sheet)', border: '1px solid var(--line)', borderRadius: '6px' });
+  Object.assign(chips.style, { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '4px', maxWidth: '260px' });
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.id = 'lookSvg'; svg.setAttribute('role', 'img'); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  Object.assign(svg.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', background: 'var(--sheet)', zIndex: '2' });
+  svg.hidden = true; host.appendChild(svg);
+  const open = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', String(on)); };
+  box.addEventListener('mouseenter', () => open(true));
+  box.addEventListener('mouseleave', () => { if (!box.contains(document.activeElement)) open(false); });
+  box.addEventListener('focusin', ev => { if (ev.target === btn || menu.contains(ev.target)) open(true); });
+  box.addEventListener('focusout', ev => { if (!menu.contains(ev.relatedTarget) && ev.relatedTarget !== btn) open(false); });
+  box.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !menu.hidden) { ev.stopPropagation(); open(false); btn.focus(); } });
+  document.addEventListener('click', ev => { if (!box.contains(ev.target)) open(false); });
+  box.addEventListener('mousedown', ev => ev.stopPropagation());
+  btn.addEventListener('click', () => open(menu.hidden));
+  const setLook = k => {
+    const was = v3.look;
+    v3.look = (k === was) ? '3d' : k;   // the active view again: back to 3D
+    if (v3.look === 'side') tween(v3, { yaw: 0, pitch: 0 }, () => draw3D());
+    if (v3.look === '3d' && was === 'side') tween(v3, { yaw: -0.55, pitch: 0.42 }, () => draw3D());
+    lookPaint();
+  };
+  menu.addEventListener('click', ev => { const b = ev.target.closest('[data-look]'); if (!b) return; ev.stopPropagation(); setLook(b.dataset.look); });
+  chips.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-plane],[data-frame]'); if (!b) return; ev.stopPropagation();
+    if (b.dataset.plane) v3.lookPlane = b.dataset.plane; else v3.lookFrame = +b.dataset.frame;
+    lookPaint();
+  });
+  // the cube (its faces, ring, ⌂ and turns) changes the 3D camera: any click there goes back to the 3D picture
+  host.addEventListener('click', ev => { if (ev.target.closest('.navcube') && v3.look !== '3d') { v3.look = '3d'; lookPaint(); } }, true);
+  const forceCol = k => { const m = r3 && r3.stable ? r3.members[k] : null; return !m ? 'var(--ink)' : m.fails ? 'var(--bad)' : m.F < 0 ? 'var(--comp)' : m.F > 0 ? 'var(--tens)' : 'var(--zero)'; };
+  // the part of the picture no window covers (windows on the left and right thirds, the top bar band), in px of the host
+  const freeBox = () => {
+    const H = host.getBoundingClientRect(); let L = 8, T = 8, R = H.width - 8, B = H.height - 8;
+    const obst = [...document.querySelectorAll('section[data-win], .lookfrom, .navcube, .nav')].filter(el => !el.hidden && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+    obst.forEach(el => {
+      const r = el.getBoundingClientRect(), x0 = r.left - H.left, x1 = r.right - H.left, y1 = r.bottom - H.top;
+      if (r.width <= 0 || r.height <= 0 || x1 < 0 || x0 > H.width || y1 < 0 || r.top - H.top > H.height) return;
+      const y0 = r.top - H.top;
+      if (y0 < 40 && r.height < 90 && x0 < H.width / 3) { T = Math.max(T, y1 + 8); return; }   // the top bar's band
+      if (x1 < H.width / 3) L = Math.max(L, x1 + 12); else if (x0 > H.width * 2 / 3) R = Math.min(R, x0 - 12);
+      else if (y0 > H.height / 2) B = Math.min(B, y0 - 8); else T = Math.max(T, y1 + 8);
+    });
+    if (R - L < 160) { L = 8; R = H.width - 8; }
+    if (B - T < 120) { T = 8; B = H.height - 8; }
+    return { W: H.width || 600, Hh: H.height || 400, L, T, R, B };
+  };
+  // one plane or frame straight on: a = the across-the-page coordinate, b = the up-the-page one; text is 12 px whatever the size
+  const drawFlat = (members, joints, a, b, title, keyLine) => {
+    const P = joints.map(i => m3.nodes[i]);
+    const A = P.map(p => p[a]), Bv = P.map(p => -p[b]);
+    const a0 = Math.min(...A), a1 = Math.max(...A), c0 = Math.min(...Bv), c1 = Math.max(...Bv);
+    const cw = Math.max(1, a1 - a0), ch = Math.max(1, c1 - c0);
+    const f = freeBox(), head = keyLine ? 66 : 48, PADPX = 28;
+    const k = Math.max(1e-6, Math.min((f.R - f.L - 2 * PADPX) / cw, (f.B - f.T - head - 2 * PADPX) / ch));
+    const leftPx = f.L + (f.R - f.L - cw * k) / 2, topPx = f.T + head + (f.B - f.T - head - ch * k) / 2;
+    const vx = a0 - leftPx / k, vy = c0 - topPx / k, px = v => v / k;   // px(12) = 12 px in user units
+    let s = `<title>${title}</title>`;
+    members.forEach(kk => {
+      const e = m3.elems[kk], p = m3.nodes[e.i], q = m3.nodes[e.j], m = r3 && r3.stable ? r3.members[kk] : null, zero = m && Math.abs(m.F) < 0.005;
+      s += `<line class="lookm" data-k="${kk}" x1="${p[a]}" y1="${-p[b]}" x2="${q[a]}" y2="${-q[b]}" stroke="${zero ? 'var(--ink)' : forceCol(kk)}" stroke-width="${px(e.side === 'cross' ? 2.5 : 3.5)}" stroke-linecap="round"${zero ? ` stroke-dasharray="${px(6)} ${px(5)}" opacity=".55"` : ''}><title>${m3.elemLab[kk]}${m ? ` · ${m.F.toFixed(2)} N` : ''}</title></line>`;
+    });
+    P.forEach(p => { s += `<circle cx="${p[a]}" cy="${-p[b]}" r="${px(4)}" fill="var(--sheet)" stroke="var(--ink)" stroke-width="${px(1.2)}"/>`; });
+    const tx = vx + px(f.L + 4), ty = vy + px(f.T + 16), fs = px(12);
+    s += `<text x="${tx}" y="${ty}" font-size="${px(13)}" fill="var(--ink)" font-weight="600">${title}</text>`;
+    let kx = tx; const ky = ty + px(20);
+    [['var(--comp)', 'compression'], ['var(--tens)', 'tension'], ['var(--zero)', 'zero force'], ['var(--bad)', 'over the limit']].forEach(([c, t]) => {
+      s += `<line x1="${kx}" y1="${ky - px(4)}" x2="${kx + px(18)}" y2="${ky - px(4)}" stroke="${c}" stroke-width="${px(4)}"/><text x="${kx + px(22)}" y="${ky}" font-size="${fs}" fill="var(--muted)">${t}</text>`;
+      kx += px(22 + 7.2 * t.length + 14);
+    });
+    if (keyLine) s += `<text x="${tx}" y="${ky + px(20)}" font-size="${fs}" fill="var(--muted)">${keyLine}</text>`;
+    svg.setAttribute('viewBox', `${vx} ${vy} ${f.W / k} ${f.Hh / k}`);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-label', title);
+    svg.innerHTML = s;
+  };
+  if (window.ResizeObserver) new ResizeObserver(() => { if (!svg.hidden && lookPaint) lookPaint(); }).observe(host);
+  lookPaint = () => {
+    const sets = lookSets();
+    const cube = host.querySelector('.navcube'), shown = !!sets && !(cube && cube.hidden);
+    box.hidden = !shown;
+    menu.querySelectorAll('[data-look]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.look === v3.look)));
+    btn.textContent = v3.look === '3d' ? 'Look from ▾' : `${VIEWS.find(x => x[0] === v3.look)[1]} ▾`;
+    const flat = shown && (v3.look === 'top' || v3.look === 'end');
+    svg.hidden = !flat; $('c3d').style.visibility = flat ? 'hidden' : '';
+    const labs = host.querySelector('.d3labs'); if (labs) labs.style.visibility = flat ? 'hidden' : '';   // the ✎ labels belong to the 3D picture
+    if ($('d3Views')) $('d3Views').style.visibility = flat ? 'hidden' : '';
+    chips.hidden = !flat;
+    if (!flat) { chips.innerHTML = ''; return; }
+    if (v3.look === 'top') {
+      chips.setAttribute('aria-label', 'Bracing plane');
+      chips.innerHTML = [['top', 'Top plane'], ['bottom', 'Bottom plane']].map(([k, t]) => `<button type="button" class="chip${v3.lookPlane === k ? ' on' : ''}" data-plane="${k}" aria-pressed="${v3.lookPlane === k}">${t}</button>`).join('');
+      const pl = sets[v3.lookPlane];
+      drawFlat(pl.members, pl.joints, 0, 1, `Top: ${v3.lookPlane} bracing plane (xy) from above`, 'x along the bridge to the right, y across it up the page');
+    } else {
+      if (!sets.frames.length) { chips.innerHTML = ''; svg.innerHTML = ''; svg.setAttribute('aria-label', 'End: no cross-frames'); return; }
+      v3.lookFrame = Math.max(0, Math.min(sets.frames.length - 1, v3.lookFrame));
+      chips.setAttribute('aria-label', 'Cross-frame');
+      chips.innerHTML = sets.frames.map((f, i) => `<button type="button" class="chip${v3.lookFrame === i ? ' on' : ''}" data-frame="${i}" aria-pressed="${v3.lookFrame === i}" aria-label="Frame ${i + 1} at x = ${f.x.toFixed(0)} mm, ${FRAME_WORD[f.code] || f.code}">${i + 1} ${FRAME_SYM[f.code] || ''}</button>`).join('');
+      const f = sets.frames[v3.lookFrame];
+      drawFlat(f.members, f.joints, 1, 2, `End: frame ${v3.lookFrame + 1} of ${sets.frames.length} at x = ${f.x.toFixed(0)} mm (zy)`, `this frame: ${FRAME_SYM[f.code] || f.code} ${FRAME_WORD[f.code] || ''} · key: · none, ⟋ ⟍ one diagonal, ✕ crossed, K K-frame`);
+    }
+  };
+  const cubePaint = v3.cube; if (typeof cubePaint === 'function') v3.cube = () => { cubePaint(); const c = host.querySelector('.navcube'); if (box.hidden !== !!(c && c.hidden)) lookPaint(); };   // only when the cube is shown or hidden (it repaints on every frame)
+  window.__look = { sets: () => lookSets(), get view() { return v3.look; } };
+  lookPaint();
+})();
 
 function levels() { return String($('curveLevels').value).split(/[ ,;]+/).map(Number).filter(v => v > 0).sort((a, b) => a - b); }
 function curveFor(rows) {
