@@ -7,6 +7,8 @@
 //   resumable: { done, total } or missing/null when a saved full search can be resumed (UI-S9) }. Unknown extra fields are ignored; a missing or odd one reads as off.
 // progress: { i, n, eta, phase? } from the progress callback, or null. While running, phase ('pilot' | 'full') says which run it is; without it a run is a full search
 //   when a pilot already exists (facts.pilot) and a pilot otherwise.
+// canRun is true whenever nothing is running, the resumable state too (UI-A2: Run sweep is always in the bar); in that state a new run discards the saved
+// search, so the bar asks first with its UI-W13 dialog (UI Designer, UI-S9); nothing is discarded until the person confirms.
 // msg is plain text from TrussStrings ('sweepbar.state.<kind>', camelCase: sweepbar.state.pilotRunning) with {n}, {total}, {eta} filled in; whatever paints it sets textContent.
 // Pure: no DOM, no timers, no app state (CODE-F1, CODE-F4, CODE-F5). Damaged input reads as idle and never throws (CODE-N2).
 (function (root) {
@@ -38,7 +40,7 @@ function state(facts, progress) {
   else kind = 'idle';
   const msg = fill('sweepbar.state.' + kind.replace(/-([a-z])/g, (m, c) => c.toUpperCase()), { n: show(count), total: show(total), eta });
   return { kind, count, total, eta, msg,
-    canRun: !busy && kind !== 'resumable', canCancel: running && f.cancel !== true, canResume: kind === 'resumable', canDiscard: kind === 'resumable' };
+    canRun: !busy, canCancel: running && f.cancel !== true, canResume: kind === 'resumable', canDiscard: kind === 'resumable' };
 }
 
 const api = Object.freeze({ state, KINDS });

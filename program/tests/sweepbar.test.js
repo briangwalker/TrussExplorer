@@ -27,7 +27,7 @@ test('one case per kind: the kind, the counts, the buttons and the words from st
   assert.strictEqual(s.kind, 'out-of-date'); assert.strictEqual(s.msg, S.t(key('out-of-date'))); assert.strictEqual(s.canRun, true);
   s = st({ resumable: { done: 4000, total: 90000 } });
   assert.strictEqual(s.kind, 'resumable'); assert.strictEqual(s.msg, 'A full search stopped at 4,000 of 90,000 designs. Resume it, or discard it.');
-  assert.deepStrictEqual([s.canRun, s.canCancel, s.canResume, s.canDiscard], [false, false, true, true]);
+  assert.deepStrictEqual([s.canRun, s.canCancel, s.canResume, s.canDiscard], [true, false, true, true], 'Run stays (UI-A2); the bar asks before it discards the saved search (UI-S9)');
 });
 
 test('precedence: running beats resumable beats out-of-date beats done', () => {
