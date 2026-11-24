@@ -70,6 +70,7 @@ async function run(p, tag) {
 // the Undo button's focus ring must show on the toast in every theme (QA TE-B-510b MUST B; ART-S5, ART-C2: 3:1)
 async function ringCheck(p, theme) {
   await p.evaluate(t => __shell.applyTheme(t), theme); await p.waitForTimeout(150);
+  await person(p);
   await p.evaluate(() => { const e = document.getElementById('height'); e.value = +e.value + 1; e.dispatchEvent(new Event('change', { bubbles: true })); }); await p.waitForTimeout(150);
   // reach Undo by keyboard, so :focus-visible applies as it does for a keyboard user
   for (let i = 0; i < 60 && !(await p.evaluate(() => document.activeElement && document.activeElement.matches('.te-toast [data-undo]'))); i++) await p.keyboard.press('Tab');
@@ -84,13 +85,9 @@ async function ringCheck(p, theme) {
   await p.click('.te-toast [data-undo]'); await p.waitForTimeout(100);
 }
 try {
-<<<<<<< HEAD
-  const p = await openPage(b, srv.url, { width: 1366, height: 900 }); await run(p, '1366');
+  const p = await openPage(b, srv.url, { width: 1366, height: 900 }); await freshLoad(p); await run(p, '1366');
   for (const t of ['wireframe', 'notebook-calc', 'notebook-calc-calc', 'blueprint']) await ringCheck(p, t);
   await p.close();
-=======
-  const p = await openPage(b, srv.url, { width: 1366, height: 900 }); await freshLoad(p); await run(p, '1366'); await p.close();
->>>>>>> dev/fix-502-undo-baseline
   const q = await openPage(b, srv.url, { width: 390, height: 844 }); await run(q, '390'); await q.close();
 } finally { await b.close(); srv.close(); }
 const fails = check.results.filter(x => !x.ok);
