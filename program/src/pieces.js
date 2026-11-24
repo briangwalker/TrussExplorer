@@ -14,7 +14,9 @@
 (function (root) {
 'use strict';
 
-const VERSION = '0.2.1';
+// words from TrussStrings (src/strings.js), looked up when used, so load order doesn't matter
+function words(key) { const T = root.TrussStrings || (typeof require === 'function' ? require('./strings.js') : null); if (!T) throw new Error('TrussStrings is missing'); return T.t(key); }
+const VERSION = '0.2.3';
 
 // ---------- text ----------
 // Everything a caller passes is text, never markup (CODE-S1).
@@ -237,7 +239,7 @@ function tableHTML(o) {
   };
   const body = rows.length ? rows.map((r, n) => `<tr data-key="${escH(r.key)}"${r.cls ? ` class="${escH(r.cls)}"` : ''}${String(r.key) === String(o.lit) ? ' aria-selected="true"' : ''}>`
     + cols.map((c, ci) => cell(r, c, n, ci)).join('') + '</tr>').join('')
-    : `<tr class="empty"><td colspan="${cols.length}" tabindex="0">${escH(o.empty || 'Nothing to show.')}</td></tr>`;
+    : `<tr class="empty"><td colspan="${cols.length}" tabindex="0">${escH(o.empty || words('pieces.table.empty'))}</td></tr>`;
   return `<table class="te-tbl" role="grid" data-part="table" data-slot="disp" data-pc${attr('id', o.id)}>${o.caption ? `<caption>${escH(o.caption)}</caption>` : ''}${head}<tbody>${body}</tbody></table>`;
 }
 
