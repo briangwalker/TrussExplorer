@@ -56,6 +56,8 @@
 #stage[data-theme^="notebook-calc"] .s-ic.on{ transform:translateY(3px); box-shadow:var(--nc-press); filter:brightness(.95); padding-bottom:3px; }
 #stage[data-theme^="notebook-calc"] .s-b:disabled{ filter:saturate(.25); opacity:.6; box-shadow:0 1px 0 rgba(45,25,4,.3); transform:none; }
 #stage[data-theme^="notebook-calc"] button:focus-visible{ outline:2px dashed #8c5e22 !important; outline-offset:4px !important; }
+/* on strong grounds (the toast) the dashed ring takes on-strong, ART-S5 1.0.7 (QA TE-B-510b: #8c5e22 on the #8c5e22 toast was 1.00:1) */
+#stage[data-theme^="notebook-calc"] .te-toast button:focus-visible{ outline-color:var(--te-on-strong) !important; }
 /* joined sticks: one shadow, glue beads */
 #stage[data-theme^="notebook-calc"] .seg{ border:0; border-radius:4px 4px 1px 1px; overflow:visible; box-shadow:var(--nc-stick); }
 #stage[data-theme^="notebook-calc"] .seg button{ box-shadow:none; border-radius:0; border-left:0; }
