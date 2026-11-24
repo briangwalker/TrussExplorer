@@ -93,12 +93,12 @@ try {
       await p.waitForTimeout(900);
       check('it fades by itself', await p.evaluate(() => T.el.hidden));
       await p.evaluate(() => T.show({ text: 'Changed w 60 → 50', undo: () => { undone++; }, ms: 500 }));
-      await p.hover('.te-toast-u'); await p.waitForTimeout(800);
+      await (await p.evaluateHandle(() => T.el.querySelector('.te-toast-u'))).hover(); await p.waitForTimeout(800);   // T's own box: the shell keeps one too (#481)
       check('it waits while the pointer is on it (WCAG 2.2.1)', await p.evaluate(() => !T.el.hidden));
-      await p.click('.te-toast-u');
+      await (await p.evaluateHandle(() => T.el.querySelector('.te-toast-u'))).click();
       check('Undo runs the undo and closes the toast', await p.evaluate(() => undone === 1 && T.el.hidden));
       await p.evaluate(() => { T.show({ text: 'one', ms: 5000 }); T.show({ text: 'two', ms: 5000 }); });
-      check('one toast at a time: a new one replaces the old', await p.evaluate(() => document.querySelectorAll('.te-toast').length === 1 && T.el.textContent === 'two'));
+      check('one toast at a time: a new one replaces the old', await p.evaluate(() => document.querySelectorAll('.te-toast').length <= 2 && !T.el.hidden && T.el.textContent === 'two'));
       // contrast of the toast and the dialog text (ART-C1)
       const low = await p.evaluate(() => {
         const P = window.TrussPieces, bad = [], rgb = c => 'rgb(' + c.match(/[\d.]+/g).slice(0, 3).join(',') + ')';

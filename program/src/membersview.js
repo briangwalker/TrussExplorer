@@ -13,6 +13,8 @@
 // Pure: no DOM, no app globals; the pieces, the rows and the type words come in as arguments (CODE-F1, CODE-F5).
 (function (root) {
 'use strict';
+// words from TrussStrings (src/strings.js), looked up when used, so load order doesn't matter
+function say(key) { const T = root.TrussStrings || (typeof require === 'function' ? require('./strings.js') : null); if (!T) throw new Error('TrussStrings is missing'); return T.t(key); }
 
 const HEAD = ['Elem', 'i', 'j', 'Type', 'Sticks', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?(Y/N)', 'Capacity (N)', 'Use (%)', 'Governs'];
 // The screen's columns (ui-spec 1.5.5/1.5.7 UI-S6). Short set by default: the report's columns plus Use; 'All columns' adds
@@ -73,7 +75,7 @@ function tableHTML(P, rows, o) {
     ? Object.assign(c, { sort: dir })
     : c);
   const caption = list.length ? `${list.length} member${list.length === 1 ? '' : 's'}, ${dir === 'descending' ? 'highest' : 'lowest'} use first` : 'Members';
-  return P.tableHTML({ id: o.id || 'membersTbl', caption, columns: cols, rowHeader: 'k', rows: body, lit: o.lit, empty: 'No results: the truss is unstable.' });
+  return P.tableHTML({ id: o.id || 'membersTbl', caption, columns: cols, rowHeader: 'k', rows: body, lit: o.lit, empty: say('members.table.unstable') });
 }
 
 // Copy table / Download CSV (the shell wires them to the app's copy(csvText()) and CSV download) and the All columns
