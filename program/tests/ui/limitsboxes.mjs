@@ -73,7 +73,7 @@ try {
   await p.fill('#height-tb', '100'); await p.press('#height-tb', 'Enter'); s = await st('height'); e = await out();
   check('height 100 (outer over 100): pink exactly when the result flags it', s.app === '100' && (s.state === 'rule') === e.flag && e.flag === e.top > 100, JSON.stringify([s, e]));
   // topEnd moves the outer height too (an arch top's end sticks reach higher): the height box is checked again when it moves,
-  // by its box or its slider (limitrows 0.1.3, Dev Lead TE-B-619 c). At h 95.3 with a parabola top, topEnd 0 is 99.9 mm, topEnd 40 is 100.01 mm
+  // by its box or its slider (limitrows 0.1.3, UIE-10, TE-B-631). At h 95.3 with a parabola top, topEnd 0 is 99.9 mm, topEnd 40 is 100.01 mm
   await p.click('#topShape button[data-v="parabola"]'); await p.waitForTimeout(50);
   await p.fill('#height-tb', '95.3'); await p.press('#height-tb', 'Enter');
   await p.fill('#topEnd-tb', '0'); await p.press('#topEnd-tb', 'Enter'); s = await st('height'); e = await out();
