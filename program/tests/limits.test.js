@@ -475,3 +475,57 @@ test('G7-G10: rule order, early returns after G4 and G10, and nothing is changed
   const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'limits.js'), 'utf8');
   assert.ok(!/G6-G10 and M1-M4 are a later row|G7-G10 and M1-M4 \(a later row\)/.test(src), 'the header no longer says G7-G10 are a later row');
 });
+
+// ---------- RMA-15 (TE-B-589): Math's M2, checkResult(res, values): no capacity when the mid-span deflection is more than the height ----------
+const solveRes = st => C.analyze(C.buildTruss(design(st)), st.mat, st.load, st.opts);
+const M2msg = (d, h) => 'No capacity: the mid-span deflection (' + d + ' mm) is more than the bridge height (' + h + ' mm).';
+
+test('M2: Math\'s measured cases (botEnd 69 and a shaped bottom\'s curve 69, at h 70) give M2; a good design gives none', () => {
+  const be = Object.assign({}, DEFAULT, { botEnd: 69, height: 70 }), rb = solveRes(be);
+  assert.ok(rb.stable && rb.midDefl > 70, 'botEnd 69 sags past h: ' + rb.midDefl);
+  assert.deepStrictEqual(L.checkResult(rb, be), [{ rule: 'M2', msg: M2msg(rb.midDefl.toFixed(1), '70'), where: [] }]);
+  const cv = Object.assign({}, DEFAULT, { bottom: 'parabola', curve: 69, height: 70 }), rc = solveRes(cv);
+  assert.ok(Math.abs(rc.midDefl - 162) < 1, 'curve 69: about 162 mm (Math), got ' + rc.midDefl);
+  assert.deepStrictEqual(L.checkResult(rc, cv), [{ rule: 'M2', msg: M2msg('161.8', '70'), where: [] }]);
+  const good = Object.assign({}, DEFAULT), rg = solveRes(good);
+  assert.ok(rg.stable && rg.midDefl < 1); assert.deepStrictEqual(L.checkResult(rg, good), []);
+});
+
+test('M2: strictly more than the height; one decimal for d, the height as typed', () => {
+  const r = d => ({ stable: true, midDefl: d });
+  assert.deepStrictEqual(L.checkResult(r(70), { height: 70 }), [], 'equal is not more');
+  assert.strictEqual(L.checkResult(r(70.04), { height: 70 })[0].msg, M2msg('70.0', '70'));
+  assert.strictEqual(L.checkResult(r(-30), { height: 26.5 })[0].msg, M2msg('30.0', '26.5'), 'a deflection is its size');
+});
+
+test('M2: the built-in cases, every fixture and Brian\'s final design give [] (rule 4i)', () => {
+  const list = cases(); assert.ok(list.length >= 30);
+  for (const cs of list) assert.deepStrictEqual(L.checkResult(solveRes(cs.state), cs.state), [], cs.name);
+  const dir = path.join(__dirname, 'formats', 'fixtures'), files = fs.readdirSync(dir).filter(f => f.endsWith('.bridge.json')); let n = 0;
+  for (const f of files) {
+    const o = F.open(fs.readFileSync(path.join(dir, f), 'utf8')); assert.ok(o.ok, f);
+    const st = Object.assign({}, DEFAULT, o.doc.bridge);
+    let res; try { res = solveRes(st); } catch (e) { continue; }
+    n++; assert.deepStrictEqual(L.checkResult(res, st), [], f);
+  }
+  assert.ok(n >= 3, 'solved ' + n);
+  const st = Object.assign({}, DEFAULT, FINAL); assert.deepStrictEqual(L.checkResult(solveRes(st), st), [], 'FINAL');
+});
+
+test('M2: unstable, missing or damaged input gives [] and never throws; nothing is changed (CODE-N2)', () => {
+  const big = { stable: true, midDefl: 500 };
+  assert.deepStrictEqual(L.checkResult({ stable: false, midDefl: 500 }, { height: 70 }), [], 'unstable');
+  assert.deepStrictEqual(L.checkResult({ midDefl: 500 }, { height: 70 }), [], 'no stable flag');
+  for (const bad of [null, undefined, 'x', 7, [], {}, { stable: true }, { stable: true, midDefl: NaN }, { stable: true, midDefl: 'a' }, { stable: true, midDefl: Infinity }])
+    assert.deepStrictEqual(L.checkResult(bad, { height: 70 }), [], JSON.stringify(bad));
+  for (const v of [null, undefined, 3, {}, { height: 'abc' }, { height: NaN }, { height: 0 }, { height: -5 }])
+    assert.deepStrictEqual(L.checkResult(big, v), [], JSON.stringify(v));
+  const fr = deepFreeze({ stable: true, midDefl: 500, members: [{ F: 1 }] }), fv = deepFreeze({ height: 70 });
+  assert.doesNotThrow(() => L.checkResult(fr, fv)); assert.strictEqual(L.checkResult(fr, fv).length, 1);
+  // the stable-unstable pair from analyze itself: a folding design gives no M2 (G10/analyze say it)
+  const feet = cases().find(cs => cs.name === 'feet'); const fs2 = Object.assign({}, feet.state, { supportMode: 'ends' }); const ru = solveRes(fs2);
+  if (!ru.stable) assert.deepStrictEqual(L.checkResult(ru, fs2), []);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'limits.js'), 'utf8');
+  assert.ok(!/M1-M4 (are )?(a later row|\(a later row\))/.test(src), 'the header no longer says M1-M4 are a later row');
+  assert.ok(Object.keys(L).includes('checkResult'));
+});
