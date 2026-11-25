@@ -45,6 +45,8 @@ try {
   check('F2: one note at the top of the Inputs window lists both values', !!n && n.first && n.role === 'status' && /2 values are outside the limits/.test(n.text) && /Height/.test(n.text) && /\bE\b/.test(n.text), JSON.stringify(n));
   msg = await p.textContent('#fileMsg');
   check('F1: the open line says it too', /2 values are outside the limits/.test(msg), msg);
+  check('the note starts with the file glyph and lists each value with its units (UI-I10)', !!n && /^\u27c2 /.test(n.text) && /Height 500 mm/.test(n.text) && /Stiffness \(E\) 99999 MPa/.test(n.text), JSON.stringify(n));
+  check('the Fix button sits on its own line', await p.evaluate(() => { const g = document.querySelector('#fileBad button'); return !!g && !!g.previousSibling && g.previousSibling.nodeName === 'BR'; }));
   check('the first fix is one click away (button names it)', !!n && /^Fix Height/.test(n.btn || ''), JSON.stringify(n));
   await p.click('#fileBad button');
   check('the Fix button focuses the height box', await p.evaluate(() => document.activeElement && document.activeElement.id) === 'height-tb');
@@ -63,6 +65,15 @@ try {
   check('a second open: still one note', await p.evaluate(() => document.querySelectorAll('#fileBad').length) === 1);
   await open(p, GOOD);
   check('a good file after a bad one: the note goes', (await note(p)) === null);
+  // QA and UI Designer MUST on #517: Fix opens a collapsed group before it focuses the box
+  const EONLY = file('e.bridge.json', { name: 'E only', height: 60, panels: 4, mat: { E: 99999 } });
+  await p.evaluate(() => { document.getElementById('g-loads').open = false; });
+  await open(p, EONLY);
+  n = await note(p);
+  check('E only: the button names E', !!n && /^Fix Stiffness \(E\)/.test(n.btn || ''), JSON.stringify(n));
+  await p.click('#fileBad button');
+  const fx = await p.evaluate(() => ({ id: document.activeElement && document.activeElement.id, open: document.getElementById('g-loads').open }));
+  check('E only with Loads collapsed: Fix opens the group and focuses the E box', fx.id === 'E-tb' && fx.open === true, JSON.stringify(fx));
   check('no page errors', p.errs.length === 0, p.errs.join(' | '));
 } finally { await b.close(); srv.close(); }
 const bad = check.results.filter(r => !r.ok);

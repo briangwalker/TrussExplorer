@@ -87,6 +87,11 @@ function tooLongNote(release) {
 // exactly as the file had it, marked (markFile), and one note at the top of the Inputs window lists them, with the first
 // fix one click away. The note goes when nothing is left to fix (F5). A good file gets nothing new (F4, rule 4i).
 // Returns the summary line ('' when there is nothing to say). "No result" on the results card is the card's (step 3).
+// focus() does nothing inside a closed <details>: open every closed one around the box first (QA and UI Designer MUST on #517)
+function revealFocus(el) {
+  for (let d = el.parentElement && el.parentElement.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) if (!d.open) d.open = true;
+  el.focus();
+}
 function fileBadNote() {
   const old = document.getElementById('fileBad'); if (old) old.remove();
   if (!limitRows || !window.TrussLimits || !TrussLimits.fileReport) return '';
@@ -96,11 +101,17 @@ function fileBadNote() {
   rep.bad.forEach(b => { const r = limitRows.rows.get(b.id); if (r) { r.box.markFile(b.msg); firstBox.push(r.el.querySelector('input')); } });
   const pane = $('inputsPane'), box = document.createElement('p');
   box.id = 'fileBad'; box.className = 'note'; box.setAttribute('role', 'status'); box.dataset.state = 'file';
-  box.append(document.createTextNode(rep.summary + (rep.geometry.length ? ' ' + rep.geometry[0].msg : '')));
+  box.append(document.createTextNode('\u27c2 ' + rep.summary + (rep.geometry.length ? ' ' + rep.geometry[0].msg : '')));
+  // UI-I10 '<input> <value>': each bad value as the file had it, with its units (text only; a long file value is cut short)
+  if (rep.bad.length) {
+    const unitOf = id => { const r = TrussLimits.rowFor && TrussLimits.rowFor(id), u = r && r.unit; return u && u !== '-' && u !== 'count' ? ' ' + u : ''; };
+    const list = rep.bad.map(b => TrussLimits.labelFor(b.id) + ' ' + String(b.value).slice(0, 24) + unitOf(b.id)).join(' \u00b7 ');
+    box.append(document.createElement('br'), document.createTextNode(list));
+  }
   if (firstBox[0]) {
     const go = document.createElement('button'); go.type = 'button'; go.className = 'btn ghost';
-    go.textContent = 'Fix ' + TrussLimits.labelFor(rep.bad[0].id); go.addEventListener('click', () => firstBox[0].focus());
-    box.append(' ', go);
+    go.textContent = 'Fix ' + TrussLimits.labelFor(rep.bad[0].id); go.addEventListener('click', () => revealFocus(firstBox[0]));
+    box.append(document.createElement('br'), go);   // on its own line, so its focus ring never paints over the note's text
   }
   pane.prepend(box);
   // F5: once every value and the shape are fixed, the note goes (the boxes clear their own marks)
