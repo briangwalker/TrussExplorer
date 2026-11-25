@@ -220,6 +220,10 @@ const SweepState = (() => {
     // the rows were edited in place (Re-check changes D, util and passes): say so, so caches keyed on version rebuild
     changed(o) { o = o || {}; if ('top' in o) sweepRows = o.top; if ('ctx' in o) sweepCtx = o.ctx; fire(); },
     on(fn) { fns.push(fn); },
+    // the facts the sweep bar paints from (src/sweepbar.js, TrussSweepBar.state): plain numbers, booleans and strings, so the bar never names the locals above.
+    // A saved full search to resume (UI-S9) is read from IndexedDB, which is async, so it is not a fact here; the caller adds `resumable: { done, total }` when it has one.
+    facts: () => ({ mode: sweepMode, running: !!big.running, pilot: !!big.pilot, cancel: !!big.cancel, busy: !!sweepBusy,
+      stale: lastSig !== null && lastSig !== undefined && sweepSig() !== lastSig, rows: sweepAll.length }),
   });
 })();
 function evalCandidate(c, mode) {

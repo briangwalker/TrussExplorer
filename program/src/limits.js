@@ -1,5 +1,5 @@
 // ===== Truss limits: the table of allowed input values, and the input check (#420, #421; board TE-B-373, RMA-4) =====
-// Values: Math (v0.4, 11-19, after Physics' review) and Physics. Format: Architecture Lead (TE-B-372b).
+// Values: Math (v0.4, 11-19, after Physics' review; height max 200, Math 11-24: 100 is the course rule, not a model limit) and Physics. Format: Architecture Lead (TE-B-372b).
 // One data table (TABLE) read by the input boxes AND the file loader; it replaces both the box min/max and the slider range.
 // An out-of-range value is REJECTED with the row's message and never clamped; a value that came from a file is reported, never changed (UI-I10).
 // Row fields: id (the real input id), unit, min, max (a number or an expression), step (1 = whole numbers only),
@@ -8,7 +8,7 @@
 // Expressions: numbers, input ids, derived names (DERIVED), + - * /, unary minus, brackets, min() and max(). They are read by the small
 // parser below, never run as code. Anything else throws a TypeError (CODE-N3: a programmer error).
 // A missing or damaged input list, or a missing value, is not an error here: that row is skipped (CODE-N2).
-// This is the first half of the validity function: the geometry rules G1-G10 and M1-M4 are a later row (RMA-6).
+// This is the validity function: checkInputs and warnInputs (the table), and checkGeometry (G1-G5, RMA-6). G6-G10 and M1-M4 are a later row.
 // No DOM, no app state (CODE-F1, CODE-F4, CODE-F5): Node tests load it directly; build.py inlines it before app.js.
 (function (root) {
 'use strict';
@@ -17,6 +17,15 @@ const STICK_MM = 3.18;                  // the course stick, in mm
 const SHAPED = ['parabola', 'arc', 'catenary'];
 
 // Named values usable inside expressions, defined once (Math: 'stick2' = two stick widths, 6.36 mm at the course stick).
+// Plain names of the inputs, for a line a person reads (fileReport's summary). The page may use its own box labels, and Marketing may reword these.
+const LABELS = Object.freeze({ height: 'Height', curve: 'Curve', topEnd: 'Top end', botEnd: 'Bottom end', panels: 'Panels', ratio: 'Panel ratio', sideAngle: 'Side angle',
+  deskPanels: 'Desk panels', overlap: 'Desk overlap', supportOffset: 'Support offset', bookLen: 'Book length', bookWidth: 'Book width', bookThick: 'Book thickness',
+  mBook1: 'Book mass 1', mBook2: 'Book mass 2', FS: 'Safety factor', nTruss: 'Trusses', width: 'Width', tilt3d: 'Tilt', deflLimit: 'Deflection limit', minOverlap: 'Minimum overlap',
+  E: 'Stiffness (E)', rho: 'Density', sigT: 'Tension strength', sigC: 'Compression strength', bS: 'Stick width', hS: 'Stick depth', fricMu: 'Friction', fricK: 'Friction stiffness',
+  tableThick: 'Table thickness', braceDepth: 'Brace depth', impAlpha: 'Imperfection alpha', impBeta: 'Imperfection beta', width3d: '3D width', docBendN: 'Bend count',
+  docStock: 'Stick length', docKerf: 'Saw cut', autoLimit: 'Auto limit', bigCap: 'Sweep cap', rcFS: 'Check safety factor', rcBook: 'Check book mass', rcDefl: 'Check deflection',
+  rcOv: 'Check overlap', refStep: 'Refine step', woodBudget: 'Wood budget', loadTarget: 'Load target', abSteps: 'Steps', abExt: 'Extent' });
+const labelFor = id => (Object.prototype.hasOwnProperty.call(LABELS, id) ? LABELS[id] : String(id));
 const DERIVED = Object.freeze({ stick2: '2*max(bS,hS)' });
 
 // Ids a row's `when` may test that are not number boxes: the bottom and top chord shapes, and the model.
@@ -26,7 +35,7 @@ const R = (id, unit, min, max, msg, status, more) => Object.assign({ id, unit, m
 const COURSE = 'Course balsa is E 3000, rho 160, sigT 7.5, sigC 4.5, stick 3.18.';
 
 const TABLE = Object.freeze([
-  R('height', 'mm', 10, 100, 'Height must be 10-100 mm (below 10 mm the members are shorter than two sticks).', 'math', { warnMin: 20, warnMsg: 'Below 20 mm the top and bottom chords are close together, so buckling decides the capacity.', sliderMin: 10, sliderMax: 100 }),
+  R('height', 'mm', 10, 200, 'Height must be 10 to 200 mm.', 'math', { warnMin: 20, warnMsg: 'Below 20 mm the top and bottom chords are close together, so buckling decides the capacity.', sliderMin: 10, sliderMax: 100 }),
   R('curve', 'mm', -60, 'height-10', 'The bottom chord must stay at least 10 mm below the top chord.', 'math', { warnMax: 'height-20', warnMsg: 'The bottom chord is within 20 mm of the top chord.', when: { id: 'bottom', in: SHAPED }, sliderMin: -50, sliderMax: 100 }),
   R('topEnd', 'mm', '-min(tableThick,50)', 'height-10', 'Top chord end must be between the table face and 10 mm below the top.', 'math', { when: { id: 'topShape', in: SHAPED }, sliderMin: -30, sliderMax: 70 }),
   R('botEnd', 'mm', 0, 'height-10', 'Bottom chord end must be 0 to height minus 10 mm.', 'math', { sliderMin: 0, sliderMax: 100 }),
@@ -212,8 +221,104 @@ function warnInputs(values) {
 // the app's own mode id is lowercase ('2d' / '3d', S.anaMode); a file or a caller may write '3D': both mean 3D
 const isModel3D = m => typeof m === 'string' && m.toLowerCase() === '3d';
 
+// ---------- geometry rules G1-G5 (Physics' doc, TE-B-370; board TE-B-458, RMA-6): the second half of the validity function ----------
+// checkGeometry(truss, values) -> [{ rule: 'G1'..'G5', msg, where: [indexes] }], in rule order; empty = fine. Pure: nothing is changed.
+//   truss: what core.js's buildTruss returns, or a file's truss in the same shape: nodes [[x, y], ...] (mm, y up), elems [{ i, j, ... }, ...]
+//   (member k joins nodes i and j), keys (a name per node; 'B0', 'B1' ... are the bottom chord, left to right) and panelPts (the panel
+//   points' x, left to right) when the truss has them. values: the stick size, bS and hS in mm (a missing or bad one reads as the course stick).
+//   where: 0-based node indexes (G1 to G4) or member indexes (G5); the messages count from 1, as the people reading them do.
+// G4 carries unstable: true. A flat line gives only G4, not a wall of G5 (Physics). A damaged truss gives [] (CODE-N2); nothing here throws.
+// Not checked here: G6 (merged into G5), G7-G10 and M1-M4 (a later row). Two joints that sit close together but are not joined by a member
+// are not looked at; a joined pair is covered by the member length.
+const TOL = 1e-6;
+// One decimal: lengths print '5.0' (G5), heights print '-5' (G3, Physics' wording), so a flag keeps the .0 or drops it.
+const r1 = (v, keep) => { const x = Math.round(v * 10) / 10; return keep ? x.toFixed(1) : String(x); };
+const f1 = v => r1(v, true), fh = v => r1(v, false);
+const minOf = a => { let m = Infinity; for (let i = 0; i < a.length; i++) if (a[i] < m) m = a[i]; return m; };   // loops, not apply: no row count can overflow the stack
+const maxOf = a => { let m = -Infinity; for (let i = 0; i < a.length; i++) if (a[i] > m) m = a[i]; return m; };
+const GEOMETRY_MSG = {
+  G1: 'The span must be more than 0 mm.',
+  G2: j => 'Joint ' + j[0] + ' is left of joint ' + j[1] + '. Panels must run left to right, each wider than 0 mm.',
+  G2same: j => 'Joint ' + j[0] + ' is not to the right of joint ' + j[1] + '. Panels must run left to right, each wider than 0 mm.',
+  G3: (j, y) => 'Joint ' + j + ' is below the bottom line (' + fh(y) + ' mm). Heights can\'t be negative; it would swap which members pull and push.',
+  G4: 'Every joint is on one line, so this truss can\'t carry load. No capacity is shown.',
+  G5len: (m, len, min) => 'Member ' + m + ' is ' + f1(len) + ' mm long; the shortest allowed is ' + f1(min) + ' mm.',
+  G5dup: (a, b) => 'Members ' + a + ' and ' + b + ' join the same two joints.',
+};
+
+function checkGeometry(truss, values) {
+  const out = [];
+  if (!isObj(truss) || !Array.isArray(truss.nodes) || truss.nodes.length < 2) return out;
+  const ok = p => Array.isArray(p) && isNum(p[0]) && isNum(p[1]);
+  if (!truss.nodes.every(ok)) return out;
+  const N = truss.nodes;
+  // G1: span is more than 0 (the nodes' reach left to right)
+  const xs = N.map(p => p[0]), span = maxOf(xs) - minOf(xs);
+  if (!(span > TOL)) out.push({ rule: 'G1', msg: GEOMETRY_MSG.G1, where: [] });
+  // G2: joints run left to right, each panel wider than 0: the panel points (panelPts, else the bottom chord B0, B1 ...)
+  let pts = null;
+  if (Array.isArray(truss.panelPts) && truss.panelPts.length >= 2 && truss.panelPts.every(isNum)) pts = truss.panelPts.map((x, i) => ({ x, n: i }));
+  else if (Array.isArray(truss.keys) && truss.keys.length === N.length) {
+    pts = truss.keys.map((k, i) => ({ k, i })).filter(o => typeof o.k === 'string' && /^B\d+$/.test(o.k)).sort((a, b) => +a.k.slice(1) - +b.k.slice(1)).map(o => ({ x: N[o.i][0], n: o.i }));
+    if (pts.length < 2) pts = null;
+  }
+  if (pts) for (let a = 1; a < pts.length; a++) if (!(pts[a].x > pts[a - 1].x + TOL)) {
+    const j = [pts[a].n + 1, pts[a - 1].n + 1];
+    out.push({ rule: 'G2', msg: (pts[a].x < pts[a - 1].x - TOL ? GEOMETRY_MSG.G2 : GEOMETRY_MSG.G2same)(j), where: [pts[a].n, pts[a - 1].n] });
+  }
+  // G3: heights are 0 or more, but the lowest allowed joint is the design's own lowest shaped end (Physics, TE-B-470): a shaped bottom chord sags
+  // to its curve (a negative number), and a shaped top chord may end below the deck line at topEnd (the arch pressing on the table faces).
+  // botEnd is 0 or more, so it adds nothing. Without the design, or with flat chords, the line is y = 0 (strict). Anything lower is still G3.
+  const dz = isObj(truss.design) ? truss.design : null;
+  const shaped = k => dz && typeof dz[k] === 'string' && SHAPED.indexOf(dz[k]) >= 0;
+  let sag = 0;
+  if (shaped('bottom') && isNum(+dz.curve)) sag = Math.min(sag, +dz.curve);
+  if (shaped('topShape') && isNum(+dz.topEnd)) sag = Math.min(sag, +dz.topEnd);
+  N.forEach((p, i) => { if (p[1] < sag - TOL) out.push({ rule: 'G3', msg: GEOMETRY_MSG.G3(i + 1, p[1]), where: [i] }); });
+  // G4: not every joint on one line (a flat line, or any one straight line): a mechanism, 'unstable', and nothing more is said about it
+  const a0 = N[0], far = N.reduce((b, p) => (Math.hypot(p[0] - a0[0], p[1] - a0[1]) > Math.hypot(b[0] - a0[0], b[1] - a0[1]) ? p : b), a0);
+  const dx = far[0] - a0[0], dy = far[1] - a0[1], len0 = Math.hypot(dx, dy);
+  const oneLine = len0 <= TOL || N.every(p => Math.abs(dx * (p[1] - a0[1]) - dy * (p[0] - a0[0])) / len0 <= TOL);
+  if (oneLine) { out.push({ rule: 'G4', msg: GEOMETRY_MSG.G4, where: [], unstable: true }); return out; }
+  // G5: every member at least two stick widths long (2 x max(bS, hS)), and no two members join the same two joints
+  const E = Array.isArray(truss.elems) ? truss.elems : [];
+  const stick = v => (isObj(values) && isNum(asNumber(values[v])) && asNumber(values[v]) > 0 ? asNumber(values[v]) : STICK_MM);
+  const min2 = 2 * Math.max(stick('bS'), stick('hS')), seen = new Map();
+  E.forEach((e, m) => {
+    if (!isObj(e) || !Number.isInteger(e.i) || !Number.isInteger(e.j) || !N[e.i] || !N[e.j]) return;
+    const L = Math.hypot(N[e.i][0] - N[e.j][0], N[e.i][1] - N[e.j][1]);
+    if (L < min2 - TOL) out.push({ rule: 'G5', msg: GEOMETRY_MSG.G5len(m + 1, L, min2), where: [m] });
+    const key = Math.min(e.i, e.j) + '-' + Math.max(e.i, e.j);
+    if (seen.has(key)) out.push({ rule: 'G5', msg: GEOMETRY_MSG.G5dup(seen.get(key) + 1, m + 1), where: [seen.get(key), m] }); else seen.set(key, m);
+  });
+  return out;
+}
+
+// ---------- fileReport: everything a file or a typed design breaks, in one object (board TE-B-459, RMA-8) ----------
+// fileReport(values, truss) -> { bad: checkInputs(values), geometry: checkGeometry(truss, values), warnings: warnInputs(values), noResult, summary }
+//   noResult: true when bad or geometry has any entry (no kg, no PASS, Physics' file rule); warnings alone never set it.
+//   summary: one plain line, kept as data at the top of the file; '' when there is nothing to say (rule 4i: a good file gets no new message).
+//   Pure: nothing is changed or clamped. A damaged values or truss reads as nothing to report (CODE-N2); nothing here throws for data.
+// The words of the summary line, as data (Marketing may reword them; the code only fills in the counts and names).
+const SUMMARY_MSG = Object.freeze({
+  values: (n, ids) => n + (n === 1 ? ' value is' : ' values are') + ' outside the limits: ' + ids + '.',
+  shape: (n, rules) => 'The shape breaks ' + (n === 1 ? 'rule ' : 'rules ') + rules + '.',
+  fix: n => 'Fix ' + (n > 1 ? 'them' : 'it') + ' to get a result.',
+});
+function fileReport(values, truss) {
+  const v = isObj(values) ? values : {};
+  const bad = checkInputs(v), geometry = checkGeometry(truss, v), warnings = warnInputs(v);
+  const ids = []; bad.forEach(b => { if (ids.indexOf(b.id) < 0) ids.push(b.id); });
+  const rules = []; geometry.forEach(g => { if (rules.indexOf(g.rule) < 0) rules.push(g.rule); });
+  const parts = [];
+  if (ids.length) parts.push(SUMMARY_MSG.values(ids.length, ids.map(labelFor).join(', ')));
+  if (rules.length) parts.push(SUMMARY_MSG.shape(rules.length, rules.join(', ')));
+  const noResult = parts.length > 0;
+  return { bad, geometry, warnings, noResult, summary: noResult ? parts.join(' ') + ' ' + SUMMARY_MSG.fix(ids.length + rules.length) : '' };
+}
+
 const rowFor = id => TABLE.find(r => r.id === id) || null;
 
-const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, rowFor };
+const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, fileReport, SUMMARY_MSG, LABELS, labelFor, rowFor };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussLimits = api;
 })(typeof window !== 'undefined' ? window : globalThis);

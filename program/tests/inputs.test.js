@@ -55,3 +55,22 @@ test('hostile text stays text; CSS: tokens only, 13 px or more, the focus ring r
   assert.ok(sizes.length && sizes.every(n => n >= 13), sizes.join(','));
   assert.match(I.CSS, /min-width:52px;max-width:96px/, 'UI-I9 widths'); assert.match(I.CSS, /var\(--te-focus, var\(--te-accent\)\)/);
 });
+
+test('the ✎ value editor: 320 px, a title bar with the grip, the value, the joystick, the sweep range, then Done (UI-I8)', () => {
+  const h = I.editorHTML(P, { id: 'edH', label: 'Height h', unit: 'mm', value: 70, sweep: { on: true, from: 50, to: 90, step: 5 } });
+  assert.match(h, /^<section class="te-ve" id="edH" data-part="value-editor" data-slot="bg" data-movable data-pc role="dialog" aria-labelledby="edH-t" hidden>/);
+  assert.match(h, /<span class="grip" aria-hidden="true">⋮⋮<\/span><h2 class="te-ve-t" id="edH-t">✎ Height h<\/h2>/, 'it moves, so it shows the grip (UI-W20)');
+  const order = ['id="edH-v"', 'te-ve-joy', 'id="edH-from"', 'id="edH-to"', 'id="edH-step"', 'te-ve-done'].map(x => h.indexOf(x));
+  assert.ok(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), 'value, joystick, sweep range, Done, in that order: ' + order);
+  assert.match(h, /class="te-ve-joy" role="slider" tabindex="0" aria-label="Change Height h faster: push farther"/);
+  assert.match(h, /<input type="checkbox" class="te-ve-on" checked> ⇄ Sweep this input/);
+  assert.doesNotMatch(I.editorHTML(P, { id: 'e2', label: 'Panels', value: 6 }), /te-ve-sw/, 'no sweep part unless asked');
+  assert.match(I.CSS, /\.te-ve\{position:absolute;z-index:700;width:320px/);
+  assert.throws(() => I.editorHTML(P, { id: 'x' }), /label/);
+});
+
+test('rangeCount: both ends counted; null when it is not a range', () => {
+  assert.strictEqual(I.rangeCount(50, 90, 5), 9); assert.strictEqual(I.rangeCount(0, 1, 0.1), 11); assert.strictEqual(I.rangeCount(5, 5, 1), 1);
+  assert.strictEqual(I.rangeCount(1, 400, 1), 400); assert.strictEqual(I.rangeCount(1, 401, 1), 401);
+  for (const a of [[9, 5, 1], [1, 5, 0], [1, 5, -1], [NaN, 5, 1], [1, null, 1]]) assert.strictEqual(I.rangeCount(...a), null, a.join(','));
+});
