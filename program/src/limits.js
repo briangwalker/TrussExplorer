@@ -8,7 +8,8 @@
 // Expressions: numbers, input ids, derived names (DERIVED), + - * /, unary minus, brackets, min() and max(). They are read by the small
 // parser below, never run as code. Anything else throws a TypeError (CODE-N3: a programmer error).
 // A missing or damaged input list, or a missing value, is not an error here: that row is skipped (CODE-N2).
-// This is the validity function: checkInputs and warnInputs (the table), and checkGeometry (G1-G5, RMA-6; G7-G10, RMA-13). G6 is merged into G5; M1-M4 are a later row.
+// This is the validity function: checkInputs and warnInputs (the table), checkGeometry (G1-G5, RMA-6; G7-G10, RMA-13) and checkResult (M2, RMA-15).
+// G6 is merged into G5. Math's M1 comes with G5 and M4 with G8; M3 is a Build Documents warning, not here (TE-B-583).
 // No DOM, no app state (CODE-F1, CODE-F4, CODE-F5): Node tests load it directly; build.py inlines it before app.js.
 (function (root) {
 'use strict';
@@ -231,7 +232,7 @@ const isModel3D = m => typeof m === 'string' && m.toLowerCase() === '3d';
 //   index) or [] (G9, G10). values may also carry docStock (the stick length, mm, G7); the truss's supports, pin and roller (G9, G10) and
 //   design.loads (G9) are read when it has them. E, the strengths and the book masses are checkInputs' only, so one bad value gives one line.
 // G4 and G10 carry unstable: true, and the function returns after either. A flat line gives only G4, not a wall of G5 (Physics). A damaged truss gives [] (CODE-N2); nothing here throws.
-// Not checked here: G6 (merged into G5) and M1-M4 (a later row). Two joints that sit close together but are not joined by a member
+// Not checked here: G6 (merged into G5), M2 (checkResult, below: it needs a solved result) and M3 (Build Documents). Two joints that sit close together but are not joined by a member
 // are not looked at; a joined pair is covered by the member length.
 const TOL = 1e-6;
 // One decimal: lengths print '5.0' (G5), heights print '-5' (G3, Physics' wording), so a flag keeps the .0 or drops it.
@@ -365,11 +366,27 @@ function checkGeometry(truss, values) {
   return out;
 }
 
+// ---------- result rule M2 (Math, 'limits v0.4 draft' geometryRules M2; board TE-B-589, RMA-15) ----------
+// checkResult(res, values) -> [{ rule: 'M2', msg, where: [] }] or []. No capacity when the mid-span deflection is more than the bridge height.
+//   res: core.js analyze's result; d = res.midDefl (mm, at the book load). values: h = values.height (mm).
+//   An unstable, missing or damaged res, or a missing height, gives [] (CODE-N2). Pure: nothing is changed, nothing throws.
+// Nothing calls it yet: wiring it into fileReport, the results card or the sweep is a later row, after Math's OK.
+const RESULT_MSG = {
+  M2: (d, h) => 'No capacity: the mid-span deflection (' + f1(d) + ' mm) is more than the bridge height (' + fh(h) + ' mm).',
+};
+function checkResult(res, values) {
+  if (!isObj(res) || res.stable !== true || !isNum(res.midDefl) || !isObj(values)) return [];
+  const d = Math.abs(res.midDefl), h = values.height;
+  if (!isNum(h) || !(h > 0)) return [];
+  return d > h ? [{ rule: 'M2', msg: RESULT_MSG.M2(d, h), where: [] }] : [];
+}
+
 // ---------- fileReport: everything a file or a typed design breaks, in one object (board TE-B-459, RMA-8) ----------
 // fileReport(values, truss) -> { bad: checkInputs(values), geometry: checkGeometry(truss, values), warnings: warnInputs(values), noResult, summary }
 //   noResult: true when bad or geometry has any entry (no kg, no PASS, Physics' file rule); warnings alone never set it.
 //   summary: one plain line, kept as data at the top of the file; '' when there is nothing to say (rule 4i: a good file gets no new message).
 //   Pure: nothing is changed or clamped. A damaged values or truss reads as nothing to report (CODE-N2); nothing here throws for data.
+//   checkResult (M2) is separate, not part of fileReport, because it needs a solved result (core.js analyze), not just the file.
 // The words of the summary line, as data (Marketing may reword them; the code only fills in the counts and names).
 const SUMMARY_MSG = Object.freeze({
   values: (n, ids) => n + (n === 1 ? ' value is' : ' values are') + ' outside the limits: ' + ids + '.',
@@ -390,6 +407,6 @@ function fileReport(values, truss) {
 
 const rowFor = id => TABLE.find(r => r.id === id) || null;
 
-const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, fileReport, SUMMARY_MSG, LABELS, labelFor, rowFor };
+const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, checkResult, fileReport, SUMMARY_MSG, LABELS, labelFor, rowFor };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussLimits = api;
 })(typeof window !== 'undefined' ? window : globalThis);
