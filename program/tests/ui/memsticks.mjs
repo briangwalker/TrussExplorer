@@ -30,6 +30,9 @@ try {
   await p.evaluate(k => { const c = document.querySelector(`#memTbl tr[data-key="${k}"] td[data-edit="cell"]`); c.focus(); }, key);
   await p.keyboard.press('Enter'); await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(300);
   check('Enter then ← on the Sticks cell takes one stick off, and focus stays in the cell', await p.evaluate(k => __dbg.tr.elems[k].n === 3 && !!document.activeElement.closest(`#memTbl tr[data-key="${k}"] td[data-edit="cell"]`), key));
+  check('the keyboard change is said in the polite status toast, with the new count (QA TE-B-584)', await p.evaluate(k => [...document.querySelectorAll('[role="status"]')].some(x => x.getAttribute('aria-live') === 'polite' && new RegExp(`Member ${k}: 4 → 3 sticks`).test(x.textContent)), key));
+  await p.keyboard.press('ArrowUp'); await p.keyboard.press('ArrowDown'); await p.waitForTimeout(300);
+  check('↑ and ↓ in the Sticks cell leave the count alone (only ← → and − + change it; UI Designer TE-B-582)', await p.evaluate(k => __dbg.tr.elems[k].n === 3, key));
   await p.keyboard.press('Escape');
   // focus toggle
   await p.click(`#memTbl tr[data-key="${key}"] [data-act="mem-focus"]`); await p.waitForTimeout(300);
