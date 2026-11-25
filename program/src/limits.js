@@ -1,5 +1,5 @@
 // ===== Truss limits: the table of allowed input values, and the input check (#420, #421; board TE-B-373, RMA-4) =====
-// Values: Math (v0.4, 11-19, after Physics' review) and Physics. Format: Architecture Lead (TE-B-372b).
+// Values: Math (v0.4, 11-19, after Physics' review; height max 200, Math 11-24: 100 is the course rule, not a model limit) and Physics. Format: Architecture Lead (TE-B-372b).
 // One data table (TABLE) read by the input boxes AND the file loader; it replaces both the box min/max and the slider range.
 // An out-of-range value is REJECTED with the row's message and never clamped; a value that came from a file is reported, never changed (UI-I10).
 // Row fields: id (the real input id), unit, min, max (a number or an expression), step (1 = whole numbers only),
@@ -17,6 +17,15 @@ const STICK_MM = 3.18;                  // the course stick, in mm
 const SHAPED = ['parabola', 'arc', 'catenary'];
 
 // Named values usable inside expressions, defined once (Math: 'stick2' = two stick widths, 6.36 mm at the course stick).
+// Plain names of the inputs, for a line a person reads (fileReport's summary). The page may use its own box labels, and Marketing may reword these.
+const LABELS = Object.freeze({ height: 'Height', curve: 'Curve', topEnd: 'Top end', botEnd: 'Bottom end', panels: 'Panels', ratio: 'Panel ratio', sideAngle: 'Side angle',
+  deskPanels: 'Desk panels', overlap: 'Desk overlap', supportOffset: 'Support offset', bookLen: 'Book length', bookWidth: 'Book width', bookThick: 'Book thickness',
+  mBook1: 'Book mass 1', mBook2: 'Book mass 2', FS: 'Safety factor', nTruss: 'Trusses', width: 'Width', tilt3d: 'Tilt', deflLimit: 'Deflection limit', minOverlap: 'Minimum overlap',
+  E: 'Stiffness (E)', rho: 'Density', sigT: 'Tension strength', sigC: 'Compression strength', bS: 'Stick width', hS: 'Stick depth', fricMu: 'Friction', fricK: 'Friction stiffness',
+  tableThick: 'Table thickness', braceDepth: 'Brace depth', impAlpha: 'Imperfection alpha', impBeta: 'Imperfection beta', width3d: '3D width', docBendN: 'Bend count',
+  docStock: 'Stick length', docKerf: 'Saw cut', autoLimit: 'Auto limit', bigCap: 'Sweep cap', rcFS: 'Check safety factor', rcBook: 'Check book mass', rcDefl: 'Check deflection',
+  rcOv: 'Check overlap', refStep: 'Refine step', woodBudget: 'Wood budget', loadTarget: 'Load target', abSteps: 'Steps', abExt: 'Extent' });
+const labelFor = id => (Object.prototype.hasOwnProperty.call(LABELS, id) ? LABELS[id] : String(id));
 const DERIVED = Object.freeze({ stick2: '2*max(bS,hS)' });
 
 // Ids a row's `when` may test that are not number boxes: the bottom and top chord shapes, and the model.
@@ -26,7 +35,7 @@ const R = (id, unit, min, max, msg, status, more) => Object.assign({ id, unit, m
 const COURSE = 'Course balsa is E 3000, rho 160, sigT 7.5, sigC 4.5, stick 3.18.';
 
 const TABLE = Object.freeze([
-  R('height', 'mm', 10, 100, 'Height must be 10-100 mm (below 10 mm the members are shorter than two sticks).', 'math', { warnMin: 20, warnMsg: 'Below 20 mm the top and bottom chords are close together, so buckling decides the capacity.', sliderMin: 10, sliderMax: 100 }),
+  R('height', 'mm', 10, 200, 'Height must be 10 to 200 mm.', 'math', { warnMin: 20, warnMsg: 'Below 20 mm the top and bottom chords are close together, so buckling decides the capacity.', sliderMin: 10, sliderMax: 100 }),
   R('curve', 'mm', -60, 'height-10', 'The bottom chord must stay at least 10 mm below the top chord.', 'math', { warnMax: 'height-20', warnMsg: 'The bottom chord is within 20 mm of the top chord.', when: { id: 'bottom', in: SHAPED }, sliderMin: -50, sliderMax: 100 }),
   R('topEnd', 'mm', '-min(tableThick,50)', 'height-10', 'Top chord end must be between the table face and 10 mm below the top.', 'math', { when: { id: 'topShape', in: SHAPED }, sliderMin: -30, sliderMax: 70 }),
   R('botEnd', 'mm', 0, 'height-10', 'Bottom chord end must be 0 to height minus 10 mm.', 'math', { sliderMin: 0, sliderMax: 100 }),
@@ -285,8 +294,31 @@ function checkGeometry(truss, values) {
   return out;
 }
 
+// ---------- fileReport: everything a file or a typed design breaks, in one object (board TE-B-459, RMA-8) ----------
+// fileReport(values, truss) -> { bad: checkInputs(values), geometry: checkGeometry(truss, values), warnings: warnInputs(values), noResult, summary }
+//   noResult: true when bad or geometry has any entry (no kg, no PASS, Physics' file rule); warnings alone never set it.
+//   summary: one plain line, kept as data at the top of the file; '' when there is nothing to say (rule 4i: a good file gets no new message).
+//   Pure: nothing is changed or clamped. A damaged values or truss reads as nothing to report (CODE-N2); nothing here throws for data.
+// The words of the summary line, as data (Marketing may reword them; the code only fills in the counts and names).
+const SUMMARY_MSG = Object.freeze({
+  values: (n, ids) => n + (n === 1 ? ' value is' : ' values are') + ' outside the limits: ' + ids + '.',
+  shape: (n, rules) => 'The shape breaks ' + (n === 1 ? 'rule ' : 'rules ') + rules + '.',
+  fix: n => 'Fix ' + (n > 1 ? 'them' : 'it') + ' to get a result.',
+});
+function fileReport(values, truss) {
+  const v = isObj(values) ? values : {};
+  const bad = checkInputs(v), geometry = checkGeometry(truss, v), warnings = warnInputs(v);
+  const ids = []; bad.forEach(b => { if (ids.indexOf(b.id) < 0) ids.push(b.id); });
+  const rules = []; geometry.forEach(g => { if (rules.indexOf(g.rule) < 0) rules.push(g.rule); });
+  const parts = [];
+  if (ids.length) parts.push(SUMMARY_MSG.values(ids.length, ids.map(labelFor).join(', ')));
+  if (rules.length) parts.push(SUMMARY_MSG.shape(rules.length, rules.join(', ')));
+  const noResult = parts.length > 0;
+  return { bad, geometry, warnings, noResult, summary: noResult ? parts.join(' ') + ' ' + SUMMARY_MSG.fix(ids.length + rules.length) : '' };
+}
+
 const rowFor = id => TABLE.find(r => r.id === id) || null;
 
-const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, rowFor };
+const api = { TABLE, DERIVED, WHEN_IDS, SWEEP_RULE, STICK_MM, bound, checkInputs, warnInputs, checkGeometry, fileReport, SUMMARY_MSG, LABELS, labelFor, rowFor };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussLimits = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -54,7 +54,7 @@ test('check: a ground a file sets must keep every meaning colour visible (SEC-00
   assert.deepStrictEqual(T.check(w, {}, null, M).errors, [], 'the built-in grounds pass every meaning colour');
   // Black Hat's recipe: every ground = the pass green, every listed text pair white or black, so every text pair passes
   const hide = Object.assign({}, w); for (const g of T.GROUNDS) hide[g] = M.ok;
-  Object.assign(hide, { ink: '#fff', muted: '#fff', 'ctl-line': '#fff', focus: '#fff', strong: '#fff', tab: '#fff', 'on-strong': '#000', accent: '#fff', 'accent-ink': '#000' });
+  Object.assign(hide, { ink: '#fff', muted: '#fff', 'ctl-line': '#fff', focus: '#fff', strong: '#fff', tab: '#fff', 'on-strong': '#000', accent: '#fff', 'accent-ink': '#000', 'line-soft': '#000' });
   const r = T.check(hide, w, null, M);
   assert.ok(r.errors.includes('meaning:ok/surface'), 'the verdict word would vanish on its own green');
   assert.ok(r.errors.filter(e => e.startsWith('contrast:')).length === 0, 'the listed text pairs all pass, which is the gap the meaning check closes');
@@ -99,4 +99,51 @@ test('vars: only token names become --te- variables; the fixture theme passes fo
   const M = meaningLight();
   assert.deepStrictEqual(T.check(o.doc.tokens, w, { name: o.doc.name, builtIn: ['Wireframe'] }, M).errors, ['contrast:accent-ink/accent'], 'the default dark-brown badge text on the file\'s red accent is 3.1:1');
   assert.deepStrictEqual(T.check(Object.assign({}, o.doc.tokens, { 'accent-ink': '#fff' }), w, { name: o.doc.name, builtIn: ['Wireframe'] }, M).errors, [], 'with white badge text it passes');
+});
+
+test('check: a solid ground with alpha is refused, a panel below 80% opaque is refused, hot may be a tint (Black Hat, SEC-007 SHOULD); every built-in ground passes', () => {
+  const w = wireframe(), M = meaningLight();
+  const solid = T.GROUNDS.filter(g => !T.SEE_THROUGH.includes(g) && g !== 'hot');
+  assert.deepStrictEqual(solid, ['page', 'surface', 'surface-2', 'ctl-bg']);
+  // 'hot' is a tint over checked grounds (Notebook's is rgba(255,210,60,.38)): alpha is allowed, its pairs are still checked
+  for (const v of ['rgba(255,210,60,.38)', '#fdebd680']) assert.ok(!T.check({ hot: v }, w, null, M).errors.includes('opaque:hot'), v);
+  for (const g of solid) for (const v of ['#ffffff80', '#fff8', 'rgba(255,255,255,0.5)', '#ffffffFE', 'rgba(255,255,255,.94)']) assert.ok(T.check({ [g]: v }, w, null, M).errors.includes('opaque:' + g), g + ' = ' + v);
+  for (const g of T.GROUNDS) for (const v of ['#ffffff', '#fff', '#ffffffff', 'rgb(255,255,255)', 'rgba(255,255,255,1)']) assert.ok(!T.check({ [g]: v }, w, null, M).errors.some(e => e.startsWith('opaque:')), g + ' = ' + v);
+  for (const g of T.SEE_THROUGH) {
+    for (const v of ['#ffffff80', 'rgba(255,255,255,.79)', '#0000', 'rgba(255,255,255,0)']) assert.ok(T.check({ [g]: v }, w, null, M).errors.includes('opaque:' + g), g + ' = ' + v);
+    for (const v of ['rgba(255,255,255,.8)', 'rgba(255,255,255,.86)', 'rgba(255,255,255,.94)']) assert.ok(!T.check({ [g]: v }, w, null, M).errors.includes('opaque:' + g), g + ' = ' + v);
+  }
+  // rule 4i: the panel values of every built-in theme that has plain values (shell.css Wireframe, themes/*.css) pass this rule
+  const css = [fs.readFileSync(path.join(__dirname, '..', 'src', 'shell.css'), 'utf8')].concat(fs.readdirSync(path.join(__dirname, '..', 'themes')).filter(f => f.endsWith('.css')).map(f => fs.readFileSync(path.join(__dirname, '..', 'themes', f), 'utf8')));
+  let seen = 0;
+  for (const c of css) for (const m of c.matchAll(/--te-(page|surface|surface-2|panel|panel-peek|ctl-bg|hot):([^;}]+)/g)) {
+    if (/var\(|color-mix/.test(m[2])) continue;
+    seen++; assert.ok(!T.check({ [m[1]]: m[2].trim() }, w, null, M).errors.includes('opaque:' + m[1]), m[1] + ' = ' + m[2]);
+  }
+  assert.ok(seen >= 14, 'read the built-in grounds: ' + seen);
+  assert.ok(!T.check({ ink: '#1d232aee' }, w, null, M).errors.some(e => e.startsWith('opaque:')));
+});
+
+test('check: invisible characters in a name do not get past the built-in name rule (Black Hat NOTE 1)', () => {
+  const b = ['OG', 'Wireframe'];
+  for (const n of ['OG​', '​OG', 'O‍G', '⁦Wireframe⁩', 'Wire﻿frame', 'OG‎']) assert.ok(T.check({}, {}, { name: n, builtIn: b }).errors.includes('name:taken'), JSON.stringify(n));
+  assert.deepStrictEqual(T.check({}, {}, { name: 'OG 2', builtIn: b }).errors, []);
+});
+
+test('check: ink on line-soft is a pair (a refused number box value, inputs.js; Black Hat NOTE 2); every built-in theme passes it (rule 4i)', () => {
+  const w = wireframe();
+  assert.ok(T.PAIRS.some(([f, b, n]) => f === 'ink' && b === 'line-soft' && n === 4.5));
+  assert.ok(T.check({ 'line-soft': w.ink }, w).errors.includes('contrast:ink/line-soft'), 'line-soft = ink hides the value');
+  assert.ok(T.check({ ink: w['line-soft'] }, w).errors.includes('contrast:ink/line-soft'), 'ink = line-soft by the text');
+  // the plain ink and line-soft of each built-in (shell.css Wireframe, themes/*.css), each with the other from the same block
+  const dir = path.join(__dirname, '..', 'themes');
+  const css = [fs.readFileSync(path.join(__dirname, '..', 'src', 'shell.css'), 'utf8')].concat(fs.readdirSync(dir).filter(f => f.endsWith('.css')).map(f => fs.readFileSync(path.join(dir, f), 'utf8')));
+  let seen = 0;
+  for (const c of css) for (const blk of c.matchAll(/\{([^{}]*--te-line-soft:[^{}]*)\}/g)) {
+    const ink = /--te-ink:([^;}]+)/.exec(blk[1]), soft = /--te-line-soft:([^;}]+)/.exec(blk[1]);
+    if (!ink || !soft || /var\(|color-mix/.test(ink[1] + soft[1])) continue;
+    seen++; const r = T.contrast(ink[1].trim(), soft[1].trim());
+    assert.ok(r >= 4.5, ink[1] + ' on ' + soft[1] + ': ' + r);
+  }
+  assert.ok(seen >= 3, 'read the built-in ink/line-soft pairs: ' + seen);
 });

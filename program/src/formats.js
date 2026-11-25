@@ -263,6 +263,18 @@ function headMayBeBig(bytes) {
   if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) return true;   // gzip: a .tsweep; the bytes door caps it
   return SWEEP_HEAD.test(new TextDecoder().decode(bytes.subarray(0, PEEK_BYTES)));
 }
+// the size of text as UTF-8 bytes, what the file took on disk (#471: the per-kind caps count bytes, not characters, so a file
+// of accents or emoji can't be several times its cap). No copy is made; a lone surrogate counts 3, as TextEncoder writes U+FFFD.
+function utf8Bytes(s) {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) n += 1; else if (c < 0x800) n += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length && (s.charCodeAt(i + 1) & 0xfc00) === 0xdc00) { n += 4; i++; }
+    else n += 3;
+  }
+  return n;
+}
 // tests pass smaller limits through opts.limits; the app never does
 const limitsOf = opts => Object.assign({}, LIMITS, opts && opts.limits);
 
@@ -273,9 +285,10 @@ function open(input, opts) {
   let raw = input;
   if (typeof input === 'string') { if (input.length > L.fileBytes) return { ok: false, errors: ['too-big'], warnings: [] }; try { raw = JSON.parse(input); } catch (e) { return { ok: false, errors: ['not-json'], warnings: [] }; } }
   // a bridge, theme or material file over its own cap is refused before the deep clean, whatever the file was called (the content decides)
-  if (typeof input === 'string' && input.length > Math.min(L.bridgeBytes, L.themeBytes, L.materialBytes) && isObj(raw)) {
+  // in bytes (#471); a UTF-16 unit is at most 3 bytes, so text under a third of the smallest cap can't be over it and isn't counted
+  if (typeof input === 'string' && input.length * 3 > Math.min(L.bridgeBytes, L.themeBytes, L.materialBytes) && isObj(raw)) {
     let k = null; try { k = detect(raw).kind; } catch (e) {}
-    if (KIND_BYTES[k] && input.length > L[KIND_BYTES[k]]) return { ok: false, kind: k, errors: ['too-big'], warnings: [] };
+    if (KIND_BYTES[k] && input.length * 3 > L[KIND_BYTES[k]] && utf8Bytes(input) > L[KIND_BYTES[k]]) return { ok: false, kind: k, errors: ['too-big'], warnings: [] };
   }
   const clean = cleanData(raw);
   const det = detect(clean);
@@ -525,7 +538,7 @@ async function openBytes(input, opts) {
   return res;
 }
 
-const api = { THEME_TOKENS, THEME_KIND, FONTS, tokenFits, BUILTIN_THEME_IDS, KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain, LIMITS, BRIDGE_NAME, PEEK_BYTES, headMayBeBig };
+const api = { utf8Bytes, THEME_TOKENS, THEME_KIND, FONTS, tokenFits, BUILTIN_THEME_IDS, KINDS, detect, upgrade, check, open, cleanData, cleanRows, ROW_NUM, ROW_OPT, materialToMat, toTsweep, openBytes, isTsweepBytes, canon, sha256hex, sha256plain, LIMITS, BRIDGE_NAME, PEEK_BYTES, headMayBeBig };
 // what the Open buttons offer: every kind in the app (drafts aside), the old names, and plain JSON (TE-B-256)
 api.ACCEPT = [...new Set(Object.values(KINDS).filter(k => !k.draft).flatMap(k => [k.ext].concat(k.also || [])).concat(['.json', 'application/json']))].join(',');
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussFormats = api;

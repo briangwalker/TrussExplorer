@@ -341,6 +341,30 @@ test('size limits: a theme or material file over its 64 KB cap is refused after 
   assert.deepStrictEqual(F.open(t, { limits: { themeBytes: t.length - 1 } }).errors, ['too-big']);
 });
 
+// #471 (Chaos Tester s13b): the per-kind caps count UTF-8 bytes, what the file is on disk, not characters
+test('size limits: the theme and material caps count bytes, so accents and emoji can\'t stretch them (#471)', () => {
+  assert.strictEqual(F.utf8Bytes('abc'), 3); assert.strictEqual(F.utf8Bytes('é'), 2); assert.strictEqual(F.utf8Bytes('€'), 3); assert.strictEqual(F.utf8Bytes('😀'), 4); assert.strictEqual(F.utf8Bytes('\ud800x'), 4);
+  for (const t of ['', 'plain', 'é€😀 mixed \u0000', '\udc00\ud800']) assert.strictEqual(F.utf8Bytes(t), Buffer.byteLength(t, 'utf8'), JSON.stringify(t));
+  const cap = F.LIMITS.themeBytes;
+  for (const f of ['v1-test-graph-paper.theme.json', 'v1-balsa-course.material.json']) {
+    const base = JSON.parse(fix(f)); base.notes = '';
+    const room = cap - Buffer.byteLength(JSON.stringify(base), 'utf8');
+    for (const ch of ['x', 'é', '€', '😀']) {
+      const per = Buffer.byteLength(ch, 'utf8'), n = Math.floor(room / per), pad = room - n * per;
+      const at = Object.assign({}, base, { notes: ch.repeat(n) + 'x'.repeat(pad) }), s = JSON.stringify(at);
+      assert.strictEqual(Buffer.byteLength(s, 'utf8'), cap, f + ' ' + ch);
+      assert.ok(!F.open(s).errors.includes('too-big'), f + ' ' + ch + ' at the cap opens');
+      const over = JSON.stringify(Object.assign({}, at, { notes: at.notes + 'x' }));
+      assert.deepStrictEqual(F.open(over).errors, ['too-big'], f + ' ' + ch + ' one byte over is refused');
+    }
+    // the issue's own case: 33,000 x 'é' (about 66 KB, 33 K characters)
+    assert.deepStrictEqual(F.open(JSON.stringify(Object.assign({}, base, { notes: 'é'.repeat(33000) }))).errors, ['too-big'], f);
+  }
+  // the bridge cap counts bytes too, and a sweep keeps only the whole-file cap
+  const br = JSON.parse(fix('v2-v61-course-sample-2d.bridge.json')); br.notes = '€'.repeat(700 * 1024);
+  assert.deepStrictEqual(F.open(JSON.stringify(br)).errors, ['too-big']);
+});
+
 // any other name over the bridge cap (TE-B-343, White Hat's left-over on SEC-005): the file's head decides before it's read
 test('size limits: a big file with any other name is read only if its head says sweep (or it is gzip); every saved sweep does', async () => {
   const e = s => new TextEncoder().encode(s);

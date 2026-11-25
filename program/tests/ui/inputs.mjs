@@ -85,9 +85,9 @@ try {
   const real = await p.evaluate(() => {
     if (!window.TrussLimits) return null;
     const c = TrussInputs.fromLimits(TrussLimits, 'height', () => ({ height: 70 }));
-    return { lo: c(5), ok: c(70), hi: c(150) };
+    return { lo: c(5), ok: c(70), hi: c(250) };
   });
-  if (real) check('with TrussLimits: 5 and 150 are refused with the table\'s message, 70 passes', real.lo && real.lo.kind === 'limit' && real.hi && real.hi.kind === 'limit' && real.ok === null, JSON.stringify(real));
+  if (real) check('with TrussLimits: 5 and 250 are refused with the table\'s message, 70 passes', real.lo && real.lo.kind === 'limit' && real.hi && real.hi.kind === 'limit' && real.ok === null, JSON.stringify(real));
   check('no page errors', p.errs.length === 0, p.errs.join(' | '));
   await p.close();
 } finally { await b.close(); srv.close(); }
