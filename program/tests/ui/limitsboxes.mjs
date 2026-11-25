@@ -72,6 +72,18 @@ try {
   check(`height ${under} (outer under 100): committed, no mark, and no 100 mm line in the result`, s.app === String(under) && s.state === '' && s.note === '' && e.top <= 100 && !e.flag, JSON.stringify([s, e]));
   await p.fill('#height-tb', '100'); await p.press('#height-tb', 'Enter'); s = await st('height'); e = await out();
   check('height 100 (outer over 100): pink exactly when the result flags it', s.app === '100' && (s.state === 'rule') === e.flag && e.flag === e.top > 100, JSON.stringify([s, e]));
+  // topEnd moves the outer height too (an arch top's end sticks reach higher): the height box is checked again when it moves,
+  // by its box or its slider (limitrows 0.1.3, Dev Lead TE-B-619 c). At h 95.3 with a parabola top, topEnd 0 is 99.9 mm, topEnd 40 is 100.01 mm
+  await p.click('#topShape button[data-v="parabola"]'); await p.waitForTimeout(50);
+  await p.fill('#height-tb', '95.3'); await p.press('#height-tb', 'Enter');
+  await p.fill('#topEnd-tb', '0'); await p.press('#topEnd-tb', 'Enter'); s = await st('height'); e = await out();
+  check('parabola top, h 95.3, topEnd 0 (outer under 100): no mark on the height box', s.state === '' && e.top <= 100 && !e.flag, JSON.stringify([s, e]));
+  await p.fill('#topEnd-tb', '40'); await p.press('#topEnd-tb', 'Enter'); s = await st('height'); e = await out();
+  check('topEnd 40 lifts the outer height over 100: the height box turns pink with the result, its note names the new height', s.state === 'rule' && e.flag && e.top > 100
+    && s.note.includes(`(this one is ${e.top.toFixed(1)} mm to its top face)`), JSON.stringify([s, e]));
+  await p.fill('#topEndR', '0'); await p.waitForTimeout(50); s = await st('height'); e = await out();
+  check('the topEnd slider back to 0: the height box follows the result and the mark goes', s.state === '' && !e.flag && e.top <= 100, JSON.stringify([s, e]));
+  await p.click('#topShape button[data-v="flat"]'); await p.waitForTimeout(50);
   await p.fill('#height-tb', '201'); s = await st('height');
   check('height 201 is still refused by the table', s.state === 'limit' && /^⟂ Height must be 10 to 200 mm/.test(s.note), JSON.stringify(s));
   await p.press('#height-tb', 'Enter');
