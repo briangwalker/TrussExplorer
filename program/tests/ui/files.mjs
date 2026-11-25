@@ -88,6 +88,42 @@ try {
     await q2.click('#dockBtn'); await q2.waitForSelector('#dockMenu:not([hidden])');
     const [fcRen] = await Promise.all([q2.waitForEvent('filechooser'), q2.click('#dockMenu [data-click="loadBridge"]')]); await fcRen.setFiles(renamed); await q2.waitForTimeout(500);
     check('TE-B-343: a 3 MB bridge renamed .txt is refused before reading, with a message, and nothing changes', await q2.evaluate(n => __dbg.S.name === n && /isn't a sweep file; any other file over 2 MB isn't opened/.test(document.body.textContent), nameBefore));
+    // #265: a theme FILE opens through the same door, as data: tokens on the Wireframe base, in memory only, never saved.
+    // The classic layout has no shell, so it says so; the shell page applies it.
+    const theme = (extra, name) => write((name || 'mine') + '.theme.json', JSON.stringify(Object.assign({ format: 'truss-explorer-theme', version: 1, id: 'mine', name: 'My paper', tokens: { page: '#f6f1e4', ink: '#2a2118', accent: '#c0392b', 'accent-ink': '#ffffff' } }, extra)));
+    await q2.click('#dockBtn'); await q2.waitForSelector('#dockMenu:not([hidden])');
+    const [fcT0] = await Promise.all([q2.waitForEvent('filechooser'), q2.click('#dockMenu [data-click="loadBridge"]')]); await fcT0.setFiles(theme()); await q2.waitForTimeout(600);
+    check('#265: in the classic layout a theme file is not applied, and the message says so', await q2.evaluate(() => /only in the balsaPixel layout/.test(document.getElementById('toast').textContent)));
+    const srvS = await serve(undefined, { shell: true }); const q3 = await openPage(b, srvS.url); await waitRows(q3);
+    await q3.click('#dockBtn'); await q3.waitForSelector('#dockMenu:not([hidden])');
+    const [fcT] = await Promise.all([q3.waitForEvent('filechooser'), q3.click('#dockMenu [data-click="loadBridge"]')]); await fcT.setFiles(theme()); await q3.waitForTimeout(600);
+    const t1 = await q3.evaluate(() => ({ th: document.getElementById('stage').dataset.theme, ink: document.getElementById('stage').style.getPropertyValue('--te-ink'), opt: [...document.querySelectorAll('#themeSel option')].map(o => o.textContent), list: __shell.themes.map(t => t.id), msg: document.getElementById('toast').textContent, saved: JSON.stringify(localStorage).includes('#2a2118') }));
+    check('#265: a theme file applies (data-theme=file, --te-ink set as a variable), is listed as "(from a file)", and the toast says it is not saved', t1.th === 'file' && t1.ink === '#2a2118' && t1.opt.includes('My paper (from a file)') && t1.list.includes('file') && /applied from the file/.test(t1.msg) && /isn't saved/.test(t1.msg));
+    check('#265: nothing from the file reaches storage', !t1.saved);
+    await q3.click('#dockBtn'); await q3.waitForSelector('#dockMenu:not([hidden])');
+    const [fcT2] = await Promise.all([q3.waitForEvent('filechooser'), q3.click('#dockMenu [data-click="loadBridge"]')]); await fcT2.setFiles(theme({ id: 'hide', tokens: { ink: '#00000000' } }, 'hide')); await q3.waitForTimeout(600);
+    const t2 = await q3.evaluate(() => ({ ink: document.getElementById('stage').style.getPropertyValue('--te-ink'), msg: document.getElementById('toast').textContent }));
+    check('#265: a theme file that hides text (transparent ink) is refused with a message, and the last good theme stays', t2.ink === '#2a2118' && /don't have enough contrast/.test(t2.msg));
+    await q3.click('#dockBtn'); await q3.waitForSelector('#dockMenu:not([hidden])');
+    const [fcT4] = await Promise.all([q3.waitForEvent('filechooser'), q3.click('#dockMenu [data-click="loadBridge"]')]); await fcT4.setFiles(theme({ id: 'empty', tokens: { ink: 'red' } }, 'empty')); await q3.waitForTimeout(600);
+    check('#265: a theme file whose every value was dropped (a colour name) applies nothing, and says so', await q3.evaluate(() => document.getElementById('stage').style.getPropertyValue('--te-ink') === '#2a2118' && /sets nothing the Explorer understands/.test(document.getElementById('toast').textContent)));
+    // SEC-007: every ground set to the pass green, every text pair white or black: the listed pairs pass, the verdict word would vanish
+    const green = '#2f7a4b', hideV = { page: green, surface: green, 'surface-2': green, panel: green, 'panel-peek': green, 'ctl-bg': green, hot: green, ink: '#ffffff', muted: '#ffffff', 'ctl-line': '#ffffff', focus: '#ffffff', strong: '#ffffff', tab: '#ffffff', 'on-strong': '#000000', accent: '#ffffff', 'accent-ink': '#000000' };
+    await q3.click('#dockBtn'); await q3.waitForSelector('#dockMenu:not([hidden])');
+    const [fcT5] = await Promise.all([q3.waitForEvent('filechooser'), q3.click('#dockMenu [data-click="loadBridge"]')]); await fcT5.setFiles(theme({ id: 'verdict', tokens: hideV }, 'verdict')); await q3.waitForTimeout(600);
+    const t5 = await q3.evaluate(() => ({ ink: document.getElementById('stage').style.getPropertyValue('--te-ink'), page: document.getElementById('stage').style.getPropertyValue('--te-page'), msg: document.getElementById('toast').textContent }));
+    check('SEC-007: a theme file whose grounds would hide the pass/fail colour is refused, with a message, and the last good theme stays', t5.ink === '#2a2118' && t5.page === '#f6f1e4' && /would hide a result colour/.test(t5.msg));
+    await q3.click('#dockBtn'); await q3.waitForSelector('#dockMenu:not([hidden])');
+    const [fcT6] = await Promise.all([q3.waitForEvent('filechooser'), q3.click('#dockMenu [data-click="loadBridge"]')]); await fcT6.setFiles(theme({ id: 'peek', tokens: { 'panel-peek': '#1d232a' } }, 'peek')); await q3.waitForTimeout(600);
+    check('SEC-007: a theme file that darkens only the peek panel is refused', await q3.evaluate(() => !document.getElementById('stage').style.getPropertyValue('--te-panel-peek') && /don't have enough contrast/.test(document.getElementById('toast').textContent)));
+    const t7 = await q3.evaluate(() => { const st = document.getElementById('stage'), th = st.dataset.theme, r = window.__shell.loadThemeFile({ id: 'blank', name: 'Blank', tokens: {} }), r2 = window.__shell.loadThemeFile({ id: 'blank2', name: 'Blank 2' }); return { r, r2, same: st.dataset.theme === th && st.style.getPropertyValue('--te-ink') === '#2a2118' && !Array.from(document.getElementById('themeSel').options).some(o => /Blank/.test(o.textContent)) }; });
+    check('SEC-007 NOTE 3: the theme door itself refuses a file with no tokens (empty or missing), and nothing changes', !t7.r.ok && t7.r.errors[0] === 'empty' && !t7.r2.ok && t7.r2.errors[0] === 'empty' && t7.same, JSON.stringify(t7));
+    await q3.click('#dockBtn'); await q3.waitForSelector('#dockMenu:not([hidden])');
+    const [fcT3] = await Promise.all([q3.waitForEvent('filechooser'), q3.click('#dockMenu [data-click="loadBridge"]')]); await fcT3.setFiles(theme({ id: 'fake', name: 'Wireframe' }, 'fake')); await q3.waitForTimeout(600);
+    check('#265: a theme file named after a built-in theme is refused', await q3.waitForFunction(() => /built-in theme's name/.test(document.getElementById('toast').textContent), null, { timeout: 5000 }).then(() => true, () => false));
+    await q3.reload(); await waitRows(q3);
+    check('#265: after a reload the page is back on a built-in theme (the file theme was never saved)', await q3.evaluate(() => document.getElementById('stage').dataset.theme !== 'file' && !document.getElementById('stage').style.getPropertyValue('--te-ink')));
+    srvS.close();
     check('TE-B-256: the Open button offers .truss and still .bridge.json', await q2.evaluate(() => { const a = document.getElementById('filePick').accept.split(','); return a.includes('.truss') && a.includes('.bridge.json') && a.includes('.tsweep'); }));
     check('#154: an older file opens in the model its wood matches, and says so', o2.ana === '3d' && Math.abs(o2.wood - saved.summary.wood) < 0.15 && /before v61/.test(o2.msg), JSON.stringify(o2));
     check('#154: no script errors', p.errs.length + q.errs.length + q2.errs.length === 0, q.errs.concat(q2.errs).slice(0, 2).join(' | '));

@@ -27,3 +27,27 @@ The last line starts with `BENCH ` and is JSON: Node version, date, every median
     node program/tests/bench/solver.bench.js | grep '^BENCH ' > before.txt
 
 Differences under about 10% are usually noise; run it a few times if it matters.
+
+## Runs
+
+### 2026-11-24: alpha.4 against the balsaPixel-1.0 tip (RMA-14, TE-B-538)
+
+- **alpha.4:** tag `v1.0.0-alpha.4` = `5091577`. **Tip:** balsaPixel-1.0 at `922d4dd` (after #475 and #483).
+- Same cloud machine (4 cores), Node v22.23.5, 3 runs each, alternating (alpha.4, tip, alpha.4, tip ...), 21:09 UTC.
+- `solver.bench.js` and `tests/lib.js` are the same file on both commits, and the case list, joints and members match row for row.
+- "2D range" is the fastest and slowest of the 35 case medians; "2D middle" is the median of those 35.
+
+| run | commit | 2D range (ms) | 2D middle (ms) | 3D default (ms) | sweep (designs/s) |
+|---|---|---|---|---|---|
+| 1 | alpha.4 `5091577` | 0.032-0.588 | 0.149 | 1.976 | 5757 |
+| 1 | tip `922d4dd` | 0.031-0.390 | 0.103 | 1.279 | 6081 |
+| 2 | alpha.4 `5091577` | 0.031-0.409 | 0.099 | 1.285 | 6074 |
+| 2 | tip `922d4dd` | 0.032-0.432 | 0.107 | 1.363 | 5801 |
+| 3 | alpha.4 `5091577` | 0.031-0.454 | 0.099 | 1.286 | 6572 |
+| 3 | tip `922d4dd` | 0.031-0.381 | 0.104 | 1.345 | 5978 |
+
+**Median of the 3 runs (spread):** alpha.4: 2D middle 0.099 ms (0.099-0.149), 3D 1.286 ms (1.285-1.976), sweep 6074/s (5757-6572). Tip: 2D middle 0.104 ms (0.103-0.107), 3D 1.345 ms (1.279-1.363), sweep 5978/s (5801-6081).
+
+**Result:** the tip is within noise of alpha.4: sweep 1.6% slower, 3D 4.6% slower, 2D middle 5% slower, each well inside the other side's spread and under the 15% line. All 2,000 sweep designs are stable on both. No bisect needed. alpha.4's first run was the slowest of all six (a cold machine), so its spread is wider.
+
+RedMangoArch

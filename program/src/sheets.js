@@ -19,6 +19,7 @@
 
 function fail(msg) { throw new Error('TrussSheets: ' + msg); }
 // words from TrussStrings (src/strings.js), looked up when used, so load order doesn't matter
+function mac() { try { return /Mac|iPhone|iPad/.test((root.navigator && (root.navigator.userAgentData && root.navigator.userAgentData.platform || root.navigator.platform)) || ''); } catch (e) { return false; } }
 function t(key) { const T = root.TrussStrings || (typeof require === 'function' ? require('./strings.js') : null); if (!T) fail('TrussStrings is missing'); return T.t(key); }
 
 function sheetHTML(P, o) {
@@ -104,7 +105,7 @@ function modals(doc, opts) {
 
 function toasts(doc, o) {
   doc = doc || document; o = o || {};
-  let box = null, timer = null, cur = null;
+  let box = null, timer = null, cur = null, back = null;   // back: where focus was before it came into the toast
   function ensure() {
     if (box && box.isConnected) return box;
     box = doc.createElement('div');
@@ -114,31 +115,51 @@ function toasts(doc, o) {
     const hold = () => { clearTimeout(timer); timer = null; };
     const resume = () => { if (cur && !box.matches(':hover') && !box.contains(doc.activeElement)) arm(cur.ms); };
     box.addEventListener('pointerenter', hold); box.addEventListener('pointerleave', resume);
-    box.addEventListener('focusin', hold); box.addEventListener('focusout', ev => { if (!box.contains(ev.relatedTarget)) resume(); });
+    box.addEventListener('focusin', ev => { if (ev.relatedTarget && !box.contains(ev.relatedTarget)) back = ev.relatedTarget; hold(); }); box.addEventListener('focusout', ev => { if (!box.contains(ev.relatedTarget)) resume(); });
     box.addEventListener('click', ev => {
       if (!ev.target.closest('[data-undo]') || !cur) return;
       const fn = cur.undo; hide(); if (fn) fn();
     });
     return box;
   }
+  // Ctrl+Z / ⌘Z runs the toast's Undo while it is up (QA's MUST A, TE-B-502: the toast is last in the Tab order and fades).
+  // Not while focus is in a text field: there the browser's own undo stays (QA's rule).
+  const editable = el => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(button|checkbox|radio|range|color|file|submit|reset|image)$/i.test(el.type)));
+  const keyUndo = ev => {
+    if (!cur || !cur.undo || !box || box.hidden || ev.altKey || ev.shiftKey || !(ev.ctrlKey || ev.metaKey) || String(ev.key).toLowerCase() !== 'z') return;
+    if (editable(doc.activeElement)) return;
+    ev.preventDefault(); const fn = cur.undo; hide(); fn();
+  };
+  doc.addEventListener('keydown', keyUndo);
   function arm(ms) { clearTimeout(timer); timer = setTimeout(hide, ms); }
-  function hide() { clearTimeout(timer); timer = null; cur = null; if (box) { box.hidden = true; box.textContent = ''; } }
+  // closing a toast that holds focus (Undo by keyboard) puts focus back where it was, never on the page (WCAG 2.4.3)
+  function giveBack(had) { const to = back; back = null; if (had && to && to.isConnected && !box.contains(to)) to.focus(); }
+  function hide() { clearTimeout(timer); timer = null; cur = null; if (box) { const had = box.contains(doc.activeElement); box.hidden = true; box.textContent = ''; giveBack(had); } }
   function show(m) {
     if (!m || !m.text) throw new Error('TrussSheets: a toast needs text');
-    const b = ensure();
+    const b = ensure(), had = b.contains(doc.activeElement);
     const ms = m.ms || Math.max(4000, String(m.text).length * 70);
     cur = { undo: typeof m.undo === 'function' ? m.undo : null, ms };
     b.textContent = '';
     const s = doc.createElement('span'); s.className = 'te-toast-t'; s.textContent = m.text; b.appendChild(s);
-    if (cur.undo) { const u = doc.createElement('button'); u.type = 'button'; u.className = 'te-toast-u'; u.dataset.undo = ''; u.textContent = t('toast.button.undo'); b.appendChild(u); }
+    if (cur.undo) {
+      const u = doc.createElement('button'); u.type = 'button'; u.className = 'te-toast-u'; u.dataset.undo = '';
+      u.textContent = t('toast.button.undo');
+      const k = doc.createElement('kbd'); k.className = 'te-toast-k'; k.textContent = t(mac() ? 'toast.key.undoMac' : 'toast.key.undo'); u.append(' ', k);
+      u.setAttribute('aria-keyshortcuts', 'Control+Z Meta+Z'); b.appendChild(u);
+    }
     b.hidden = false; arm(ms);
+    if (had) giveBack(true);           // a new toast replaced the one that held focus
     return { close: hide };
   }
-  return { show, hide, get el() { return box; } };
+  return { show, hide, get el() { return box; }, destroy() { doc.removeEventListener('keydown', keyUndo); hide(); } };
 }
 
 // The look, Wireframe values from --te-* tokens (themes win: their rules are more specific). Text 13 px or more.
-// Focus rings read ART-K17 --te-focus (amber accent only until a theme sets it; Graphics TE-B-411). The Cancel flash stays
+// Focus rings read ART-K17 --te-focus (amber accent only until a theme sets it; Graphics TE-B-411), except on the toast:
+// it sits on --te-strong, so its ring is --te-on-strong (ART-S5 1.0.7, the ring takes its ground's colour; QA TE-B-502 MUST B).
+// Only its COLOUR is pinned, with !important, because a theme's catch-all 'button:focus-visible{outline:… !important}' (Notebook)
+// would otherwise paint the ring in the toast's own colour, 1.00:1 (QA TE-B-510b). The theme still sets its style and width. The Cancel flash stays
 // amber: a moment of attention, not the focus mark. The toast has a 1 px line edge so it doesn't sink into a dark page.
 const CSS = `
 #stage dialog.te-sheet{padding:0;border:1px solid var(--te-line);border-radius:6px;background:var(--te-panel);color:var(--te-ink);
@@ -159,13 +180,15 @@ const CSS = `
   display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:6px;background:var(--te-strong);color:var(--te-on-strong);font:400 14px var(--te-font-ui);box-shadow:0 2px 8px rgba(0,0,0,.25);border:1px solid var(--te-line)}
 #stage .te-toast[hidden]{display:none}
 #stage .te-toast-u{font:700 14px var(--te-font-ui);color:var(--te-on-strong);background:transparent;border:1px solid var(--te-on-strong);border-radius:4px;padding:2px 10px;cursor:pointer}
-#stage .te-toast-u:focus-visible{outline:3px solid var(--te-focus, var(--te-accent));outline-offset:2px}`;
+#stage .te-toast-u:focus-visible{outline:3px solid var(--te-on-strong);outline-offset:2px}
+#stage .te-toast > .te-toast-u:focus-visible{outline-color:var(--te-on-strong) !important}
+#stage .te-toast-k{font:400 13px var(--te-font-ui);color:inherit;margin-left:2px}`;
 
 function install(doc) {
   if (!doc || doc.getElementById('te-sheets')) return false;
   const st = doc.createElement('style'); st.id = 'te-sheets'; st.textContent = CSS; doc.head.appendChild(st); return true;
 }
 
-const api = { VERSION: '0.1.0', sheetHTML, modals, toasts, CSS, install };
+const api = { VERSION: '0.1.3', sheetHTML, modals, toasts, CSS, install };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussSheets = api;
 })(typeof window !== 'undefined' ? window : globalThis);
