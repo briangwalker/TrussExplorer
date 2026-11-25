@@ -376,7 +376,8 @@ function paintResOverlay() {
   const need = (S.load.mBook1 + S.load.mBook2) * S.mat.FS, c = ok => ok ? 'var(--ok)' : 'var(--bad)';
   const box = (cls, big, small, col) => `<div class="${cls}"><b style="color:${col}">${big}</b><span>${small}</span></div>`;
   ov.innerHTML = box('tl', `${res.m + res.r} vs ${2 * res.j}`, `m + r vs 2j · ${res.det}`, 'var(--ink)')
-    + box('tc', `${res.capKg.toFixed(1)} kg`, `capacity · needs ${need.toFixed(1)}`, c(res.capKg >= need - 1e-9))
+    + (noResultNow() ? box('tc', '—', 'capacity · no result (fix the marked values)', 'var(--ink)')   // UI-I10: never a kg while there is no result
+      : box('tc', `${res.capKg.toFixed(1)} kg`, `capacity · needs ${need.toFixed(1)}`, c(res.capKg >= need - 1e-9)))
     + box('bc', `D ${res.midDefl.toFixed(3)} mm`, `deflection · limit ${S.opts.deflLimit}`, c(res.deflOK))
     + box('bl', `${res.wood.toFixed(0)} mm`, 'wood used ΣL', 'var(--accent)');
 }
@@ -604,7 +605,12 @@ function renderKey() { return HOOKS.renderKey(); }
 function renderKeyCore() {
   const bk = S.load.mBook1 + S.load.mBook2, need = bk * S.mat.FS;
   const ok = (c, txt) => `<b class="${c ? 'ok' : 'bad'}">${txt}</b>`;
-  const s = res.stable;
+  const s = res.stable, nr = noResultNow();
+  if (nr) {   // UI-I10: no kg and no PASS while a value or the shape breaks the limits table (the summary is the app's own words)
+    $('keyStrip').innerHTML = `<b>What Project I measures:</b> wood used ΣL (less is better) · capacity in kg of books (must reach books × FS = ${need.toFixed(1)} kg) · mid-span deflection (≤ ${S.opts.deflLimit} mm) · fits the 300 × 100 mm envelope with ≥ ${S.opts.minOverlap} mm on each desk.
+    <div class="kv"><span>This design: <b>No result</b>. ${escH(nr.summary)}</span></div>`;
+    return;
+  }
   $('keyStrip').innerHTML = `<b>What Project I measures:</b> wood used ΣL (less is better) · capacity in kg of books (must reach books × FS = ${need.toFixed(1)} kg) · mid-span deflection (≤ ${S.opts.deflLimit} mm) · fits the 300 × 100 mm envelope with ≥ ${S.opts.minOverlap} mm on each desk.
     <div class="kv"><span>This design: wood <b>${s ? res.wood.toFixed(0) + ' mm' : '—'}</b></span>
     <span>capacity ${s ? ok(res.capKg >= need - 1e-9, res.capKg.toFixed(1) + ' kg') : ok(false, 'unstable')}</span>
@@ -656,8 +662,8 @@ function renderStats() {
     msgs.innerHTML = li.map(([c, s]) => `<li class="${c}">${s}</li>`).join('');
     return;
   }
-  const f = res.failing;
-  pill.innerHTML = (res.passes ? '<span class="pill ok">Passes all checks</span>' : `<span class="pill bad">Fails ${f.length ? f.length + ' member' + (f.length > 1 ? 's' : '') : 'a check'}</span>`) + (res.mode3 ? '<span class="mode3d" title="3D analysis">3D</span>' : '');
+  const f = res.failing, nr = noResultNow();   // UI-I10: no PASS and no kg while the values or the shape break the limits table
+  pill.innerHTML = nr ? '<span class="pill">⟂ No result</span>' : (res.passes ? '<span class="pill ok">Passes all checks</span>' : `<span class="pill bad">Fails ${f.length ? f.length + ' member' + (f.length > 1 ? 's' : '') : 'a check'}</span>`) + (res.mode3 ? '<span class="mode3d" title="3D analysis">3D</span>' : '');
   if (res.mode3) {
     const M = res.mode3;
     li.unshift(['info', `<b>3D analysis.</b> Both trusses, the ties, ${M.bracingWood > 0 ? 'and the bracing and cross-frames' : 'and the cross-frames'} are solved together. Wood ${res.wood.toFixed(0)} mm includes ${M.bracingWood.toFixed(0)} mm of ties and bracing (2D count was ${M.wood2.toFixed(0)} mm). Each member shows the worse of its front and back copies. Deflection is the largest deck movement; the deck sways ${M.sway.toFixed(3)} mm sideways.`]);
@@ -669,7 +675,7 @@ function renderStats() {
   st.innerHTML = `
     <div class="stat"><span class="k">Wood used ΣL</span><span class="v">${res.wood.toFixed(0)} mm</span><span class="s">${res.mode3 ? `3D: both trusses + ${res.mode3.bracingWood.toFixed(0)} mm ties and bracing` : `${res.totalLen.toFixed(0)} mm per truss × ${S.load.nTruss}${S.opts.crossTies ? ` + ${tiesLen.toFixed(0)} mm ties` : ''}`} · M = ${res.massTruss.toFixed(2)} g${S.opts.crossTies ? ` (${res.massTotal.toFixed(2)} g with ties)` : ''}</span></div>
     <div class="stat"><span class="k">D<sub>max</sub> mid-span</span><span class="v" style="color:${res.deflOK ? 'inherit' : 'var(--bad)'}">${res.midDefl.toFixed(3)} mm</span><span class="s">limit ${(+S.opts.deflLimit).toFixed(1)} mm</span></div>
-    <div class="stat"><span class="k">Capacity</span><span class="v" style="color:${uCol}">${isFinite(res.capKg) ? res.capKg.toFixed(1) + ' kg' : '—'}</span><span class="s">${isFinite(res.capFactor) ? res.capFactor.toFixed(1) + '× the books' : ''} · most-used member ${worst.k} at ${(res.maxUtil * 100).toFixed(0)}% (${worst.mode || 'no load'})</span></div>
+    <div class="stat"><span class="k">Capacity</span><span class="v" style="color:${nr ? 'inherit' : uCol}">${!nr && isFinite(res.capKg) ? res.capKg.toFixed(1) + ' kg' : '—'}</span><span class="s">${nr ? 'No result. ' + escH(nr.summary) : ''}${!nr && isFinite(res.capFactor) ? res.capFactor.toFixed(1) + '× the books' : ''}${nr ? '' : ` · most-used member ${worst.k} at ${(res.maxUtil * 100).toFixed(0)}% (${worst.mode || 'no load'})`}</span></div>
     <div class="stat"><span class="k">Determinacy m + r vs 2j</span><span class="v">${res.m + res.r} vs ${2 * res.j}</span></div>`;
   if (f.length) {
     const by = {}; f.forEach(m => { (by[m.mode] = by[m.mode] || []).push(m.k); });

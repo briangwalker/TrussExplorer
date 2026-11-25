@@ -1,6 +1,6 @@
 // ---------- the one door other layers use (balsaPixel's src/shell.js; the first draft of the UI module boundary, #109) ----------
 window.TrussApp = Object.freeze({
-  get state() { return S; }, get res() { return res; }, get rows() { return SweepState.rows(); }, get fsEl() { return fsEl; }, release: APP_RELEASE,
+  get state() { return S; }, get res() { return res; }, get noResult() { return noResultNow(); }, get rows() { return SweepState.rows(); }, get fsEl() { return fsEl; }, release: APP_RELEASE,
   hooks: HOOKS,   // setFs(key), renderKey(), renderSweep(): replace one to run code around the original
   save, toast, escH, topOn,
   // the same 2D drawing in any <svg> (#255 part A, UI-H5: the PIP and the main view share one drawing code). The picture only:
