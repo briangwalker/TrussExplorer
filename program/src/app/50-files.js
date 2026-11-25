@@ -82,6 +82,33 @@ function tooLongNote(release) {
     : ` To fit, set Panels on each desk to "Set the overlap", then Overlap onto each desk to ${ov.toFixed(1)} mm (Inputs).`;
   return ` ${old ? 'This bridge was made before the outer-face rule (v61): it' : 'It'} is ${over.toFixed(1)} mm too long, ${sz.outer.length.toFixed(1)} mm outside to outside, and the limit is 300 mm.${fix}`;
 }
+// UI-I10 file case (Physics F1-F5, TrussLimits.fileReport, RMA-8), behind TE_FLAGS.limitsBoxes until step 8 (#215):
+// a bridge file whose values break the limits table still opens and nothing is clamped. Each bad value stays on its box
+// exactly as the file had it, marked (markFile), and one note at the top of the Inputs window lists them, with the first
+// fix one click away. The note goes when nothing is left to fix (F5). A good file gets nothing new (F4, rule 4i).
+// Returns the summary line ('' when there is nothing to say). "No result" on the results card is the card's (step 3).
+function fileBadNote() {
+  const old = document.getElementById('fileBad'); if (old) old.remove();
+  if (!limitRows || !window.TrussLimits || !TrussLimits.fileReport) return '';
+  const rep = TrussLimits.fileReport(limitRows.values(), tr);
+  if (!rep.noResult) return '';
+  const firstBox = [];
+  rep.bad.forEach(b => { const r = limitRows.rows.get(b.id); if (r) { r.box.markFile(b.msg); firstBox.push(r.el.querySelector('input')); } });
+  const pane = $('inputsPane'), box = document.createElement('p');
+  box.id = 'fileBad'; box.className = 'note'; box.setAttribute('role', 'status'); box.dataset.state = 'file';
+  box.append(document.createTextNode(rep.summary + (rep.geometry.length ? ' ' + rep.geometry[0].msg : '')));
+  if (firstBox[0]) {
+    const go = document.createElement('button'); go.type = 'button'; go.className = 'btn ghost';
+    go.textContent = 'Fix ' + TrussLimits.labelFor(rep.bad[0].id); go.addEventListener('click', () => firstBox[0].focus());
+    box.append(' ', go);
+  }
+  pane.prepend(box);
+  // F5: once every value and the shape are fixed, the note goes (the boxes clear their own marks)
+  const recheck = () => { if (!document.getElementById('fileBad')) { pane.removeEventListener('change', recheck); return; }
+    if (!TrussLimits.fileReport(limitRows.values(), tr).noResult) { box.remove(); pane.removeEventListener('change', recheck); } };
+  pane.addEventListener('change', recheck);
+  return rep.summary;
+}
 $('filePick').addEventListener('change', async () => {
   const f = $('filePick').files[0]; if (!f) return;
   // the size is checked before the file is read, so a huge file never fills memory (#296)
@@ -130,6 +157,8 @@ $('filePick').addEventListener('change', async () => {
     }
     if (o.tooNew) note += ' It was made by a newer release of the Explorer, so some settings may be ignored.';
     note += tooLongNote(doc.release);
+    const bad = fileBadNote();
+    if (bad) note += ' ' + bad;
     $('fileMsg').textContent = `Opened "${doc.name}" (saved ${new Date(doc.savedAt).toLocaleString()}${doc.release ? ` with ${doc.release}` : ''}).${note}`; toast(other + 'Bridge loaded.' + note, !!note);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;

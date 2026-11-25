@@ -77,7 +77,8 @@ function mount(doc, o) {
     srcs.set(id, src); rows.set(id, { box, el, src });
   }
   // check every row again (a dependency moved): a box keeps its value and says its state for the new limits
-  function recheck(except) { for (const [id, r] of rows) if (id !== except && r.box.value !== null) r.box.set(r.box.value); }
+  // a file's bad value stays marked until a good one is typed (UI-I10, markFile), so a recheck leaves it alone
+  function recheck(except) { for (const [id, r] of rows) if (id !== except && r.box.value !== null && r.el.dataset.state !== 'file') r.box.set(r.box.value); }
   // shape and model buttons (topShape, bottom, the 2D/3D switch, which sits outside the pane) change which rows apply:
   // check again once the app has run (a click anywhere is cheap: about 40 rows)
   const later = () => win.setTimeout(() => recheck(), 0);
@@ -92,6 +93,6 @@ function mount(doc, o) {
   };
 }
 
-const api = { VERSION: '0.1.0', DEPENDS, mount, install, CSS };
+const api = { VERSION: '0.1.1', DEPENDS, mount, install, CSS };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussLimitRows = api;
 })(typeof window !== 'undefined' ? window : globalThis);

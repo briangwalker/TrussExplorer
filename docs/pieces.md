@@ -114,6 +114,7 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 ## Change log
 
 - **inputs 0.2.0 · 2026-11-23** The ✎ value editor (UI-I8): value, joystick, sweep range, Done; 320 px, moves by its title bar; the 400-value cap is never cut (UI-I4).
+- **limitrows 0.1.1 · 2026-11-25** A recheck (a click, a dependency moving) leaves a box a file marked alone: the file's bad value stays marked until a good one is typed (UI-I10). The file note itself is in src/app/50-files.js (Architecture Lead).
 - **limitrows 0.1.0 · 2026-11-24** The Inputs pane's number rows on the limits table, behind `TE_FLAGS.limitsBoxes` (TE-B-494). The app's boxes stay, hidden, so every handler still runs.
 - **sheets 0.1.3 · 2026-11-24** The Undo ring's colour on the toast is pinned with `!important`, because Notebook's catch-all `button:focus-visible{outline:… !important}` painted it in the toast's own colour (1.00:1; QA TE-B-510b). The theme still sets the ring's style and width. A new check measures it in every built-in theme (Wireframe 7.09, Blueprint 10.02, the three Notebooks 5.32).
 - **sheets 0.1.2 · 2026-11-24** QA's two MUSTs on the Undo toast (TE-B-502): Ctrl+Z / ⌘Z runs Undo while a toast is up, but not while a text field has focus (the browser's own undo stays); the button shows the key in a `<kbd>` and has `aria-keyshortcuts`. Its focus ring is `--te-on-strong`, the colour of the toast's strong ground (ART-S5 1.0.7), 3:1 or better in every theme. New strings: `toast.key.undo`, `toast.key.undoMac`.
@@ -162,7 +163,7 @@ These are for step 8, the Inputs (#215). They follow the same rules as the piece
 
 **Not yet:** `asked → run` and its ⓘ (UI-I5) need the sweep planner, so they sit in the Inputs wiring. Closing when you leave its screen is the wiring's job (call `close('screen')`). The course-rule table (UI-I2's h ≤ 100, width 50–75) isn't in `limits.js`; the Inputs wiring passes those rules in its own check until it is.
 
-### The Inputs pane on the limits table, ahead of step 8 (`src/limitrows.js`, `TrussLimitRows` 0.1.0; TE-B-494)
+### The Inputs pane on the limits table, ahead of step 8 (`src/limitrows.js`, `TrussLimitRows` 0.1.1; TE-B-494)
 
 Off until step 8 (#215): the app mounts it only when `window.TE_FLAGS.limitsBoxes` is true, and `?limits=1` turns that on for the tests. `mount(doc, { P, I, L, pane, extra, rule })` puts a TrussInputs box + stepper on every number row the limits table names, with the check from `fromLimits`. The app's own `<input type="number">` stays in its row, hidden and out of the Tab order. It is still the value the app reads and writes, so `pair()`, `guardNum()` and the Undo toasts (#482) run as before. A value the new box commits is put into it with a `change` event; a value the app writes into it (`update()`, a slider, Undo, a file) is followed by the box. When height, tableThick, bS, hS, minOverlap or bigCap change (Math, TE-B-444), or a shape or model button is pressed, every row is checked again. braceDepth isn't checked while tableThick is 0 (TE-B-445). Course rules the table doesn't hold come in through `rule(id, v)`; today that is the bridge width 50–75 mm (UI-I2). Tests: `tests/limitrows.test.js`, `tests/ui/limitsboxes.mjs` (17).
 
