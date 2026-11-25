@@ -206,7 +206,7 @@ if (window.TE_FLAGS.limitsBoxes && window.TrussLimitRows && window.TrussInputs &
     extra: () => ({ bottom: S.bottom, topShape: S.topShape, model: S.anaMode }),
     // the course rules the limits table doesn't hold (UI-I2): allowed, marked pink, the design runs and fails
     // height (UIE-9, TE-B-577b): judged on the OUTER height, the same envelopeSize the result's 100 mm line uses (#133;
-    // Math TE-B-577, Arch TE-B-580), so the box and the results switch at the same number (h 100 is 101.6 mm at the defaults)
+    // Math TE-B-577, Arch TE-B-580), so the box and the results switch at the same number (h 100 is 104.8 mm at the defaults, ties on top; 101.6 mm without)
     rule: (id, v) => {
       if (id === 'width') return v < 50 || v > 75 ? 'Course rule: the bridge width is 50 to 75 mm.' : null;
       if (id !== 'height') return null;

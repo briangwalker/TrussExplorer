@@ -52,8 +52,10 @@ try {
   // a course rule (UI-I2): allowed, committed, pink edge, the rule named
   await p.fill('#width-tb', '90'); await p.press('#width-tb', 'Enter'); s = await st('width');
   check('width 90: committed, marked as a course rule', s.app === '90' && s.state === 'rule' && /Course rule/.test(s.note), JSON.stringify(s));
-  const look = await p.evaluate(() => { const i = document.getElementById('width-tb'), cs = getComputedStyle(i), t = document.createElement('span'); t.style.color = 'var(--rule)'; t.style.borderColor = 'var(--te-ink)'; i.parentElement.appendChild(t); const c = getComputedStyle(t); const r = { edge: cs.borderTopColor === c.color, text: cs.color === c.borderTopColor }; t.remove(); return r; });
-  check('its edge is --rule pink and its number stays ink (Graphics TE-B-443)', look.edge && look.text, JSON.stringify(look));
+  // compare with the real pink, not a var(--rule) probe (a probe resolves to ink when --rule is missing: Graphics #519 MUST 2)
+  const edge = id => p.evaluate(id => { const cs = getComputedStyle(document.getElementById(id)), t = document.createElement('span'); t.style.color = 'var(--te-ink)'; document.getElementById(id).parentElement.appendChild(t); const ink = getComputedStyle(t).color; t.remove(); return { color: cs.borderTopColor, width: cs.borderTopWidth, text: cs.color, ink }; }, id);
+  let look = await edge('width-tb');
+  check('its edge is a 2 px pink rgb(200, 40, 140) and its number stays ink (Graphics TE-B-443, #519)', look.color === 'rgb(200, 40, 140)' && look.width === '2px' && look.text === look.ink, JSON.stringify(look));
   await p.fill('#width-tb', '60'); await p.press('#width-tb', 'Enter');
 
   // the height course rule (UIE-9, TE-B-577b): on the OUTER height, like the result's 100 mm line (Math TE-B-577),
@@ -63,6 +65,8 @@ try {
   let e = await out();
   check('height 101: committed, pink, the course-rule note names the outer height the result uses', s.app === '101' && s.state === 'rule' && e.flag
     && s.note.includes(`Course rule: the bridge height is at most 100 mm (this one is ${e.top.toFixed(1)} mm to its top face).`), JSON.stringify([s, e]));
+  look = await edge('height-tb');
+  check('height 101: its edge is a 2 px pink rgb(200, 40, 140), number in ink (UI-I2, #519)', look.color === 'rgb(200, 40, 140)' && look.width === '2px' && look.text === look.ink, JSON.stringify(look));
   const under = Math.floor(100 - (e.top - 101)) - 1;   // a height whose outer face is under 100 mm
   await p.fill('#height-tb', String(under)); await p.press('#height-tb', 'Enter'); s = await st('height'); e = await out();
   check(`height ${under} (outer under 100): committed, no mark, and no 100 mm line in the result`, s.app === String(under) && s.state === '' && s.note === '' && e.top <= 100 && !e.flag, JSON.stringify([s, e]));
