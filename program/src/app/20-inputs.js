@@ -205,6 +205,16 @@ if (window.TE_FLAGS.limitsBoxes && window.TrussLimitRows && window.TrussInputs &
     P: TrussPieces, I: TrussInputs, L: TrussLimits, pane: $('inputsPane'),
     extra: () => ({ bottom: S.bottom, topShape: S.topShape, model: S.anaMode }),
     // the course rules the limits table doesn't hold (UI-I2): allowed, marked pink, the design runs and fails
-    rule: (id, v) => (id === 'width' && (v < 50 || v > 75) ? 'Course rule: the bridge width is 50 to 75 mm.' : null),
+    rule: (id, v) => (id === 'width' && (v < 50 || v > 75) ? 'Course rule: the bridge width is 50 to 75 mm.'
+      : id === 'height' && outerHeight(v) > 100 + 1e-9 ? 'Course rule: the bridge is at most 100 mm tall (outer face).' : null),
   });
+}
+// UIE-9 (TE-B-577b, Math TE-B-577): the 100 mm course rule is on the OUTER height, the number envelopeSize (core.js) gives and
+// the results' 'Height is ... mm to the top face' line uses, so the box and the results switch at the same height. The last
+// result's size when it is for this height; else envelopeSize for the current bridge with this height (never a second formula).
+function outerHeight(v) {
+  try {
+    if (res && res.size && +S.height === v) return res.size.outer.height;
+    return C.envelopeSize(C.buildTruss(design({ height: v })), Object.assign({}, C.DEFAULT_MAT, S.mat), anaOpts()).outer.height;
+  } catch (e) { return NaN; }
 }

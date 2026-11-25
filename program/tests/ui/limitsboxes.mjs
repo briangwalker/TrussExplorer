@@ -55,6 +55,25 @@ try {
   const look = await p.evaluate(() => { const i = document.getElementById('width-tb'), cs = getComputedStyle(i), t = document.createElement('span'); t.style.color = 'var(--rule)'; t.style.borderColor = 'var(--te-ink)'; i.parentElement.appendChild(t); const c = getComputedStyle(t); const r = { edge: cs.borderTopColor === c.color, text: cs.color === c.borderTopColor }; t.remove(); return r; });
   check('its edge is --rule pink and its number stays ink (Graphics TE-B-443)', look.edge && look.text, JSON.stringify(look));
   await p.fill('#width-tb', '60'); await p.press('#width-tb', 'Enter');
+  // the 100 mm height course rule (UIE-9, TE-B-577b): on the OUTER height (envelopeSize, core.js), so the box turns pink at
+  // the same height the results say 'Height is ... over the 100 mm limit' (that height depends on the bridge: ties on top lower it)
+  // (one retype if a fast fill+Enter didn't land: seen once in about ten local runs, not traced yet; counted in the detail)
+  let retyped = 0;
+  const hRule = async h => { for (let k = 0; k < 2; k++) { await p.fill('#height-tb', String(h)); await p.press('#height-tb', 'Enter'); await p.waitForTimeout(30);
+      if (h > 200 || await p.inputValue('#height') === String(h)) break; retyped++; }
+    const r = await st('height');
+    r.results = await p.evaluate(() => (__dbg.res && __dbg.res.envelope || []).some(t => /^Height is .* over the 100 mm limit/.test(t))); return r; };
+  // step the height up by 0.5 mm: the box is pink exactly where the results have the height line, and both sides are seen
+  const seen = [];
+  for (let h = 94; h <= 101; h += 0.5) { const r = await hRule(h); seen.push(`${h}:${r.app === String(h) ? '' : 'x' + r.app + '|' + r.v}${r.state === 'rule' ? 'R' : r.state || '-'}${r.results ? 'H' : '-'}`); }
+  const agree = seen.every(x => /:(RH|--)$/.test(x));
+  check('the box and the results switch at the same height (94 to 101 by 0.5)', agree && seen.some(x => /:--$/.test(x)) && seen.some(x => /:RH$/.test(x)), seen.join(' ') + (retyped ? ` (retyped ${retyped})` : ''));
+  s = await hRule(101);
+  check('a pink height: the course rule named, committed', s.app === '101' && s.state === 'rule' && /^! Course rule: the bridge is at most 100 mm tall \(outer face\)\.$/.test(s.note), JSON.stringify(s));
+  s = await hRule(80);
+  check('height 80: no mark, no note, no height line in the results', s.app === '80' && s.state === '' && s.note === '' && s.results === false, JSON.stringify(s));
+  s = await hRule(201);
+  check('height 201 is still refused by the table', s.state === 'limit' && /^⟂ Height must be 10 to 200 mm/.test(s.note), JSON.stringify(s));
 
   // a row that depends on height is checked again when height moves (Math TE-B-444)
   await p.fill('#height-tb', '80'); await p.press('#height-tb', 'Enter');
