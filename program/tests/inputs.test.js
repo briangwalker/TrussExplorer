@@ -50,7 +50,9 @@ test('fromLimits: errors from the one limits table are refused ("limit"), warnin
 test('hostile text stays text; CSS: tokens only, 13 px or more, the focus ring reads --te-focus', () => {
   const h = I.numberHTML(P, { id: 'a"><script>', label: '<img src=x onerror=1>', unit: '<b>', title: '"x' });
   assert.doesNotMatch(h, /<script|<img|<b>/i); assert.doesNotMatch(h, /\son[a-z]+="/i, "no on...= attribute");
-  assert.doesNotMatch(I.CSS, /#[0-9a-f]{3,6}\b/i); assert.doesNotMatch(I.CSS, /url\(|@import/);
+  // the one colour that isn't a token: course-rule pink, the app's --rule with ART-K16's value as its fallback (as pieces.js does; #519)
+  assert.match(I.CSS, /\[data-state="rule"\] \.te-num-i\{border:2px solid var\(--rule,#c8288c\)/);
+  assert.doesNotMatch(I.CSS.split('var(--rule,#c8288c)').join(''), /#[0-9a-f]{3,6}\b/i); assert.doesNotMatch(I.CSS, /url\(|@import/);
   const sizes = [...I.CSS.matchAll(/(\d+)px var\(--te-font/g)].map(m => +m[1]);
   assert.ok(sizes.length && sizes.every(n => n >= 13), sizes.join(','));
   assert.match(I.CSS, /min-width:52px;max-width:96px/, 'UI-I9 widths'); assert.match(I.CSS, /var\(--te-focus, var\(--te-accent\)\)/);

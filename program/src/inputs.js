@@ -273,7 +273,7 @@ const CSS = `
 #stage .te-num :is(.te-num-i,.te-step):focus-visible{outline:3px solid var(--te-focus, var(--te-accent));outline-offset:2px}
 #stage .te-num-n{font:400 13px var(--te-font-ui);color:var(--te-ink);max-width:28em}
 #stage .te-num[data-state="limit"] .te-num-i,#stage .te-num[data-state="file"] .te-num-i{border:2px solid var(--te-muted);background:var(--te-line-soft)}
-#stage .te-num[data-state="rule"] .te-num-i{border:2px solid var(--rule);color:var(--te-ink)}
+#stage .te-num[data-state="rule"] .te-num-i{border:2px solid var(--rule,#c8288c);color:var(--te-ink)}
 #stage .te-num[data-state="nan"] .te-num-i{border:2px dashed var(--te-muted)}
 #stage .te-ve{position:absolute;z-index:700;width:320px;box-sizing:border-box;background:var(--te-panel);color:var(--te-ink);border:1px solid var(--te-line);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.25);font:400 13px var(--te-font-ui)}
 #stage .te-ve[hidden]{display:none}
