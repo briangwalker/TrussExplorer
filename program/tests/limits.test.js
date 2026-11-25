@@ -344,7 +344,8 @@ test('fileReport F2: several bad values are all listed, not only the first; summ
   const t = goodTruss(); t.nodes[4][0] = 100; t.nodes[3][1] = -5;
   const rep = L.fileReport({ height: 500, E: 'abc' }, t);
   assert.ok(rep.bad.length >= 2 && rep.geometry.length >= 2); assert.strictEqual(rep.noResult, true);
-  assert.strictEqual(rep.summary, '2 values are outside the limits: Height, Stiffness (E). The shape breaks rules G2, G3. Fix them to get a result.');
+  // joint 5 at x 100 also folds member 4 back over members 2 and 3 on the bottom line: that overlap is G8 (Math's M4, RMA-13)
+  assert.strictEqual(rep.summary, '2 values are outside the limits: Height, Stiffness (E). The shape breaks rules G2, G3, G8. Fix them to get a result.');
   assert.strictEqual(L.fileReport({ height: 500 }, null).summary, '1 value is outside the limits: Height. Fix it to get a result.');
 });
 
@@ -387,67 +388,72 @@ test('fileReport: the summary names the people-readable labels, every table id h
   assert.strictEqual(L.fileReport({ bS: 50, hS: 50, mBook1: -1 }, null).summary, '3 values are outside the limits: Book mass 1, Stick width, Stick depth. Fix them to get a result.');
 });
 
-// ---------- RMA-13 (TE-B-537b): geometry rules G7-G10 in checkGeometry (Physics' doc, TE-B-370) ----------
-const msgs = (r, rule) => r.filter(x => x.rule === rule).map(x => x.msg);
+// ---------- RMA-13 (TE-B-537b, amended by TE-B-598): geometry rules G7-G10 in checkGeometry (Physics' doc, TE-B-370) ----------
 const tri = w => ({ nodes: [[0, 0], [w, 0], [w / 2, 30]], elems: [{ i: 0, j: 1 }, { i: 0, j: 2 }, { i: 1, j: 2 }] });
 // a 100 x 50 panel: joints 1-4 counter-clockwise from the bottom left; pin at joint 1, roller at joint 2 (3 reactions)
-const panel = elems => ({ nodes: [[0, 0], [100, 0], [100, 50], [0, 50]], elems: elems.map(([i, j]) => ({ i, j })), supports: [{ node: 0, pin: true }, { node: 1, pin: false }] });
+const panel = elems => ({ nodes: [[0, 0], [100, 0], [100, 50], [0, 50]], elems: elems.map(([i, j]) => ({ i, j })), supports: [{ node: 0, pin: true }, { node: 1, pin: false }], pin: 0, roller: 1 });
 const SIDES = [[0, 1], [1, 2], [2, 3], [3, 0]];
 
-test('G7: every member fits in one 240 mm stick (Physics\' bad 260, good 239); a docStock inside its row replaces 240', () => {
-  const r = L.checkGeometry(tri(260), {});
-  assert.deepStrictEqual(r, [{ rule: 'G7', msg: 'Member 1 is 260 mm; one stick is 240 mm. Shorten it or mark a splice.', where: [0] }]);
+test('G7: every member fits in one 240 mm stick (Physics\' bad 260, good 239); a finite positive docStock replaces 240', () => {
+  assert.deepStrictEqual(L.checkGeometry(tri(260), {}), [{ rule: 'G7', msg: 'Member 1 is 260 mm; one stick is 240 mm. Shorten it or mark a splice.', where: [0] }]);
   assert.deepStrictEqual(L.checkGeometry(tri(239), {}), []);
+  assert.deepStrictEqual(L.checkGeometry(tri(240), {}), [], 'exactly one stick is fine');
   assert.deepStrictEqual(L.checkGeometry(tri(260), { docStock: 300 }), []);
-  assert.deepStrictEqual(L.checkGeometry(tri(260), { docStock: 200 }).map(x => x.msg), ['Member 1 is 260 mm; one stick is 200 mm. Shorten it or mark a splice.']);
-  assert.deepStrictEqual(rules(L.checkGeometry(tri(260), { docStock: 100 })), ['G7', 'G7', 'G7'], 'a 100 mm stick: all three members are too long');
-  for (const ds of [-5, 0, 5000, 'abc', null]) assert.deepStrictEqual(rules(L.checkGeometry(tri(260), { docStock: ds })), ['G7'], 'a bad docStock reads as 240: ' + ds);
-  assert.deepStrictEqual(rules(L.checkGeometry(tri(240), {})), [], 'exactly one stick is fine');
+  assert.deepStrictEqual(L.checkGeometry(tri(260), { docStock: '200' }).map(x => x.msg), ['Member 1 is 260 mm; one stick is 200 mm. Shorten it or mark a splice.']);
+  for (const ds of [-5, 0, 'abc', null, NaN, Infinity]) assert.deepStrictEqual(rules(L.checkGeometry(tri(260), { docStock: ds })), ['G7'], 'not a finite positive docStock reads as 240: ' + ds);
+  // TE-B-598: docStock 150 makes a 160 mm diagonal G7
+  const d = { nodes: [[0, 0], [128, 0], [128, 96]], elems: [{ i: 0, j: 1 }, { i: 1, j: 2 }, { i: 0, j: 2 }] };   // the diagonal is 160 mm
+  assert.deepStrictEqual(L.checkGeometry(d, { docStock: 150 }), [{ rule: 'G7', msg: 'Member 3 is 160 mm; one stick is 150 mm. Shorten it or mark a splice.', where: [2] }]);
+  assert.deepStrictEqual(L.checkGeometry(d, {}), []);
 });
 
-test('G8: members that cross must meet at a joint (Physics\' bad and good example), and overlapping members on one line count (M4)', () => {
-  const r = L.checkGeometry(panel(SIDES.concat([[0, 2], [1, 3]])), {});
-  assert.deepStrictEqual(r, [{ rule: 'G8', msg: 'Members 5 and 6 cross without a joint. Add a joint at the crossing or move one. Not solved.', where: [4, 5] }]);
+test('G8 (TE-B-598 a): two members crossing away from a joint are not flagged (X panels, the #298 arch, Brian\'s final design)', () => {
+  assert.deepStrictEqual(L.checkGeometry(panel(SIDES.concat([[0, 2], [1, 3]])), {}), [], 'an X panel with no joint at the crossing');
   const joined = panel(SIDES.concat([[0, 4], [4, 2], [1, 4], [4, 3]])); joined.nodes.push([50, 25]);
   assert.deepStrictEqual(L.checkGeometry(joined, {}), [], 'the same diagonals with a joint at the crossing');
-  const lap = panel(SIDES.concat([[0, 2], [0, 4]])); lap.nodes.push([50, 0]);          // member 6 lies along member 1 from joint 1
-  assert.deepStrictEqual(L.checkGeometry(lap, {}).filter(x => x.rule === 'G8').map(x => x.where), [[0, 5]]);
-  const touch = panel(SIDES.concat([[0, 2]]));                                            // meeting at a shared joint is not a crossing
-  assert.deepStrictEqual(L.checkGeometry(touch, {}), []);
-  const apart = panel(SIDES.concat([[0, 2], [4, 5]])); apart.nodes.push([60, 10], [90, 40]);   // parallel to a diagonal but beside it
+  for (const name of ['x-N3-h30', 'pratt-N3-h30', 'howe-N5-h70']) {
+    const cs = cases().find(c => c.name === name); assert.ok(cs, name);
+    assert.deepStrictEqual(L.checkGeometry(C.buildTruss(design(cs.state)), {}), [], name);
+  }
+  const arch = Object.assign({}, DEFAULT, { height: 30, panels: 4, deskMode: 'length', overlap: 48.4, deskEnds: 'feet', topShape: 'catenary', topEnd: -27, botEnd: 0, pattern: 'pratt', diagLeft: ['P', 'P'], vertLeft: [true, true] });
+  assert.deepStrictEqual(L.checkGeometry(C.buildTruss(design(arch)), {}), [], 'the #298 arch through the bottom chord');
+  assert.deepStrictEqual(rules(L.checkGeometry(finalTruss(), {})).filter(r => r === 'G8'), [], 'Brian\'s final design');
+});
+
+test('G8 (TE-B-598 a): members on one line that overlap (M4), and a member through a joint it doesn\'t end at', () => {
+  const lap = panel(SIDES.concat([[0, 2], [0, 4], [4, 2]])); lap.nodes.push([50, 0]);  // member 6 lies along member 1 from joint 1
+  assert.deepStrictEqual(L.checkGeometry(lap, {}), [{ rule: 'G8', msg: 'Members 1 and 6 cross without a joint. Add a joint at the crossing or move one. Not solved.', where: [0, 5] }], 'said once, not again as joint 5 on member 1');
+  const mid = panel(SIDES.concat([[0, 2], [3, 1], [4, 1]])); mid.nodes.push([40, 20]);   // joint 5 sits on diagonal 5 (0,0)-(100,50), which doesn't join it
+  assert.deepStrictEqual(L.checkGeometry(mid, {}), [{ rule: 'G8', msg: 'Member 5 passes through joint 5 without a joint there. Join it at joint 5 or move one. Not solved.', where: [4, 4] }],
+    'where: the member and the joint\'s node index; the X crossing at the centre is not flagged');
+  mid.elems[4] = { i: 0, j: 4 }; mid.elems.push({ i: 4, j: 2 });
+  assert.deepStrictEqual(L.checkGeometry(mid, {}), [], 'the diagonal split at joint 5');
+  const near = panel(SIDES.concat([[0, 2]])); near.nodes.push([50, 25.4]); near.elems.push({ i: 4, j: 3 }, { i: 4, j: 1 });   // 0.36 mm off the diagonal
+  assert.deepStrictEqual(rules(L.checkGeometry(near, {})), ['G8'], 'within 0.5 mm');
+  near.nodes[4] = [50, 26]; assert.deepStrictEqual(L.checkGeometry(near, {}), [], '0.89 mm off: not G8');
+  assert.deepStrictEqual(L.checkGeometry(panel(SIDES.concat([[0, 2]])), {}), [], 'members that meet at a shared joint');
+  const apart = panel(SIDES.concat([[0, 2], [4, 5]])); apart.nodes.push([60, 10], [90, 40]);   // parallel to a diagonal, beside it
   assert.ok(!rules(L.checkGeometry(apart, {})).includes('G8'));
 });
 
-test('G8: the two crossings the app builds on purpose are not G8: the arch through the bottom chord (#298) and the X panel (both diagonals)', () => {
-  const arch = Object.assign({}, DEFAULT, { height: 30, panels: 4, deskMode: 'length', overlap: 48.4, deskEnds: 'feet', topShape: 'catenary', topEnd: -27, botEnd: 0, pattern: 'pratt', diagLeft: ['P', 'P'], vertLeft: [true, true] });
-  assert.deepStrictEqual(L.checkGeometry(C.buildTruss(design(arch)), {}), []);
-  const x = cases().find(cs => cs.name === 'x-N3-h30'); assert.ok(x);
-  const t = C.buildTruss(design(x.state)); assert.deepStrictEqual(L.checkGeometry(t, {}), []);
-  const noKeys = cloneT(t); delete noKeys.keys;
-  assert.ok(rules(L.checkGeometry(noKeys, {})).includes('G8'), 'without the joint names the X panel is two members crossing');
-  const notDiag = cloneT(t); notDiag.elems.forEach(e => { if (e.type === 'diag') e.type = 'vert'; });
-  assert.ok(rules(L.checkGeometry(notDiag, {})).includes('G8'), 'only two diagonals of one panel are the X panel');
-});
-
-test('G9: strength and stiffness above 0, book mass 0 or more, the load on the bridge (Physics\' bad and good examples)', () => {
-  for (const v of [{ E: 0 }, { E: -3000 }, { sigT: 0 }, { sigC: -1 }])
-    assert.deepStrictEqual(L.checkGeometry(goodTruss(), v), [{ rule: 'G9', msg: 'Stiffness and strength must be above 0.', where: [] }], JSON.stringify(v));
-  assert.deepStrictEqual(L.checkGeometry(goodTruss(), { mBook1: -1 }), [{ rule: 'G9', msg: 'The book can\'t weigh less than 0.', where: [] }]);
-  assert.deepStrictEqual(msgs(L.checkGeometry(goodTruss(), { E: 0, sigT: -1, mBook1: -1, mBook2: -2 }), 'G9').length, 2, 'one line per kind');
-  const at = x => Object.assign(goodTruss(), { design: { span: 220, loads: [{ type: 'point', x, w: 1 }] } });
-  assert.deepStrictEqual(L.checkGeometry(at(250), {}), [{ rule: 'G9', msg: 'The load must sit on the bridge (0 to 220 mm).', where: [] }]);
+test('G9 (TE-B-598 b): only the load inside the span, between the pin and the roller; materials and books stay checkInputs\'', () => {
+  const at = (x, more) => Object.assign(panel(SIDES.concat([[0, 2]])), { design: { span: 100, loads: [Object.assign({ type: 'point', x, w: 1 }, more)] } });
+  assert.deepStrictEqual(L.checkGeometry(at(150), {}), [{ rule: 'G9', msg: 'The load must sit on the bridge (0 to 100 mm).', where: [] }]);
   assert.ok(rules(L.checkGeometry(at(-1), {})).includes('G9'));
-  for (const x of [0, 110, 220]) assert.deepStrictEqual(L.checkGeometry(at(x), {}), [], 'load at ' + x);
-  const spread = Object.assign(goodTruss(), { design: { span: 220, loads: [{ type: 'partial', a: 200, b: 300, w: 1 }] } });
-  assert.ok(rules(L.checkGeometry(spread, {})).includes('G9'), 'a spread load is placed by its middle (250)');
+  for (const x of [0, 50, 100]) assert.deepStrictEqual(L.checkGeometry(at(x), {}), [], 'load at ' + x);
+  const spread = at(0); spread.design.loads[0] = { type: 'partial', a: 80, b: 180, w: 1 };
+  assert.ok(rules(L.checkGeometry(spread, {})).includes('G9'), 'a spread load is placed by its middle (130)');
   spread.design.loads[0] = { type: 'partial', a: -20, b: 60, w: 1 }; assert.deepStrictEqual(L.checkGeometry(spread, {}), [], 'middle 20: on the bridge');
-  assert.deepStrictEqual(L.checkGeometry(goodTruss(), { E: 3000, sigT: 7.5, sigC: 4.5, mBook1: 2.5, mBook2: 0 }), [], 'Physics\' good example');
-  assert.deepStrictEqual(L.checkGeometry(goodTruss(), { E: 'abc', mBook1: '' }), [], 'not a number is checkInputs\' to report, not G9');
+  const noLoads = panel(SIDES.concat([[0, 2]])); noLoads.design = { span: 100 }; assert.deepStrictEqual(L.checkGeometry(noLoads, {}), [], 'no d.loads: nothing');
+  const noPin = at(150); delete noPin.pin; assert.deepStrictEqual(L.checkGeometry(noPin, {}), [], 'no pin to measure from: nothing (CODE-N2)');
+  assert.deepStrictEqual(L.checkGeometry(goodTruss(), { E: 0, sigT: -1, mBook1: -1 }), [], 'E, strengths and book masses are not G9');
+  const vals = { E: -3000 }; assert.deepStrictEqual(L.fileReport(vals, goodTruss()).summary, '1 value is outside the limits: Stiffness (E). Fix it to get a result.', 'one bad E gives one line');
+  const cs = cases()[0], st = Object.assign({}, cs.state); const t = C.buildTruss(design(st)); t.design = Object.assign({}, t.design, { loads: [{ type: 'point', x: 250, w: 1 }] });
+  assert.ok(rules(L.checkGeometry(t, {})).includes('G9'), 'a built-in truss with its load past the roller');
 });
 
 test('G10: members + support reactions >= 2 x joints (Physics: 4 joints, 4 members, 3 reactions folds; 5 members holds)', () => {
-  const r = L.checkGeometry(panel(SIDES), {});
-  assert.deepStrictEqual(r, [{ rule: 'G10', msg: 'Too few members to hold this shape (it can fold). No capacity is shown.', where: [], unstable: true }]);
+  assert.deepStrictEqual(L.checkGeometry(panel(SIDES), {}), [{ rule: 'G10', msg: 'Too few members to hold this shape (it can fold). No capacity is shown.', where: [], unstable: true }]);
   assert.deepStrictEqual(L.checkGeometry(panel(SIDES.concat([[0, 2]])), {}), []);
   const two = panel(SIDES); two.supports = [{ node: 0, pin: true }, { node: 1, pin: true }];       // 4 + 4 = 8: enough
   assert.deepStrictEqual(L.checkGeometry(two, {}), []);
@@ -456,15 +462,16 @@ test('G10: members + support reactions >= 2 x joints (Physics: 4 joints, 4 membe
   assert.ok(rules(L.checkGeometry(Object.assign(panel(SIDES), { supports: [null, 5] }), {})).includes('G10'), 'damaged supports count 0');
 });
 
-test('G7-G10: rule order, a G4 flat line still gives only G4, and nothing is changed', () => {
-  const t = panel(SIDES.concat([[0, 2], [1, 3]])); t.nodes = t.nodes.map(p => [p[0] * 3, p[1]]); t.elems.pop(); t.elems.pop();   // 300 wide, then no diagonals
-  t.elems.push({ i: 0, j: 2 }, { i: 1, j: 3 }); t.supports = [{ node: 0 }];
+test('G7-G10: rule order, early returns after G4 and G10, and nothing is changed', () => {
+  const t = panel(SIDES.concat([[0, 2], [0, 4], [4, 2]])); t.nodes = t.nodes.map(p => [p[0] * 3, p[1]]); t.nodes.push([150, 0]);   // 300 x 50, member 6 along member 1
   t.design = { span: 300, loads: [{ type: 'point', x: 400 }] };
   const frozen = deepFreeze(cloneT(t));
-  const r = L.checkGeometry(frozen, { E: 0 });
-  assert.deepStrictEqual(rules(r), ['G7', 'G7', 'G7', 'G7', 'G8', 'G9', 'G9', 'G10']);
+  assert.deepStrictEqual(rules(L.checkGeometry(frozen, {})), ['G7', 'G7', 'G7', 'G8', 'G9']);
+  const folds = cloneT(t); folds.supports = [{ node: 0 }];                                  // 7 + 1 < 10: G10, said last
+  assert.deepStrictEqual(rules(L.checkGeometry(folds, {})), ['G7', 'G7', 'G7', 'G8', 'G9', 'G10']);
+  assert.ok(L.checkGeometry(folds, {}).pop().unstable);
   const flat = Object.assign(cloneT(t), { nodes: t.nodes.map(p => [p[0], 0]) });
-  assert.deepStrictEqual(rules(L.checkGeometry(flat, { E: 0, mBook1: -1 })), ['G4']);
+  assert.deepStrictEqual(rules(L.checkGeometry(flat, {})), ['G4']);
   const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'limits.js'), 'utf8');
   assert.ok(!/G6-G10 and M1-M4 are a later row|G7-G10 and M1-M4 \(a later row\)/.test(src), 'the header no longer says G7-G10 are a later row');
 });

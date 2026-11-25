@@ -227,9 +227,10 @@ const isModel3D = m => typeof m === 'string' && m.toLowerCase() === '3d';
 //   (member k joins nodes i and j), keys (a name per node; 'B0', 'B1' ... are the bottom chord, left to right) and panelPts (the panel
 //   points' x, left to right) when the truss has them. values: the stick size, bS and hS in mm (a missing or bad one reads as the course stick).
 //   where: 0-based node indexes (G1 to G4) or member indexes (G5); the messages count from 1, as the people reading them do.
-//   G7 to G10 (RMA-13): where is member indexes (G7, G8) or [] (G9, G10). values may also carry docStock (the stick length, mm), E, sigT, sigC,
-//   mBook1 and mBook2 (G9); the truss's supports (G10) and design.loads and design.span (G9) are read when it has them.
-// G4 and G10 carry unstable: true. A flat line gives only G4, not a wall of G5 (Physics). A damaged truss gives [] (CODE-N2); nothing here throws.
+//   G7 to G10 (RMA-13, TE-B-537b as amended by TE-B-598): where is member indexes (G7, G8: two members, or the member and the joint's node
+//   index) or [] (G9, G10). values may also carry docStock (the stick length, mm, G7); the truss's supports, pin and roller (G9, G10) and
+//   design.loads (G9) are read when it has them. E, the strengths and the book masses are checkInputs' only, so one bad value gives one line.
+// G4 and G10 carry unstable: true, and the function returns after either. A flat line gives only G4, not a wall of G5 (Physics). A damaged truss gives [] (CODE-N2); nothing here throws.
 // Not checked here: G6 (merged into G5) and M1-M4 (a later row). Two joints that sit close together but are not joined by a member
 // are not looked at; a joined pair is covered by the member length.
 const TOL = 1e-6;
@@ -248,41 +249,34 @@ const GEOMETRY_MSG = {
   G5dup: (a, b) => 'Members ' + a + ' and ' + b + ' join the same two joints.',
   G7: (m, len, stock) => 'Member ' + m + ' is ' + fh(len) + ' mm; one stick is ' + fh(stock) + ' mm. Shorten it or mark a splice.',
   G8: (a, b) => 'Members ' + a + ' and ' + b + ' cross without a joint. Add a joint at the crossing or move one. Not solved.',
-  G9mat: 'Stiffness and strength must be above 0.',
-  G9book: 'The book can\'t weigh less than 0.',
-  G9load: span => 'The load must sit on the bridge (0 to ' + fh(span) + ' mm).',
+  G8joint: (m, j) => 'Member ' + m + ' passes through joint ' + j + ' without a joint there. Join it at joint ' + j + ' or move one. Not solved.',
+  G9load: (a, b) => 'The load must sit on the bridge (' + fh(a) + ' to ' + fh(b) + ' mm).',
   G10: 'Too few members to hold this shape (it can fold). No capacity is shown.',
 };
-// G7: one stick, in mm: Physics' doc G7 ('one stick is 240 mm'), the same default as the Build Documents stick length (docStock). A docStock
-// value inside its TABLE row replaces it.
+// G7: one stick, in mm: Physics' doc G7 ('one stick is 240 mm'), the same default as the Build Documents stick length (S.doc.stock).
+// values.docStock replaces it when it is a finite positive number (TE-B-598 c).
 const STOCK_MM = 240;
-// G8: the one crossing the app builds on purpose: an arch (top chord) through the bottom chord between joints (#298). Build Documents cuts the
-// bottom chord there and butts it to the arch's face, and the model's member forces are unchanged by that (Physics, main f00664e), so a top and
-// bottom chord member that cross are not G8. Any other pair is.
-const ARCH_CROSS = (a, b) => (a === 'top' && b === 'bot') || (a === 'bot' && b === 'top');
-// The app's X panel: both diagonals of one panel (core.js pattern 'X', the odd-panel middle by default), Bp-Tq crossing Bq-Tp. Every Pratt,
-// Howe and X built-in case has one, and the model solves the two as separate members, so it is not G8 until Physics says otherwise (RMA-13 PR).
-// A truss without keys (a hand-made or damaged one) gets no exemption.
-const corner = (keys, n) => { const k = Array.isArray(keys) ? keys[n] : null, m = typeof k === 'string' ? /^([BT])(\d+)$/.exec(k) : null; return m ? m[1] + m[2] : null; };
-function xPanel(keys, ea, eb) {
-  if (ea.type !== 'diag' || eb.type !== 'diag') return false;
-  const ends = e => { const a = corner(keys, e.i), b = corner(keys, e.j); if (!a || !b || a[0] === b[0]) return null; return a[0] === 'B' ? [a.slice(1), b.slice(1)] : [b.slice(1), a.slice(1)]; };
-  const p = ends(ea), q = ends(eb);
-  return !!p && !!q && p[0] !== p[1] && p[0] === q[1] && p[1] === q[0];
-}
+// G8 (TE-B-598 a): two members that cross away from any joint are NOT flagged. The app builds them on purpose (X panels, the odd-panel centre
+// diagonals, the #298 arch through the flat bottom chord, which cutPlan cuts flush), and a planar pin-jointed model treats them as passing
+// each other. G8 flags only (1) two members on one line that overlap (Math's M4, the botEnd < 0 style) and (2) a member that passes within
+// JOINT_GAP of a joint it doesn't end at.
+const JOINT_GAP = 0.5;                                        // mm (TE-B-598 a)
 const cr = (ax, ay, bx, by) => ax * by - ay * bx;
-// Do members p (p0-p1) and q (q0-q1) cross, or lie on top of each other, away from a joint they share? TOL is in mm along each member.
-function crosses(p0, p1, q0, q1) {
+// Do members p (p0-p1) and q (q0-q1) lie on one line and overlap by more than TOL (mm)?
+function overlaps(p0, p1, q0, q1) {
   const rx = p1[0] - p0[0], ry = p1[1] - p0[1], sx = q1[0] - q0[0], sy = q1[1] - q0[1], Lr = Math.hypot(rx, ry), Ls = Math.hypot(sx, sy);
-  if (Lr <= TOL || Ls <= TOL) return false;
-  const den = cr(rx, ry, sx, sy), wx = q0[0] - p0[0], wy = q0[1] - p0[1];
-  if (Math.abs(den) / (Lr * Ls) > 1e-9) {                     // not parallel: one point in common, inside both members?
-    const t = cr(wx, wy, sx, sy) / den, u = cr(wx, wy, rx, ry) / den;
-    return t * Lr > TOL && (1 - t) * Lr > TOL && u * Ls > TOL && (1 - u) * Ls > TOL;
-  }
+  if (Lr <= TOL || Ls <= TOL || Math.abs(cr(rx, ry, sx, sy)) / (Lr * Ls) > 1e-9) return false;   // a point, or not parallel
+  const wx = q0[0] - p0[0], wy = q0[1] - p0[1];
   if (Math.abs(cr(wx, wy, rx, ry)) / Lr > TOL) return false;   // parallel but apart
-  const a = (wx * rx + wy * ry) / Lr, b = ((q1[0] - p0[0]) * rx + (q1[1] - p0[1]) * ry) / Lr;   // collinear (M4): q's ends along p
+  const a = (wx * rx + wy * ry) / Lr, b = ((q1[0] - p0[0]) * rx + (q1[1] - p0[1]) * ry) / Lr;   // q's ends along p
   return Math.min(Lr, Math.max(a, b)) - Math.max(0, Math.min(a, b)) > TOL;
+}
+// Does member p0-p1 pass within JOINT_GAP of point c, between its ends (not at them)?
+function passesNear(p0, p1, c) {
+  const rx = p1[0] - p0[0], ry = p1[1] - p0[1], L = Math.hypot(rx, ry);
+  if (L <= TOL) return false;
+  const t = ((c[0] - p0[0]) * rx + (c[1] - p0[1]) * ry) / L;   // mm along the member
+  return t > JOINT_GAP && t < L - JOINT_GAP && Math.abs(cr(c[0] - p0[0], c[1] - p0[1], rx, ry)) / L < JOINT_GAP;
 }
 
 function checkGeometry(truss, values) {
@@ -333,34 +327,40 @@ function checkGeometry(truss, values) {
   const good = [];                                            // the members that join two real joints: [index, member]
   E.forEach((e, m) => { if (isObj(e) && Number.isInteger(e.i) && Number.isInteger(e.j) && N[e.i] && N[e.j]) good.push([m, e]); });
   const num = k => (isObj(values) && hasOwn(values, k) ? asNumber(values[k]) : null);
-  // G7: every member fits in one stick (Physics: 'or is marked as spliced'; the app's truss has no splice mark yet, so no member is exempt)
-  const ds = num('docStock'), dsRow = rowFor('docStock');
-  const stock = ds !== null && ds >= dsRow.min && ds <= dsRow.max ? ds : STOCK_MM;
+  // G7: every member fits in one stick. Spliced members: a later row, once a member carries the mark (splices are cutPlan's today, #116).
+  const ds = num('docStock'), stock = ds !== null && ds > 0 ? ds : STOCK_MM;
   good.forEach(([m, e]) => {
     const L = Math.hypot(N[e.i][0] - N[e.j][0], N[e.i][1] - N[e.j][1]);
     if (L > stock + TOL) out.push({ rule: 'G7', msg: GEOMETRY_MSG.G7(m + 1, L, stock), where: [m] });
   });
-  // G8: members that cross must meet at a joint; two members on one line that overlap count too (Math's M4)
+  // G8 (1): two members on one line that overlap (M4). A pair on the same two joints is G5's.
+  const lapped = new Set();                                   // 'member:node' already told by an overlap, so (2) doesn't say it again
   for (let a = 0; a < good.length; a++) for (let b = a + 1; b < good.length; b++) {
     const [ma, ea] = good[a], [mb, eb] = good[b];
-    if (ea.i === ea.j || eb.i === eb.j || ARCH_CROSS(ea.type, eb.type) || xPanel(truss.keys, ea, eb)) continue;
-    const shared = ea.i === eb.i || ea.i === eb.j || ea.j === eb.i || ea.j === eb.j;
-    if (shared && (Math.min(ea.i, ea.j) === Math.min(eb.i, eb.j) && Math.max(ea.i, ea.j) === Math.max(eb.i, eb.j))) continue;   // the same two joints: G5
-    if (crosses(N[ea.i], N[ea.j], N[eb.i], N[eb.j])) out.push({ rule: 'G8', msg: GEOMETRY_MSG.G8(ma + 1, mb + 1), where: [ma, mb] });
+    if (Math.min(ea.i, ea.j) === Math.min(eb.i, eb.j) && Math.max(ea.i, ea.j) === Math.max(eb.i, eb.j)) continue;
+    if (!overlaps(N[ea.i], N[ea.j], N[eb.i], N[eb.j])) continue;
+    out.push({ rule: 'G8', msg: GEOMETRY_MSG.G8(ma + 1, mb + 1), where: [ma, mb] });
+    [eb.i, eb.j].forEach(n => lapped.add(ma + ':' + n)); [ea.i, ea.j].forEach(n => lapped.add(mb + ':' + n));
   }
-  // G9: material strength and stiffness above 0, book mass 0 or more, the load on the bridge (a point load's x, a spread load's middle, 0 to span)
-  if (['E', 'sigT', 'sigC'].some(k => num(k) !== null && !(num(k) > 0))) out.push({ rule: 'G9', msg: GEOMETRY_MSG.G9mat, where: [] });
-  if (['mBook1', 'mBook2'].some(k => num(k) !== null && num(k) < 0)) out.push({ rule: 'G9', msg: GEOMETRY_MSG.G9book, where: [] });
-  const deck = isObj(dz) && isNum(+dz.span) && +dz.span > 0 ? +dz.span : null;
-  if (deck !== null && Array.isArray(dz.loads)) {
+  // G8 (2): a member that passes within JOINT_GAP of a joint it doesn't end at
+  good.forEach(([m, e]) => N.forEach((c, n) => {
+    if (n === e.i || n === e.j || lapped.has(m + ':' + n)) return;
+    if (passesNear(N[e.i], N[e.j], c)) out.push({ rule: 'G8', msg: GEOMETRY_MSG.G8joint(m + 1, n + 1), where: [m, n] });
+  }));
+  // G9 (TE-B-598 b): the load sits on the bridge: each load's x (a point load; a spread load by its middle) between the two supports (the
+  // pin and the roller). No design.loads, or no supports to measure from, means nothing to check.
+  const sx = n => (Number.isInteger(n) && N[n] ? N[n][0] : null);
+  const lo = sx(truss.pin), hi = sx(truss.roller);
+  if (dz && Array.isArray(dz.loads) && lo !== null && hi !== null) {
+    const a = Math.min(lo, hi), b = Math.max(lo, hi);
     const at = q => (!isObj(q) ? null : isNum(q.x) ? q.x : isNum(q.a) && isNum(q.b) ? (q.a + q.b) / 2 : null);
-    if (dz.loads.some(q => { const x = at(q); return x !== null && (x < -TOL || x > deck + TOL); })) out.push({ rule: 'G9', msg: GEOMETRY_MSG.G9load(deck), where: [] });
+    if (dz.loads.some(q => { const x = at(q); return x !== null && (x < a - TOL || x > b + TOL); })) out.push({ rule: 'G9', msg: GEOMETRY_MSG.G9load(a, b), where: [] });
   }
   // G10: enough members to hold the shape, members + support reactions >= 2 x joints. Reactions are counted as core.js analyze fixes them:
-  // a pin or an edge hold fixes x and y (2), any other support y (1).
+  // a pin or an edge hold fixes x and y (2), any other support y (1). Unstable like G4, and the function returns after it (TE-B-598 d).
   if (Array.isArray(truss.supports)) {
     const r = truss.supports.reduce((n, s) => n + (!isObj(s) ? 0 : s.pin || s.xHold ? 2 : 1), 0);
-    if (E.length + r < 2 * N.length) out.push({ rule: 'G10', msg: GEOMETRY_MSG.G10, where: [], unstable: true });
+    if (E.length + r < 2 * N.length) { out.push({ rule: 'G10', msg: GEOMETRY_MSG.G10, where: [], unstable: true }); return out; }
   }
   return out;
 }
