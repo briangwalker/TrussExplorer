@@ -39,6 +39,17 @@ try {
   check('a bad file: the card says No result', /No result/.test(c.card), JSON.stringify(c));
   check('a bad file: the card has no kg and no PASS or FAILS', !/kg/.test(c.card) && !/PASSES|FAILS/.test(c.card), JSON.stringify(c));
   check("the card carries the note's first line", /2 values are outside the limits/.test(c.card), JSON.stringify(c));
+  // #522 MUST (UI Designer TE-B-625, QA TE-B-628): the card stays the normal card's size and the pill is on screen at every width
+  const fit = () => p.evaluate(() => { const c = document.getElementById('resCard'), q = c && c.querySelector('.pill'), cr = c.getBoundingClientRect(), qr = q.getBoundingClientRect();
+    return { w: Math.round(cr.width), cl: Math.round(cr.left), cr: Math.round(cr.right), pl: Math.round(qr.left), pr: Math.round(qr.right), vw: innerWidth, first: c.firstElementChild === q, name: c.getAttribute('aria-label') || '' }; });
+  for (const [w, h] of [[1366, 900], [1024, 768]]) {
+    await p.setViewportSize({ width: w, height: h }); await p.waitForTimeout(300);
+    const f = await fit();
+    check(`${w}x${h}: the pill comes first and is inside the window`, f.first && f.pl >= 0 && f.pr <= f.vw, JSON.stringify(f));
+    check(`${w}x${h}: the whole card is inside the window and no wider than a normal card (480 px)`, f.cl >= 0 && f.cr <= f.vw && f.w <= 480, JSON.stringify(f));
+    check(`${w}x${h}: the full summary is the card's accessible name`, /^No result\. 2 values are outside the limits/.test(f.name), JSON.stringify(f));
+  }
+  await p.setViewportSize({ width: 1366, height: 900 }); await p.waitForTimeout(200);
   check('the No result pill is not the fail colour (UI-A18: magenta is for fails)', await p.evaluate(() => { const q = document.querySelector('#resCard .pill'); return !!q && !q.classList.contains('bad') && !q.classList.contains('ok'); }));
   check('the key strip says No result too, with no kg', /No result/.test(c.key) && !/\d kg\b(?! of)/.test(c.key.replace(/books × FS = [\d.]+ kg/, '')), JSON.stringify(c.key));
   const win = await p.evaluate(() => { const st = document.getElementById('stats'), pl = document.getElementById('statusPill'); return { stats: st ? st.textContent : '', pill: pl ? pl.textContent : '' }; });
@@ -52,6 +63,7 @@ try {
   await p.fill('#E-tb', '3000'); await p.press('#E-tb', 'Enter'); await p.waitForTimeout(300);
   c = await card(p);
   check('F5: both fixed: the kg and the verdict come back', /kg/.test(c.card) && /PASSES|FAILS/.test(c.card) && !/No result/.test(c.card), JSON.stringify(c));
+  check('F5: both fixed: the card drops the No result name', await p.evaluate(() => !document.getElementById('resCard').hasAttribute('aria-label')));
   // file text stays text on the card
   const XSS = file('x.bridge.json', { name: '<img src=x onerror="window.__ran=1">', height: 500 });
   await open(p, XSS);
