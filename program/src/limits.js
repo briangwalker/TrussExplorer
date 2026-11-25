@@ -223,7 +223,7 @@ function warnInputs(values) {
 const isModel3D = m => typeof m === 'string' && m.toLowerCase() === '3d';
 
 // ---------- geometry rules G1-G5 (Physics' doc, TE-B-370; board TE-B-458, RMA-6): the second half of the validity function ----------
-// checkGeometry(truss, values) -> [{ rule: 'G1'..'G5', msg, where: [indexes] }], in rule order; empty = fine. Pure: nothing is changed.
+// checkGeometry(truss, values) -> [{ rule: 'G1'..'G10', msg, where: [indexes] }], in rule order; empty = fine. Pure: nothing is changed.
 //   truss: what core.js's buildTruss returns, or a file's truss in the same shape: nodes [[x, y], ...] (mm, y up), elems [{ i, j, ... }, ...]
 //   (member k joins nodes i and j), keys (a name per node; 'B0', 'B1' ... are the bottom chord, left to right) and panelPts (the panel
 //   points' x, left to right) when the truss has them. values: the stick size, bS and hS in mm (a missing or bad one reads as the course stick).
@@ -249,9 +249,9 @@ const GEOMETRY_MSG = {
   G5len: (m, len, min) => 'Member ' + m + ' is ' + f1(len) + ' mm long; the shortest allowed is ' + f1(min) + ' mm.',
   G5dup: (a, b) => 'Members ' + a + ' and ' + b + ' join the same two joints.',
   G7: (m, len, stock) => 'Member ' + m + ' is ' + fh(len) + ' mm; one stick is ' + fh(stock) + ' mm. Shorten it or mark a splice.',
-  G8: (a, b) => 'Members ' + a + ' and ' + b + ' cross without a joint. Add a joint at the crossing or move one. Not solved.',
-  G8joint: (m, j) => 'Member ' + m + ' passes through joint ' + j + ' without a joint there. Join it at joint ' + j + ' or move one. Not solved.',
-  G9load: (a, b) => 'The load must sit on the bridge (' + fh(a) + ' to ' + fh(b) + ' mm).',
+  G8: (a, b) => 'Members ' + a + ' and ' + b + ' lie on top of each other on one line. Remove one, or end them at a shared joint. Not solved.',
+  G8joint: (m, j) => 'Member ' + m + ' runs through joint ' + j + " but isn't joined to it. Split member " + m + ' at joint ' + j + ', or move the joint. Not solved.',
+  G9load: (a, b) => 'The load must sit between the supports (' + fh(a) + ' to ' + fh(b) + ' mm).',
   G10: 'Too few members to hold this shape (it can fold). No capacity is shown.',
 };
 // G7: one stick, in mm: Physics' doc G7 ('one stick is 240 mm'), the same default as the Build Documents stick length (S.doc.stock).

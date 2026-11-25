@@ -422,9 +422,9 @@ test('G8 (TE-B-598 a): two members crossing away from a joint are not flagged (X
 
 test('G8 (TE-B-598 a): members on one line that overlap (M4), and a member through a joint it doesn\'t end at', () => {
   const lap = panel(SIDES.concat([[0, 2], [0, 4], [4, 2]])); lap.nodes.push([50, 0]);  // member 6 lies along member 1 from joint 1
-  assert.deepStrictEqual(L.checkGeometry(lap, {}), [{ rule: 'G8', msg: 'Members 1 and 6 cross without a joint. Add a joint at the crossing or move one. Not solved.', where: [0, 5] }], 'said once, not again as joint 5 on member 1');
+  assert.deepStrictEqual(L.checkGeometry(lap, {}), [{ rule: 'G8', msg: 'Members 1 and 6 lie on top of each other on one line. Remove one, or end them at a shared joint. Not solved.', where: [0, 5] }], 'said once, not again as joint 5 on member 1');
   const mid = panel(SIDES.concat([[0, 2], [3, 1], [4, 1]])); mid.nodes.push([40, 20]);   // joint 5 sits on diagonal 5 (0,0)-(100,50), which doesn't join it
-  assert.deepStrictEqual(L.checkGeometry(mid, {}), [{ rule: 'G8', msg: 'Member 5 passes through joint 5 without a joint there. Join it at joint 5 or move one. Not solved.', where: [4, 4] }],
+  assert.deepStrictEqual(L.checkGeometry(mid, {}), [{ rule: 'G8', msg: "Member 5 runs through joint 5 but isn't joined to it. Split member 5 at joint 5, or move the joint. Not solved.", where: [4, 4] }],
     'where: the member and the joint\'s node index; the X crossing at the centre is not flagged');
   mid.elems[4] = { i: 0, j: 4 }; mid.elems.push({ i: 4, j: 2 });
   assert.deepStrictEqual(L.checkGeometry(mid, {}), [], 'the diagonal split at joint 5');
@@ -438,7 +438,7 @@ test('G8 (TE-B-598 a): members on one line that overlap (M4), and a member throu
 
 test('G9 (TE-B-598 b): only the load inside the span, between the pin and the roller; materials and books stay checkInputs\'', () => {
   const at = (x, more) => Object.assign(panel(SIDES.concat([[0, 2]])), { design: { span: 100, loads: [Object.assign({ type: 'point', x, w: 1 }, more)] } });
-  assert.deepStrictEqual(L.checkGeometry(at(150), {}), [{ rule: 'G9', msg: 'The load must sit on the bridge (0 to 100 mm).', where: [] }]);
+  assert.deepStrictEqual(L.checkGeometry(at(150), {}), [{ rule: 'G9', msg: 'The load must sit between the supports (0 to 100 mm).', where: [] }]);
   assert.ok(rules(L.checkGeometry(at(-1), {})).includes('G9'));
   for (const x of [0, 50, 100]) assert.deepStrictEqual(L.checkGeometry(at(x), {}), [], 'load at ' + x);
   const spread = at(0); spread.design.loads[0] = { type: 'partial', a: 80, b: 180, w: 1 };
