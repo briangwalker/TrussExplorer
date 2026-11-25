@@ -17,6 +17,10 @@ test('the dependent inputs (Math TE-B-444) are all rows of the limits table', ()
   const ids = new Set(L.TABLE.map(r => r.id));
   for (const id of R.DEPENDS) assert.ok(ids.has(id), id);
 });
+test('curve and topEnd check the rows again: they move the outer height the height course rule judges (TE-B-619)', () => {
+  for (const id of ['curve', 'topEnd']) assert.ok(R.DEPENDS.includes(id), id);
+  assert.strictEqual(R.VERSION, '0.1.3');
+});
 test('mount refuses to run without the three libraries', () => {
   assert.throws(() => R.mount({}, {}), /TrussPieces, TrussInputs and TrussLimits/);
 });

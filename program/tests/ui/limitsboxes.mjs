@@ -75,6 +75,19 @@ try {
   await p.fill('#height-tb', '201'); s = await st('height');
   check('height 201 is still refused by the table', s.state === 'limit' && /^⟂ Height must be 10 to 200 mm/.test(s.note), JSON.stringify(s));
   await p.press('#height-tb', 'Enter');
+  // the outer height also moves with topEnd (and curve), so the height box is checked again when they move (TE-B-619):
+  // at h 95.4 with a parabola top, topEnd 10 puts the top face over 100 mm and -20 under it; the mark follows the result's line
+  const pinkIsFlag = (s, e) => s.app === '95.4' && (s.state === 'rule') === e.flag;
+  await p.evaluate(() => document.querySelector('#topShape button[data-v="parabola"]').click()); await p.waitForSelector('#topEnd-tb', { state: 'visible' });
+  await p.fill('#topEnd-tb', '10'); await p.press('#topEnd-tb', 'Enter');
+  await p.fill('#height-tb', '95.4'); await p.press('#height-tb', 'Enter'); s = await st('height'); e = await out();
+  check('h 95.4, parabola top, topEnd 10: over 100 mm, pink and flagged', pinkIsFlag(s, e) && e.flag, JSON.stringify([s, e]));
+  await p.fill('#topEnd-tb', '-20'); await p.press('#topEnd-tb', 'Enter'); s = await st('height'); e = await out();
+  check('topEnd to -20 in its box: the top face drops under 100 mm, the height mark goes with the result\'s line', pinkIsFlag(s, e) && !e.flag && s.note === '', JSON.stringify([s, e]));
+  await p.evaluate(() => { const r = document.getElementById('topEndR'); r.value = '10'; r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); });
+  s = await st('height'); e = await out();
+  check('topEnd back to 10 on its slider: pink again, with the new outer height in the note', pinkIsFlag(s, e) && e.flag && s.note.includes(`(this one is ${e.top.toFixed(1)} mm`), JSON.stringify([s, e]));
+  await p.evaluate(() => document.querySelector('#topShape button[data-v="flat"]').click());
   await p.fill('#height-tb', '80'); await p.press('#height-tb', 'Enter');
 
   // a row that depends on height is checked again when height moves (Math TE-B-444)
