@@ -82,6 +82,45 @@ function tooLongNote(release) {
     : ` To fit, set Panels on each desk to "Set the overlap", then Overlap onto each desk to ${ov.toFixed(1)} mm (Inputs).`;
   return ` ${old ? 'This bridge was made before the outer-face rule (v61): it' : 'It'} is ${over.toFixed(1)} mm too long, ${sz.outer.length.toFixed(1)} mm outside to outside, and the limit is 300 mm.${fix}`;
 }
+// UI-I10 file case (Physics F1-F5, TrussLimits.fileReport, RMA-8), behind TE_FLAGS.limitsBoxes until step 8 (#215):
+// a bridge file whose values break the limits table still opens and nothing is clamped. Each bad value stays on its box
+// exactly as the file had it, marked (markFile), and one note at the top of the Inputs window lists them, with the first
+// fix one click away. The note goes when nothing is left to fix (F5). A good file gets nothing new (F4, rule 4i).
+// Returns the summary line ('' when there is nothing to say). "No result" on the results card is the card's (step 3).
+// focus() does nothing inside a closed <details>: open every closed one around the box first (QA and UI Designer MUST on #517)
+function revealFocus(el) {
+  for (let d = el.parentElement && el.parentElement.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) if (!d.open) d.open = true;
+  el.focus();
+}
+function fileBadNote() {
+  const old = document.getElementById('fileBad'); if (old) old.remove();
+  if (!limitRows || !window.TrussLimits || !TrussLimits.fileReport) return '';
+  const rep = TrussLimits.fileReport(limitRows.values(), tr);
+  if (!rep.noResult) return '';
+  const firstBox = [];
+  rep.bad.forEach(b => { const r = limitRows.rows.get(b.id); if (r) { r.box.markFile(b.msg); firstBox.push(r.el.querySelector('input')); } });
+  const pane = $('inputsPane'), box = document.createElement('p');
+  box.id = 'fileBad'; box.className = 'note'; box.setAttribute('role', 'status'); box.dataset.state = 'file';
+  box.append(document.createTextNode('\u27c2 ' + rep.summary + (rep.geometry.length ? ' ' + rep.geometry[0].msg : '')));
+  // UI-I10 '<input> <value>': each bad value as the file had it, with its units (text only; a long file value is cut short)
+  if (rep.bad.length) {
+    const unitOf = id => { const r = TrussLimits.rowFor && TrussLimits.rowFor(id), u = r && r.unit; return u && u !== '-' && u !== 'count' ? ' ' + u : ''; };
+    const list = rep.bad.map(b => TrussLimits.labelFor(b.id) + ' ' + String(b.value).slice(0, 24) + unitOf(b.id)).join(' \u00b7 ');
+    box.append(document.createElement('br'), document.createTextNode(list));
+  }
+  if (firstBox[0]) {
+    const go = document.createElement('button'); go.type = 'button'; go.className = 'btn ghost';
+    go.textContent = 'Fix ' + TrussLimits.labelFor(rep.bad[0].id); go.addEventListener('click', () => revealFocus(firstBox[0]));
+    go.style.marginTop = '8px'; go.style.marginLeft = '3px';   // room for its focus ring: clear of the values line above and the pane's left edge (QA SHOULD, TE-B-603/606)
+    box.append(document.createElement('br'), go);   // on its own line, so its focus ring never paints over the note's text
+  }
+  pane.prepend(box);
+  // F5: once every value and the shape are fixed, the note goes (the boxes clear their own marks)
+  const recheck = () => { if (!document.getElementById('fileBad')) { pane.removeEventListener('change', recheck); return; }
+    if (!TrussLimits.fileReport(limitRows.values(), tr).noResult) { box.remove(); pane.removeEventListener('change', recheck); } };
+  pane.addEventListener('change', recheck);
+  return rep.summary;
+}
 $('filePick').addEventListener('change', async () => {
   const f = $('filePick').files[0]; if (!f) return;
   // the size is checked before the file is read, so a huge file never fills memory (#296)
@@ -130,6 +169,8 @@ $('filePick').addEventListener('change', async () => {
     }
     if (o.tooNew) note += ' It was made by a newer release of the Explorer, so some settings may be ignored.';
     note += tooLongNote(doc.release);
+    const bad = fileBadNote();
+    if (bad) note += ' ' + bad;
     $('fileMsg').textContent = `Opened "${doc.name}" (saved ${new Date(doc.savedAt).toLocaleString()}${doc.release ? ` with ${doc.release}` : ''}).${note}`; toast(other + 'Bridge loaded.' + note, !!note);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
