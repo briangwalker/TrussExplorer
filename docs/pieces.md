@@ -113,6 +113,7 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 
 ## Change log
 
+- **0.2.4 · 2026-11-24** Cells that hold controls (UI-S10 in ui-spec 1.5.8, PR #486; the UI Designer's ask, TE-B-500), as in the APG grid's editing cells. A column with `edit: 'cell'` (the Sticks − / + and row / 2×2) is one Tab stop like any cell. Enter or F2 enters it: focus goes to its first live control, Tab and Shift+Tab stay inside, and other keys go to `onCellKey({ key, shift, row, col, target })` (return true to take the key). Esc, Enter or F2 leaves it, and so does focus leaving the cell. A column with `edit: 'widget'` (the Focus toggle) lets the control itself take the grid's focus, and Enter / Space press it. A click on a control works directly. After a redraw, `focusKey(key, { col, focus: true, edit })` with `mountTable(...).editing` puts the person back in the same cell, on the same control.
 - **inputs 0.2.0 · 2026-11-23** The ✎ value editor (UI-I8): value, joystick, sweep range, Done; 320 px, moves by its title bar; the 400-value cap is never cut (UI-I4).
 - **limitrows 0.1.1 · 2026-11-25** A recheck (a click, a dependency moving) leaves a box a file marked alone: the file's bad value stays marked until a good one is typed (UI-I10). The file note itself is in src/app/50-files.js (Architecture Lead).
 - **limitrows 0.1.0 · 2026-11-24** The Inputs pane's number rows on the limits table, behind `TE_FLAGS.limitsBoxes` (TE-B-494). The app's boxes stay, hidden, so every handler still runs.

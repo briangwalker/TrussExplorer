@@ -1,5 +1,5 @@
 // ===== Truss limits: the table of allowed input values, and the input check (#420, #421; board TE-B-373, RMA-4) =====
-// Values: Math (v0.4, 11-19, after Physics' review) and Physics. Format: Architecture Lead (TE-B-372b).
+// Values: Math (v0.4, 11-19, after Physics' review; height max 200, Math 11-24: 100 is the course rule, not a model limit) and Physics. Format: Architecture Lead (TE-B-372b).
 // One data table (TABLE) read by the input boxes AND the file loader; it replaces both the box min/max and the slider range.
 // An out-of-range value is REJECTED with the row's message and never clamped; a value that came from a file is reported, never changed (UI-I10).
 // Row fields: id (the real input id), unit, min, max (a number or an expression), step (1 = whole numbers only),
@@ -35,7 +35,7 @@ const R = (id, unit, min, max, msg, status, more) => Object.assign({ id, unit, m
 const COURSE = 'Course balsa is E 3000, rho 160, sigT 7.5, sigC 4.5, stick 3.18.';
 
 const TABLE = Object.freeze([
-  R('height', 'mm', 10, 100, 'Height must be 10-100 mm (below 10 mm the members are shorter than two sticks).', 'math', { warnMin: 20, warnMsg: 'Below 20 mm the top and bottom chords are close together, so buckling decides the capacity.', sliderMin: 10, sliderMax: 100 }),
+  R('height', 'mm', 10, 200, 'Height must be 10 to 200 mm.', 'math', { warnMin: 20, warnMsg: 'Below 20 mm the top and bottom chords are close together, so buckling decides the capacity.', sliderMin: 10, sliderMax: 100 }),
   R('curve', 'mm', -60, 'height-10', 'The bottom chord must stay at least 10 mm below the top chord.', 'math', { warnMax: 'height-20', warnMsg: 'The bottom chord is within 20 mm of the top chord.', when: { id: 'bottom', in: SHAPED }, sliderMin: -50, sliderMax: 100 }),
   R('topEnd', 'mm', '-min(tableThick,50)', 'height-10', 'Top chord end must be between the table face and 10 mm below the top.', 'math', { when: { id: 'topShape', in: SHAPED }, sliderMin: -30, sliderMax: 70 }),
   R('botEnd', 'mm', 0, 'height-10', 'Bottom chord end must be 0 to height minus 10 mm.', 'math', { sliderMin: 0, sliderMax: 100 }),
