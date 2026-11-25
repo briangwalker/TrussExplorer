@@ -131,7 +131,7 @@ if (!SH_CLASSIC) {
     const need = (S.load.mBook1 + S.load.mBook2) * S.mat.FS, s = res.stable;
     const tag = S.anaMode === '3d' ? ' <span class="badge">3D</span>' : '';
     const nr = A.noResult;   // UI-I10: a value or the shape breaks the limits table: No result with the note's first line, no kg, no PASS
-    if (nr) { card.innerHTML = `<span>${A.escH(nr.summary)}</span><span class="pill">⟂ No result</span>${tag} <span aria-hidden="true">▾</span>`; tagAll(); layoutSoon(); return; }
+    if (nr) { card.innerHTML = `<span>${A.escH(nr.summary)}</span><span class="pill"><span aria-hidden="true">⟂</span> No result</span>${tag} <span aria-hidden="true">▾</span>`; tagAll(); layoutSoon(); return; }
     card.innerHTML = s
       ? `<span>Σ ${res.wood.toFixed(0)} mm · <span class="${res.capKg >= need - 1e-9 ? '' : 'bad'}">${res.capKg.toFixed(1)} ${res.capKg >= need - 1e-9 ? '≥' : '<'} ${need.toFixed(1)} kg</span> · <span class="${res.deflOK ? '' : 'bad'}">${res.midDefl.toFixed(3)} ${res.deflOK ? '≤' : '>'} ${S.opts.deflLimit} mm</span></span><span class="pill ${res.passes ? 'ok' : 'bad'}">${res.passes ? '✓ PASSES' : '✕ FAILS'}</span>${tag} <span aria-hidden="true">▾</span>`
       : `<span>no capacity: the truss is a mechanism</span><span class="pill bad">✕ UNSTABLE</span>${tag} <span aria-hidden="true">▾</span>`;

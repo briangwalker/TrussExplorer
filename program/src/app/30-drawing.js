@@ -663,7 +663,7 @@ function renderStats() {
     return;
   }
   const f = res.failing, nr = noResultNow();   // UI-I10: no PASS and no kg while the values or the shape break the limits table
-  pill.innerHTML = nr ? '<span class="pill">⟂ No result</span>' : (res.passes ? '<span class="pill ok">Passes all checks</span>' : `<span class="pill bad">Fails ${f.length ? f.length + ' member' + (f.length > 1 ? 's' : '') : 'a check'}</span>`) + (res.mode3 ? '<span class="mode3d" title="3D analysis">3D</span>' : '');
+  pill.innerHTML = nr ? '<span class="pill"><span aria-hidden="true">⟂</span> No result</span>' : (res.passes ? '<span class="pill ok">Passes all checks</span>' : `<span class="pill bad">Fails ${f.length ? f.length + ' member' + (f.length > 1 ? 's' : '') : 'a check'}</span>`) + (res.mode3 ? '<span class="mode3d" title="3D analysis">3D</span>' : '');
   if (res.mode3) {
     const M = res.mode3;
     li.unshift(['info', `<b>3D analysis.</b> Both trusses, the ties, ${M.bracingWood > 0 ? 'and the bracing and cross-frames' : 'and the cross-frames'} are solved together. Wood ${res.wood.toFixed(0)} mm includes ${M.bracingWood.toFixed(0)} mm of ties and bracing (2D count was ${M.wood2.toFixed(0)} mm). Each member shows the worse of its front and back copies. Deflection is the largest deck movement; the deck sways ${M.sway.toFixed(3)} mm sideways.`]);
