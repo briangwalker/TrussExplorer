@@ -16,7 +16,7 @@
 
 // words from TrussStrings (src/strings.js), looked up when used, so load order doesn't matter
 function words(key) { const T = root.TrussStrings || (typeof require === 'function' ? require('./strings.js') : null); if (!T) throw new Error('TrussStrings is missing'); return T.t(key); }
-const VERSION = '0.2.3';
+const VERSION = '0.2.4';
 
 // ---------- text ----------
 // Everything a caller passes is text, never markup (CODE-S1).
@@ -218,7 +218,11 @@ function resultsHTML(o) {
 // focused) and one row picked (aria-selected). One column may be the sort column: its header holds a real button and the
 // only aria-sort (APG sortable table). The row-header column (rowHeader) stays in place when the table scrolls sideways.
 // Look: rows alternate ART-K3 surface / surface-2, header line ART-K4 `line` (Graphics, TE-B-347).
-// opts: { id, caption, columns: [{ key, label, num, sort: 'descending'|'ascending' (the sort column), sortLabel }],
+// Cells that hold controls (UI-S10, APG grid 'editing' cells; TE-B-500): a column with edit: 'cell' holds several widgets
+// (the Sticks − / + and row / 2×2): the cell is the Tab stop; Enter or F2 enters it (focus on its first widget, Tab and
+// Shift+Tab stay inside it, keys go to opts.onCellKey), Esc, Enter or F2 leaves it. A column with edit: 'widget' holds ONE
+// widget (the Focus toggle): the widget itself takes the grid's focus, and Enter / Space press it as normal.
+// opts: { id, caption, columns: [{ key, label, num, sort: 'descending'|'ascending' (the sort column), sortLabel, edit }],
 //         rows: [{ key, cells: { colKey: text }, html: { colKey: markup the caller built and escaped }, cls }],
 //         rowHeader (column key), lit (row key), empty (text when there are no rows) }
 function tableHTML(o) {
@@ -226,6 +230,7 @@ function tableHTML(o) {
   const cols = o.columns, rows = Array.isArray(o.rows) ? o.rows : [];
   if (cols.filter(c => c.sort).length > 1) fail('only one column can be the sort column');
   for (const c of cols) if (c.sort && c.sort !== 'descending' && c.sort !== 'ascending') fail('sort is descending or ascending');
+  for (const c of cols) if (c.edit && c.edit !== 'cell' && c.edit !== 'widget') fail('edit is cell or widget');
   const cls = c => [c.num ? 'num' : '', c.key === o.rowHeader ? 'rh' : ''].filter(Boolean).join(' ');
   const ca = c => cls(c) ? ` class="${cls(c)}"` : '';
   const th = c => c.sort
@@ -235,7 +240,7 @@ function tableHTML(o) {
   const litN = Math.max(0, rows.findIndex(r => String(r.key) === String(o.lit)));
   const cell = (r, c, n, ci) => {
     const tag = c.key === o.rowHeader ? 'th' : 'td', inner = r.html && r.html[c.key] != null ? r.html[c.key] : escH(r.cells ? r.cells[c.key] : '');
-    return `<${tag}${tag === 'th' ? ' scope="row"' : ''}${ca(c)} tabindex="${n === litN && ci === 0 ? 0 : -1}">${inner}</${tag}>`;
+    return `<${tag}${tag === 'th' ? ' scope="row"' : ''}${ca(c)}${c.edit ? ` data-edit="${c.edit}"` : ''} tabindex="${n === litN && ci === 0 ? 0 : -1}">${inner}</${tag}>`;
   };
   const body = rows.length ? rows.map((r, n) => `<tr data-key="${escH(r.key)}"${r.cls ? ` class="${escH(r.cls)}"` : ''}${String(r.key) === String(o.lit) ? ' aria-selected="true"' : ''}>`
     + cols.map((c, ci) => cell(r, c, n, ci)).join('') + '</tr>').join('')
@@ -481,26 +486,73 @@ function mountTable(tbl, opts) {
   const navOf = el => { const c = el && el.closest && el.closest('td, th'); return c && tbl.contains(c) && (c.parentElement.dataset.key != null || c.closest('thead')) ? c : null; };
   const navRows = () => [tbl.querySelector('thead tr'), ...rows()].filter(Boolean);
   const stop = () => tbl.querySelectorAll('[tabindex="0"]');
+  // the controls inside an editing cell: out of the Tab order until the cell is entered
+  const FOC = 'button,input,select,textarea,a[href],[tabindex]';
+  const widgets = c => [...c.querySelectorAll(FOC)].filter(x => x !== c && !x.disabled && !x.hidden);
+  const calm = () => tbl.querySelectorAll('tbody td[data-edit], tbody th[data-edit]').forEach(c => widgets(c).forEach(x => { x.tabIndex = -1; }));
+  let editing = null;   // the 'cell' being edited, or null
+  // i counts every control in the cell, live or not, so after a redraw focus goes back to the same control; if that one is
+  // now disabled (+ at 4 sticks), the nearest live one before it, else after it
+  const allW = c => [...c.querySelectorAll(FOC)].filter(x => x !== c);
+  const live = x => !x.disabled && !x.hidden;
+  const enter = (c, i) => {
+    const ws = widgets(c), all = allW(c); if (!ws.length) return false;
+    editing = c; c.dataset.editing = ''; ws.forEach(x => { x.tabIndex = 0; });
+    let k = Math.max(0, Math.min(all.length - 1, i | 0)), t = null;
+    for (let d = 0; d < all.length && !t; d++) t = [all[k - d], all[k + d]].find(x => x && live(x)) || null;
+    (t || ws[0]).focus(); return true;
+  };
+  const leave = (focusCell) => {
+    const c = editing; if (!c) return; editing = null; delete c.dataset.editing;
+    widgets(c).forEach(x => { x.tabIndex = -1; });
+    if (focusCell && c.isConnected) { stop().forEach(x => { if (x !== c) x.tabIndex = -1; }); c.tabIndex = 0; c.focus(); }
+  };
   const go = c => {
     if (!c) return;
-    const t = c.querySelector('button.te-sort') || c;
+    if (editing && editing !== c) leave(false);
+    const w = c.dataset.edit === 'widget' ? widgets(c)[0] : null;
+    const t = c.querySelector('button.te-sort') || w || c;
     stop().forEach(x => { if (x !== t) x.tabIndex = -1; });
     t.tabIndex = 0; t.focus(); if (c.scrollIntoView) c.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   };
   tbl.querySelectorAll('thead th').forEach(th => { if (!th.querySelector('button.te-sort')) th.tabIndex = -1; });
+  calm();
   const offs = [
     on(tbl, 'mouseover', ev => { const c = cellOf(ev.target); if (c) hover(c.parentElement.dataset.key); }),
     on(tbl, 'mouseleave', () => { if (!tbl.contains(doc.activeElement)) hover(null); }),
     on(tbl, 'click', ev => {
       const s = ev.target.closest && ev.target.closest('button.te-sort');
       if (s && tbl.contains(s)) { if (opts.onSort) opts.onSort(s.dataset.sort); return; }
-      const c = cellOf(ev.target); if (c && !ev.target.closest('a,input')) { go(c); pick(c.parentElement.dataset.key); }
+      const c = cellOf(ev.target); if (!c || ev.target.closest('a,input')) return;
+      const w = c.dataset.edit && ev.target.closest(FOC);
+      if (w && w !== c) {   // a click on − / + (or the toggle) works directly; the Tab stop moves to its cell
+        stop().forEach(x => { x.tabIndex = -1; }); if (c.dataset.edit === 'widget') w.tabIndex = 0; else c.tabIndex = 0;
+        pick(c.parentElement.dataset.key); return;
+      }
+      go(c); pick(c.parentElement.dataset.key);
     }),
     on(tbl, 'focusin', ev => { const c = cellOf(ev.target); hover(c ? c.parentElement.dataset.key : null); }),
-    on(tbl, 'focusout', ev => { if (!tbl.contains(ev.relatedTarget)) hover(null); }),
+    on(tbl, 'focusout', ev => {
+      if (editing && !editing.contains(ev.relatedTarget)) leave(false);   // focus left the cell being edited: it stops editing
+      if (!tbl.contains(ev.relatedTarget)) hover(null);
+    }),
     on(tbl, 'keydown', ev => {
       const c = navOf(doc.activeElement); if (!c) return;
       const body = cellOf(c);
+      // inside a cell being edited: Esc, Enter or F2 leave it; Tab stays inside; every other key is the caller's
+      if (editing && editing === c && doc.activeElement !== c) {
+        if (ev.key === 'Escape' || ev.key === 'Enter' || ev.key === 'F2') { ev.preventDefault(); ev.stopPropagation(); leave(true); return; }
+        if (ev.key === 'Tab') {
+          ev.preventDefault(); const ws = widgets(c), i = ws.indexOf(doc.activeElement);
+          ws[(i + (ev.shiftKey ? -1 : 1) + ws.length) % ws.length].focus(); return;
+        }
+        if (opts.onCellKey && opts.onCellKey({ key: ev.key, shift: ev.shiftKey, row: c.parentElement.dataset.key, col: cellsOf(c.parentElement).indexOf(c), target: doc.activeElement }) === true) ev.preventDefault();
+        return;
+      }
+      // a cell that holds controls: Enter or F2 enters it (APG grid editing)
+      if (body && c.dataset.edit === 'cell' && doc.activeElement === c && (ev.key === 'Enter' || ev.key === 'F2')) { ev.preventDefault(); enter(c, 0); return; }
+      // a single widget in the grid: Enter and Space are its own (a button presses); the arrows still move the grid
+      if (body && c.dataset.edit === 'widget' && doc.activeElement !== c && (ev.key === 'Enter' || ev.key === ' ')) return;
       if (body && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); pick(c.parentElement.dataset.key); return; }
       const all = navRows(), r = all.indexOf(c.parentElement), ci = cellsOf(c.parentElement).indexOf(c);
       const ctl = ev.ctrlKey || ev.metaKey, last = all.length - 1, cl = cellsOf(c.parentElement).length - 1;
@@ -524,8 +576,11 @@ function mountTable(tbl, opts) {
       o = o || {};
       const all = rows(), tr = all.find(x => x.dataset.key === String(key)) || (o.focus ? all[0] : null); if (!tr) return;
       const cs = cellsOf(tr), c = cs[Math.max(0, Math.min(cs.length - 1, o.col | 0))];
-      if (o.focus || tbl.contains(doc.activeElement)) go(c); else { stop().forEach(x => { x.tabIndex = -1; }); c.tabIndex = 0; }
+      if (o.focus || tbl.contains(doc.activeElement)) { go(c); if (o.edit != null && c.dataset.edit === 'cell') enter(c, o.edit); }
+      else { stop().forEach(x => { x.tabIndex = -1; }); c.tabIndex = 0; }
     },
+    // the cell being edited, so a caller that draws the table again can put the person back: focusKey(key, { col, focus: true, edit })
+    get editing() { if (!editing || !editing.isConnected) return null; const tr = editing.parentElement; return { key: tr.dataset.key, col: cellsOf(tr).indexOf(editing), edit: Math.max(0, allW(editing).indexOf(doc.activeElement)) }; },
     get picked() { return picked; },
     destroy() { offs.forEach(f => f()); },
   };
