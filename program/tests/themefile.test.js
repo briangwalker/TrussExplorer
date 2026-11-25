@@ -54,7 +54,7 @@ test('check: a ground a file sets must keep every meaning colour visible (SEC-00
   assert.deepStrictEqual(T.check(w, {}, null, M).errors, [], 'the built-in grounds pass every meaning colour');
   // Black Hat's recipe: every ground = the pass green, every listed text pair white or black, so every text pair passes
   const hide = Object.assign({}, w); for (const g of T.GROUNDS) hide[g] = M.ok;
-  Object.assign(hide, { ink: '#fff', muted: '#fff', 'ctl-line': '#fff', focus: '#fff', strong: '#fff', tab: '#fff', 'on-strong': '#000', accent: '#fff', 'accent-ink': '#000' });
+  Object.assign(hide, { ink: '#fff', muted: '#fff', 'ctl-line': '#fff', focus: '#fff', strong: '#fff', tab: '#fff', 'on-strong': '#000', accent: '#fff', 'accent-ink': '#000', 'line-soft': '#000' });
   const r = T.check(hide, w, null, M);
   assert.ok(r.errors.includes('meaning:ok/surface'), 'the verdict word would vanish on its own green');
   assert.ok(r.errors.filter(e => e.startsWith('contrast:')).length === 0, 'the listed text pairs all pass, which is the gap the meaning check closes');
@@ -128,4 +128,22 @@ test('check: invisible characters in a name do not get past the built-in name ru
   const b = ['OG', 'Wireframe'];
   for (const n of ['OG​', '​OG', 'O‍G', '⁦Wireframe⁩', 'Wire﻿frame', 'OG‎']) assert.ok(T.check({}, {}, { name: n, builtIn: b }).errors.includes('name:taken'), JSON.stringify(n));
   assert.deepStrictEqual(T.check({}, {}, { name: 'OG 2', builtIn: b }).errors, []);
+});
+
+test('check: ink on line-soft is a pair (a refused number box value, inputs.js; Black Hat NOTE 2); every built-in theme passes it (rule 4i)', () => {
+  const w = wireframe();
+  assert.ok(T.PAIRS.some(([f, b, n]) => f === 'ink' && b === 'line-soft' && n === 4.5));
+  assert.ok(T.check({ 'line-soft': w.ink }, w).errors.includes('contrast:ink/line-soft'), 'line-soft = ink hides the value');
+  assert.ok(T.check({ ink: w['line-soft'] }, w).errors.includes('contrast:ink/line-soft'), 'ink = line-soft by the text');
+  // the plain ink and line-soft of each built-in (shell.css Wireframe, themes/*.css), each with the other from the same block
+  const dir = path.join(__dirname, '..', 'themes');
+  const css = [fs.readFileSync(path.join(__dirname, '..', 'src', 'shell.css'), 'utf8')].concat(fs.readdirSync(dir).filter(f => f.endsWith('.css')).map(f => fs.readFileSync(path.join(dir, f), 'utf8')));
+  let seen = 0;
+  for (const c of css) for (const blk of c.matchAll(/\{([^{}]*--te-line-soft:[^{}]*)\}/g)) {
+    const ink = /--te-ink:([^;}]+)/.exec(blk[1]), soft = /--te-line-soft:([^;}]+)/.exec(blk[1]);
+    if (!ink || !soft || /var\(|color-mix/.test(ink[1] + soft[1])) continue;
+    seen++; const r = T.contrast(ink[1].trim(), soft[1].trim());
+    assert.ok(r >= 4.5, ink[1] + ' on ' + soft[1] + ': ' + r);
+  }
+  assert.ok(seen >= 3, 'read the built-in ink/line-soft pairs: ' + seen);
 });

@@ -16,6 +16,8 @@
 // text on its ground: ART-C1 4.5:1 for text, ART-C2 / ART-C6 3:1 for control edges, the focus ring and 'strong' used as a line
 const PAIRS = Object.freeze([
   ['ink', 'page', 4.5], ['ink', 'surface', 4.5], ['ink', 'surface-2', 4.5], ['ink', 'panel', 4.5], ['ink', 'panel-peek', 4.5], ['ink', 'ctl-bg', 4.5], ['ink', 'hot', 4.5],
+  // a number box's refused or file value is ink on line-soft (inputs.js data-state limit/file, mounted since #483) (Black Hat NOTE 2)
+  ['ink', 'line-soft', 4.5],
   ['muted', 'page', 4.5], ['muted', 'surface', 4.5], ['muted', 'surface-2', 4.5], ['muted', 'panel', 4.5], ['muted', 'ctl-bg', 4.5],
   ['on-strong', 'strong', 4.5], ['on-strong', 'tab', 4.5], ['accent-ink', 'accent', 4.5],
   ['ctl-line', 'ctl-bg', 3], ['focus', 'surface', 3], ['focus', 'hot', 3], ['strong', 'page', 3], ['strong', 'surface', 3], ['strong', 'panel-peek', 3],
