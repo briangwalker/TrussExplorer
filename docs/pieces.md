@@ -113,6 +113,8 @@ The drawing or chart goes inside one `.te-picture` element that is never resized
 
 ## Change log
 
+- **inputs 0.2.0 · 2026-11-23** The ✎ value editor (UI-I8): value, joystick, sweep range, Done; 320 px, moves by its title bar; the 400-value cap is never cut (UI-I4).
+- **limitrows 0.1.0 · 2026-11-24** The Inputs pane's number rows on the limits table, behind `TE_FLAGS.limitsBoxes` (TE-B-494). The app's boxes stay, hidden, so every handler still runs.
 - **sheets 0.1.3 · 2026-11-24** The Undo ring's colour on the toast is pinned with `!important`, because Notebook's catch-all `button:focus-visible{outline:… !important}` painted it in the toast's own colour (1.00:1; QA TE-B-510b). The theme still sets the ring's style and width. A new check measures it in every built-in theme (Wireframe 7.09, Blueprint 10.02, the three Notebooks 5.32).
 - **sheets 0.1.2 · 2026-11-24** QA's two MUSTs on the Undo toast (TE-B-502): Ctrl+Z / ⌘Z runs Undo while a toast is up, but not while a text field has focus (the browser's own undo stays); the button shows the key in a `<kbd>` and has `aria-keyshortcuts`. Its focus ring is `--te-on-strong`, the colour of the toast's strong ground (ART-S5 1.0.7), 3:1 or better in every theme. New strings: `toast.key.undo`, `toast.key.undoMac`.
 - **sheets 0.1.1 · 2026-11-24** A toast that holds focus (Undo pressed with the keyboard, or a new toast replacing it) gives focus back to where it was before, never to the page (WCAG 2.4.3). Found in my look at #482's Undo toasts.
@@ -144,7 +146,7 @@ These sit beside `pieces.js` and follow its rules: one global, pure builders, be
 
 **Gallery:** sheets, dialogs and toasts have their own items (open one, type in the dialog, show a toast); they're no longer 'not built yet' cards. Branch uie/gallery-sheets stacks on #438, #433 and #441.
 
-## Number boxes and steppers (src/inputs.js, `TrussInputs` 0.1.1)
+## Number boxes and steppers (src/inputs.js, `TrussInputs` 0.2.0)
 
 These are for step 8, the Inputs (#215). They follow the same rules as the pieces. A box never holds its own limits: it asks a check function, and `fromLimits(TrussLimits, id, values)` builds that function from the one limits table (`src/limits.js`, RMA-4 #462), so the boxes and the file loader read the same rows (UI-I10).
 
@@ -152,4 +154,16 @@ These are for step 8, the Inputs (#215). They follow the same rules as the piece
 |---|---|---|---|---|
 | Number box + stepper | `numberHTML(P, { id, label, unit, value, title })`: a label, − and + buttons, a text box with `inputmode="decimal"`, the unit, and a `role="status"` note line | `mountNumber(el, { check, step, value, onCommit })` → `{ value, set, markFile, clear, destroy }`. While typing, the note says at once what the value would be. Enter or leaving the box commits. **limit**: refused, back to the last good value, ⟂ note. **rule**: committed; the box's edge is pink (`--rule`) and the number stays ink (ART-C1); the rule is named. Course rules come in through `fromLimits(L, id, values, rule)`. **warn**: committed, with a note. − / + and ↑ ↓ (Shift: ×10) move by the step and **stop at the wall**. Esc puts the last good value back. `markFile(value, msg)`: a file's bad value stays exactly as the file had it, marked, never clamped and never committed, until a good one is typed; a refused value or Esc goes back to the file's value. The note is quiet while typing and speaks on Enter, on leaving the box and on a stepper. The box grows with its value, 52–96 px. | UI-I2, UI-I3, UI-I9, UI-I10, ART-T2 | N: inputs.test.js; B: ui/inputs.mjs (19 checks without TrussLimits in the build, 20 with it) |
 
-**Not yet:** the ✎ value editor (UI-I8: the joystick, the sweep range and Done, 320 px, moves by its title bar). It is the next piece, built on this box. The course-rule table (UI-I2's h ≤ 100, width 50–75) isn't in `limits.js`; the Inputs wiring passes those rules in its own check until it is.
+### The ✎ value editor (`TrussInputs` 0.2.0, UI-I8)
+
+| Piece | Markup | Behaviour | Rules | Tests |
+|---|---|---|---|---|
+| ✎ value editor | `editorHTML(P, { id, label, unit, value, sweep: { on, from, to, step } })`: a 320 px `role="dialog"` pop-up with a ⋮⋮ title bar, the value (a number box), the joystick (`role="slider"`), the sweep range (From, To, Step and the `from → to · step = N values` line; only when `sweep` is given), then Done | `mountEditor(el, { check, sweepCheck, step, cap, opener, onCommit, onSweep, onClose })` → `{ value, show, close, destroy }`. The value commits as it changes (through the number box, so limits and rules act the same). Joystick: drag left or right, the rate grows with the square of the push (up to 20 steps/s), springs back on release, stops at a wall; ← → one step, Shift ×10. Title bar drag moves it, kept inside its container. Done applies the sweep range and closes; over the cap (400) Done is refused, nothing is cut, focus goes to Step. Esc or an outside click closes (UI-W8: that click does nothing else); focus goes back to the opener | UI-I8, UI-W20, UI-W8, UI-I1, UI-I3, UI-I4, ART-K17 | `tests/inputs.test.js`, `tests/ui/valueeditor.mjs` (17) |
+
+**Not yet:** `asked → run` and its ⓘ (UI-I5) need the sweep planner, so they sit in the Inputs wiring. Closing when you leave its screen is the wiring's job (call `close('screen')`). The course-rule table (UI-I2's h ≤ 100, width 50–75) isn't in `limits.js`; the Inputs wiring passes those rules in its own check until it is.
+
+### The Inputs pane on the limits table, ahead of step 8 (`src/limitrows.js`, `TrussLimitRows` 0.1.0; TE-B-494)
+
+Off until step 8 (#215): the app mounts it only when `window.TE_FLAGS.limitsBoxes` is true, and `?limits=1` turns that on for the tests. `mount(doc, { P, I, L, pane, extra, rule })` puts a TrussInputs box + stepper on every number row the limits table names, with the check from `fromLimits`. The app's own `<input type="number">` stays in its row, hidden and out of the Tab order. It is still the value the app reads and writes, so `pair()`, `guardNum()` and the Undo toasts (#482) run as before. A value the new box commits is put into it with a `change` event; a value the app writes into it (`update()`, a slider, Undo, a file) is followed by the box. When height, tableThick, bS, hS, minOverlap or bigCap change (Math, TE-B-444), or a shape or model button is pressed, every row is checked again. braceDepth isn't checked while tableThick is 0 (TE-B-445). Course rules the table doesn't hold come in through `rule(id, v)`; today that is the bridge width 50–75 mm (UI-I2). Tests: `tests/limitrows.test.js`, `tests/ui/limitsboxes.mjs` (17).
+
+**Gap for Math and the UI Designer:** UI-I2 calls h ≤ 100 a course rule (pink, never clamped), but the limits table refuses height over 100 as a model limit. The boxes follow the table, so above 100 is refused, not pink.
