@@ -74,6 +74,24 @@ try {
   await p.click('#fileBad button');
   const fx = await p.evaluate(() => ({ id: document.activeElement && document.activeElement.id, open: document.getElementById('g-loads').open }));
   check('E only with Loads collapsed: Fix opens the group and focuses the E box', fx.id === 'E-tb' && fx.open === true, JSON.stringify(fx));
+  // QA MUST on #517 (TE-B-606): a click's recheck (setTimeout 0) never puts the old value back over typing that isn't committed yet
+  await open(p, BAD);
+  await p.click('#fileBad button'); await p.keyboard.press('Control+A'); await p.keyboard.type('60');
+  await p.evaluate(() => document.body.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await p.waitForTimeout(50);
+  check('Fix, type, a click before Enter: the typed 60 stays in the box', (await st(p, 'height')).v === '60', JSON.stringify(await st(p, 'height')));
+  await p.keyboard.press('Enter'); await p.waitForTimeout(300);
+  const h60 = await st(p, 'height');
+  check('...and Enter commits 60 to the app', h60.app === '60' && h60.state !== 'file', JSON.stringify(h60));
+  await open(p, GOOD);
+  await p.click('#height-tb'); await p.keyboard.press('Control+A'); await p.keyboard.type('45');
+  await p.evaluate(() => document.body.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await p.waitForTimeout(50);
+  check('no file open: a click before Enter keeps the typed 45', (await st(p, 'height')).v === '45', JSON.stringify(await st(p, 'height')));
+  await p.keyboard.press('Enter'); await p.waitForTimeout(300);
+  check('...and Enter commits 45', (await st(p, 'height')).app === '45', JSON.stringify(await st(p, 'height')));
+  const fb = await (async () => { await open(p, BAD); return p.evaluate(() => { const b = document.querySelector('#fileBad button'); const cs = getComputedStyle(b); return { top: parseFloat(cs.marginTop), left: parseFloat(cs.marginLeft) }; }); })();
+  check('Fix has room for its focus ring (8 px above, 3 px left)', fb.top >= 8 && fb.left >= 3, JSON.stringify(fb));
   check('no page errors', p.errs.length === 0, p.errs.join(' | '));
 } finally { await b.close(); srv.close(); }
 const bad = check.results.filter(r => !r.ok);

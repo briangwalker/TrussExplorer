@@ -111,6 +111,7 @@ function fileBadNote() {
   if (firstBox[0]) {
     const go = document.createElement('button'); go.type = 'button'; go.className = 'btn ghost';
     go.textContent = 'Fix ' + TrussLimits.labelFor(rep.bad[0].id); go.addEventListener('click', () => revealFocus(firstBox[0]));
+    go.style.marginTop = '8px'; go.style.marginLeft = '3px';   // room for its focus ring: clear of the values line above and the pane's left edge (QA SHOULD, TE-B-603/606)
     box.append(document.createElement('br'), go);   // on its own line, so its focus ring never paints over the note's text
   }
   pane.prepend(box);
