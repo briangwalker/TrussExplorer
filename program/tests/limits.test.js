@@ -182,6 +182,12 @@ test('the table is frozen and standalone; the global is TrussLimits (CODE-F1)', 
   assert.strictEqual(L.rowFor('height').min, 10); assert.strictEqual(L.rowFor('nope'), null);
 });
 
+test('height: 10 to 200 mm (Math, TE-B-520: 100 is the course rule, not a model limit); the slider still stops at 100', () => {
+  for (const v of [10, 100, 150, 200]) assert.deepStrictEqual(L.checkInputs(Object.assign({}, DEF, { height: v })).filter(e => e.id === 'height'), [], 'height ' + v);
+  for (const [v, why] of [[9.9, 'min'], [200.1, 'max'], [1000, 'max'], ['abc', 'not-a-number']]) assert.strictEqual(L.checkInputs(Object.assign({}, DEF, { height: v })).filter(e => e.id === 'height')[0].why, why, 'height ' + v);
+  const row = L.rowFor('height'); assert.strictEqual(row.max, 200); assert.strictEqual(row.msg, 'Height must be 10 to 200 mm.'); assert.strictEqual(row.sliderMax, 100); assert.strictEqual(row.sliderMin, 10);
+});
+
 // ---------- RMA-6 (TE-B-458): geometry rules G1-G5, checkGeometry(truss, values) (Physics' doc, TE-B-370) ----------
 const { C, design, cases, DEFAULT } = require(path.join(__dirname, 'lib.js'));
 const F = require(path.join(__dirname, '..', 'src', 'formats.js'));

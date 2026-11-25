@@ -28,11 +28,11 @@ try {
   await p.fill('#height-tb', '80'); await p.press('#height-tb', 'Enter');
   let s = await st('height');
   check('a good value reaches the app\'s own box (and its slider)', s.app === '80' && await p.inputValue('#heightR') === '80', JSON.stringify(s));
-  await p.fill('#height-tb', '101');
+  await p.fill('#height-tb', '201');
   s = await st('height');
-  check('typing 101: the ⟂ note from the limits table at once', s.state === 'limit' && /^⟂ Height must be 10-100 mm/.test(s.note), JSON.stringify(s));
+  check('typing 201: the ⟂ note from the limits table at once', s.state === 'limit' && /^⟂ Height must be 10 to 200 mm/.test(s.note), JSON.stringify(s));
   await p.press('#height-tb', 'Enter'); s = await st('height');
-  check('Enter refuses it: back to 80, the app never saw 101', s.v === '80' && s.app === '80' && s.state === 'limit', JSON.stringify(s));
+  check('Enter refuses it: back to 80, the app never saw 201', s.v === '80' && s.app === '80' && s.state === 'limit', JSON.stringify(s));
 
   // the Undo toast of #482 comes from the app's box's change event
   await p.fill('#height-tb', '75'); await p.press('#height-tb', 'Enter');
