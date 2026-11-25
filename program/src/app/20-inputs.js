@@ -205,6 +205,14 @@ if (window.TE_FLAGS.limitsBoxes && window.TrussLimitRows && window.TrussInputs &
     P: TrussPieces, I: TrussInputs, L: TrussLimits, pane: $('inputsPane'),
     extra: () => ({ bottom: S.bottom, topShape: S.topShape, model: S.anaMode }),
     // the course rules the limits table doesn't hold (UI-I2): allowed, marked pink, the design runs and fails
-    rule: (id, v) => (id === 'width' && (v < 50 || v > 75) ? 'Course rule: the bridge width is 50 to 75 mm.' : null),
+    // height (UIE-9, TE-B-577b): judged on the OUTER height, the same envelopeSize the result's 100 mm line uses (#133;
+    // Math TE-B-577, Arch TE-B-580), so the box and the results switch at the same number (h 100 is 101.6 mm at the defaults)
+    rule: (id, v) => {
+      if (id === 'width') return v < 50 || v > 75 ? 'Course rule: the bridge width is 50 to 75 mm.' : null;
+      if (id !== 'height') return null;
+      let top = v;
+      try { top = C.envelopeSize(C.buildTruss(design({ height: v })), S.mat, anaOpts()).outer.height; } catch (e) {}
+      return top > 100 + 1e-9 ? `Course rule: the bridge height is at most 100 mm (this one is ${(Math.round(top * 10) / 10).toFixed(1)} mm to its top face).` : null;
+    },
   });
 }

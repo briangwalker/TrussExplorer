@@ -56,6 +56,23 @@ try {
   check('its edge is --rule pink and its number stays ink (Graphics TE-B-443)', look.edge && look.text, JSON.stringify(look));
   await p.fill('#width-tb', '60'); await p.press('#width-tb', 'Enter');
 
+  // the height course rule (UIE-9, TE-B-577b): on the OUTER height, like the result's 100 mm line (Math TE-B-577),
+  // so the box and the results switch at the same number
+  const out = () => p.evaluate(() => { const r = __dbg.res; return { top: r.size.outer.height, flag: r.envelope.some(t => /over the 100 mm limit/.test(t)) }; });
+  await p.fill('#height-tb', '101'); await p.press('#height-tb', 'Enter'); s = await st('height');
+  let e = await out();
+  check('height 101: committed, pink, the course-rule note names the outer height the result uses', s.app === '101' && s.state === 'rule' && e.flag
+    && s.note.includes(`Course rule: the bridge height is at most 100 mm (this one is ${e.top.toFixed(1)} mm to its top face).`), JSON.stringify([s, e]));
+  const under = Math.floor(100 - (e.top - 101)) - 1;   // a height whose outer face is under 100 mm
+  await p.fill('#height-tb', String(under)); await p.press('#height-tb', 'Enter'); s = await st('height'); e = await out();
+  check(`height ${under} (outer under 100): committed, no mark, and no 100 mm line in the result`, s.app === String(under) && s.state === '' && s.note === '' && e.top <= 100 && !e.flag, JSON.stringify([s, e]));
+  await p.fill('#height-tb', '100'); await p.press('#height-tb', 'Enter'); s = await st('height'); e = await out();
+  check('height 100 (outer over 100): pink exactly when the result flags it', s.app === '100' && (s.state === 'rule') === e.flag && e.flag === e.top > 100, JSON.stringify([s, e]));
+  await p.fill('#height-tb', '201'); s = await st('height');
+  check('height 201 is still refused by the table', s.state === 'limit' && /^⟂ Height must be 10 to 200 mm/.test(s.note), JSON.stringify(s));
+  await p.press('#height-tb', 'Enter');
+  await p.fill('#height-tb', '80'); await p.press('#height-tb', 'Enter');
+
   // a row that depends on height is checked again when height moves (Math TE-B-444)
   await p.fill('#height-tb', '80'); await p.press('#height-tb', 'Enter');
   await p.fill('#botEnd-tb', '50'); await p.press('#botEnd-tb', 'Enter');
