@@ -1,5 +1,6 @@
 # Website deploy (#3): briangwalker.com/truss-explorer/ on IONOS, over SFTP.
-# - Runs ONLY when a release tag v* is pushed (never on a pull request or a branch push).
+# - Runs ONLY when a release tag v* is pushed (never on a pull request or a branch push), or when release.yml calls it
+#   with the tag it has just made (TE-B-570: a tag made with GITHUB_TOKEN doesn't fire 'push: tags').
 # - The whole test suite runs first; the upload job waits for it AND for Brian's approval
 #   (the 'production' environment has him as required reviewer, a wait timer, and the deploy secrets).
 # - It publishes only the built page and a generated .htaccess (program/deploy/make_site.py): no src, tests or .git.
@@ -11,6 +12,12 @@ name: deploy
 on:
   push:
     tags: ['v*']
+  workflow_call:
+    inputs:
+      tag:
+        description: 'The release tag to build and upload (v1.0.0-alpha.N), made by release.yml'
+        required: true
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -26,6 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
         with:
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4
         with:
@@ -67,13 +75,14 @@ jobs:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           SSHPASS: ${{ secrets.DEPLOY_PASSWORD }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -eu
           test -s site/index.html && test -s site/.htaccess
           if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_USER}" ] || [ -z "${DEPLOY_KNOWN_HOSTS}" ]; then echo "Missing a deploy secret in the production environment"; exit 1; fi
           umask 077; mkdir -p ~/.ssh
           printf '%s\n' "${DEPLOY_KNOWN_HOSTS}" > ~/.ssh/known_hosts
-          tag="${GITHUB_REF_NAME//[^A-Za-z0-9.-]/_}"
+          tag="${RELEASE_TAG//[^A-Za-z0-9.-]/_}"
           cat > batch <<EOF
           put site/index.html index.html.${tag}.new
           put site/.htaccess .htaccess.${tag}.new
