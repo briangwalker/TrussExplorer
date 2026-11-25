@@ -34,8 +34,8 @@ try {
   // past a course rule: allowed, pink, the note names the rule (UI-I2, never clamped)
   await p.fill('#tH', '98'); await p.click('#away'); s = await st();
   check('past a course rule: committed on leaving the box, pink, the rule named (UI-I2)', s.commits === '80,98' && s.state === 'rule' && /course rule/.test(s.note), JSON.stringify(s));
-  const pink = await p.evaluate(() => { const i = document.getElementById('tH'), cs = getComputedStyle(i), t = document.createElement('span'); t.style.color = 'var(--rule)'; t.style.borderColor = 'var(--te-ink)'; document.getElementById('inTest').appendChild(t); const want = getComputedStyle(t).color; t.style.color = 'var(--te-ink)'; const ink = getComputedStyle(t).color; t.remove(); return { edge: cs.borderTopColor === want, text: cs.color === ink }; });
-  check('the box\'s edge is the app\'s --rule pink and the number stays ink (UI-A18, ART-C1, Graphics TE-B-443)', pink.edge && pink.text, JSON.stringify(pink));
+  const pink = await p.evaluate(() => { const i = document.getElementById('tH'), cs = getComputedStyle(i), t = document.createElement('span'); t.style.color = 'var(--te-ink)'; document.getElementById('inTest').appendChild(t); const ink = getComputedStyle(t).color; t.remove(); return { edge: cs.borderTopColor === 'rgb(200, 40, 140)' && cs.borderTopWidth === '2px', text: cs.color === ink, got: cs.borderTopColor + ' ' + cs.borderTopWidth }; });
+  check('the box\'s edge is 2 px course-rule pink rgb(200, 40, 140) (--rule or its ART-K16 fallback, #519) and the number stays ink (UI-A18, ART-C1, Graphics TE-B-443)', pink.edge && pink.text, JSON.stringify(pink));
   // steppers and arrows: by the step, and they STOP at the wall
   await p.fill('#tH', '90'); await p.press('#tH', 'Enter');
   await p.click('#inTest .te-step[data-dir="1"]'); await p.click('#inTest .te-step[data-dir="1"]'); await p.click('#inTest .te-step[data-dir="1"]');
