@@ -120,6 +120,32 @@ try {
     check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
   }
+  // QA MUST on #538 (TE-B-714, TE-B-715): load at 1366, so Inputs opens in words, then resize to 740 / 800. If the bar has fallen to
+  // icons, Enter on ⋯ must show the words with Sweep settings inside the bar and focused (Inputs goes to icons to make room, UI-W16),
+  // and Enter on Sweep settings opens it. ⋯ never does nothing.
+  for (const th of ['wireframe', 'notebook-calc']) for (const w of [740, 800]) {
+    const tag = `${th} 1366->${w}`;
+    const p = await openPage(b, srv.url, { width: 1366, height: 900 }); await waitRows(p); await p.waitForTimeout(300);
+    if (th !== 'wireframe') { await setTheme(p, th); await p.waitForTimeout(300); await p.reload(); await waitRows(p); }
+    await p.waitForTimeout(400);
+    check(`${tag}: the theme is ${th}`, await p.evaluate(() => document.getElementById('stage').dataset.theme) === th);
+    check(`${tag}: at 1366 Inputs opens in words`, await p.evaluate(() => document.getElementById('win-inputs').dataset.state === 'W'));
+    await p.setViewportSize({ width: w, height: 800 }); await p.waitForTimeout(500);
+    const r0 = await allIn(p);
+    if (r0.fit === 'I') {
+      await p.focus('#win-sweep [data-ic="grow"]'); await p.keyboard.press('Enter'); await p.waitForTimeout(400);
+    }
+    const g = await allIn(p), G = await box(p, '#win-sweep'), stage = await box(p, '#stage'), more = await box(p, '#win-sweep #sweepMore');
+    check(`${tag}: after Enter on ⋯ the bar shows its words (was fit '${r0.fit}')`, g.state === 'W' && g.fit === '', JSON.stringify(g));
+    check(`${tag}: Sweep settings is on screen and inside the bar`, !!more && more.vis && inside(more, G) && inside(more, stage), JSON.stringify([more, G]));
+    check(`${tag}: every button of the bar lies inside the bar`, g.out.length === 0, JSON.stringify(g));
+    if (r0.fit === 'I') check(`${tag}: focus is on Sweep settings`, await p.evaluate(() => document.activeElement && document.activeElement.id === 'sweepMore'));
+    else await p.focus('#sweepMore');
+    await p.keyboard.press('Enter'); await p.waitForTimeout(300);
+    check(`${tag}: Enter on Sweep settings opens it`, await p.evaluate(() => document.getElementById('sweepMore').getAttribute('aria-expanded') === 'true') && (await box(p, '#win-sweep .s-bd')).vis);
+    check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
 } finally { await b.close(); srv.close(); }
 const fails = check.results.filter(x => !x.ok);
 console.log(`\n${check.results.length - fails.length}/${check.results.length} sweep-bar checks passed`);

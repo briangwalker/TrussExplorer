@@ -174,7 +174,7 @@ if (!SH_CLASSIC) {
   wins.drawing.querySelector('.s-bd').style.gridTemplateColumns = 'minmax(0, 1fr)';
   const pieceWin = {};
   Object.keys(PIECE).forEach(id => { pieceWin[id] = PC.mountWindow(wins[id], tabs[id], { onState: st => { S.shell.w[place()][id] = st; save(); paintWins(); } }); });
-  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } if (id === 'sweep' && v !== 'W') sweepAsked = false; S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
+  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } if (id === 'sweep' && v !== 'W') sweepAsked = sweepForce = false; S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
   function step(id, dir) {
     const cur = S.shell.w[place()][id];
     if (id === 'results') { setState(id, dir > 0 ? 'W' : 'T'); return; }
@@ -211,9 +211,20 @@ if (!SH_CLASSIC) {
     box.setAttribute('aria-label', WIN[id].title() + ' (icons)');
     box.innerHTML = list.map(x => `<button type="button" class="s-ic${x.on ? ' on' : ''}" data-ic="${escH(x.ic)}" title="${escH(x.label)}" aria-label="${escH(x.label)}"${x.on != null ? ` aria-pressed="${!!x.on}"` : ''}>${escH(x.g)}</button>`).join('');
   }
+  // ⋯ on a bar fitted to icons never does nothing (QA MUST on #538, TE-B-715): the bar takes the room beside the windows; if its words
+  // still don't fit there, Inputs goes one state smaller, words to icons (UI-W16); if there is still no room, the bar opens in words
+  // anyway, as base 3d4c9f0 did. Then Sweep settings is on screen, inside the bar, and focused.
+  function growSweep() {
+    sweepAsked = true; layout();
+    const st = S.shell.w[place()], I = wins.inputs;
+    if (wins.sweep.dataset.fit === 'I' && st.inputs === 'W' && I.dataset.empty !== '1' && !I.classList.contains('peek')) setState('inputs', 'I');
+    layout();
+    if (wins.sweep.dataset.fit === 'I') { sweepForce = true; layout(); }
+    const f = $('sweepMore'); if (f) f.focus({ preventScroll: true });
+  }
   function iconAct(id, ic) {
     // the bar fell to icons only because its words didn't fit (UI-W16): ⋯ is the person asking for them, so the bar may use the room it has
-    if (id === 'sweep' && ic === 'grow' && wins.sweep.dataset.fit === 'I') { sweepAsked = true; layout(); const f = $('runSweep'); if (f) f.focus({ preventScroll: true }); return; }
+    if (id === 'sweep' && ic === 'grow' && wins.sweep.dataset.fit === 'I') { growSweep(); return; }
     if (ic === 'grow') { setState(id, 'W'); return; }
     if (id === 'inputs') { const d = R.pane.querySelectorAll(':scope > details.grp')[+ic.slice(1)]; setState('inputs', 'W'); if (d) { d.open = true; d.scrollIntoView({ block: 'start' }); const s = d.querySelector('summary'); if (s) s.focus({ preventScroll: true }); } return; }
     if (id === 'drawing' && VIEW_ICONS[ic]) { flip(ic, !$(ic).checked); paintIcons(id); return; }
@@ -304,6 +315,7 @@ if (!SH_CLASSIC) {
   // ---------- fixed homes ----------
   const M = 10;
   let lastFree = '', sweepAsked = false;   // sweepAsked: the person grew the bar themselves (in memory only, like a peek)
+  let sweepForce = false;   // ⋯ found no room even with Inputs as icons: keep the words, as base did, until there is room again (growSweep)
   // UI-W15 with UI-W16: the narrowest the bar's words state can be with every part whole: Run sweep, the progress bar at its 60 px minimum,
   // Cancel or the Resume offer when they show, and 'Sweep settings ▾'. The count line and #bigMsg ellipsise, so they count as 0.
   // Each part counts its own border box (a Notebook button has a 2 px border that scrollWidth leaves out), and the bar adds the
@@ -356,7 +368,9 @@ if (!SH_CLASSIC) {
     let fit = '', need = 0;
     if (st.sweep === 'W' && !W.classList.contains('peek')) {
       W.dataset.state = 'W'; need = sweepNeed();
-      if ((sweepAsked ? Math.floor(vw - sl - M - rightUsed) : sCap) < need) fit = 'I';
+      const room = sweepAsked ? Math.floor(vw - sl - M - rightUsed) : sCap;
+      if (sweepForce && room >= need) sweepForce = false;
+      if (room < need && !sweepForce) fit = 'I';
     }
     const fitWas = W.dataset.fit || '', foc = fit !== fitWas && W.contains(document.activeElement) ? document.activeElement : null;
     W.dataset.fit = fit; if (fit) W.dataset.state = 'I';
@@ -373,7 +387,7 @@ if (!SH_CLASSIC) {
       if (!vis(t)) t = [...W.querySelectorAll('button, summary, input, select')].find(vis);
       if (t) t.focus({ preventScroll: true });
     }
-    const sW = fit || eff('sweep') !== 'W' ? 'auto' : need ? (sweepAsked ? Math.max(sCap, need) : sCap) : Math.max(sCap, Math.min(260, vw - sl - M));
+    const sW = fit || eff('sweep') !== 'W' ? 'auto' : need ? (sweepForce ? Math.max(sCap, Math.min(need, vw - sl - M)) : sweepAsked ? Math.max(sCap, need) : sCap) : Math.max(sCap, Math.min(260, vw - sl - M));
     Object.assign(W.style, { left: sl + 'px', bottom: M + 'px', top: 'auto', width: typeof sW === 'number' ? sW + 'px' : sW, maxHeight: Math.round(vh * .55) + 'px', right: 'auto' });
     // the full results under the card
     const RS = wins.results;
