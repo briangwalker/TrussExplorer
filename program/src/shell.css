@@ -68,6 +68,7 @@ body.shell .wrap,body.shell #dock>.dockbar,body.shell #backTab,body.shell #fsExi
 #stage .res .pill{font:700 11px var(--te-font-head);letter-spacing:.08em;border:1.5px solid currentColor;border-radius:10px;padding:1px 7px;background:transparent}
 #stage .res .pill.ok{color:var(--ok)}#stage .res .pill.bad{color:var(--bad)}
 #stage .res .bad{color:var(--bad)}
+#stage .res .nrsum{display:block;min-width:0;max-width:300px;overflow:hidden;text-overflow:ellipsis}
 #stage .mrow{display:flex;align-items:center;gap:8px;min-height:32px;font:500 14px var(--te-font-ui);cursor:pointer;border:0;background:none;width:100%;text-align:left;padding:0 4px;border-radius:6px;color:var(--te-ink)}
 #stage .mrow:hover{background:var(--te-surface-2)}
 #stage .smut{font:400 13px var(--te-font-ui);color:var(--te-muted)}
