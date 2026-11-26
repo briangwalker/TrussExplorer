@@ -1,6 +1,6 @@
 // RMA-18 (TE-B-650b): the normal sweep gives no result for designs the limits refuse (checkGeometry G1-G10, checkResult M2),
 // behind TE_FLAGS.limitsBoxes (?limits=1) only. A refused design stays in the rows with passes: false and noResult: its first
-// rule, so it never passes and never reaches the top 30; the sweep message counts 'no result (breaks the limits)'.
+// rule, so it never passes and never reaches the top 30; the sweep message counts 'no result (break the limits)' on its own (UI-I10).
 // Without the flag nothing changes: the same rows, no noResult field, the same message text.
 //   node tests/ui/sweeplimits.mjs
 import { serve, browser, openPage, waitRows, checker } from './harness.mjs';
@@ -60,12 +60,24 @@ try {
   const top = await on.evaluate(() => (__dbg.rows || []).filter(r => r.passes).sort((x, y) => x.wood - y.wood || x.util - y.util).slice(0, 30).filter(r => r.noResult).length);
   check('flag on: no design without a result in the top 30', top === 0, String(top));
   const n = flagged.length.toLocaleString('en-US');
-  check("flag on: the breakdown counts 'no result (breaks the limits)'", B.msg.includes(`, no result (breaks the limits) ${n}.`), B.msg);
+  check("flag on: the breakdown counts 'no result (break the limits)'", B.msg.includes(`, no result (break the limits) ${n}.`), B.msg);
+  // UI-I10 (ui-spec 1.5.13): the first line counts no result on its own, never as a fail, and its four numbers add up to the total
+  const first = B.msg.match(/^([\d,]+) of ([\d,]+) pass · ([\d,]+) fail a check · ([\d,]+) no result \(break the limits\) · ([\d,]+) unstable\./);
+  const num = x => +String(x).replace(/,/g, '');
+  check('flag on: the first line reads pass · fail a check · no result (break the limits) · unstable', !!first, B.msg.slice(0, 160));
+  if (first) {
+    const [, pN, tot, fN, nN, uN] = first.map(num);
+    check('flag on: pass + fail + no result + unstable = total', pN + fN + nN + uN === tot, `${pN}+${fN}+${nN}+${uN} vs ${tot}`);
+    check('flag on: the first line\'s no result count is the refused rows', nN === flagged.length, `${nN} vs ${flagged.length}`);
+    check('flag on: fail a check leaves the refused rows out', fN === B.rows.length - passN(B.rows) - flagged.length, `${fN}`);
+  }
+  const firstOff = A.msg.match(/^([\d,]+) of ([\d,]+) pass · ([\d,]+) fail a check · ([\d,]+) unstable\./);
+  check('flag off: the first line is as before (pass · fail a check · unstable) and adds up', !!firstOff && num(firstOff[1]) + num(firstOff[3]) + num(firstOff[4]) === num(firstOff[2]), A.msg.slice(0, 160));
   check('flag on: the pass count in the message leaves them out', B.msg.startsWith(`${passN(B.rows).toLocaleString('en-US')} of `) && passN(B.rows) === passN(A.rows) - flagged.filter(r => byIdx.get(r.idx).passes).length, B.msg);
   // 'Most common' names it when it is the biggest count: the same sweep at stick 8 mm, where G5 refuses many more short members
   await on.evaluate(() => { const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }; set('bS', 8); set('hS', 8); });
   const C = await run(on);
-  check("flag on: 'Most common' can be 'no result (breaks the limits)'", /Most common: no result \(breaks the limits\) \([\d,]+ designs\)\./.test(C.msg), C.msg);
+  check("flag on: 'Most common' can be 'no result (break the limits)'", /Most common: no result \(break the limits\) \([\d,]+ designs\)\./.test(C.msg), C.msg);
   await on.close();
   check('no script errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 } finally { await b.close(); srv.close(); }

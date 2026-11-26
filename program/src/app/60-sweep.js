@@ -313,9 +313,9 @@ function countWhy(why, r2, noRes) {
 }
 function whyText(why, nStable) {
   const lim = 'noRes' in why;   // only the normal sweep with ?limits=1 counts it (RMA-18); without it the text is as before
-  const fails = [['overlap under the minimum', why.edge], ['deflection over the limit', why.defl], ['a member over its strength limit', why.strength], ['outside the envelope', why.env]].concat(lim ? [['no result (breaks the limits)', why.noRes]] : []).sort((x, y) => y[1] - x[1]);
+  const fails = [['overlap under the minimum', why.edge], ['deflection over the limit', why.defl], ['a member over its strength limit', why.strength], ['outside the envelope', why.env]].concat(lim ? [['no result (break the limits)', why.noRes]] : []).sort((x, y) => y[1] - x[1]);
   return (fails[0][1] > 0 ? ` Most common: ${fails[0][0]} (${fails[0][1].toLocaleString()} designs).` : '') + (nStable && why.edge === nStable ? overlapWarning() : '') +
-    ` Breakdown (a design can fail several): overlap ${why.edge.toLocaleString()}, deflection ${why.defl.toLocaleString()}, strength ${why.strength.toLocaleString()}, envelope ${why.env.toLocaleString()}${lim ? `, no result (breaks the limits) ${why.noRes.toLocaleString()}` : ''}.`;
+    ` Breakdown (a design can fail several): overlap ${why.edge.toLocaleString()}, deflection ${why.defl.toLocaleString()}, strength ${why.strength.toLocaleString()}, envelope ${why.env.toLocaleString()}${lim ? `, no result (break the limits) ${why.noRes.toLocaleString()}` : ''}.`;
 }
 // UI-I10 in the normal sweep (RMA-18, TE-B-650b), behind TE_FLAGS.limitsBoxes (?limits=1) only: a design the limits refuse
 // (checkGeometry G1-G10, checkResult M2) has no result, so it never passes and never gets a kg in the top 30. Its row stays in
@@ -372,7 +372,8 @@ $('runSweep').addEventListener('click', () => {
     SweepState.set(all);
     const passing = all.filter(r => r.passes).sort((a, b) => a.wood - b.wood || a.util - b.util);
     sweepRows = passing.slice(0, 30);
-    $('sweepMsg').textContent = `${passing.length.toLocaleString()} of ${list.length.toLocaleString()} pass · ${(all.length - passing.length).toLocaleString()} fail a check · ${unstable.toLocaleString()} unstable. ${passing.length ? `Showing the ${sweepRows.length} that use the least wood. The Wood vs load charts below now use these designs.` : 'No design passes every check.'}${whyText(why, all.length)}`;
+    const noResN = lims ? all.filter(r => r.noResult).length : 0;   // UI-I10: no result is its own count, never a fail (flag off: 0, and the line is as before)
+    $('sweepMsg').textContent = `${passing.length.toLocaleString()} of ${list.length.toLocaleString()} pass · ${(all.length - passing.length - noResN).toLocaleString()} fail a check · ${lims ? `${noResN.toLocaleString()} no result (break the limits) · ` : ''}${unstable.toLocaleString()} unstable. ${passing.length ? `Showing the ${sweepRows.length} that use the least wood. The Wood vs load charts below now use these designs.` : 'No design passes every check.'}${whyText(why, all.length)}`;
     lastSig = sigAtStart; sweepMode = 'sweep'; paintBigMode();
     renderSweep(); drawTrackers(); sweepBusy = false; $('runSweep').disabled = false; checkStale();
   };
