@@ -10,7 +10,7 @@
 // topEnd, panels, ratio and tilt3d, which move the outer height the height course rule reads, TE-B-619 c, TE-B-643) or a shape/model button is pressed,
 // every mounted row is checked again. braceDepth isn't checked while tableThick is 0 (TE-B-445).
 //   o = { P: TrussPieces, I: TrussInputs, L: TrussLimits, pane, extra() -> { bottom, topShape, model }, rule(id, v, all) -> msg|null,
-//         ids (default: every TABLE id with a number box in the pane) }
+//         ids (default: every TABLE id with a number box in the pane), skip (ids values() never reads; default RECHECK) }
 //   Returns { rows: Map(id -> box), values(), recheck(), destroy() }.
 // Off by default: the app mounts it only when window.TE_FLAGS.limitsBoxes is true (?limits=1), until step 8 (#215) turns it on.
 (function (root) {
@@ -19,6 +19,10 @@
 // curve, topEnd, panels, ratio and tilt3d (0.1.3): the app's height rule (UIE-9) is judged on the OUTER height, and they move it
 // (Dev Lead TE-B-619 c; Math MUST on #525, TE-B-643: panels 3/4/6, ratio 1.5 and tilt 10 move it across 100 mm at h 95.3, topEnd 40)
 const DEPENDS = ['height', 'tableThick', 'bS', 'hS', 'minOverlap', 'bigCap', 'curve', 'topEnd', 'panels', 'ratio', 'tilt3d'];
+// the sweep data sheet's Re-check boxes (85-sweep-sheets.js): they score a sweep that has already run, on their own Apply (rcGo),
+// and never make a design No result, so the design's check (values() -> fileReport, the card, UI-I10) doesn't read them
+// (Architecture Lead ruling on #535: rcBook holds both books, 40 kg for 20 + 20, and kept an earlier file's value)
+const RECHECK = ['rcFS', 'rcBook', 'rcDefl', 'rcOv'];
 const UNIT = { mm: 'mm', kg: 'kg', deg: '°', MPa: 'MPa', 'kg/m3': 'kg/m³', 'N/mm': 'N/mm' };
 const CSS = `#stage .te-num[data-quiet] .te-num-l{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 #stage .row > .te-num[data-quiet], #stage .slide > .te-num[data-quiet]{display:inline-flex;flex-direction:column;align-items:flex-end}`;
@@ -38,10 +42,11 @@ function mount(doc, o) {
   const extra = typeof o.extra === 'function' ? o.extra : () => ({});
   const srcs = new Map(), rows = new Map(), offs = [];
   const raw = el => proto.get.call(el);
-  // every limits-table input as a number, read from the app's own boxes, plus the shape and model ids (WHEN_IDS)
+  const skip = new Set(Array.isArray(o.skip) ? o.skip : RECHECK);
+  // every limits-table input of the design as a number, read from the app's own boxes, plus the shape and model ids (WHEN_IDS)
   function values() {
     const v = {};
-    for (const r of L.TABLE) { const el = srcs.get(r.id) || doc.getElementById(r.id); if (el && el.type === 'number') { const n = I.parse(raw(el)); if (n !== null) v[r.id] = n; } }
+    for (const r of L.TABLE) { if (skip.has(r.id)) continue; const el = srcs.get(r.id) || doc.getElementById(r.id); if (el && el.type === 'number') { const n = I.parse(raw(el)); if (n !== null) v[r.id] = n; } }
     return Object.assign(v, extra());
   }
   const ids = (o.ids || L.TABLE.map(r => r.id)).filter(id => { const el = pane.querySelector('#' + id); return el && el.type === 'number' && !el.closest('.te-num'); });
@@ -99,6 +104,6 @@ function mount(doc, o) {
   };
 }
 
-const api = { VERSION: '0.1.3', DEPENDS, mount, install, CSS };
+const api = { VERSION: '0.1.4', DEPENDS, RECHECK, mount, install, CSS };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussLimitRows = api;
 })(typeof window !== 'undefined' ? window : globalThis);
