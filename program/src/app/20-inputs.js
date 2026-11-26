@@ -216,3 +216,13 @@ if (window.TE_FLAGS.limitsBoxes && window.TrussLimitRows && window.TrussInputs &
     },
   });
 }
+// UI-I10, the results card's half (TE-B-590): while the values or the shape break the limits table (a bad file, F1-F5),
+// there is no result: never PASS, never a capacity in kg. Asked live, so fixing the last value (F5) brings the kg back.
+// Returns fileReport's object when there is no result, else null. Only with the flag on (limitRows); off, it is always null.
+function noResultNow() {
+  try {   // a render before the rows are mounted (limitRows not set up yet) is simply 'a result'
+    if (!limitRows || !window.TrussLimits || !TrussLimits.fileReport) return null;
+    const r = TrussLimits.fileReport(limitRows.values(), tr); return r && r.noResult ? r : null; } catch (e) { return null; }
+}
+// a box being fixed doesn't always run update() (a refused value, a file mark cleared): repaint the card when the pane changes
+if (limitRows) $('inputsPane').addEventListener('change', () => setTimeout(() => { try { renderKey(); } catch (e) {} }, 0));

@@ -91,7 +91,10 @@ try {
   await p.keyboard.press('Enter'); await p.waitForTimeout(300);
   check('...and Enter commits 45', (await st(p, 'height')).app === '45', JSON.stringify(await st(p, 'height')));
   const fb = await (async () => { await open(p, BAD); return p.evaluate(() => { const b = document.querySelector('#fileBad button'); const cs = getComputedStyle(b); return { top: parseFloat(cs.marginTop), left: parseFloat(cs.marginLeft) }; }); })();
-  check('Fix has room for its focus ring (8 px above, 3 px left)', fb.top >= 8 && fb.left >= 3, JSON.stringify(fb));
+  check('Fix has room for its whole focus ring (8 px above, 7 px left; QA SHOULD TE-B-615)', fb.top >= 8 && fb.left >= 7, JSON.stringify(fb));
+  // UI Designer SHOULD (TE-B-611, UI-A18): a file's bad values alone give the plain toast, never the fail-magenta 'err' one
+  const tc = await p.evaluate(() => { const t = document.getElementById('toast'); return { cls: t.className, text: t.textContent }; });
+  check('bad values alone: the toast is the plain one (no err class) and still says why', !/\berr\b/.test(tc.cls) && /outside the limits/.test(tc.text), JSON.stringify(tc));
   check('no page errors', p.errs.length === 0, p.errs.join(' | '));
 } finally { await b.close(); srv.close(); }
 const bad = check.results.filter(r => !r.ok);

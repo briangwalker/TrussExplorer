@@ -79,6 +79,7 @@ try {
   // the sort header: ↑ from the first row reaches it; it is the only aria-sort, and its button reports the sort
   await p.keyboard.press('Control+Home');
   for (let n = 0; n < 12; n++) await p.keyboard.press('ArrowRight');
+  await p.keyboard.press('ArrowLeft');   // Focus is the last column now (UI-S10); Use is the one before it
   await p.keyboard.press('ArrowUp'); a = await at();
   check('↑ from the first row reaches the Use header\'s sort button', a.sort, JSON.stringify(a));
   check('Use carries the only aria-sort, descending (UI-S6 1.5.7)', await p.evaluate(() => { const s = [...document.querySelectorAll('#mvT [aria-sort]')]; return s.length === 1 && s[0].getAttribute('aria-sort') === 'descending' && /Use/.test(s[0].textContent); }));

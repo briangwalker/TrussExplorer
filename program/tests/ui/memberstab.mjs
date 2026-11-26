@@ -24,7 +24,7 @@ try {
         btns: [...panel.querySelectorAll('[data-act]')].map(x => x.dataset.act).join() };
     });
     check('the tab shows the table on screen, every member, highest use first' + tag, t.shown && t.onScreen && t.n === t.want && t.n > 0 && t.sorted && t.sel === 'true', JSON.stringify(t));
-    check('Copy table and Download CSV are there, on screen and not under a window (UI-A21)' + tag, t.btns === 'members-copy,members-csv' && t.clear, JSON.stringify({ btns: t.btns, clear: t.clear }));
+    check('Copy table and Download CSV are there, on screen and not under a window (UI-A21)' + tag, /^mem-reset,members-copy,members-csv$/.test(t.btns.split(',').filter(a => !/^mem-(less|more|bundle|focus)$/.test(a)).join()) && t.clear, JSON.stringify({ btns: t.btns, clear: t.clear }));
     check('the table scrolls inside the free part of the screen, nothing off the page' + tag, t.wrapIn);
     if (vp.width === 1280) {
       // Download gives the app's own CSV, byte for byte (the Drawing window's file)
@@ -62,9 +62,9 @@ try {
       check('after a redraw, focus is still on the same member and column, one Tab stop', now.k === was.k && now.col === was.col && now.stops === 1, JSON.stringify({ was, now }));
       // UI-S6 1.5.5 / 1.5.7: the All columns switch and the Use sort (UI Engineer, #438)
       const cols = () => p.evaluate(() => [...document.querySelectorAll('#memTbl thead th')].map(x => x.textContent.trim().replace(/\s*[▼▲]$/, '')));
-      check('the short column set by default', JSON.stringify(await cols()) === JSON.stringify(['Member', 'i–j', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?', 'Use']), JSON.stringify(await cols()));
+      check('the short column set by default (Sticks and Focus always shown, UI-S10)', JSON.stringify(await cols()) === JSON.stringify(['Member', 'i–j', 'Sticks', 'L (mm)', 'F (N)', 'T/C', 'P_cr (N)', 'Buckling?', 'Use', 'Focus']), JSON.stringify(await cols()));
       await p.click('#memAll'); await p.waitForTimeout(150);
-      check('All columns adds Type, Sticks and Capacity, and the switch keeps focus', (await cols()).join() === 'Member,i–j,Type,Sticks,L (mm),F (N),T/C,P_cr (N),Buckling?,Capacity (N),Use' && await p.evaluate(() => document.activeElement.id === 'memAll' && document.activeElement.getAttribute('aria-checked') === 'true'), (await cols()).join());
+      check('All columns adds Type and Capacity, and the switch keeps focus', (await cols()).join() === 'Member,i–j,Type,Sticks,L (mm),F (N),T/C,P_cr (N),Buckling?,Capacity (N),Use,Focus' && await p.evaluate(() => document.activeElement.id === 'memAll' && document.activeElement.getAttribute('aria-checked') === 'true'), (await cols()).join());
       const firstUse = () => p.evaluate(() => document.querySelector('#memTbl caption').textContent);
       await p.click('#memTbl .te-sort'); await p.waitForTimeout(150);
       check('the Use header sorts lowest first, and says so', /lowest use first/.test(await firstUse()) && await p.evaluate(() => document.querySelector('#memTbl [aria-sort]').getAttribute('aria-sort') === 'ascending' && document.activeElement.classList.contains('te-sort')), await firstUse());

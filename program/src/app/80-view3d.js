@@ -16,16 +16,18 @@ function setPat(key, i, code, half) { const p = []; for (let k = 0; k < half; k+
 function paint3Chips() {
   if (!m3) return;
   const mk = (id, key, count, cyc, sym, isFrame) => {
-    const el = $(id), half = halfOf(count); el.innerHTML = '';
+    const el = typeof id === 'string' ? $(id) : id, half = halfOf(count), had = el.contains(document.activeElement) ? document.activeElement.dataset.chip : null; el.innerHTML = '';
     for (let i = 0; i < half; i++) {
       const code = patAt(S.d3[key], i), b = document.createElement('button');
       b.type = 'button'; b.className = 'chip' + (code !== 'N' ? ' on' : '') + (isFrame && S.d3.sec === i ? ' sel' : '');
-      b.textContent = sym[code]; b.title = `${isFrame ? 'Station' : 'Panel'} ${i + 1}: ${code}`;
+      b.textContent = sym[code]; b.title = `${isFrame ? 'Station' : 'Panel'} ${i + 1}: ${code}`; b.dataset.chip = key + ':' + i;
       b.addEventListener('click', () => { setPat(key, i, cyc[(cyc.indexOf(code) + 1) % cyc.length], half); if (isFrame) S.d3.sec = i; save(); d3Changed(); });
       el.appendChild(b);
     }
     if (!half) el.innerHTML = '<span class="note">none here</span>';
+    if (had) { const f = el.querySelector(`[data-chip="${had}"]`); if (f) f.focus(); }
   };
+  paint3Chips.mk = mk;
   mk('d3Top', 'topPat', m3.topPanels, LAT_CYCLE, LAT_SYM, false);
   mk('d3Bot', 'botPat', m3.botPanels, LAT_CYCLE, LAT_SYM, false);
   mk('d3Frames', 'framePat', m3.stationCount, FRAME_CYCLE, FRAME_SYM, true);
@@ -147,7 +149,7 @@ function render3D() {
   const mat = Object.assign({}, C.DEFAULT_MAT, S.mat);
   m3 = Truss3D.build3D(tr, { width: +S.opts.width || 60, tilt: +S.d3.tilt, bottomTies: S.d3.botTies, topPat: S.d3.topPat, botPat: S.d3.botPat, framePat: S.d3.framePat });
   r3 = Truss3D.analyze3D(m3, mat, S.load, imperfOpt());
-  draw3D(); paint3Chips(); draw3Views(); renderTable3();
+  draw3D(); paint3Chips(); draw3Views(); drawLook(); renderTable3();
   const cap2 = res.stable ? res.capKg : NaN;
   $('d3Status').textContent = r3.stable ? `${r3.failing.length ? 'fails' : 'passes strength'} · capacity ${r3.capKg.toFixed(1)} kg` : 'unstable';
   if (!r3.stable) { $('d3Facts').innerHTML = `<b style="color:var(--bad)">Unstable in 3D.</b> With pin joints the two trusses can sway or rack sideways. Brace both the top and bottom planes (xy), and add cross-frames (zy) at least at the ends; a plane with no bracing lets its chord swing sideways between frames.${m3.warn.length ? ' ' + m3.warn.join(' ') : ''}`; return; }
@@ -229,10 +231,11 @@ function draw3Ghosts(ctx, proj, h) {
   legend.forEach(([col, t], i) => { const s = 'sweep ' + t, wd = ctx.measureText(s).width + 6; ctx.fillStyle = cssv('--sheet'); ctx.globalAlpha = 0.85; ctx.fillRect(9, y0 + 15 * i - 11, wd, 14); ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.fillText(s, 12, y0 + 15 * i); });
   ctx.restore();
 }
-// every 3D member in one table (the 2D table below is one side truss, where sticks are set)
+// every 3D member in one read-only table, in Analysis > Members (the side truss is where sticks are set, UI-S10)
+let tbl3Show = false;   // the Members tab's Whole bridge (3D) view is showing (UI-S10 5)
 function renderTable3() {
   const box = $('tbl3Box'); if (!box) return;
-  box.hidden = S.anaMode !== '3d' || !m3;
+  box.hidden = S.anaMode !== '3d' || !m3 || !tbl3Show;
   if (box.hidden) return;
   if (!r3 || !r3.stable) { $('tbl3').innerHTML = '<tbody><tr><td class="l">No 3D results: the 3D model is unstable. Add bracing in the 3D section.</td></tr></tbody>'; $('tbl3Note').textContent = ''; return; }
   const where = e => e.side === 'cross' ? ({ top: 'top plane (xy)', bottom: 'bottom plane (xy)', frame: 'cross-frame (zy)' })[e.plane] || (e.type === 'tie' ? 'tie across' : 'cross') : e.side + ' truss';
@@ -247,6 +250,15 @@ function renderTable3() {
   $('tbl3').querySelectorAll('tbody tr').forEach(r => { r.addEventListener('mouseenter', () => { v3.hl = +r.dataset.k3; draw3D(); }); r.addEventListener('mouseleave', () => { v3.hl = -1; draw3D(); }); });
   const nT = r3.members.filter(m => m.F > 0).length, nC = r3.members.filter(m => m.F < 0).length;
   $('tbl3Note').innerHTML = `${r3.members.length} members: ${nT} in tension, ${nC} in compression, ${r3.members.length - nT - nC} at zero force. Names: 12f / 12b = member 12 of the front / back truss (the 2D number), T = ties, L = lateral bracing (xy planes), S = sway diagonals (zy cross-frames). Joints: 4f / 4b front / back, M = mid-width joints. Hover a row to find it on the 3D bridge.`;
+}
+// the 3D table as CSV (UI-S10 5: Copy and CSV give the view that is showing); same cells as the screen
+function csv3Text() {
+  if (!m3 || !r3 || !r3.stable) return '';
+  const where = e => e.side === 'cross' ? ({ top: 'top plane (xy)', bottom: 'bottom plane (xy)', frame: 'cross-frame (zy)' })[e.plane] || (e.type === 'tie' ? 'tie across' : 'cross') : e.side + ' truss';
+  const nm = e => X.TYPE_LABEL[e.type] || ({ tie: 'Tie', lat: 'Lateral brace', sway: 'Sway diagonal' })[e.type];
+  const rows = [['Member', 'i', 'j', 'Where', 'Type', 'Sticks', 'L (mm)', 'F (N)', 'T/C', 'Use (%)']].concat(r3.members.map((m, k) => { const e = m3.elems[k];
+    return [m3.elemLab[k], m3.nodeLab[e.i], m3.nodeLab[e.j], where(e), nm(e), e.n, m.L.toFixed(1), m.F.toFixed(2), m.F < 0 ? 'C' : m.F > 0 ? 'T' : '0', (m.util * 100).toFixed(0)]; }));
+  return infoLines().map(l => '# ' + l).join('\n') + '\n' + csvOf(rows);
 }
 // plan (xy) and end (zy) views of the 3D model
 function draw3Views() {
@@ -422,6 +434,162 @@ attachOrbit($('c3d'), v3, () => { $('d3Tip').hidden = true; draw3D(); }, { home:
     paintFree3d(); save(); draw3D();
   });
   paintFree3d();
+})();
+// ---------- step 7 (#214, UI-V7): Look from Side / Top / End, one button at the view cube's bottom-right.
+// Side turns the 3D camera to look at the front truss; Top shows both bracing planes and End each cross-frame with its
+// key, both drawn from the 3D model's own members (m3, r3) in the meaning colours (UI-A18). The choice is a view, not
+// part of the design: it is never saved. Clicking the active view again returns to 3D.
+var look3 = '3d';
+// which 3D members lie in the top plane, the bottom plane and each cross-frame (by their two end joints)
+function lookMembers(m) {
+  m = m || m3; if (!m) return { top: [], bottom: [], frames: [] };
+  const n = m.n, topJ = new Set(), botJ = new Set();
+  m.top.forEach(t => { topJ.add(t); topJ.add(t + n); });
+  m.bottom.forEach(b => { botJ.add(b); botJ.add(b + n); });
+  m.nodes.forEach((p, i) => { if (i >= 2 * n) topJ.add(i); });   // mid-width joints (K frames) sit on a top tie
+  const inSet = set => m.elems.map((e, k) => set.has(e.i) && set.has(e.j) ? k : -1).filter(k => k >= 0);
+  const frames = m.frames.map((fr, i) => {
+    const sj = new Set([fr.t, fr.t + n, fr.b, fr.b + n]);
+    m.nodes.forEach((p, j) => { if (j >= 2 * n && Math.abs(p[0] - fr.x) < 1.5) sj.add(j); });
+    return { i, x: fr.x, code: fr.code, joints: [...sj], members: inSet(sj) };
+  });
+  return { top: inSet(topJ), bottom: inSet(botJ), frames };
+}
+function lookCol(k) { const m = r3 && r3.stable ? r3.members[k] : null; return !m ? 'var(--ink)' : m.fails ? 'var(--bad)' : Math.abs(m.F) < 0.005 ? 'var(--zero)' : m.F < 0 ? 'var(--comp)' : 'var(--tens)'; }
+// one member as a line (and a ✕ when it fails, so fail is never colour only)
+function lookLine(k, a, b, w) {
+  const m = r3 && r3.stable ? r3.members[k] : null, zero = m && Math.abs(m.F) < 0.005, c = lookCol(k);
+  let t = `<line data-k="${k}" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"${zero ? ` stroke-dasharray="${w * 1.6} ${w * 1.2}"` : ''}><title>${m3.elemLab[k]}${m ? ` · ${Math.abs(m.F).toFixed(2)} N ${zero ? 'zero force' : m.F < 0 ? 'compression' : 'tension'}${m.fails ? ' · fails' : ''}` : ''}</title></line>`;
+  if (m && m.fails) t += `<text x="${(a[0] + b[0]) / 2}" y="${(a[1] + b[1]) / 2}" font-size="${w * 4}" text-anchor="middle" dominant-baseline="central" fill="var(--bad)" aria-hidden="true">✕</text>`;
+  return t;
+}
+function lookKey() {
+  const sw = (c, dash) => `<svg viewBox="0 0 22 8" width="22" height="8" aria-hidden="true"><line x1="1" y1="4" x2="21" y2="4" stroke="${c}" stroke-width="2.4" stroke-linecap="round"${dash ? ' stroke-dasharray="4 3"' : ''}/></svg>`;
+  const it = (c, w, dash) => `<span class="lookki">${sw(c, dash)} ${w}</span>`;
+  return `<p class="lookkey" data-key="colours">${it('var(--comp)', 'compression')} ${it('var(--tens)', 'tension')} ${it('var(--zero)', 'zero force', 1)} ${it('var(--bad)', '✕ fails')}</p>`;
+}
+function drawLook() {
+  const lv = $('lookView'); if (!lv) return;
+  const on = look3 === 'top' || look3 === 'end';
+  lv.hidden = !on; lv.parentElement.classList.toggle('looking', on); paintLookMenu();
+  if (!on || !m3) return;
+  const L = lookMembers(), xs = m3.nodes.map(p => p[0]), ys = m3.nodes.map(p => p[1]);
+  const x0 = Math.min(...xs) - 12, x1 = Math.max(...xs) + 12, y0 = Math.min(...ys) - 10, y1 = Math.max(...ys) + 10, span = (m3.tr.design && m3.tr.design.span) || 200;
+  let h = '';
+  if (look3 === 'top') {
+    const plan = (list, name, plane) => {
+      let s = `<rect x="${x0}" y="${-y1}" width="${Math.max(0, -x0)}" height="${y1 - y0}" fill="var(--desk)" opacity=".5"/><rect x="${span}" y="${-y1}" width="${Math.max(0, x1 - span)}" height="${y1 - y0}" fill="var(--desk)" opacity=".5"/>`;
+      list.forEach(k => { const e = m3.elems[k], p = m3.nodes[e.i], q = m3.nodes[e.j]; s += lookLine(k, [p[0], -p[1]], [q[0], -q[1]], e.side === 'cross' ? 1.2 : 1.8); });
+      return `<figure class="lookfig" data-plane="${plane}"><figcaption><b>${name}</b> · ${list.length} members, seen from above (x along the bridge, y across)</figcaption><svg role="img" aria-label="${name} seen from above: ${list.length} members" viewBox="${x0} ${-y1} ${x1 - x0} ${y1 - y0}" preserveAspectRatio="xMidYMid meet">${s}</svg></figure>`;
+    };
+    h = `<h3 class="lookh">Look from Top: both bracing planes</h3>` + plan(L.top, 'Top plane', 'top') + plan(L.bottom, 'Bottom plane', 'bottom') + lookKey()
+      + `<div class="lookchips"><span>Top plane bracing, per panel (left half; the right half mirrors it)</span><div class="chips" data-look-chips="top"></div><span>Bottom plane bracing, per panel</span><div class="chips" data-look-chips="bot"></div></div>`;
+  } else {
+    const W = (+S.opts.width || 60) / 2 + 14;
+    const fig = f => {
+      const pts = f.joints.map(i => m3.nodes[i]), z0 = Math.min(0, ...pts.map(p => p[2])) - 8, z1 = Math.max(10, ...pts.map(p => p[2])) + 8;
+      let s = '';
+      f.members.forEach(k => { const e = m3.elems[k], p = m3.nodes[e.i], q = m3.nodes[e.j]; s += lookLine(k, [p[1], -p[2]], [q[1], -q[2]], e.side === 'cross' ? 1.4 : 2); });
+      pts.forEach(p => { s += `<circle cx="${p[1]}" cy="${-p[2]}" r="1.3" fill="var(--sheet)" stroke="var(--ink)" stroke-width=".5"/>`; });
+      const name = `Station ${f.i + 1}`;
+      return `<figure class="lookfig" data-frame="${f.i}"><figcaption><b>${name}</b> · x = ${f.x.toFixed(0)} mm · key <span class="lookcode">${FRAME_SYM[f.code]} ${f.code}</span></figcaption><svg role="img" aria-label="${name} cross-frame at x = ${f.x.toFixed(0)} mm, key ${f.code}: ${f.members.length} members" viewBox="${-W} ${-z1} ${2 * W} ${z1 - z0}" preserveAspectRatio="xMidYMid meet">${s}</svg></figure>`;
+    };
+    h = `<h3 class="lookh">Look from End: each cross-frame, seen along the bridge</h3><div class="lookgrid">${L.frames.map(fig).join('') || '<p class="note">No frame stations on this bridge.</p>'}</div>`
+      + `<p class="lookkey" data-key="frames">Frame key: · none · ⟋ D one diagonal · ⟍ E the other · ✕ X both · K a K-frame (a mid-width joint)</p>` + lookKey()
+      + `<div class="lookchips"><span>Cross-frames, per station (left half; the right half mirrors it)</span><div class="chips" data-look-chips="frames"></div></div>`;
+  }
+  const had = lv.contains(document.activeElement) ? document.activeElement.dataset.chip : null;
+  lv.innerHTML = `<div class="lookin">${h}</div>`; lookFit();
+  const mk = paint3Chips.mk; if (!mk) return;
+  const chip = (sel, key, count, cyc, sym, isFrame) => { const el = lv.querySelector(`[data-look-chips="${sel}"]`); if (el) mk(el, key, count, cyc, sym, isFrame); };
+  if (look3 === 'top') { chip('top', 'topPat', m3.topPanels, LAT_CYCLE, LAT_SYM, false); chip('bot', 'botPat', m3.botPanels, LAT_CYCLE, LAT_SYM, false); }
+  else chip('frames', 'framePat', m3.stationCount, FRAME_CYCLE, FRAME_SYM, true);
+  if (had) { const f = lv.querySelector(`[data-chip="${had}"]`); if (f) f.focus(); }
+}
+// Top and End sit in the free part of the picture: clear of the top bar, the windows and the edge tabs floating over it
+// (the same measure as the Members table's memFit, UI-A3 / UI-A21) and of the view cube with Look from
+function lookFit() {
+  const lv = $('lookView'); if (!lv || lv.hidden) return;
+  const box = lv.parentElement, B = box.getBoundingClientRect(), st = document.getElementById('stage');
+  let t = 8, b = 8, l = 8, r = 8;
+  if (st && box.closest('#fsFill')) [...st.children].forEach(e => {
+    if (e.contains(box) || getComputedStyle(e).position !== 'absolute') return; const q = e.getBoundingClientRect(); if (q.width < 2 || q.height < 2) return;
+    if (q.right <= B.left || q.left >= B.right || q.bottom <= B.top || q.top >= B.bottom) return;
+    const W = B.width, H = B.height, L = q.left - B.left, R = B.right - q.right, T = q.top - B.top, Bo = B.bottom - q.bottom;
+    if (q.width < 60 && q.height > q.width && L < W * 0.2) l = Math.max(l, W - R + 8);
+    else if (q.width < 60 && q.height > q.width && R < W * 0.2) r = Math.max(r, W - L + 8);
+    else if (T < H * 0.35 && H - Bo < H * 0.6) t = Math.max(t, H - Bo + 8);
+    else if (H - Bo > H * 0.7 && T > H * 0.4) b = Math.max(b, H - T + 8);
+    else if (L < W * 0.2) l = Math.max(l, W - R + 8);
+    else if (R < W * 0.2) r = Math.max(r, W - L + 8);
+  });
+  t = Math.max(t, fsTopPad() + 8);
+  const lf = $('lookFrom'), cube = box.querySelector('.navcube');
+  const ctlB = Math.max(cube && !cube.hidden ? cube.offsetTop + cube.offsetHeight : 0, lf ? lf.offsetTop + lf.offsetHeight : 0);
+  const ctlL = Math.min(cube && !cube.hidden ? cube.offsetLeft : B.width, lf ? lf.offsetLeft : B.width);
+  if (B.width - l - r < 520) t = Math.max(t, ctlB + 8); else r = Math.max(r, B.width - ctlL + 8);   // narrow: under the cube; wide: beside it
+  const inn = lv.querySelector('.lookin'); if (inn) inn.style.inset = `${t}px ${r}px ${b}px ${l}px`;
+}
+window.addEventListener('resize', () => { clearTimeout(lookFit.t); lookFit.t = setTimeout(lookFit, 120); });
+new MutationObserver(recs => { const lv = $('lookView'); if (!lv || lv.hidden || recs.every(x => lv.contains(x.target) || x.target.closest && x.target.closest('#lookFrom'))) return; cancelAnimationFrame(lookFit.f); lookFit.f = requestAnimationFrame(lookFit); })
+  .observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-state', 'style', 'hidden'] });
+function paintLookMenu() {
+  const m = $('lookMenu'); if (!m) return;
+  m.querySelectorAll('[data-look]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.look === look3)));
+  $('lookBtn').textContent = look3 === '3d' ? 'Look from ▾' : `${look3[0].toUpperCase() + look3.slice(1)} ▾`;
+  $('lookBtn').setAttribute('aria-label', `Look from (now: ${look3 === '3d' ? '3D' : look3})`);
+}
+function openLookMenu(open) { const m = $('lookMenu'); if (!m) return; m.hidden = !open; $('lookBtn').setAttribute('aria-expanded', String(!!open)); }
+function setLook(v) {
+  if (v === look3) v = '3d';   // the active view again: back to 3D (UI-V7)
+  const was = look3; look3 = v;
+  // no pop-up stays open across a switch (#408): the menu, the member tip and the ✎ editor
+  openLookMenu(false); $('d3Tip').hidden = true; if (typeof adj !== 'undefined' && adj) closeAdj();
+  if (v === 'side') tween(v3, { yaw: 0, pitch: 0 }, draw3D);
+  else if (v === '3d' && was === 'side') tween(v3, { yaw: -0.55, pitch: 0.42 }, draw3D);
+  drawLook();
+}
+function placeLookFrom() {
+  const lf = $('lookFrom'); if (!lf) return;
+  const box = lf.parentElement, cube = box.querySelector('.navcube');
+  // Look from lives on the cube (UI-V7): where the cube is not shown (the locked page view, or the cube turned off) it goes too
+  const shown = !!(cube && !cube.hidden && cube.offsetWidth);
+  lf.hidden = !shown; if (!shown) { openLookMenu(false); return; }
+  lf.style.top = (cube.offsetTop + cube.offsetHeight - 6) + 'px'; lf.style.right = Math.max(4, box.clientWidth - cube.offsetLeft - cube.offsetWidth) + 'px';
+  // until the right-edge window opens 8 px under the cube's box (UI-W19, the shell's), keep the button clear of it and of Lock view
+  ['win-drawing', 'free3d'].forEach(id => {
+    const win = document.getElementById(id);
+    if (!win || !win.offsetWidth || getComputedStyle(win).display === 'none') return;
+    const w = win.getBoundingClientRect(), r = lf.getBoundingClientRect(), b = box.getBoundingClientRect();
+    if (r.right > w.left - 4 && r.left < w.right && r.bottom > w.top && r.top < w.bottom) lf.style.right = Math.max(4, b.right - w.left + 8) + 'px';
+  });
+}
+(function () {
+  const box = $('c3d').parentElement;
+  const lv = document.createElement('div'); lv.id = 'lookView'; lv.className = 'lookview'; lv.hidden = true;
+  box.insertBefore(lv, box.querySelector('.navcube'));
+  const lf = document.createElement('div'); lf.id = 'lookFrom'; lf.className = 'lookfrom';
+  lf.innerHTML = `<button type="button" class="lookbtn" id="lookBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="lookMenu" title="Look from the side, the top or the end">Look from ▾</button>`
+    + `<div class="lookmenu" id="lookMenu" role="menu" aria-label="Look from" hidden>${[['side', 'Side'], ['top', 'Top'], ['end', 'End']].map(([k, t]) => `<button type="button" role="menuitemradio" aria-checked="false" data-look="${k}" tabindex="-1">${t}</button>`).join('')}</div>`;
+  box.appendChild(lf);
+  const items = () => [...lf.querySelectorAll('[data-look]')];
+  // hovering or focusing the button opens the list downward (UI-V7); leaving it, Esc or a click outside closes it (UI-W8)
+  lf.addEventListener('mouseenter', () => openLookMenu(true));
+  lf.addEventListener('mouseleave', () => { if (!lf.contains(document.activeElement)) openLookMenu(false); });
+  $('lookBtn').addEventListener('focus', () => openLookMenu(true));
+  lf.addEventListener('focusout', ev => { if (!lf.contains(ev.relatedTarget)) openLookMenu(false); });
+  $('lookBtn').addEventListener('click', ev => { ev.stopPropagation(); openLookMenu(true); });
+  lf.addEventListener('mousedown', ev => ev.stopPropagation());
+  $('lookMenu').addEventListener('click', ev => { const b = ev.target.closest('[data-look]'); if (!b) return; ev.stopPropagation(); setLook(b.dataset.look); $('lookBtn').focus({ preventScroll: true }); openLookMenu(false); });
+  lf.addEventListener('keydown', ev => {
+    const it = items(), i = it.indexOf(document.activeElement);
+    if (ev.key === 'Escape') { if (!$('lookMenu').hidden) { ev.stopPropagation(); openLookMenu(false); $('lookBtn').focus({ preventScroll: true }); } return; }
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { ev.preventDefault(); openLookMenu(true); const d = ev.key === 'ArrowDown' ? 1 : -1; it[i < 0 ? (d > 0 ? 0 : it.length - 1) : (i + d + it.length) % it.length].focus(); }
+  });
+  document.addEventListener('click', ev => { if (!ev.target.closest || !ev.target.closest('#lookFrom')) openLookMenu(false); });
+  const paintCube = v3.cube; v3.cube = () => { if (typeof paintCube === 'function') paintCube(); placeLookFrom(); };
+  window.__look = { get view() { return look3; }, set: setLook, members: m => lookMembers(m) };
+  placeLookFrom(); paintLookMenu();
 })();
 $('c3d').addEventListener('mousemove', ev => {
   if (v3.drag || !v3.segs) return;
