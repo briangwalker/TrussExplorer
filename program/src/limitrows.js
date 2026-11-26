@@ -6,8 +6,9 @@
 // so every existing 'change' handler (pair(), guardNum(), the Undo toasts of #482) runs exactly as before:
 //   - a value the box commits is put into the app's input with a 'change' event, as if typed there;
 //   - a value the app writes into its input (update(), a range slider, Undo, a file) is followed by the box.
-// When an input that other rows depend on changes (height, tableThick, bS, hS, minOverlap, bigCap; Math TE-B-444) or a
-// shape/model button is pressed, every mounted row is checked again. braceDepth isn't checked while tableThick is 0 (TE-B-445).
+// When an input that other rows depend on changes (height, tableThick, bS, hS, minOverlap, bigCap; Math TE-B-444; curve,
+// topEnd, panels, ratio and tilt3d, which move the outer height the height course rule reads, TE-B-619 c, TE-B-643) or a shape/model button is pressed,
+// every mounted row is checked again. braceDepth isn't checked while tableThick is 0 (TE-B-445).
 //   o = { P: TrussPieces, I: TrussInputs, L: TrussLimits, pane, extra() -> { bottom, topShape, model }, rule(id, v, all) -> msg|null,
 //         ids (default: every TABLE id with a number box in the pane) }
 //   Returns { rows: Map(id -> box), values(), recheck(), destroy() }.
@@ -15,7 +16,9 @@
 (function (root) {
 'use strict';
 
-const DEPENDS = ['height', 'tableThick', 'bS', 'hS', 'minOverlap', 'bigCap'];
+// curve, topEnd, panels, ratio and tilt3d (0.1.3): the app's height rule (UIE-9) is judged on the OUTER height, and they move it
+// (Dev Lead TE-B-619 c; Math MUST on #525, TE-B-643: panels 3/4/6, ratio 1.5 and tilt 10 move it across 100 mm at h 95.3, topEnd 40)
+const DEPENDS = ['height', 'tableThick', 'bS', 'hS', 'minOverlap', 'bigCap', 'curve', 'topEnd', 'panels', 'ratio', 'tilt3d'];
 const UNIT = { mm: 'mm', kg: 'kg', deg: '°', MPa: 'MPa', 'kg/m3': 'kg/m³', 'N/mm': 'N/mm' };
 const CSS = `#stage .te-num[data-quiet] .te-num-l{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 #stage .row > .te-num[data-quiet], #stage .slide > .te-num[data-quiet]{display:inline-flex;flex-direction:column;align-items:flex-end}`;
@@ -96,6 +99,6 @@ function mount(doc, o) {
   };
 }
 
-const api = { VERSION: '0.1.2', DEPENDS, mount, install, CSS };
+const api = { VERSION: '0.1.3', DEPENDS, mount, install, CSS };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussLimitRows = api;
 })(typeof window !== 'undefined' ? window : globalThis);

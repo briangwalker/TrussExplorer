@@ -212,7 +212,9 @@ if (window.TE_FLAGS.limitsBoxes && window.TrussLimitRows && window.TrussInputs &
       if (id !== 'height') return null;
       let top = v;
       try { top = C.envelopeSize(C.buildTruss(design({ height: v })), S.mat, anaOpts()).outer.height; } catch (e) {}
-      return top > 100 + 1e-9 ? `Course rule: the bridge height is at most 100 mm (this one is ${(Math.round(top * 10) / 10).toFixed(1)} mm to its top face).` : null;
+      // 2 decimals when 1 would read as the limit itself (100.012 -> '100.01', not '100.0'; UI Designer SHOULD, Math NOTE on #525)
+      const r1 = Math.round(top * 10) / 10, shown = r1 > 100 ? r1.toFixed(1) : (Math.round(top * 100) / 100).toFixed(2);
+      return top > 100 + 1e-9 ? `Course rule: the bridge height is at most 100 mm (this one is ${shown} mm to its top face).` : null;
     },
   });
 }
@@ -222,7 +224,12 @@ if (window.TE_FLAGS.limitsBoxes && window.TrussLimitRows && window.TrussInputs &
 function noResultNow() {
   try {   // a render before the rows are mounted (limitRows not set up yet) is simply 'a result'
     if (!limitRows || !window.TrussLimits || !TrussLimits.fileReport) return null;
-    const r = TrussLimits.fileReport(limitRows.values(), tr); return r && r.noResult ? r : null; } catch (e) { return null; }
+    const v = limitRows.values(), r = TrussLimits.fileReport(v, tr); if (r && r.noResult) return r;
+    // Math's M2 (RMA-15, TE-B-627 c): no capacity when the mid-span deflection is more than the height. It reads the result the
+    // card shows (res: in 3D its midDefl is the deck deflection), so the card, the key strip and the Results window agree.
+    const m2 = TrussLimits.checkResult ? TrussLimits.checkResult(res, v) : [];
+    return m2.length ? { bad: [], geometry: [], result: m2, warnings: r ? r.warnings : [], noResult: true, summary: m2[0].msg } : null;
+  } catch (e) { return null; }
 }
 // a box being fixed doesn't always run update() (a refused value, a file mark cleared): repaint the card when the pane changes
 if (limitRows) $('inputsPane').addEventListener('change', () => setTimeout(() => { try { renderKey(); } catch (e) {} }, 0));
