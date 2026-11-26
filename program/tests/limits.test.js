@@ -494,8 +494,28 @@ test('M2: Math\'s measured cases (botEnd 69 and a shaped bottom\'s curve 69, at 
 test('M2: strictly more than the height; one decimal for d, the height as typed', () => {
   const r = d => ({ stable: true, midDefl: d });
   assert.deepStrictEqual(L.checkResult(r(70), { height: 70 }), [], 'equal is not more');
-  assert.strictEqual(L.checkResult(r(70.04), { height: 70 })[0].msg, M2msg('70.0', '70'));
+  assert.strictEqual(L.checkResult(r(70.06), { height: 70 })[0].msg, M2msg('70.1', '70'));
   assert.strictEqual(L.checkResult(r(-30), { height: 26.5 })[0].msg, M2msg('30.0', '26.5'), 'a deflection is its size');
+  assert.strictEqual(L.checkResult(r(161.83), { height: 70 })[0].msg, M2msg('161.8', '70'));
+});
+
+// RMA-17 (TE-B-647, Math TE-B-627 note a, Math's MUST on #530): when d and h read the same at 1 decimal, both get 2 decimals (3 if still the same)
+test('M2: d and h both get 2 decimals (then 3) when they would read the same; otherwise 1 decimal for d, h as typed', () => {
+  const r = d => ({ stable: true, midDefl: d });
+  assert.strictEqual(L.checkResult(r(70.03), { height: 70 })[0].msg, M2msg('70.03', '70.00'), 'Math: never 70.0 ... 70 mm');
+  assert.strictEqual(L.checkResult(r(70.04), { height: 70 })[0].msg, M2msg('70.04', '70.00'));
+  assert.strictEqual(L.checkResult(r(-70.03), { height: 70 })[0].msg, M2msg('70.03', '70.00'), 'a deflection is its size');
+  assert.strictEqual(L.checkResult(r(26.52), { height: 26.5 })[0].msg, M2msg('26.52', '26.50'));
+  // Math's three rows (MUST on #530 at 6e2c663)
+  assert.strictEqual(L.checkResult(r(70.07), { height: 70.06 })[0].msg, M2msg('70.07', '70.06'), 'never 70.07 ... 70.1');
+  assert.strictEqual(L.checkResult(r(95.351), { height: 95.35 })[0].msg, M2msg('95.351', '95.350'), 'never 95.35 ... 95.4');
+  assert.strictEqual(L.checkResult(r(70.003), { height: 70 })[0].msg, M2msg('70.003', '70.000'), 'never 70.00 ... 70');
+  // outside the band: unchanged
+  assert.strictEqual(L.checkResult(r(70.05), { height: 70 })[0].msg, M2msg('70.1', '70'), '70.05 already reads 70.1');
+  assert.strictEqual(L.checkResult(r(26.6), { height: 26.5 })[0].msg, M2msg('26.6', '26.5'));
+  assert.deepStrictEqual(L.checkResult(r(70), { height: 70 }), [], 'the rule is unchanged: equal is not more');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'limits.js'), 'utf8');
+  assert.ok(/---------- geometry rules G1-G10 \(/.test(src) && !/geometry rules G1-G5/.test(src), 'the section comment says G1-G10 (Physics TE-B-642)');
 });
 
 test('M2: the built-in cases, every fixture and Brian\'s final design give [] (rule 4i)', () => {

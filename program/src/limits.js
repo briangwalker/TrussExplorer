@@ -222,7 +222,7 @@ function warnInputs(values) {
 // the app's own mode id is lowercase ('2d' / '3d', S.anaMode); a file or a caller may write '3D': both mean 3D
 const isModel3D = m => typeof m === 'string' && m.toLowerCase() === '3d';
 
-// ---------- geometry rules G1-G5 (Physics' doc, TE-B-370; board TE-B-458, RMA-6): the second half of the validity function ----------
+// ---------- geometry rules G1-G10 (Physics' doc, TE-B-370; board TE-B-458, RMA-6): the second half of the validity function ----------
 // checkGeometry(truss, values) -> [{ rule: 'G1'..'G10', msg, where: [indexes] }], in rule order; empty = fine. Pure: nothing is changed.
 //   truss: what core.js's buildTruss returns, or a file's truss in the same shape: nodes [[x, y], ...] (mm, y up), elems [{ i, j, ... }, ...]
 //   (member k joins nodes i and j), keys (a name per node; 'B0', 'B1' ... are the bottom chord, left to right) and panelPts (the panel
@@ -371,8 +371,16 @@ function checkGeometry(truss, values) {
 //   res: core.js analyze's result; d = res.midDefl (mm, at the book load). values: h = values.height (mm).
 //   An unstable, missing or damaged res, or a missing height, gives [] (CODE-N2). Pure: nothing is changed, nothing throws.
 // Nothing calls it yet: wiring it into fileReport, the results card or the sweep is a later row, after Math's OK.
+// When d and h would read the same at 1 decimal, BOTH print with 2 decimals, and with 3 if they still match
+// (Math TE-B-627 note a and Math's MUST on #530; RMA-17, TE-B-647): d 70.03 at h 70 reads '70.03 ... 70.00 mm',
+// 70.07 at 70.06 reads '70.07 ... 70.06', 70.003 at 70 reads '70.003 ... 70.000', so the message never looks like d <= h.
+// Otherwise it is unchanged: 1 decimal for d, the height as typed (fh). Rounding is Math.round at every step, like r1,
+// so 70.05 still reads 70.1 (toFixed alone would give 70.0).
+const rk = (v, k) => { const p = Math.pow(10, k); return (Math.round(v * p) / p).toFixed(k); };
+const sameAt = (d, h, k) => { const p = Math.pow(10, k); return Math.round(d * p) === Math.round(h * p); };
+const M2nums = (d, h) => !sameAt(d, h, 1) ? [f1(d), fh(h)] : !sameAt(d, h, 2) ? [rk(d, 2), rk(h, 2)] : [rk(d, 3), rk(h, 3)];
 const RESULT_MSG = {
-  M2: (d, h) => 'No capacity: the mid-span deflection (' + f1(d) + ' mm) is more than the bridge height (' + fh(h) + ' mm).',
+  M2: (d, h) => { const n = M2nums(d, h); return 'No capacity: the mid-span deflection (' + n[0] + ' mm) is more than the bridge height (' + n[1] + ' mm).'; },
 };
 function checkResult(res, values) {
   if (!isObj(res) || res.stable !== true || !isNum(res.midDefl) || !isObj(values)) return [];
