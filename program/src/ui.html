@@ -850,8 +850,8 @@ body.hidesame table .samecol { display: none; }
           <div id="sweepFileBox" class="pilotBanner" hidden></div>
           <div id="bigBox" class="bigbox" hidden></div>
           <div id="docModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="docH"><div class="modalcard" style="max-width:980px;max-height:92vh;overflow:auto">
-            <h3 id="docH" style="margin-top:0">Build documents</h3>
-            <p class="note" style="margin:0 0 8px">A printable document for building this design (in 3D analysis: the whole 3D bridge, with every tie and brace): an assembly drawing (dimensioned, with a parts list), a part drawing for every different cut, a cut list with angles, a cutting plan and the joints, numbered build steps, and full-size templates to lay the sticks on. Every sheet fits one US-letter landscape page. Open the downloaded file in a browser and print it (or save it as a PDF). Print the templates at 100%, actual size.</p>
+            <div class="docHead"><h3 id="docH" style="margin-top:0">Build documents</h3></div>
+            <div class="docMid"><p class="note" style="margin:0 0 8px">A printable document for building this design (in 3D analysis: the whole 3D bridge, with every tie and brace): an assembly drawing (dimensioned, with a parts list), a part drawing for every different cut, a cut list with angles, a cutting plan and the joints, numbered build steps, and full-size templates to lay the sticks on. Every sheet fits one US-letter landscape page. Open the downloaded file in a browser and print it (or save it as a PDF). Print the templates at 100%, actual size.</p>
             <div class="tradectl">
               <b>Joints by default:</b>
               <label class="check"><input type="radio" name="jstyle" value="through"> Chords run through; others cut flush to them</label>
@@ -881,8 +881,8 @@ body.hidesame table .samecol { display: none; }
             <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;align-items:start">
               <div><svg id="docView" style="width:100%;height:230px;background:#fff;border:1px solid var(--line);border-radius:6px"></svg><div id="docSum" class="note"></div><div class="tablewrap" style="max-height:260px;overflow:auto"><table id="docItems"></table></div></div>
               <div><span class="hint">Each joint: which member is on top (runs through or stays whole), and how the other ends are cut. A mitre splits the corner between two members; the % is the share of the angle taken by the lower-numbered member.</span><div class="tablewrap" style="max-height:420px;overflow:auto"><table id="docJoints"></table></div></div>
-            </div>
-            <div class="btns" style="margin-top:10px"><button type="button" class="btn acc" id="docGo">Download build documents</button><button type="button" class="btn" id="docMini" title="Black and white: steps, a one-page cut guide, end-angle templates and the full-size templates">Download build set (black and white)</button><label class="check" title="Black-and-white set: pieces with the same end angle go back to back on the stick, so one cut makes two ends (saves offcuts, not bridge mass)"><input type="checkbox" id="docNest"> Nest like angles</label><button type="button" class="btn ghost" id="docNo">Close</button></div>
+            </div></div>
+            <div class="btns docFoot" style="margin-top:10px"><button type="button" class="btn acc" id="docGo">Download build documents</button><button type="button" class="btn" id="docMini" title="Black and white: steps, a one-page cut guide, end-angle templates and the full-size templates">Download build set (black and white)</button><label class="check" title="Black-and-white set: pieces with the same end angle go back to back on the stick, so one cut makes two ends (saves offcuts, not bridge mass)"><input type="checkbox" id="docNest"> Nest like angles</label><button type="button" class="btn ghost" id="docNo">Close</button></div>
           </div></div>
           <div id="saveModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="saveH"><div class="modalcard" style="max-width:460px">
             <h3 id="saveH" style="margin-top:0">Save as</h3>
