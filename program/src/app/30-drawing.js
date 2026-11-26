@@ -394,9 +394,9 @@ function paintResOverlay() {
 // ---------- UI-D7: Home frames the drawing in the part of the stage the windows leave free in their DEFAULT homes (#503)
 // The free box is worked out from where the shell puts the windows by default (Inputs open on the left, the Drawing window as icons
 // on the right under the view control, the sweep bar at the bottom), never from where they are now: moving or folding a window
-// never refits, only Home (and a new render: the first view, a new bridge) does. The top bar, the results card and the view control
-// don't move, so they are measured. A free box under 480 px wide (phone) gives null: the drawing then fits the whole stage.
-var HOMEFIT = { M: 10, margin: 16, minW: 480, sweepH: 0 };
+// never refits, only Home (and a new render: the first view, a new bridge) does. The top bar and the results card sit above the drawing; the view
+// control doesn't move, so it is measured. A free box under 480 px wide (phone) gives null: the drawing then fits the whole stage.
+var HOMEFIT = { M: 10, margin: 16, minW: 480, sweepH: 96 };
 function homeFree() {
   const stage = document.getElementById('stage'), svg = $('draw');
   if (!stage || !stage.querySelector('.s-pan[data-win="inputs"]') || !svg) return null;   // the classic layout has no windows
@@ -407,11 +407,9 @@ function homeFree() {
   const iW = Math.floor(Math.min(400, vw - 2 * M, vw * 0.4));
   let l = M + iW, r = vw - M - 56, t = sr.top, bt = sr.bottom;
   const pad = box(document.querySelector('#drawWrap .navpad')); if (pad) r = Math.min(r, pad.left);
-  [document.getElementById('shellNav'), document.getElementById('resCard')].forEach(el => { const q = box(el); if (q && q.bottom < sr.top + sr.height / 3) t = Math.max(t, q.bottom); });
-  // the sweep bar's default height is its bar alone (Sweep settings closed); remember it while it is in that state
-  const sw = stage.querySelector('.s-pan[data-win="sweep"]'), swr = box(sw);
-  if (sw && swr && sw.dataset.state === 'W' && sw.dataset.more !== '1' && !sw.classList.contains('peek')) HOMEFIT.sweepH = swr.height;
-  bt = Math.min(bt, vh - M - (HOMEFIT.sweepH || 86));
+  // the sweep bar's default home is its bar alone (Sweep settings closed) at the bottom. Its height is a fixed allowance, never measured,
+  // so a theme with a taller bar or an open Sweep settings never moves the drawing (UI-T2: a theme changes no meaning or position).
+  bt = Math.min(bt, vh - M - HOMEFIT.sweepH);
   l = Math.max(l, sr.left); r = Math.min(r, sr.right);
   if (r - l < HOMEFIT.minW || bt - t < 120) return null;
   return { l, t, r, b: bt, svg: sr };
