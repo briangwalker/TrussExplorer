@@ -174,10 +174,11 @@ if (!SH_CLASSIC) {
   wins.drawing.querySelector('.s-bd').style.gridTemplateColumns = 'minmax(0, 1fr)';
   const pieceWin = {};
   Object.keys(PIECE).forEach(id => { pieceWin[id] = PC.mountWindow(wins[id], tabs[id], { onState: st => { S.shell.w[place()][id] = st; save(); paintWins(); } }); });
-  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
+  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } if (id === 'sweep' && v !== 'W') sweepAsked = false; S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
   function step(id, dir) {
     const cur = S.shell.w[place()][id];
     if (id === 'results') { setState(id, dir > 0 ? 'W' : 'T'); return; }
+    if (id === 'sweep' && dir > 0) sweepAsked = true;   // the person asked for the words state (see the fit rule in layout)
     setState(id, order[Math.max(0, Math.min(2, order.indexOf(cur) + dir))]);
   }
   stage.addEventListener('click', ev => {
@@ -211,6 +212,8 @@ if (!SH_CLASSIC) {
     box.innerHTML = list.map(x => `<button type="button" class="s-ic${x.on ? ' on' : ''}" data-ic="${escH(x.ic)}" title="${escH(x.label)}" aria-label="${escH(x.label)}"${x.on != null ? ` aria-pressed="${!!x.on}"` : ''}>${escH(x.g)}</button>`).join('');
   }
   function iconAct(id, ic) {
+    // the bar fell to icons only because its words didn't fit (UI-W16): ⋯ is the person asking for them, so the bar may use the room it has
+    if (id === 'sweep' && ic === 'grow' && wins.sweep.dataset.fit === 'I') { sweepAsked = true; layout(); const f = $('runSweep'); if (f) f.focus({ preventScroll: true }); return; }
     if (ic === 'grow') { setState(id, 'W'); return; }
     if (id === 'inputs') { const d = R.pane.querySelectorAll(':scope > details.grp')[+ic.slice(1)]; setState('inputs', 'W'); if (d) { d.open = true; d.scrollIntoView({ block: 'start' }); const s = d.querySelector('summary'); if (s) s.focus({ preventScroll: true }); } return; }
     if (id === 'drawing' && VIEW_ICONS[ic]) { flip(ic, !$(ic).checked); paintIcons(id); return; }
@@ -259,6 +262,8 @@ if (!SH_CLASSIC) {
     const prog = $('sweepBar') && $('sweepBar').parentNode;
     [$('runSweep'), R.sweepCount, prog, $('bigMsg'), $('bigCancel')].forEach(n => mv(n, sum));
     if (prog) prog.classList.add('te-sweepprog');
+    // UI-W15: the main action keeps one line; the count line is the part that ellipsises
+    if ($('runSweep')) Object.assign($('runSweep').style, { whiteSpace: 'nowrap', flex: '0 0 auto' });
     let tg = $('sweepMore'); if (!tg) { tg = el('button', 'btn ghost sm'); tg.type = 'button'; tg.id = 'sweepMore'; tg.setAttribute('aria-expanded', 'false'); tg.textContent = 'Sweep settings ▾'; tg.addEventListener('click', () => { const o = W.dataset.more !== '1'; W.dataset.more = o ? '1' : ''; tg.setAttribute('aria-expanded', String(o)); tg.textContent = o ? 'Sweep settings ▴' : 'Sweep settings ▾'; layout(); }); }
     sum.appendChild(tg);   // last, also after a later fill() (a place switch)
     // the buttons that stay in the old summary row go to the top of the body, so the bar itself stays one row
@@ -298,7 +303,16 @@ if (!SH_CLASSIC) {
 
   // ---------- fixed homes ----------
   const M = 10;
-  let lastFree = '';
+  let lastFree = '', sweepAsked = false;   // sweepAsked: the person grew the bar themselves (in memory only, like a peek)
+  // UI-W15 with UI-W16: the narrowest the bar's words state can be with every part whole: Run sweep, the progress bar at its 60 px minimum,
+  // Cancel or the Resume offer when they show, and 'Sweep settings ▾'. The count line and #bigMsg ellipsise, so they count as 0.
+  function sweepNeed() {
+    const sum = wins.sweep.querySelector('.s-sum');
+    const k = [...sum.children].filter(e => !e.hidden && getComputedStyle(e).display !== 'none');
+    const cs = getComputedStyle(sum), gap = parseFloat(cs.columnGap) || 0;
+    const w = k.reduce((a, e) => a + (e.classList.contains('te-sweepprog') ? (parseFloat(getComputedStyle(e).minWidth) || 60) : e.classList.contains('note') ? 0 : Math.ceil(e.scrollWidth)), 0);
+    return Math.ceil(w + gap * Math.max(0, k.length - 1) + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 2);
+  }
   function layout() {
     const P = place(), st = S.shell.w[P], vw = innerWidth, vh = innerHeight;
     const shown = id => wins[id].dataset.empty !== '1' && (st[id] !== 'T' || wins[id].classList.contains('peek'));
@@ -330,7 +344,18 @@ if (!SH_CLASSIC) {
     // UI-W15 (#534): the bar is up to 640 px AND never wider than 40 % of the stage; its count line ellipsises. It keeps a 260 px
     // floor for Run sweep and 'Sweep settings ▾', but never past the stage's right edge (#532).
     const W = wins.sweep, sl = leftUsed || M, sCap = Math.floor(Math.min(WIN.sweep.w, vw * 0.4, vw - sl - M - Math.max(rightUsed, vw >= 1100 ? 370 : 0)));
-    const sW = eff('sweep') === 'W' ? Math.max(sCap, Math.min(260, vw - sl - M)) : 'auto';
+    // When the cap leaves less than the words state needs, the bar opens one state smaller (UI-W16): icons, as on a phone. Only what is
+    // shown changes: the person's saved state stays 'W', so a wider stage gives the words back. If the person asks for the words (⋯ or ›),
+    // the bar may use the room beside the windows past the 40 % cap. Measured in the words state, in this same frame.
+    let fit = '', need = 0;
+    if (st.sweep === 'W' && !W.classList.contains('peek')) {
+      W.dataset.state = 'W'; need = sweepNeed();
+      if ((sweepAsked ? Math.floor(vw - sl - M - rightUsed) : sCap) < need) fit = 'I';
+    }
+    const fitWas = W.dataset.fit || '';
+    W.dataset.fit = fit; if (fit) W.dataset.state = 'I';
+    if (fit && !fitWas) paintIcons('sweep');
+    const sW = fit || eff('sweep') !== 'W' ? 'auto' : need ? (sweepAsked ? Math.max(sCap, need) : sCap) : Math.max(sCap, Math.min(260, vw - sl - M));
     Object.assign(W.style, { left: sl + 'px', bottom: M + 'px', top: 'auto', width: typeof sW === 'number' ? sW + 'px' : sW, maxHeight: Math.round(vh * .55) + 'px', right: 'auto' });
     // the full results under the card
     const RS = wins.results;

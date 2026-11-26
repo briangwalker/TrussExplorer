@@ -8,6 +8,7 @@ const check = checker();
 const box = (p, q) => p.evaluate(q => { const all = [...document.querySelectorAll(q)]; const e = all.find(x => x.getBoundingClientRect().width > 0 && !x.closest('[hidden]')) || all[0]; if (!e) return null; const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height, vis: r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[hidden]') }; }, q);
 const hit = (a, c) => !!a && !!c && a.l < c.r && c.l < a.r && a.t < c.b && c.t < a.b;
 const inside = (a, c) => !!a && !!c && a.l >= c.l - 1 && a.r <= c.r + 1 && a.t >= c.t - 1 && a.b <= c.b + 1;
+const allIn = p => p.evaluate(() => { const W = document.getElementById('win-sweep'), r = W.getBoundingClientRect(); const out = [...W.querySelectorAll('button')].filter(e => { const q = e.getBoundingClientRect(); return q.width > 0 && !e.closest('[hidden]') && getComputedStyle(e).visibility !== 'hidden'; }).map(e => { const q = e.getBoundingClientRect(); return { id: e.id || e.dataset.ic || e.textContent.trim().slice(0, 12), over: Math.max(r.left - q.left, q.right - r.right, r.top - q.top, q.bottom - r.bottom) }; }).filter(x => x.over > 1); return { out, state: W.dataset.state, fit: W.dataset.fit || '', w: r.width, vw: innerWidth }; });
 
 try {
   // UI-W15 (#534): the bar's width is checked at 1440, 1366 and 1024; the run / pilot steps below run once, at 1366
@@ -27,6 +28,8 @@ try {
         const more = await box(p, '#win-sweep #sweepMore');
         check(`${t}: Run sweep and Sweep settings stay on screen`, !!more && more.vis && inside(more, stage) && inside(run, stage), JSON.stringify([more, run]));
         check(`${t}: the bar's content is one row: its parts sit on one line`, await p.evaluate(() => { const k = [...document.querySelectorAll('#win-sweep .s-sum > *')].filter(e => e.getBoundingClientRect().width > 0); const m = k.map(e => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; }); return k.length >= 3 && Math.max(...m) - Math.min(...m) < 14; }));
+        check(`${t}: Run sweep keeps one line; the count line is what ellipsises (UI-W15)`, run.h < 34, JSON.stringify(run));
+        check(`${t}: every button of the bar lies inside the bar`, (await allIn(p)).out.length === 0, JSON.stringify(await allIn(p)));
         check(`${t}: the bar has no grip (UI-W20)`, await p.evaluate(() => !document.querySelector('#win-sweep .grip')));
         const pip = { l: stage.r - 360, t: stage.b - 240, r: stage.r, b: stage.b };
         check(`${t}: the bar stays out of the bottom-right PIP area (UI-W16)`, !hit(W, pip), JSON.stringify([W, pip]));
@@ -68,6 +71,31 @@ try {
       check(`${tag}: on a phone the bar starts as icons with ▶`, await p.evaluate(() => document.getElementById('win-sweep').dataset.state === 'I' && !!document.querySelector('#win-sweep [data-ic="run"]')));
       await p.screenshot({ path: path.join(SHOTS, 'sweepbar-390.png') });
     }
+    check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
+  // UI-W15 with UI-W16 (UI Designer's MUST on #538): every control of the bar lies inside the bar. Where the 40 % cap leaves less than the
+  // words state needs (700-770 px with Inputs as icons), the bar opens one state smaller, icons with ▶; at 1100 (Inputs open) the same rule holds.
+  for (const [w, h] of [[700, 800], [740, 800], [1100, 800]]) {
+    const tag = `${w}x${h}`;
+    const p = await openPage(b, srv.url, { width: w, height: h }); await waitRows(p); await p.waitForTimeout(500);
+    const r = await allIn(p);
+    check(`${tag}: every button of the sweep bar lies inside the bar (UI-W15, UI-W16)`, r.out.length === 0, JSON.stringify(r));
+    const W = await box(p, '#win-sweep'), stage = await box(p, '#stage');
+    check(`${tag}: the bar is 640 px at most and never wider than 40 % of the stage`, W.w <= 641 && W.w <= 0.4 * stage.w + 1, JSON.stringify([W, stage.w]));
+    if (r.fit === 'I') {
+      check(`${tag}: a bar that doesn't fit shows ▶ Run the sweep as an icon`, !!(await box(p, '#win-sweep [data-ic="run"]'))?.vis);
+      // ⋯ is the person asking for the words: the bar uses the room beside the windows, every button inside it and on screen
+      await p.click('#win-sweep [data-ic="grow"]'); await p.waitForTimeout(300);
+      const g = await allIn(p), G = await box(p, '#win-sweep'), more = await box(p, '#win-sweep #sweepMore'), dr = await box(p, '#win-drawing:not([hidden])');
+      check(`${tag}: after ⋯ the bar shows its words, every button inside it`, g.state === 'W' && g.out.length === 0 && !!more && more.vis && inside(more, stage), JSON.stringify([g, more]));
+      check(`${tag}: after ⋯ the bar stays clear of Drawing`, !dr || !dr.vis || !hit(G, dr), JSON.stringify([G, dr]));
+      // a wider stage gives the words back without a click (the saved state was words all along)
+      await p.setViewportSize({ width: 1366, height: 900 }); await p.waitForTimeout(500);
+      const k = await allIn(p);
+      check(`${tag}: resized to 1366 the bar is words again, every button inside`, k.state === 'W' && k.fit === '' && k.out.length === 0, JSON.stringify(k));
+    }
+    check(`${tag}: Run sweep keeps one line`, await p.evaluate(() => { const e = document.getElementById('runSweep'); const r = e.getBoundingClientRect(); return r.width === 0 || r.height < 34; }));
     check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
   }
