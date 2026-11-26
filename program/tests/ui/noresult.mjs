@@ -99,7 +99,8 @@ try {
   check('#535 3D: 20 + 20 kg books give a result, no "Check book mass"', is3d && /kg/.test(c3.card) && !/No result/.test(c3.card) && !/book mass/i.test(c3.card + c3.key), JSON.stringify({ is3d, c3 }));
   await open(p, BAD);
   let cb = await card(p);
-  for (let i = 0; i < 10 && !/No result/.test(cb.card); i++) { await p.waitForTimeout(300); cb = await card(p); }   // 3D rebuilds more slowly check('#535: a bad file in 3D still gives No result', /No result/.test(cb.card), JSON.stringify(cb));
+  for (let i = 0; i < 10 && !/No result/.test(cb.card); i++) { await p.waitForTimeout(300); cb = await card(p); }   // 3D rebuilds more slowly
+  check('#535: a bad file in 3D still gives No result', /No result/.test(cb.card), JSON.stringify(cb));
   check('no page errors', errors.length === 0, errors.join(' | '));
   await p.close();
 } finally { await b.close(); srv.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
