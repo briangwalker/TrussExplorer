@@ -494,8 +494,23 @@ test('M2: Math\'s measured cases (botEnd 69 and a shaped bottom\'s curve 69, at 
 test('M2: strictly more than the height; one decimal for d, the height as typed', () => {
   const r = d => ({ stable: true, midDefl: d });
   assert.deepStrictEqual(L.checkResult(r(70), { height: 70 }), [], 'equal is not more');
-  assert.strictEqual(L.checkResult(r(70.04), { height: 70 })[0].msg, M2msg('70.0', '70'));
+  assert.strictEqual(L.checkResult(r(70.06), { height: 70 })[0].msg, M2msg('70.1', '70'));
   assert.strictEqual(L.checkResult(r(-30), { height: 26.5 })[0].msg, M2msg('30.0', '26.5'), 'a deflection is its size');
+  assert.strictEqual(L.checkResult(r(161.83), { height: 70 })[0].msg, M2msg('161.8', '70'));
+});
+
+// RMA-17 (TE-B-647, Math TE-B-627 note a): 2 decimals for d only when the 1-decimal d would read the same number as the height
+test('M2: d gets 2 decimals when its rounded form would read the same as the height; otherwise 1 decimal', () => {
+  const r = d => ({ stable: true, midDefl: d });
+  assert.strictEqual(L.checkResult(r(70.03), { height: 70 })[0].msg, M2msg('70.03', '70'), 'Math: never 70.0 ... 70 mm');
+  assert.strictEqual(L.checkResult(r(70.04), { height: 70 })[0].msg, M2msg('70.04', '70'));
+  assert.strictEqual(L.checkResult(r(-70.03), { height: 70 })[0].msg, M2msg('70.03', '70'), 'a deflection is its size');
+  assert.strictEqual(L.checkResult(r(26.52), { height: 26.5 })[0].msg, M2msg('26.52', '26.5'));
+  assert.strictEqual(L.checkResult(r(70.05), { height: 70 })[0].msg, M2msg('70.1', '70'), '70.05 already reads 70.1');
+  assert.strictEqual(L.checkResult(r(26.6), { height: 26.5 })[0].msg, M2msg('26.6', '26.5'));
+  assert.deepStrictEqual(L.checkResult(r(70), { height: 70 }), [], 'the rule is unchanged: equal is not more');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'limits.js'), 'utf8');
+  assert.ok(/---------- geometry rules G1-G10 \(/.test(src) && !/geometry rules G1-G5/.test(src), 'the section comment says G1-G10 (Physics TE-B-642)');
 });
 
 test('M2: the built-in cases, every fixture and Brian\'s final design give [] (rule 4i)', () => {
