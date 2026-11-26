@@ -1,0 +1,89 @@
+# One-click releases (TE-B-570, Brian 11-24 decision 183): merging a 'Release name 1.0.0-...' pull request into
+# balsaPixel-1.0 tags its merge commit and publishes the pre-release, then starts the deploy, which waits for
+# Brian's 'production' approval exactly as before.
+# - Runs only when a pull request INTO balsaPixel-1.0 is merged (not when one is closed unmerged, never on a fork's
+#   token: a fork's pull request can't be merged without a maintainer, and its token is read-only anyway).
+# - The version comes from the title: 'Release name 1.0.0-alpha.7 ...' -> tag v1.0.0-alpha.7. Anything that isn't
+#   1.0.0-alpha.N, -beta.N or -rc.N is refused, so 1.0.0 itself (MAJOR, Brian's OK) can never be made here.
+# - The notes are docs/release-notes/<alpha.N>.md in the merged commit (copied from the 'Truss Explorer Release Notes'
+#   sheet by the Dev Lead in the release-name pull request). No notes file: nothing is tagged, the run fails and says so.
+# - The tag is annotated and points at the merge commit itself. The run checks that the merge commit's tree is the
+#   gate head's tree (the PR's head, where QA, the UI Designer and the Chaos Tester ran); if balsaPixel-1.0 moved after
+#   the gate, nothing is tagged. An existing tag is never moved.
+# - It uses only the run's own GITHUB_TOKEN with contents: write and actions: write (to start deploy.yml). No secret is added.
+# - A tag made with GITHUB_TOKEN does NOT start other workflows (GitHub's rule), so deploy.yml's 'push: tags' would
+#   not fire. The last step therefore starts deploy.yml ON THE TAG with 'gh workflow run --ref <tag>' (a
+#   workflow_dispatch made with GITHUB_TOKEN is the one event GitHub lets it start). That run's github.ref IS the tag,
+#   so the 'production' environment's v*-tags-only rule, Brian's approval and the environment's secrets apply exactly as
+#   for a tag pushed by hand (Black Hat's MUST, TE-B-632). No secret passes through this workflow.
+# Title text from a pull request is untrusted: it reaches the shell only through env and only after the pattern check.
+name: release
+on:
+  pull_request:
+    types: [closed]
+    branches: [balsaPixel-1.0]
+permissions:
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.title, 'Release name 1.0.0-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: The version from the pull request's title
+        id: v
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -eu
+          v="$(printf '%s\n' "$TITLE" | head -1 | sed -nE 's/^Release name (1\.0\.0-(alpha|beta|rc)\.[1-9][0-9]{0,2})([ ,:;(].*)?$/\1/p')"
+          if [ -z "$v" ]; then echo "The title must start 'Release name 1.0.0-alpha.N' (or beta.N, rc.N)"; exit 1; fi
+          pre="${v#1.0.0-}"
+          echo "version=$v" >> "$GITHUB_OUTPUT"; echo "tag=v$v" >> "$GITHUB_OUTPUT"; echo "pre=$pre" >> "$GITHUB_OUTPUT"
+          echo "Release v$v"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
+      - name: Tag the merge commit and publish the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TAG: ${{ steps.v.outputs.tag }}
+          PRE: ${{ steps.v.outputs.pre }}
+        run: |
+          set -eu
+          notes="docs/release-notes/${PRE}.md"
+          test -s "$notes" || { echo "No release notes: add $notes to the release-name pull request"; exit 1; }
+          test "$(git rev-parse HEAD)" = "$SHA" || { echo "Checked out $(git rev-parse HEAD), not the merge commit $SHA"; exit 1; }
+          # the gates ran on the PR's head: the tagged tree must be that tree, so nothing merged after the gate slips in
+          ht="$(gh api "repos/$REPO/git/commits/$HEAD_SHA" --jq .tree.sha)"; mt="$(git rev-parse "$SHA^{tree}")"
+          if [ "$ht" != "$mt" ]; then echo "The merge commit's tree differs from the gate head $HEAD_SHA (balsaPixel-1.0 moved after the gate): not tagged. Re-gate on an up-to-date head."; exit 1; fi
+          if gh api "repos/$REPO/git/ref/tags/$TAG" >/dev/null 2>&1; then echo "$TAG already exists; an existing tag is never moved"; exit 1; fi
+          # title: 'balsaPixel 1.0.0 Alpha 7' (as alpha.6)
+          kind="${PRE%%.*}"; n="${PRE#*.}"
+          case "$kind" in alpha) K=Alpha;; beta) K=Beta;; rc) K=RC;; esac
+          title="balsaPixel 1.0.0 $K $n"
+          obj="$(gh api "repos/$REPO/git/tags" -f tag="$TAG" -f object="$SHA" -f type=commit \
+                 -f message="$title (merge of pull request #$PR, the gate commit's tree)" --jq .sha)"
+          gh api "repos/$REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$obj" >/dev/null
+          gh release create "$TAG" --repo "$REPO" --verify-tag --prerelease --title "$title" --notes-file "$notes"
+          echo "Made $TAG on $SHA and published the pre-release '$title'"
+      - name: Start the deploy on the tag (it waits for Brian's 'production' approval)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          set -eu
+          gh workflow run deploy.yml --repo "$REPO" --ref "$TAG"
+          echo "Started deploy.yml on $TAG: approve the 'production' deploy in the Actions tab"
