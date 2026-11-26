@@ -212,7 +212,9 @@ if (window.TE_FLAGS.limitsBoxes && window.TrussLimitRows && window.TrussInputs &
       if (id !== 'height') return null;
       let top = v;
       try { top = C.envelopeSize(C.buildTruss(design({ height: v })), S.mat, anaOpts()).outer.height; } catch (e) {}
-      return top > 100 + 1e-9 ? `Course rule: the bridge height is at most 100 mm (this one is ${(Math.round(top * 10) / 10).toFixed(1)} mm to its top face).` : null;
+      // 2 decimals when 1 would read as the limit itself (100.012 -> '100.01', not '100.0'; UI Designer SHOULD, Math NOTE on #525)
+      const r1 = Math.round(top * 10) / 10, shown = r1 > 100 ? r1.toFixed(1) : (Math.round(top * 100) / 100).toFixed(2);
+      return top > 100 + 1e-9 ? `Course rule: the bridge height is at most 100 mm (this one is ${shown} mm to its top face).` : null;
     },
   });
 }
