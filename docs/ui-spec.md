@@ -1,6 +1,6 @@
 # Truss Explorer UI Standard
 
-**Version 1.5.11 · 2026-11-26 · owner: UI Designer · creative sign-off: Brian**
+**Version 1.5.12 · 2026-11-26 · owner: UI Designer · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel looks and behaves. Every rule has a number (`UI-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -125,7 +125,7 @@ The link carries only the release, the model and the 8-character bridge code, ne
 - **UI-D4** An unstable bridge turns grey (there are no forces to colour). The loose part is outlined in magenta (a ring for a joint, a box for a panel) with a plain-words reason, and the results show ✕ UNSTABLE with *Find the closest stable bridge* and *Undo*. In 3D the message names the plane or frame that needs bracing.
 - **UI-D5** **Picked member:** a halo, an ink outline, ink rings on its two joints and its number in a flag. The other members fade only slightly. Tokens: `--te-mem-hi`, `--te-mem-hi-ink`, `--te-mem-dim`, `--te-mem-hi-flag`.
 - **UI-D6** Text never overlaps text. In particular, the books ✎ tag sits above the books and replaces the plain books label when dimensions are on.
-- **UI-D7** **The Home view frames the drawing in the free part of the stage.** Home (UI-V6, UI-K2), the first view and a new bridge fit the whole drawing, with its labels, sweep legend and the three result callouts (UI-A13), into the stage area that the windows leave free **in their default homes** (UI-W16, UI-W19), with a 16 px margin. The picture still fills the stage (UI-A3), and moving or folding a window never refits it; only Home does. Labels, the sweep legend and callouts never sit on the books or the wood pile (UI-D3, UI-D6). If the free area is narrower than 480 px (phone, UI-S8), the drawing fits the whole stage instead. (#503; FVL TE-B-529 (2).)
+- **UI-D7** **The Home view frames the drawing in the free part of the stage.** Home (UI-V6, UI-K2), the first view and a new bridge fit the whole drawing, with its labels, sweep legend and the three result callouts (UI-A13), into the stage area that the windows leave free **in their default homes** (UI-W16, UI-W19), with a 16 px margin. The picture still fills the stage (UI-A3), and moving or folding a window never refits it; only Home does. Labels, the sweep legend and callouts never sit on the books or the wood pile (UI-D3, UI-D6). If the free area is narrower than 480 px (phone, UI-S8), the drawing fits the whole stage instead. (#503; FVL TE-B-529 (2). **Default homes follow UI-W15:** on a stage under 1100 px wide the side windows' default home is the icons state (52 px), so the free area there is worked out from Inputs as icons, never from Inputs open (#470). **Readable at Home:** on a stage 1024 px or wider, Home never draws the three callouts (both their lines) or the sweep legend smaller than **10 px** on screen, and no other drawing text smaller than **8 px**. When the fit alone would go under, those words keep the floor size in screen pixels (their boxes grow with them) and still obey UI-D6 and the books/pile rule above; the drawing's lines are not enlarged. Zooming in (UI-V8) makes text larger as before; zooming out may take it under the floor. (QA on #536; UI Designer ruling on #536.)
 
 ## UI-V · 3D view controls (view cube, style D)
 
@@ -299,7 +299,7 @@ Every rule above must be cited by a build issue. These weren't, until now:
 | UI-W24 | steps 8 and 10 (and the tour, step 13) | in the step table since 1.5.7 |
 | UI-W22, UI-W23, UI-A21 | #410, #411 on the live alpha's current sheets (the release after 1.0.0-alpha.3, Brian 2a, TE-B-320) | then again in step 10 (#217) |
 | UI-W14 | #115 (stretch for 11-04; on mainv and alpha, TE-B-132) | not one of the 14 steps |
-| UI-D7 | #503 (alpha.7) | the default fit at 1366 and 1024 |
+| UI-D7 | #503 (alpha.7), #470 | the default fit at 1366 and 1024; the text floors (10 px callouts and legend, 8 px other) at 1024, 1280, 1366 and 1440 |
 
 ---
 
@@ -327,6 +327,7 @@ Acceptance for each step: the rules below are met (UI review comment on the PR),
 
 ## Change log
 
+- **1.5.12 · 2026-11-26** UI-D7 gets two lines from the walk of #536 (BPD-16) at 5e92ebe, where QA measured the 1024 Home view at 5.2-7.0 px for the callouts and the UI Designer at 8.7 px at 1366: the default homes follow UI-W15 (under 1100 px, Inputs' default home is icons, #470), and Home keeps the callouts and sweep legend at 10 px or more on screen and every other drawing text at 8 px or more, on stages 1024 px and wider. Coverage adds the floors. No rule is added or removed.
 - **1.5.11 · 2026-11-26** UI-I10 names a result rule (Math's M2, RMA-15 #523, wired by #528): No result on the card and the result views only, with no box mark and no Inputs note, because no single value is wrong. It follows the build walked on #528 at 5eefbe0. No rule is added or removed.
 - **1.5.10 · 2026-11-25** UI-I10 wording follows the shipped build (Architecture Lead TE-B-629; #517, #522, #524): the note's first line is fileReport's one summary, which also names broken shape rules; the results card puts a plain ⟂ No result pill first and ellipsises the summary to the normal card's width, with the full line as its accessible name and in the ▾ view; a file with only bad values gets the plain toast. No rule is added or removed.
 - **1.5.9 · 2026-11-24** From the alpha.6 gate (TE-B-528, TE-B-529, TE-B-530). UI-W10: only a person's own change makes a change toast (never start-up, restore, open or the app's own set), and opening a bridge starts a new Undo baseline (#502, #501). UI-K4: the ring's colour is ART-S5's (art-spec 1.0.7: toasts on-strong; the focus / on-strong / ink fallback), and a theme's ring may change shape but not get thinner than 3 px (UI Designer on #485). New UI-D7: Home frames the drawing, its labels, legend and callouts in the stage area the windows leave free in their default homes, and nothing sits on the books or pile (#503; FVL TE-B-529 (2)). Coverage adds UI-D7.
