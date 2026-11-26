@@ -76,15 +76,22 @@ try {
   }
   // UI-W15 with UI-W16 (UI Designer's MUST on #538): every control of the bar lies inside the bar. Where the 40 % cap leaves less than the
   // words state needs (700-770 px with Inputs as icons), the bar opens one state smaller, icons with ▶; at 1100 (Inputs open) the same rule holds.
-  for (const [w, h] of [[700, 800], [740, 800], [1100, 800]]) {
-    const tag = `${w}x${h}`;
-    const p = await openPage(b, srv.url, { width: w, height: h }); await waitRows(p); await p.waitForTimeout(500);
+  // FVL MUST on #538: the same checks in a Notebook theme, whose thick bezel and 2 px button borders the fit must count (948: the words
+  // used to be kept at a 379 px bar that was 5-10 px too narrow).
+  const setTheme = (p, t) => p.evaluate(t => { const s = document.getElementById('themeSel'); s.value = t; s.dispatchEvent(new Event('change', { bubbles: true })); }, t);
+  for (const th of ['wireframe', 'notebook-calc']) for (const [w, h] of [[700, 800], [740, 800], [948, 800], [1100, 800]]) {
+    const tag = `${th} ${w}x${h}`;
+    const p = await openPage(b, srv.url, { width: w, height: h }); await waitRows(p); await p.waitForTimeout(300);
+    if (th !== 'wireframe') { await setTheme(p, th); await p.waitForTimeout(300); await p.reload(); await waitRows(p); }
+    await p.waitForTimeout(500);
+    check(`${tag}: the theme is ${th}`, await p.evaluate(() => document.getElementById('stage').dataset.theme) === th);
     const r = await allIn(p);
     check(`${tag}: every button of the sweep bar lies inside the bar (UI-W15, UI-W16)`, r.out.length === 0, JSON.stringify(r));
     const W = await box(p, '#win-sweep'), stage = await box(p, '#stage');
     check(`${tag}: the bar is 640 px at most and never wider than 40 % of the stage`, W.w <= 641 && W.w <= 0.4 * stage.w + 1, JSON.stringify([W, stage.w]));
     if (r.fit === 'I') {
       check(`${tag}: a bar that doesn't fit shows ▶ Run the sweep as an icon`, !!(await box(p, '#win-sweep [data-ic="run"]'))?.vis);
+      check(`${tag}: in the fitted icons state '‹ Shrink Sweep to icons' is hidden (UI-W15 1.5.13)`, await p.evaluate(() => { const e = document.querySelector('#win-sweep .s-ph [data-step="shrink"]'); return !e || e.hidden || e.getBoundingClientRect().width === 0; }));
       // ⋯ is the person asking for the words: the bar uses the room beside the windows, every button inside it and on screen
       await p.click('#win-sweep [data-ic="grow"]'); await p.waitForTimeout(300);
       const g = await allIn(p), G = await box(p, '#win-sweep'), more = await box(p, '#win-sweep #sweepMore'), dr = await box(p, '#win-drawing:not([hidden])');
@@ -94,6 +101,20 @@ try {
       await p.setViewportSize({ width: 1366, height: 900 }); await p.waitForTimeout(500);
       const k = await allIn(p);
       check(`${tag}: resized to 1366 the bar is words again, every button inside`, k.state === 'W' && k.fit === '' && k.out.length === 0, JSON.stringify(k));
+      // on a fresh page at 1366 (the ⋯ choice above is kept in memory on this one)
+      const q = await openPage(b, srv.url, { width: 1366, height: 900 }); await waitRows(q); await q.waitForTimeout(300);
+      if (th !== 'wireframe') { await setTheme(q, th); await q.waitForTimeout(300); await q.reload(); await waitRows(q); await q.waitForTimeout(300); }
+      // focus follows a resize switch (UI-W15 1.5.13, QA note 1): Sweep settings -> ⋯ -> Sweep settings, Run sweep -> ▶ -> Run sweep
+      for (const [from, to] of [['#sweepMore', 'grow'], ['#runSweep', 'run']]) {
+        await q.focus(from); await q.setViewportSize({ width: w, height: h }); await q.waitForTimeout(500);
+        const a = await q.evaluate(() => { const e = document.activeElement; return { ic: e.dataset.ic || '', id: e.id, fit: document.getElementById('win-sweep').dataset.fit }; });
+        check(`${tag}: a resize to icons moves focus from ${from} to [data-ic=${to}], not <body>`, a.fit === 'I' && a.ic === to, JSON.stringify(a));
+        await q.setViewportSize({ width: 1366, height: 900 }); await q.waitForTimeout(500);
+        const z = await q.evaluate(() => '#' + document.activeElement.id);
+        check(`${tag}: and back to words it is on ${from} again`, z === from, z);
+      }
+      await q.close();
+      check(`${tag}: at 1366 '‹ Shrink' is back in the words state`, await p.evaluate(() => { const e = document.querySelector('#win-sweep .s-ph [data-step="shrink"]'); return !!e && !e.hidden && e.getBoundingClientRect().width > 0; }));
     }
     check(`${tag}: Run sweep keeps one line`, await p.evaluate(() => { const e = document.getElementById('runSweep'); const r = e.getBoundingClientRect(); return r.width === 0 || r.height < 34; }));
     check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));

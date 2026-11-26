@@ -306,12 +306,18 @@ if (!SH_CLASSIC) {
   let lastFree = '', sweepAsked = false;   // sweepAsked: the person grew the bar themselves (in memory only, like a peek)
   // UI-W15 with UI-W16: the narrowest the bar's words state can be with every part whole: Run sweep, the progress bar at its 60 px minimum,
   // Cancel or the Resume offer when they show, and 'Sweep settings ▾'. The count line and #bigMsg ellipsise, so they count as 0.
+  // Each part counts its own border box (a Notebook button has a 2 px border that scrollWidth leaves out), and the bar adds the
+  // window's own frame, read from the theme: every border and padding between #win-sweep's edge and .s-sum (Notebook's bezel is 7 px
+  // a side, Wireframe's border 1 px; FVL MUST on #538).
   function sweepNeed() {
-    const sum = wins.sweep.querySelector('.s-sum');
+    const W = wins.sweep, sum = W.querySelector('.s-sum'), px = v => parseFloat(v) || 0;
+    const side = c => px(c.borderLeftWidth) + px(c.borderRightWidth) + px(c.paddingLeft) + px(c.paddingRight);
     const k = [...sum.children].filter(e => !e.hidden && getComputedStyle(e).display !== 'none');
-    const cs = getComputedStyle(sum), gap = parseFloat(cs.columnGap) || 0;
-    const w = k.reduce((a, e) => a + (e.classList.contains('te-sweepprog') ? (parseFloat(getComputedStyle(e).minWidth) || 60) : e.classList.contains('note') ? 0 : Math.ceil(e.scrollWidth)), 0);
-    return Math.ceil(w + gap * Math.max(0, k.length - 1) + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 2);
+    const cs = getComputedStyle(sum), gap = px(cs.columnGap);
+    const own = e => { const c = getComputedStyle(e); return Math.max(e.getBoundingClientRect().width, e.scrollWidth + px(c.borderLeftWidth) + px(c.borderRightWidth)) + px(c.marginLeft) + px(c.marginRight); };
+    const w = k.reduce((a, e) => a + (e.classList.contains('te-sweepprog') ? (px(getComputedStyle(e).minWidth) || 60) : e.classList.contains('note') ? 0 : own(e)), 0);
+    let frame = 0; for (let e = sum; e && e !== W.parentElement; e = e.parentElement) frame += side(getComputedStyle(e));
+    return Math.ceil(w + gap * Math.max(0, k.length - 1) + frame + 1);   // +1: sub-pixel rounding
   }
   function layout() {
     const P = place(), st = S.shell.w[P], vw = innerWidth, vh = innerHeight;
@@ -341,8 +347,8 @@ if (!SH_CLASSIC) {
     else Object.assign(I.style, { width: iW + 'px' });
     const iShown = shown('inputs'), leftUsed = iShown ? iW + 2 * M : 0;
     // sweep at the bottom, beside the inputs
-    // UI-W15 (#534): the bar is up to 640 px AND never wider than 40 % of the stage; its count line ellipsises. It keeps a 260 px
-    // floor for Run sweep and 'Sweep settings ▾', but never past the stage's right edge (#532).
+    // UI-W15 (#534): the bar is up to 640 px AND never wider than 40 % of the stage; its count line ellipsises. Its floor is what the
+    // words state needs (sweepNeed, measured with the theme's own frame), never past the stage's right edge (#532).
     const W = wins.sweep, sl = leftUsed || M, sCap = Math.floor(Math.min(WIN.sweep.w, vw * 0.4, vw - sl - M - Math.max(rightUsed, vw >= 1100 ? 370 : 0)));
     // When the cap leaves less than the words state needs, the bar opens one state smaller (UI-W16): icons, as on a phone. Only what is
     // shown changes: the person's saved state stays 'W', so a wider stage gives the words back. If the person asks for the words (⋯ or ›),
@@ -352,9 +358,21 @@ if (!SH_CLASSIC) {
       W.dataset.state = 'W'; need = sweepNeed();
       if ((sweepAsked ? Math.floor(vw - sl - M - rightUsed) : sCap) < need) fit = 'I';
     }
-    const fitWas = W.dataset.fit || '';
+    const fitWas = W.dataset.fit || '', foc = fit !== fitWas && W.contains(document.activeElement) ? document.activeElement : null;
     W.dataset.fit = fit; if (fit) W.dataset.state = 'I';
     if (fit && !fitWas) paintIcons('sweep');
+    // the bar is already icons, so '‹ Shrink Sweep to icons' would do nothing you can see: hide it while the fit holds (UI-W15 1.5.13, QA note 2)
+    { const sh = W.querySelector('.s-ph [data-step="shrink"]'); if (sh) sh.hidden = fit === 'I'; }
+    // focus follows a resize switch between words and icons (UI-W15 1.5.13, QA note 1): Run sweep ↔ ▶, Sweep settings ↔ ⋯, and
+    // anything else goes to the bar's first control, so it never drops to <body>
+    if (foc && !(foc.offsetWidth > 0 && foc.getClientRects().length)) {
+      const id = foc.id || '', ic = foc.dataset.ic || '';
+      const pick = fit ? (id === 'runSweep' ? '[data-ic="run"]' : id === 'sweepMore' ? '[data-ic="grow"]' : '') : (ic === 'run' ? '#runSweep' : ic === 'grow' ? '#sweepMore' : '');
+      const vis = e => !!e && e.offsetWidth > 0 && !e.closest('[hidden]');
+      let t = pick ? W.querySelector(pick) : null;
+      if (!vis(t)) t = [...W.querySelectorAll('button, summary, input, select')].find(vis);
+      if (t) t.focus({ preventScroll: true });
+    }
     const sW = fit || eff('sweep') !== 'W' ? 'auto' : need ? (sweepAsked ? Math.max(sCap, need) : sCap) : Math.max(sCap, Math.min(260, vw - sl - M));
     Object.assign(W.style, { left: sl + 'px', bottom: M + 'px', top: 'auto', width: typeof sW === 'number' ? sW + 'px' : sW, maxHeight: Math.round(vh * .55) + 'px', right: 'auto' });
     // the full results under the card
