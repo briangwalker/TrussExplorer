@@ -85,9 +85,19 @@ const GHOST = [
   { k: 'R', f: v => ({ ratio: v }), name: 'taper', col: 'var(--g5)' },
   { k: 'A', f: v => ({ sideAngle: v }), name: 'side', col: 'var(--g6)' },
 ];
-function sweepGhosts(Y) {
+// how many legend lines sweepGhosts will write (the drawing makes room for them above the envelope)
+function ghostRows() {
+  if (typeof swOn !== 'function') return 0;
+  let n = GHOST.filter(g => swOn(g.k)).length;
+  if (swOn('N') && typeof SW !== 'undefined' && Object.keys(SW.panels).some(k => SW.panels[k])) n++;
+  return n;
+}
+// legY: the truss height (mm) of the lowest legend line's baseline; the lines stack upward from there
+function sweepGhosts(Y, legY) {
   if (typeof swOn !== 'function') return '';
-  const out = [], F = 'IBM Plex Mono, monospace';
+  const out = [], F = 'IBM Plex Mono, monospace', nRows = ghostRows();
+  if (legY == null) legY = 108;
+  const legAt = r => Y(legY + 5 * (nRows - 1 - r));   // row 0 on top, the last row lowest
   let row = 0;
   GHOST.forEach(g => {
     if (!swOn(g.k)) return;
@@ -103,10 +113,10 @@ function sweepGhosts(Y) {
       const segs = t2.elems.filter(e => e.type === 'top' || e.type === 'bot' || e.type === 'end').map(e => { const p = t2.nodes[e.i], q = t2.nodes[e.j]; return `<line x1="${p[0]}" y1="${Y(p[1])}" x2="${q[0]}" y2="${Y(q[1])}"/>`; }).join('');
       out.push(`<g stroke="${g.col}" stroke-width="${j ? 0.9 : 0.7}" stroke-dasharray="${j ? '4 2' : '1.4 1.4'}" fill="none" opacity=".9" pointer-events="none">${segs}</g>`);
     });
-    out.push(`<text x="${-48}" y="${Y(100) + 8 + 5 * row}" font-size="3.8" fill="${g.col}" font-family="${F}">sweep ${g.name}: ${fmt1(ends[0])} (dotted) to ${fmt1(ends[1])} (dashed)${st > 0 ? `, grey every ${fmt1(st)}` : ''}</text>`);
+    out.push(`<text data-legend="${g.k}" x="${-48}" y="${legAt(row)}" font-size="3.8" fill="${g.col}" font-family="${F}">sweep ${g.name}: ${fmt1(ends[0])} (dotted) to ${fmt1(ends[1])} (dashed)${st > 0 ? `, grey every ${fmt1(st)}` : ''}</text>`);
     row++;
   });
-  if (swOn('N')) { const ns = Object.keys(SW.panels).filter(k => SW.panels[k]); if (ns.length) { out.push(`<text x="${-48}" y="${Y(100) + 8 + 5 * row}" font-size="3.8" fill="var(--g8)" font-family="${F}">sweep panels: ${ns.join(', ')}</text>`); row++; } }
+  if (swOn('N')) { const ns = Object.keys(SW.panels).filter(k => SW.panels[k]); if (ns.length) { out.push(`<text data-legend="N" x="${-48}" y="${legAt(row)}" font-size="3.8" fill="var(--g8)" font-family="${F}">sweep panels: ${ns.join(', ')}</text>`); row++; } }
   return out.join('');
 }
 function dimLabels(Y, vx0, vx1) {
@@ -344,7 +354,7 @@ $('drawWrap').addEventListener('pointerup', ev => { if (adj && adj.drag) { adj.d
 })();
 function bridgeLive() { return typeof fsEl !== 'undefined' && fsEl === '#sideSheet'; }   // the bridge view only moves in full screen
 $('drawWrap').addEventListener('wheel', ev => {
-  if (!adj) { if (!bridgeLive() || ev.target.closest('.navpad') || ev.target.closest('.infobox')) return; ev.preventDefault(); const svg = $('draw'), r = svg.getBoundingClientRect(), b = renderDrawing.base; if (!b) return;
+  if (!adj) { if (!bridgeLive() || ev.target.closest('.navpad') || ev.target.closest('.infobox')) return; ev.preventDefault(); const svg = $('draw'), r = svg.getBoundingClientRect(), b = v2Box(); if (!b) return;
     // zoom around the pointer
     const vb = svg.viewBox.baseVal, fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height, z0 = v2.zoom;
     v2.zoom = Math.max(0.5, Math.min(8, v2.zoom * (wheelDir(ev) > 0 ? 1.15 : 1 / 1.15)));
@@ -381,12 +391,46 @@ function paintResOverlay() {
     + box('bc', `D ${res.midDefl.toFixed(3)} mm`, `deflection · limit ${S.opts.deflLimit}`, c(res.deflOK))
     + box('bl', `${res.wood.toFixed(0)} mm`, 'wood used ΣL', 'var(--accent)');
 }
+// ---------- UI-D7: Home frames the drawing in the part of the stage the windows leave free in their DEFAULT homes (#503)
+// The free box is worked out from where the shell puts the windows by default (Inputs open on the left, the Drawing window as icons
+// on the right under the view control, the sweep bar at the bottom), never from where they are now: moving or folding a window
+// never refits, only Home (and a new render: the first view, a new bridge) does. The top bar, the results card and the view control
+// don't move, so they are measured. A free box under 480 px wide (phone) gives null: the drawing then fits the whole stage.
+var HOMEFIT = { M: 10, margin: 16, minW: 480, sweepH: 0 };
+function homeFree() {
+  const stage = document.getElementById('stage'), svg = $('draw');
+  if (!stage || !stage.querySelector('.s-pan[data-win="inputs"]') || !svg) return null;   // the classic layout has no windows
+  if (window.__shell && window.__shell.state && window.__shell.state.place && window.__shell.state.place !== 'truss') return null;
+  const sr = svg.getBoundingClientRect(); if (!(sr.width > 0 && sr.height > 0)) return null;
+  const vw = innerWidth, vh = innerHeight, M = HOMEFIT.M, box = el => { const r = el && el.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 ? r : null; };
+  // the shell's own sizes (shell.js layout(), UI-W15): Inputs up to 400 px and never over 40 % of the page; Drawing as icons is 56 px
+  const iW = Math.floor(Math.min(400, vw - 2 * M, vw * 0.4));
+  let l = M + iW, r = vw - M - 56, t = sr.top, bt = sr.bottom;
+  const pad = box(document.querySelector('#drawWrap .navpad')); if (pad) r = Math.min(r, pad.left);
+  [document.getElementById('shellNav'), document.getElementById('resCard')].forEach(el => { const q = box(el); if (q && q.bottom < sr.top + sr.height / 3) t = Math.max(t, q.bottom); });
+  // the sweep bar's default height is its bar alone (Sweep settings closed); remember it while it is in that state
+  const sw = stage.querySelector('.s-pan[data-win="sweep"]'), swr = box(sw);
+  if (sw && swr && sw.dataset.state === 'W' && sw.dataset.more !== '1' && !sw.classList.contains('peek')) HOMEFIT.sweepH = swr.height;
+  bt = Math.min(bt, vh - M - (HOMEFIT.sweepH || 86));
+  l = Math.max(l, sr.left); r = Math.min(r, sr.right);
+  if (r - l < HOMEFIT.minW || bt - t < 120) return null;
+  return { l, t, r, b: bt, svg: sr };
+}
+// the viewBox (whole svg) that puts the drawing's box b = [x, y, w, h] inside the free box, centred, with the 16 px margin
+function homeFit(b) {
+  const f = homeFree(); if (!f || !b) return null;
+  const m = HOMEFIT.margin, fw = f.r - f.l - 2 * m, fh = f.b - f.t - 2 * m; if (fw <= 0 || fh <= 0) return null;
+  const s = Math.min(fw / b[2], fh / b[3]), W = f.svg.width / s, H = f.svg.height / s;
+  const cx = (f.l + f.r) / 2 - f.svg.left, cy = (f.t + f.b) / 2 - f.svg.top;
+  return [b[0] + b[2] / 2 - cx / s, b[1] + b[3] / 2 - cy / s, W, H];
+}
+function v2Box() { return renderDrawing.home || renderDrawing.base; }
 function applyV2() {
-  const b = renderDrawing.base; if (!b) return; const w = b[2] / v2.zoom, h = b[3] / v2.zoom;
+  const b = v2Box(); if (!b) return; const w = b[2] / v2.zoom, h = b[3] / v2.zoom;
   $('draw').setAttribute('viewBox', `${(b[0] + (b[2] - w) / 2 - v2.px).toFixed(2)} ${(b[1] + (b[3] - h) / 2 - v2.py).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`);
 }
 function nav2D(d) {
-  const b = renderDrawing.base; if (!b) return; const w = b[2] / v2.zoom, h = b[3] / v2.zoom;
+  const b = v2Box(); if (!b) return; const w = b[2] / v2.zoom, h = b[3] / v2.zoom;
   if (d === 'home') { v2.zoom = 1; v2.px = 0; v2.py = 0; }
   else if (d === 'in') v2.zoom = Math.min(8, v2.zoom * 1.25); else if (d === 'out') v2.zoom = Math.max(0.5, v2.zoom / 1.25);
   else if (d === 'left') v2.px += 0.15 * w; else if (d === 'right') v2.px -= 0.15 * w; else if (d === 'up') v2.py += 0.15 * h; else if (d === 'down') v2.py -= 0.15 * h;
@@ -405,9 +449,9 @@ function currentDesign() { return { tr, res, S }; }
 function renderDrawing(target, design, opts) {
   const main = !target || target === $('draw');
   const svg = target || $('draw');
-  opts = Object.assign(main ? { hl: hlElem, ghosts: S.showGhosts !== false, dims: S.showDims !== false, results: true } : { hl: -1, ghosts: false, dims: false, results: false }, opts);
+  opts = Object.assign(main ? { hl: hlElem, ghosts: S.showGhosts !== false, dims: S.showDims !== false, results: true, fit: true } : { hl: -1, ghosts: false, dims: false, results: false, fit: false }, opts);
   const d = drawingSVG(design || currentDesign(), opts);
-  if (main) { renderDrawing.base = d.base; applyV2(); paintResOverlay(); }
+  if (main) { renderDrawing.base = d.base; renderDrawing.home = d.home || null; applyV2(); paintResOverlay(); }
   else svg.setAttribute('viewBox', d.base.join(' '));
   svg.innerHTML = d.svg;
   if (!main) return;
@@ -427,8 +471,13 @@ function drawingSVG(design, opts) {
   const { tr, res, S } = design;   // the design's own, never the shared ones
   const xs = tr.nodes.map(n => n[0]);
   const x0 = Math.min(-70, Math.min(...xs) - 22), x1 = Math.max(270, Math.max(...xs) + 22);
-  const yTop = Math.max(128, +S.height + 46), yBot = opts.results ? -112 : -76;   // the results strip (callouts, wood pile) needs the extra floor
+  // the sweep legend sits above the envelope's label and the books' line (UI-D7: never on the books), so the top makes room for it
+  const nLeg = opts.ghosts && typeof ghostRows === 'function' ? ghostRows() : 0, legY = Math.max(100 + 2.5 + 4.2, +S.height + 12 + 13 + 2.4 + 4.2) + 2;
+  const yTop = Math.max(128, +S.height + 46, nLeg ? legY + 5 * (nLeg - 1) + 6 : 0), yBot = opts.results ? -112 : -76;   // the results strip (callouts, wood pile) needs the extra floor
   const base = [x0, 0, x1 - x0, yTop - yBot];
+  // UI-D7: in the main view the Home box is wider than the drawing; the tables (UI-S1) still run to its edges
+  const home = opts.fit && typeof homeFit === 'function' ? homeFit(base) : null;
+  const tx0 = home ? Math.min(x0, home[0]) : x0, tx1 = home ? Math.max(x1, home[0] + home[2]) : x1;
   const Y = y => yTop - y;
   const o = [];
   const MONO = 'IBM Plex Mono, monospace';
@@ -438,13 +487,13 @@ function drawingSVG(design, opts) {
   o.push(`<rect x="0" y="${Y(0)}" width="200" height="50" fill="none" stroke="var(--envline)" stroke-dasharray="3 2.5" stroke-width=".5"/>`);
   o.push(t(204, Y(-50) + 5.5, '50 mm max below deck', 4.2, 'start'));
   const Tt = Math.max(0, +S.tableThick || 0), tH = Math.min(Tt, 76);
-  o.push(`<rect x="${x0}" y="${Y(0)}" width="${-x0}" height="76" fill="var(--desk)" fill-opacity=".35"/>`);
-  o.push(`<rect x="200" y="${Y(0)}" width="${x1 - 200}" height="76" fill="var(--desk)" fill-opacity=".35"/>`);
-  o.push(`<rect x="${x0}" y="${Y(0)}" width="${-x0}" height="${tH}" fill="var(--desk)"/>`);
-  o.push(`<rect x="200" y="${Y(0)}" width="${x1 - 200}" height="${tH}" fill="var(--desk)"/>`);
+  o.push(`<rect x="${tx0}" y="${Y(0)}" width="${-tx0}" height="76" fill="var(--desk)" fill-opacity=".35"/>`);
+  o.push(`<rect x="200" y="${Y(0)}" width="${tx1 - 200}" height="76" fill="var(--desk)" fill-opacity=".35"/>`);
+  o.push(`<rect x="${tx0}" y="${Y(0)}" width="${-tx0}" height="${tH}" fill="var(--desk)"/>`);
+  o.push(`<rect x="200" y="${Y(0)}" width="${tx1 - 200}" height="${tH}" fill="var(--desk)"/>`);
   // UI-S1 / UI-D2: the tables run to both edges of the drawing and end in break lines. ART-spec has no break-line rule yet, so this is a plain
   // 1 px double rule (non-scaling) across the table block; Graphics may replace it with a drawn break.
-  [[x0, 1], [x1, -1]].forEach(([bx, sg], n) => o.push(`<g data-break="${n ? 'right' : 'left'}" fill="none" stroke="var(--ink)" stroke-width="1" stroke-linecap="butt" aria-hidden="true"><line vector-effect="non-scaling-stroke" x1="${bx + sg * 1}" y1="${Y(0)}" x2="${bx + sg * 1}" y2="${Y(0) + 76}"/><line vector-effect="non-scaling-stroke" x1="${bx + sg * 2.8}" y1="${Y(0)}" x2="${bx + sg * 2.8}" y2="${Y(0) + 76}"/></g>`));
+  [[tx0, 1], [tx1, -1]].forEach(([bx, sg], n) => o.push(`<g data-break="${n ? 'right' : 'left'}" fill="none" stroke="var(--ink)" stroke-width="1" stroke-linecap="butt" aria-hidden="true"><line vector-effect="non-scaling-stroke" x1="${bx + sg * 1}" y1="${Y(0)}" x2="${bx + sg * 1}" y2="${Y(0) + 76}"/><line vector-effect="non-scaling-stroke" x1="${bx + sg * 2.8}" y1="${Y(0)}" x2="${bx + sg * 2.8}" y2="${Y(0) + 76}"/></g>`));
   if (Tt > 0) { o.push(t(x0 + 6, Y(-Tt) + 6, `table top ${Tt.toFixed(0)} mm`, 3.8, 'start')); o.push(t(x1 - 6, Y(-Tt) + 6, `table top ${Tt.toFixed(0)} mm`, 3.8, 'end')); }
   o.push(t(x0 + 6, Y(-22), 'DESK', 5, 'start')); o.push(t(x1 - 6, Y(-22), 'DESK', 5, 'end'));
   o.push(`<g stroke="var(--muted)" stroke-width=".4"><line x1="0" y1="${Y(-64)}" x2="200" y2="${Y(-64)}"/><line x1="0" y1="${Y(-61)}" x2="0" y2="${Y(-67)}"/><line x1="200" y1="${Y(-61)}" x2="200" y2="${Y(-67)}"/></g>`);
@@ -544,7 +593,7 @@ function drawingSVG(design, opts) {
   // The results card keeps the numbers; the words for these three live here (UI-D3, UI-D6: text never overlaps text).
   if (opts.results && ok) {
     const FL = -106, ink = 'var(--ink)', okc = c => c ? 'var(--ok)' : 'var(--bad)';
-    o.push(`<line x1="${x0}" y1="${Y(FL)}" x2="${x1}" y2="${Y(FL)}" stroke="var(--line)" stroke-width=".5"/>`);
+    o.push(`<line x1="${tx0}" y1="${Y(FL)}" x2="${tx1}" y2="${Y(FL)}" stroke="var(--line)" stroke-width=".5"/>`);
     const lowY = Math.min(...tr.nodes.map(n => n[1])), cx = (Math.min(...xs) + Math.max(...xs)) / 2, mn = tr.nodes[res.midNode] || [100, 0];
     const fitsOK = !!res.edgeOK && !(res.envelope && res.envelope.length);
     const nFit = (res.envelope ? res.envelope.length : 0) + (res.edgeOK ? 0 : 1);
@@ -572,9 +621,9 @@ function drawingSVG(design, opts) {
     o.push(`<g data-pile="${nSt}" data-pile-w="${pw.toFixed(1)}"><title>Wood used: ${res.wood.toFixed(0)} mm, about ${nSt} sticks of 240 mm</title>${pic('woodpile', px, Y(FL) - ph, pw, ph, pile)}</g>`);
   }
   // swept ranges as dashed outlines, then the clickable dimension labels (main view only: they read the screen's sweep and editor)
-  if (opts.ghosts) o.push(sweepGhosts(Y));
+  if (opts.ghosts) o.push(sweepGhosts(Y, legY));
   if (opts.dims) o.push(dimLabels(Y, x0, x1));
-  return { svg: o.join(''), base };
+  return { svg: o.join(''), base, home };
 }
 function memWOf(s, e) { return s.mat.b * (e.n === 4 && e.bundle === 'compact' ? 2 : e.n); }
 function memW(e) { return memWOf(S, e); }
