@@ -79,6 +79,28 @@ try {
   await p.fill('#height-tb', '100'); await p.press("#height-tb", "Enter"); await p.waitForTimeout(400);
   c = await card(p);
   check('M2: a deeper bridge (height 100) brings the kg and the verdict back', /kg/.test(c.card) && /PASSES|FAILS/.test(c.card) && !/No result/.test(c.card), JSON.stringify(c));
+  // #535: the design's check reads only the design's own inputs, never the sweep data sheet's Re-check boxes (rcBook holds
+  // both books, so 20 + 20 kg read as 40 against its 0-20 cap, and it kept an earlier file's value for the next file)
+  const HEAVY = file('heavy.bridge.json', { name: 'Heavy books', height: 60, panels: 4, mat: { E: 3000 }, load: { mBook1: 20, mBook2: 20, g: 9.81, nTruss: 2 } });
+  const LIGHT = file('light.bridge.json', { name: 'Light books', height: 60, panels: 4, mat: { E: 3000 }, load: { mBook1: 0.75, mBook2: 0.75, g: 9.81, nTruss: 2 } });
+  const result = (c, tag) => check(tag, /kg/.test(c.card) && /PASSES|FAILS/.test(c.card) && !/No result/.test(c.card) && !/book mass/i.test(c.card + c.key), JSON.stringify(c));
+  await open(p, HEAVY);
+  result(await card(p), '#535 2D: 20 + 20 kg books give a result, no "Check book mass"');
+  await open(p, LIGHT);
+  result(await card(p), "#535: file B (1.5 kg) after file A (20 + 20 kg) on one page gives B's result");
+  // what paintSheet() writes after a sweep of a 20 + 20 kg design: the Re-check Books box at 40, beyond its 0-20 table range
+  const reRender = () => p.evaluate(() => { document.getElementById('inputsPane').dispatchEvent(new Event('change', { bubbles: true })); });
+  await p.evaluate(() => { document.getElementById('rcBook').value = '40'; }); await reRender(); await p.waitForTimeout(300);
+  result(await card(p), '#535: the Re-check Books box at 40 kg (outside its 0-20 table range) does not make the design No result');
+  await p.evaluate(() => { const e = document.querySelector('#shellNav [data-sw="t:3"]'); if (e) e.click(); }); await p.waitForTimeout(1200);
+  const is3d = await p.evaluate(() => window.__dbg.S.anaMode === '3d');
+  await open(p, HEAVY);
+  const c3 = await card(p);
+  check('#535 3D: 20 + 20 kg books give a result, no "Check book mass"', is3d && /kg/.test(c3.card) && !/No result/.test(c3.card) && !/book mass/i.test(c3.card + c3.key), JSON.stringify({ is3d, c3 }));
+  await open(p, BAD);
+  let cb = await card(p);
+  for (let i = 0; i < 10 && !/No result/.test(cb.card); i++) { await p.waitForTimeout(300); cb = await card(p); }   // 3D rebuilds more slowly
+  check('#535: a bad file in 3D still gives No result', /No result/.test(cb.card), JSON.stringify(cb));
   check('no page errors', errors.length === 0, errors.join(' | '));
   await p.close();
 } finally { await b.close(); srv.close(); fs.rmSync(tmp, { recursive: true, force: true }); }

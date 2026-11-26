@@ -285,6 +285,16 @@ function showExport(x) {
 $('expTabs').addEventListener('click', ev => { const b = ev.target.closest('[data-x]'); if (!b) return; ev.preventDefault(); ev.stopPropagation(); showExport(b.dataset.x); });
 showExport(S.expTab || 'bridge');
 $('docNo').addEventListener('click', closeDocModal);
+// UI-W22 (#410): a click on the dimmed backdrop closes the sheet the way Esc does, and does nothing else on the page
+// behind. It closes on the click, not the pointer-down, so the rest of the gesture still lands on the backdrop and never
+// on the drawing; a drag that starts inside the card (selecting text) and ends outside doesn't close it.
+let docDownOut = false;
+$('docModal').addEventListener('pointerdown', ev => { docDownOut = ev.target === $('docModal'); if (docDownOut) { ev.preventDefault(); ev.stopPropagation(); } });
+$('docModal').addEventListener('click', ev => {
+  const out = docDownOut && ev.target === $('docModal'); docDownOut = false;
+  if (!out || !$('saveModal').hidden) return;
+  ev.preventDefault(); ev.stopPropagation(); closeDocModal();
+});
 document.querySelectorAll('input[name="jstyle"]').forEach(r => r.addEventListener('change', () => { S.doc.style = r.value; save(); renderDocDialog(); }));
 document.querySelectorAll('input[name="tiejoint"]').forEach(r => r.addEventListener('change', () => { S.opts.tieJoint = r.value; update(); renderDocDialog(); }));
 $('docStock').addEventListener('change', () => guardNum('docStock', 50, 2000, S.doc.stock, v => { S.doc.stock = v; save(); renderDocDialog(); }, 'Stock stick length'));
