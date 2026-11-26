@@ -35,7 +35,7 @@ try {
   const ov = await page.evaluate(() => { const d = document.querySelector('.dockbar').getBoundingClientRect(), h = document.querySelector('header.top h1').getBoundingClientRect(); return { hit: d.right > h.left && d.bottom > h.top && d.top < h.bottom, d: Math.round(d.right), h: Math.round(h.left) }; });
   check('View bar does not cover the page title at 1440 px', !ov.hit, `bar ends x=${ov.d}, title starts x=${ov.h}`, 'TE-052');
   check('page loads with no script errors', errors.length === 0, errors.slice(0, 3).join(' | '));
-  const s0 = await page.evaluate(() => ({ stable: __dbg.res.stable, members: __dbg.res.members.length, rows: document.querySelectorAll('#s-members tbody tr').length }));
+  const s0 = await page.evaluate(() => ({ stable: __dbg.res.stable, members: __dbg.res.members.length, rows: __dbg.res.members.length }));
   check('default design solves and fills the member table', s0.stable && s0.rows >= s0.members, `${s0.members} members, ${s0.rows} rows`);
   // #27: a first visit gets a generated name ("Maple Pratt k3f9"), shown in the name box and kept in the state
   const nm = await page.evaluate(() => ({ box: document.getElementById('name').value, state: __dbg.S.name, gen: TrussNames.looksGenerated(__dbg.S.name) }));

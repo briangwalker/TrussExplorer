@@ -67,7 +67,7 @@ if (!SH_CLASSIC) {
 
   // references taken before anything moves
   const R = { pane: $('inputsPane'), drawopts: $('showDims').closest('.drawopts'), topSeg: $('topViewSeg'), legend: $('drawWrap').parentElement.querySelector('.legend'),
-    memBd: $('s-members').querySelector('.bd'), sweepBd: $('s-sweep').querySelector('.bd'), sweepBtns: $('sweepBtns'), sweepCount: $('sweepCount'),
+    sweepBd: $('s-sweep').querySelector('.bd'), sweepBtns: $('sweepBtns'), sweepCount: $('sweepCount'),
     stats: $('stats'), msgs: $('msgs') };
 
   // ---------- the top bar ----------
@@ -169,7 +169,6 @@ if (!SH_CLASSIC) {
   // UI-W15: a window is up to its width, then its content scrolls inside it. The Drawing window's body is a one-column grid, so
   // cap that column at the window's width (minmax(0, 1fr)); the wide member table then scrolls sideways in its own box.
   wins.drawing.querySelector('.s-bd').style.gridTemplateColumns = 'minmax(0, 1fr)';
-  Object.assign(R.memBd.style, { overflowX: 'auto', maxWidth: '100%' });
   const pieceWin = {};
   Object.keys(PIECE).forEach(id => { pieceWin[id] = PC.mountWindow(wins[id], tabs[id], { onState: st => { S.shell.w[place()][id] = st; save(); paintWins(); } }); });
   function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
@@ -241,7 +240,7 @@ if (!SH_CLASSIC) {
     const T = place() === 'truss';
     if (id === 'inputs') return [R.pane];
     if (id === 'view') return T ? [R.topSeg] : [...$('fsBar').children];
-    if (id === 'drawing') return T ? [togBox, R.drawopts, R.legend, R.memBd] : [...$('fsFoot').children];
+    if (id === 'drawing') return T ? [togBox, R.drawopts, R.legend] : [...$('fsFoot').children];
     if (id === 'sweep') return [R.sweepBd];
     if (id === 'results') return [R.stats, R.msgs];
     return [];

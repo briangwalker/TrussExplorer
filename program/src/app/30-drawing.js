@@ -416,9 +416,10 @@ function renderDrawing(target, design, opts) {
     l.addEventListener('mouseenter', () => highlight(+l.dataset.k));
     l.addEventListener('mouseleave', () => highlight(-1));
     l.addEventListener('click', () => {
-      $('s-members').open = true;
-      const row = document.querySelector(`#tbl tbody tr[data-k="${l.dataset.k}"]`);
-      if (row) { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); highlight(+l.dataset.k); }
+      // the member table is in Analysis > Members now (UI-S10): if it is showing, find the row there
+      highlight(+l.dataset.k);
+      const row = document.querySelector(`#memTbl tbody tr[data-key="${l.dataset.k}"]`);
+      if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
   });
 }
@@ -580,7 +581,6 @@ function memW(e) { return memWOf(S, e); }
 function highlight(k) {
   if (hlElem === k) return;
   hlElem = k;
-  document.querySelectorAll('#tbl tbody tr').forEach(r => r.classList.toggle('hl', +r.dataset.k === k));
   document.querySelectorAll('#draw .mem').forEach(l => l.setAttribute('stroke-width', +l.dataset.k === k ? 5.5 : memW(tr.elems[+l.dataset.k])));
 }
 
@@ -697,13 +697,13 @@ function rowsForCsv() {
   return [head].concat(res.members.map(m => [m.k, m.i, m.j, X.TYPE_LABEL[m.type], m.n + (m.n === 4 && m.bundle === 'compact' ? ' (2x2)' : ''), m.L.toFixed(1), m.F.toFixed(2), m.TC, m.Pcr.toFixed(1), m.buckles,
     (m.F > 0 ? m.capT : m.F < 0 ? m.capC : 0).toFixed(1), (m.util * 100).toFixed(0), m.mode]));
 }
-function renderTable() {
-  const tb = $('tbl'), facts = $('facts');
+// the design facts to hand-check (UI-S10 4): they sit in a closed disclosure under the Members table
+function factsHTML() {
   const angs = {};
   tr.elems.forEach(e => { if (e.type !== 'diag') return; const a = tr.nodes[e.i], b = tr.nodes[e.j]; angs[(Math.atan2(Math.abs(b[1] - a[1]), Math.abs(b[0] - a[0])) * 180 / Math.PI).toFixed(1)] = 1; });
   const sup = res.stable ? res.activeSupports.map(s => `${s.claw ? 'claw' : s.brace ? 'edge brace' : s.pin ? 'pin' : 'roller'} x=${tr.nodes[s.node][0].toFixed(0)}: ${s.Ry.toFixed(2)} N`).join(' · ') : '';
   const sumR = res.stable ? res.activeSupports.reduce((a, s) => a + s.Ry, 0) : 0;
-  facts.innerHTML = `<dt>Design load on one truss</dt><dd>${res.Ptruss.toFixed(2)} N (W = ${res.W.toFixed(2)} N × FS ${S.mat.FS} ÷ ${S.load.nTruss})</dd>
+  return `<dt>Design load on one truss</dt><dd>${res.Ptruss.toFixed(2)} N (W = ${res.W.toFixed(2)} N × FS ${S.mat.FS} ÷ ${S.load.nTruss})</dd>
     <dt>Book footprint</dt><dd>${(+S.bookLen).toFixed(0)} mm, x = ${tr.bookSpan[0].toFixed(0)} to ${tr.bookSpan[1].toFixed(0)} mm, over ${res.Fval.length} deck joints</dd>
     <dt>Diagonal angles</dt><dd>${Object.keys(angs).map(a => a + '°').join(', ') || 'no diagonals'}</dd>
     <dt>Side (end-post) angle</dt><dd>${tr.info.sideAngleActual.toFixed(1)}°</dd>
@@ -713,19 +713,8 @@ function renderTable() {
     ${sup ? `<dt>Reactions (hand-check)</dt><dd>${sup} · sum ${sumR.toFixed(2)} N</dd>` : ''}
     <dt>Wood used, one truss</dt><dd>${woodBreakdown()}</dd>
     <dt>Wood used, whole bridge</dt><dd>${woodTotalText()}</dd>`;
-  if (!res.stable) { tb.innerHTML = '<tbody><tr><td class="l">No results: the truss is unstable.</td></tr></tbody>'; return; }
-  let h = '<thead><tr><th>Elem</th><th>i</th><th>j</th><th class="l">Type</th><th class="l">Sticks</th><th>L (mm)</th><th>F (N)</th><th>T/C</th><th>P<sub>cr</sub> (N)</th><th>Buckling?</th><th>Capacity (N)</th><th class="l">Use</th></tr></thead><tbody>';
-  res.members.forEach(m => {
-    const cap = m.F > 0 ? m.capT : m.capC;
-    const u = Math.min(1, m.util), col = m.util >= 1 ? 'var(--bad)' : m.util >= .8 ? 'var(--warn)' : (m.F < 0 ? 'var(--comp)' : 'var(--tens)');
-    h += `<tr data-k="${m.k}" class="${m.fails ? 'fail' : ''}${hlElem === m.k ? ' hl' : ''}"><td>${m.k}</td><td>${m.i}</td><td>${m.j}</td><td class="l">${X.TYPE_LABEL[m.type]}</td><td class="l"><span class="stk"><button type="button" data-st="${m.k}" data-d="-1" aria-label="Fewer sticks in member ${m.k}">−</button><b>${m.n}</b><button type="button" data-st="${m.k}" data-d="1" aria-label="More sticks in member ${m.k}">+</button>${m.n === 4 ? `<button type="button" class="bund" data-bd="${m.k}" title="How the 4 sticks are glued">${m.bundle === 'compact' ? '2×2' : 'row'}</button>` : ''}<button type="button" class="bund" data-fc="${m.k}" aria-pressed="${isFocus(m.k)}" title="Focus: sweep this member's sticks (and its mirror image)">${isFocus(m.k) ? '● focus' : '◎'}</button></span></td><td>${m.L.toFixed(1)}</td><td>${m.F.toFixed(2)}</td><td class="tc-${m.TC}">${m.TC}</td><td>${m.Pcr.toFixed(1)}</td><td>${m.buckles}</td><td>${m.F ? cap.toFixed(1) : '—'}</td><td class="l"><span class="bar"><span style="width:${(u * 100).toFixed(0)}%;background:${col}"></span></span>${(m.util * 100).toFixed(0)}%${m.mode && m.F ? ' ' + m.mode : ''}</td></tr>`;
-  });
-  tb.innerHTML = h + '</tbody>';
-  tb.querySelectorAll('tbody tr').forEach(r => { r.addEventListener('mouseenter', () => highlight(+r.dataset.k)); r.addEventListener('mouseleave', () => highlight(-1)); });
-  tb.querySelectorAll('button[data-st]').forEach(b => b.addEventListener('click', () => setSticks(+b.dataset.st, d => ({ n: Math.max(1, Math.min(4, d.n + +b.dataset.d)) }))));
-  tb.querySelectorAll('button[data-bd]').forEach(b => b.addEventListener('click', () => setSticks(+b.dataset.bd, d => ({ bundle: d.bundle === 'compact' ? 'row' : 'compact' }))));
-  tb.querySelectorAll('button[data-fc]').forEach(b => b.addEventListener('click', () => toggleFocus(+b.dataset.fc)));
 }
+function renderTable() { const f = $('facts'); if (f) f.innerHTML = factsHTML(); }
 function isFocus(k) { const e = tr.elems[k]; return !!e && S.focus.some(f => f.key === e.key || f.mkey === e.key); }
 function toggleFocus(k) {
   const e = tr.elems[k]; if (!e) return;
@@ -737,7 +726,7 @@ function toggleFocus(k) {
 function renderFocus() {
   const el = $('focusChips'); if (!el) return;
   el.innerHTML = S.focus.length ? S.focus.map((f, i) => `<span class="chip on" style="display:inline-flex;gap:6px;align-items:center;padding:3px 8px">${f.label}<button type="button" class="btn ghost sm" data-unf="${i}" aria-label="Remove ${f.label} from focus" style="padding:0 6px">×</button></span>`).join('')
-    : '<span class="note">None yet. Mark members with ◎ in the member table.</span>';
+    : '<span class="note">None yet. Mark members with ◎ in Analysis › Members.</span>';
   el.querySelectorAll('[data-unf]').forEach(b => b.addEventListener('click', () => { S.focus.splice(+b.dataset.unf, 1); update(); }));
 }
 function setSticks(k, fn) {
@@ -748,7 +737,6 @@ function setSticks(k, fn) {
   [e, tr.elems[e.mirror]].forEach(m => { if (!m) return; if (nv.n === 1) delete S.sticks[m.key]; else S.sticks[m.key] = { n: nv.n, bundle: nv.bundle }; });
   update();
 }
-$('resetSticks').addEventListener('click', () => { S.sticks = {}; update(); });
 // a CSV cell that a spreadsheet would read as a formula (= + - @ ...) is kept as text; plain numbers stay numbers
 // a cell a spreadsheet would read as a formula gets a leading ' (CSV injection); leading spaces and tabs are looked past,
 // since some spreadsheets trim them first (Black Hat, UI Engineer, TE-B-346/359). Plain signed numbers stay numbers.

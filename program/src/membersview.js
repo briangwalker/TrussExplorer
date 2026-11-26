@@ -21,12 +21,13 @@ const HEAD = ['Elem', 'i', 'j', 'Type', 'Sticks', 'L (mm)', 'F (N)', 'T/C', 'P_c
 // Type, Sticks and Capacity. Copy and CSV always give all 13 (HEAD), whatever the screen shows.
 const COLUMNS = [
   { key: 'k', label: 'Member', num: true }, { key: 'ij', label: 'i–j' },
-  { key: 'type', label: 'Type', all: true }, { key: 'sticks', label: 'Sticks', num: true, all: true },
+  { key: 'type', label: 'Type', all: true }, { key: 'sticks', label: 'Sticks', num: true, edit: 'cell' },
   { key: 'L', label: 'L (mm)', num: true }, { key: 'F', label: 'F (N)', num: true }, { key: 'TC', label: 'T/C' },
   { key: 'Pcr', label: 'P_cr (N)', num: true }, { key: 'buckles', label: 'Buckling?' },
   { key: 'cap', label: 'Capacity (N)', num: true, all: true }, { key: 'use', label: 'Use' },
+  { key: 'focus', label: 'Focus', edit: 'widget' },   // UI-S10: always shown, one toggle per member
 ];
-function columns(all) { return COLUMNS.filter(c => all || !c.all).map(c => ({ key: c.key, label: c.label, num: !!c.num })); }
+function columns(all) { return COLUMNS.filter(c => all || !c.all).map(c => { const o = { key: c.key, label: c.label, num: !!c.num }; if (c.edit) o.edit = c.edit; return o; }); }
 const TC_WORD = { T: 'tension', C: 'compression', 0: 'no force' };
 
 function need(rows) { if (!Array.isArray(rows)) throw new Error('TrussMembersView: rows must be the array TrussMembers.rows() gives'); return rows; }
@@ -54,7 +55,21 @@ function csvOf(table) { return table.map(r => r.map(v => { v = csvSafe(v); retur
 // a zero-force member has no fill. The % is always written beside it, so colour is never the only sign (UI-A17).
 function useColour(r) { return r.use >= 1 ? 'var(--bad)' : 'var(--ok)'; }
 
-// o = { typeLabel, lit (member k), id, all (show every column), dir ('descending' default | 'ascending') }
+// The Sticks cell and the Focus toggle (UI-S10): the markup only; the app wires the clicks and keys (src/app/93-members.js).
+// Sticks: − and + (1 to 4) and, at 4 sticks, the row / 2×2 switch. Focus: one toggle per member, aria-pressed.
+function sticksHTML(P, r) {
+  const n = r.sticks, k = r.k;
+  return P.buttonHTML({ kind: 'icon', icon: '−', label: `Fewer sticks, member ${k}`, act: 'mem-less', sm: true, disabled: n <= 1 })
+    + ` <b class="mv-n">${n}</b> `
+    + P.buttonHTML({ kind: 'icon', icon: '+', label: `More sticks, member ${k}`, act: 'mem-more', sm: true, disabled: n >= 4 })
+    + (n === 4 ? ' ' + P.buttonHTML({ label: '2×2', act: 'mem-bundle', sm: true, pressed: !!r.compact, title: `Glue member ${k} as a 2×2 bundle instead of a row` }) : '');
+}
+function focusHTML(P, r, on) {
+  return P.buttonHTML({ kind: 'icon', icon: on ? '●' : '◎', label: `Focus member ${r.k} in the sweep`, act: 'mem-focus', sm: true, pressed: !!on });
+}
+
+// o = { typeLabel, lit (member k), id, all (show every column), dir ('descending' default | 'ascending'),
+//       edit (true: Sticks and Focus carry their controls, UI-S10), isFocus (k -> bool) }
 function tableHTML(P, rows, o) {
   o = o || {};
   const esc = P.escH, dir = o.dir === 'ascending' ? 'ascending' : 'descending', list = sorted(rows, dir);
@@ -66,6 +81,7 @@ function tableHTML(P, rows, o) {
       key: r.k, cls: fails ? 'fail' : '',
       cells: { k: c[0], ij: `${c[1]}–${c[2]}`, type: c[3], sticks: c[4], L: c[5], F: c[6], Pcr: c[8], buckles: c[9] === 'Y' ? 'Y (yes)' : c[9] === 'N' ? 'N (no)' : c[9], cap: r.F_N ? c[10] : '—' },
       html: {
+        ...(o.edit ? { sticks: sticksHTML(P, r), focus: focusHTML(P, r, o.isFocus ? o.isFocus(r.k) : false) } : {}),
         TC: `<span class="mv-tc tc-${esc(r.TC)}">${esc(r.TC)} <span class="mv-w">${esc(TC_WORD[r.TC] || '')}</span></span>`,
         use: `<span class="mv-bar" aria-hidden="true">${fill}</span><span class="num">${esc(c[11])}%</span>${gov}${fails ? ' <b class="mv-fail">✕ fails</b>' : ''}`,
       },
@@ -83,6 +99,7 @@ function tableHTML(P, rows, o) {
 function toolbarHTML(P, o) {
   o = o || {};
   return `<div class="mv-tools" data-pc>${P.toggleHTML({ label: 'All columns', checked: !!o.all, id: o.switchId || 'membersAll' })}`
+    + `${P.buttonHTML({ label: 'All members to 1 stick', act: 'mem-reset', title: 'Set every member back to one stick (you can undo it)' })}`
     + `${P.buttonHTML({ label: 'Copy table', act: 'members-copy', title: 'Copy the member table as CSV (all 13 columns)' })}${P.buttonHTML({ label: 'Download CSV', act: 'members-csv', title: 'Save the member table as a .csv file (all 13 columns)' })}</div>`;
 }
 
@@ -96,6 +113,7 @@ const CSS = `
 #stage .te-tbl .mv-bar{display:inline-block;width:48px;height:8px;margin-right:6px;vertical-align:middle;background:transparent;border:1px solid var(--te-line-soft)}
 #stage .te-tbl .mv-bar>span{display:block;height:100%}
 #stage .te-tbl .mv-fail{color:var(--bad)}
+#stage .te-tbl .mv-n{display:inline-block;min-width:1.2em;text-align:center}
 #stage .mv-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 8px}`;
 
 // once per page: puts CSS in <style id="te-members"> (like TrussPieces.install); a second call does nothing
@@ -104,6 +122,6 @@ function install(doc) {
   const st = doc.createElement('style'); st.id = 'te-members'; st.textContent = CSS; doc.head.appendChild(st); return true;
 }
 
-const api = { HEAD, COLUMNS, columns, sorted, csvRows, csvOf, tableHTML, toolbarHTML, CSS, install };
+const api = { HEAD, COLUMNS, columns, sorted, csvRows, csvOf, tableHTML, toolbarHTML, sticksHTML, focusHTML, CSS, install };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TrussMembersView = api;
 })(typeof window !== 'undefined' ? window : globalThis);
