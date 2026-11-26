@@ -69,6 +69,16 @@ try {
   await open(p, XSS);
   const r = await p.evaluate(() => ({ ran: !!window.__ran, imgs: document.querySelectorAll('#resCard img, #keyStrip img').length, no: /No result/.test(document.getElementById('resCard').textContent) }));
   check('a bad file named like markup: No result, and nothing runs', r.no && !r.ran && r.imgs === 0, JSON.stringify(r));
+  // Math's M2 (RMA-15, TE-B-627): a good file whose mid-span deflection is more than its height: No result with M2's line, no kg
+  const M2F = file('m2.bridge.json', { name: 'Deep sag', height: 20, panels: 12, mat: { E: 500, bS: 1, hS: 1 }, load: { mBook1: 20, mBook2: 20, g: 9.81, nTruss: 2 } });
+  await open(p, M2F);
+  c = await card(p);
+  const m2 = await p.evaluate(() => { const A = window.TrussApp, nr = A.noResult; return { d: A.res && A.res.midDefl, rule: nr && nr.result ? nr.result[0].rule : null, name: document.getElementById('resCard').getAttribute('aria-label') || '' }; });
+  check('M2: the card says No result with the deflection line, no kg and no PASS or FAILS', /No result/.test(c.card) && /mid-span deflection/.test(c.card) && !/kg/.test(c.card) && !/PASSES|FAILS/.test(c.card), JSON.stringify({ c, m2 }));
+  check("M2: the rule is M2 and the card's name carries Math's message", m2.rule === 'M2' && /^No result\. No capacity: the mid-span deflection \([\d.]+ mm\) is more than the bridge height \(20 mm\)\.$/.test(m2.name), JSON.stringify(m2));
+  await p.fill('#height-tb', '100'); await p.press("#height-tb", "Enter"); await p.waitForTimeout(400);
+  c = await card(p);
+  check('M2: a deeper bridge (height 100) brings the kg and the verdict back', /kg/.test(c.card) && /PASSES|FAILS/.test(c.card) && !/No result/.test(c.card), JSON.stringify(c));
   check('no page errors', errors.length === 0, errors.join(' | '));
   await p.close();
 } finally { await b.close(); srv.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
