@@ -383,6 +383,30 @@ body.compact .controls .grp .in > .swblock:not(.inl):not(.on) { flex-basis: auto
 .navpad .pa { fill: var(--muted); cursor: pointer; } .navpad .pa:hover { fill: var(--accent); } .navpad circle.pa { fill: var(--accent); }
 .navpad .pz { display: flex; gap: 4px; } .navpad .ncb { width: 26px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font-size: 15px; line-height: 1; padding: 0; cursor: pointer; }
 .chartbox:has(.navcube) .tip { z-index: 5; }
+/* step 7 (#214, UI-V7): Look from, one button at the view cube's bottom-right; the list opens downward under it */
+.lookfrom { position: absolute; top: 86px; right: 6px; z-index: 4; }
+.lookfrom[hidden] { display: none; }
+.lookfrom .lookbtn { font: 600 11px var(--f-body); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.lookfrom .lookbtn:hover, .lookfrom .lookbtn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.lookmenu { position: absolute; top: calc(100% + 4px); right: 0; display: flex; flex-direction: column; gap: 2px; background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+.lookmenu[hidden] { display: none; }
+.lookmenu button { font: 500 12px var(--f-body); text-align: left; padding: 4px 10px; min-width: 76px; border: 0; border-radius: 4px; background: transparent; color: var(--ink); cursor: pointer; }
+.lookmenu button:hover, .lookmenu button:focus-visible { background: var(--accent-soft); }
+.lookmenu button[aria-checked="true"] { font-weight: 700; color: var(--accent); }
+.lookmenu button[aria-checked="true"]::before { content: '✓ '; }
+.lookview { position: absolute; inset: 0; z-index: 3; background: var(--sheet); color: var(--ink); font: 12px var(--f-body); }
+.lookview .lookin { position: absolute; inset: 8px 150px 12px 12px; overflow: auto; }
+.lookview[hidden] { display: none; }
+.chartbox.looking .d3labs { display: none; }
+.lookview .lookh { font: 600 14px var(--f-body); margin: 0 0 6px; }
+.lookview .lookfig { margin: 0 0 10px; }
+.lookview .lookfig svg { display: block; width: 100%; max-height: 34vh; }
+.lookview .lookgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 12px; }
+.lookview .lookgrid svg { max-height: 160px; }
+.lookview .lookkey { margin: 4px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.lookview .lookki { white-space: nowrap; }
+.lookview .lookcode { font-family: var(--f-mono, monospace); }
+.lookview .lookchips { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 #fixTbl td.l { white-space: normal; }
 .resov { position: absolute; inset: 0; pointer-events: none; z-index: 2; font-family: var(--f-mono, monospace); }
 .resov[hidden] { display: none; }
