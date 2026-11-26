@@ -82,12 +82,27 @@ try {
       if (it.l < free.l - 0.5 || it.r > free.r + 0.5 || it.t < free.t - 0.5 || it.b > free.b + 0.5) bad.push(`${it.k} outside the free area`);
       Object.entries(obst).forEach(([k, o]) => { if (hit(it, o)) bad.push(`${it.k} on the ${k}`); });
     });
+    // UI-D6: the callouts, the legend lines and the ✎ labels never sit on each other
+    const words = items.concat([...svg.querySelectorAll('.dimlab rect')].map(e => ({ k: 'label ' + e.parentNode.dataset.var, ...bx(e) })));
+    words.forEach((a, i) => words.slice(i + 1).forEach(c => { if (hit(a, c)) bad.push(`${a.k} on ${c.k}`); }));
     return { vb: svg.getAttribute('viewBox'), n: items.length, legend: items.filter(i => /^legend/.test(i.k)).length, bad, free: [free.l, free.t, free.r, free.b].map(Math.round) };
   };
-  for (const vp of [{ width: 1366, height: 900 }, { width: 1440, height: 900 }, { width: 1024, height: 768 }]) {
+  // UI-D7 text floors (ui-spec 1.5.12): the smallest on-screen size (font-size x the svg's scale) of the callouts' and legend's words, and of the rest
+  const textProbe = () => {
+    const svg = document.getElementById('draw'), k = svg.getScreenCTM().a, px = e => +e.getAttribute('font-size') * k;
+    const all = [...svg.querySelectorAll('text')], res = all.filter(e => e.closest('[data-callout]') || e.hasAttribute('data-legend'));
+    const min = a => a.length ? +Math.min(...a.map(px)).toFixed(2) : null;
+    return { result: min(res), nRes: res.length, other: min(all.filter(e => !res.includes(e))), nAll: all.length };
+  };
+  for (const vp of [{ width: 1366, height: 900 }, { width: 1440, height: 900 }, { width: 1280, height: 800 }, { width: 1024, height: 768 }]) {
     const tag = vp.width + 'x' + vp.height;
     const p = await openPage(b, srv.url, vp); await p.waitForTimeout(700);
+    // UI-W15: under 1100 px the side windows' default home is icons. Home already fits for that (UI-D7, 1.5.12); until the shell opens Inputs
+    // that way itself (#470), put it there by hand (folding never refits, so the view is still the first view's)
+    if (vp.width < 1100) { await p.evaluate(() => window.__shell.setState('inputs', 'I')); await p.waitForTimeout(400); }
     const r0 = await p.evaluate(fitProbe);
+    const tx = await p.evaluate(textProbe);
+    check(`${tag}: Home text floors: callouts and sweep legend >= 10 px, every other drawing text >= 8 px (UI-D7, 1.5.12)`, tx.nRes >= 7 && tx.result >= 9.99 && tx.other >= 7.99, JSON.stringify(tx));
     check(`${tag}: first view: the 3 callouts and every sweep legend line sit in the free area, off the books, pile, Inputs and sweep bar (UI-D7)`, r0.n >= 3 && r0.legend >= 1 && r0.bad.length === 0, `${r0.n} items, ${r0.legend} legend · ${r0.bad.slice(0, 3).join('; ')} · free ${r0.free}`);
     // pan and zoom away, then Home: back to the same fitted box
     // the pad's own click handler (the Drawing window's icons sit over the + button at these sizes, a separate issue)
@@ -103,7 +118,7 @@ try {
     await pad('home'); await p.waitForTimeout(200);
     const r3 = await p.evaluate(fitProbe);
     check(`${tag}: folding Inputs and the sweep bar doesn't refit, and Home still uses the default homes`, r2.vb === r0.vb && r3.vb === r0.vb, `${r0.vb} / ${r2.vb} / ${r3.vb}`);
-    await p.evaluate(() => { window.__shell.setState('inputs', 'W'); window.__shell.setState('sweep', 'W'); }); await p.waitForTimeout(300);
+    await p.evaluate(w => { window.__shell.setState('inputs', w < 1100 ? 'I' : 'W'); window.__shell.setState('sweep', 'W'); }, vp.width); await p.waitForTimeout(300);
     if (vp.width === 1366) await p.screenshot({ path: path.join(SHOTS, 'homefit-1366.png') });
     check(`${tag}: no script errors (UI-D7)`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();

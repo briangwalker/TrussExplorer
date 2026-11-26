@@ -92,12 +92,12 @@ function ghostRows() {
   if (swOn('N') && typeof SW !== 'undefined' && Object.keys(SW.panels).some(k => SW.panels[k])) n++;
   return n;
 }
-// legY: the truss height (mm) of the lowest legend line's baseline; the lines stack upward from there
-function sweepGhosts(Y, legY) {
+// legY: the truss height (mm) of the lowest legend line's baseline; the lines stack upward from there, step mm apart, in size mm text
+function sweepGhosts(Y, legY, size, step) {
   if (typeof swOn !== 'function') return '';
   const out = [], F = 'IBM Plex Mono, monospace', nRows = ghostRows();
-  if (legY == null) legY = 108;
-  const legAt = r => Y(legY + 5 * (nRows - 1 - r));   // row 0 on top, the last row lowest
+  if (legY == null) legY = 108; size = size || 3.8; step = step || 5;
+  const legAt = r => Y(legY + step * (nRows - 1 - r));   // row 0 on top, the last row lowest
   let row = 0;
   GHOST.forEach(g => {
     if (!swOn(g.k)) return;
@@ -113,16 +113,18 @@ function sweepGhosts(Y, legY) {
       const segs = t2.elems.filter(e => e.type === 'top' || e.type === 'bot' || e.type === 'end').map(e => { const p = t2.nodes[e.i], q = t2.nodes[e.j]; return `<line x1="${p[0]}" y1="${Y(p[1])}" x2="${q[0]}" y2="${Y(q[1])}"/>`; }).join('');
       out.push(`<g stroke="${g.col}" stroke-width="${j ? 0.9 : 0.7}" stroke-dasharray="${j ? '4 2' : '1.4 1.4'}" fill="none" opacity=".9" pointer-events="none">${segs}</g>`);
     });
-    out.push(`<text data-legend="${g.k}" x="${-48}" y="${legAt(row)}" font-size="3.8" fill="${g.col}" font-family="${F}">sweep ${g.name}: ${fmt1(ends[0])} (dotted) to ${fmt1(ends[1])} (dashed)${st > 0 ? `, grey every ${fmt1(st)}` : ''}</text>`);
+    out.push(`<text data-legend="${g.k}" x="${-48}" y="${legAt(row)}" font-size="${size}" fill="${g.col}" font-family="${F}">sweep ${g.name}: ${fmt1(ends[0])} (dotted) to ${fmt1(ends[1])} (dashed)${st > 0 ? `, grey every ${fmt1(st)}` : ''}</text>`);
     row++;
   });
-  if (swOn('N')) { const ns = Object.keys(SW.panels).filter(k => SW.panels[k]); if (ns.length) { out.push(`<text data-legend="N" x="${-48}" y="${legAt(row)}" font-size="3.8" fill="var(--g8)" font-family="${F}">sweep panels: ${ns.join(', ')}</text>`); row++; } }
+  if (swOn('N')) { const ns = Object.keys(SW.panels).filter(k => SW.panels[k]); if (ns.length) { out.push(`<text data-legend="N" x="${-48}" y="${legAt(row)}" font-size="${size}" fill="var(--g8)" font-family="${F}">sweep panels: ${ns.join(', ')}</text>`); row++; } }
   return out.join('');
 }
-function dimLabels(Y, vx0, vx1) {
+// k >= 1 enlarges the labels' text and boxes together (UI-D7: Home keeps drawing text at 8 px or more on screen)
+function dimLabels(Y, vx0, vx1, k) {
   const out = [], F = 'IBM Plex Mono, monospace', labs = [];
+  k = Math.max(1, k || 1);
   const lab = (x, y, text, key, anchor) => {
-    const tx = '✎ ' + text, w = tx.length * 2.3 + 4, x0 = anchor === 'end' ? x - w : anchor === 'start' ? x : x - w / 2;
+    const tx = '✎ ' + text, w = (tx.length * 2.3 + 4) * k, x0 = anchor === 'end' ? x - w : anchor === 'start' ? x : x - w / 2;
     labs.push({ x0, y, w, tx, key, ax: x, ay: y - 1.2, y0: y });
   };
   const vdim = (x, y0, y1) => out.push(`<g stroke="var(--muted)" stroke-width=".35" pointer-events="none"><line x1="${x}" y1="${Y(y0)}" x2="${x}" y2="${Y(y1)}"/><line x1="${x - 2}" y1="${Y(y0)}" x2="${x + 2}" y2="${Y(y0)}"/><line x1="${x - 2}" y1="${Y(y1)}" x2="${x + 2}" y2="${Y(y1)}"/></g>`);
@@ -143,14 +145,14 @@ function dimLabels(Y, vx0, vx1) {
   if (S.family === 'grid') { const xs = tr.nodes.map(n => n[0]); lab(Math.min(...xs) - 3, Y(Math.max(H, 0) * 0.55), `side ${fmt1(tr.info.sideAngleActual)}°`, 'sideAngle', 'end'); }
   // push labels apart: each one moves down (then up) until it no longer overlaps one already placed
   if (vx0 != null) labs.forEach(L => { L.x0 = Math.max(vx0 + 1, Math.min(L.x0, vx1 - L.w - 1)); });
-  const placed = [], hit = (A, B) => A.x0 < B.x0 + B.w + 1 && B.x0 < A.x0 + A.w + 1 && Math.abs(A.y - B.y) < 7;
+  const placed = [], hit = (A, B) => A.x0 < B.x0 + B.w + 1 && B.x0 < A.x0 + A.w + 1 && Math.abs(A.y - B.y) < 7 * k;
   labs.forEach(L => {
-    for (let k = 0; k < 40 && placed.some(P => hit(L, P)); k++) L.y = L.y0 + (k % 2 ? -1 : 1) * 7 * Math.ceil((k + 1) / 2);
+    for (let n = 0; n < 40 && placed.some(P => hit(L, P)); n++) L.y = L.y0 + (n % 2 ? -1 : 1) * 7 * k * Math.ceil((n + 1) / 2);
     placed.push(L);
   });
   labs.forEach(L => {
     if (Math.abs(L.y - L.y0) > 0.5) out.push(`<line x1="${L.x0 + L.w / 2}" y1="${L.y - 1.2}" x2="${L.ax}" y2="${L.ay}" stroke="var(--accent)" stroke-width=".3" stroke-dasharray="1 .8" pointer-events="none"/>`);
-    out.push(`<g class="dimlab" data-var="${L.key}"><title>Click to change ${L.tx.slice(2).split(' ')[0]}</title><rect x="${L.x0}" y="${L.y - 4.4}" width="${L.w}" height="6.2" rx="1.4" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width=".5"/><text x="${L.x0 + L.w / 2}" y="${L.y}" font-size="3.9" font-weight="600" text-anchor="middle" fill="var(--accent)" font-family="${F}">${L.tx}</text></g>`);
+    out.push(`<g class="dimlab" data-var="${L.key}"><title>Click to change ${L.tx.slice(2).split(' ')[0]}</title><rect x="${L.x0}" y="${L.y - 4.4 * k}" width="${L.w}" height="${6.2 * k}" rx="1.4" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width=".5"/><text x="${L.x0 + L.w / 2}" y="${L.y}" font-size="${3.9 * k}" font-weight="600" text-anchor="middle" fill="var(--accent)" font-family="${F}">${L.tx}</text></g>`);
   });
   return out.join('');
 }
@@ -403,8 +405,9 @@ function homeFree() {
   if (window.__shell && window.__shell.state && window.__shell.state.place && window.__shell.state.place !== 'truss') return null;
   const sr = svg.getBoundingClientRect(); if (!(sr.width > 0 && sr.height > 0)) return null;
   const vw = innerWidth, vh = innerHeight, M = HOMEFIT.M, box = el => { const r = el && el.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 ? r : null; };
-  // the shell's own sizes (shell.js layout(), UI-W15): Inputs up to 400 px and never over 40 % of the page; Drawing as icons is 56 px
-  const iW = Math.floor(Math.min(400, vw - 2 * M, vw * 0.4));
+  // the default homes follow UI-W15 (ui-spec 1.5.12): Inputs up to 400 px and never over 40 % of the page, but on a stage under 1100 px
+  // the side windows' default home is the icons state (52 px), so Inputs counts as icons there (#470 makes the shell open it that way)
+  const iW = vw < 1100 ? 52 : Math.floor(Math.min(400, vw - 2 * M, vw * 0.4));
   let l = M + iW, r = vw - M - 56, t = sr.top, bt = sr.bottom;
   const pad = box(document.querySelector('#drawWrap .navpad')); if (pad) r = Math.min(r, pad.left);
   // the sweep bar's default home is its bar alone (Sweep settings closed) at the bottom. Its height is a fixed allowance, never measured,
@@ -412,7 +415,7 @@ function homeFree() {
   bt = Math.min(bt, vh - M - HOMEFIT.sweepH);
   l = Math.max(l, sr.left); r = Math.min(r, sr.right);
   if (r - l < HOMEFIT.minW || bt - t < 120) return null;
-  return { l, t, r, b: bt, svg: sr };
+  return { l, t, r, b: bt, svg: sr, wide: vw >= 1024 };
 }
 // the viewBox (whole svg) that puts the drawing's box b = [x, y, w, h] inside the free box, centred, with the 16 px margin
 function homeFit(b) {
@@ -420,8 +423,12 @@ function homeFit(b) {
   const m = HOMEFIT.margin, fw = f.r - f.l - 2 * m, fh = f.b - f.t - 2 * m; if (fw <= 0 || fh <= 0) return null;
   const s = Math.min(fw / b[2], fh / b[3]), W = f.svg.width / s, H = f.svg.height / s;
   const cx = (f.l + f.r) / 2 - f.svg.left, cy = (f.t + f.b) / 2 - f.svg.top;
-  return [b[0] + b[2] / 2 - cx / s, b[1] + b[3] / 2 - cy / s, W, H];
+  const v = [b[0] + b[2] / 2 - cx / s, b[1] + b[3] / 2 - cy / s, W, H];
+  v.s = s; v.wide = f.wide;   // screen px per mm at Home, and whether the text floors apply (stage 1024 px or wider)
+  return v;
 }
+// UI-D7 text floors at Home (ui-spec 1.5.12): the callouts (both lines) and the sweep legend at 10 px or more on screen, other drawing text at 8 px
+var TEXTFLOOR = { result: 10, other: 8 };
 function v2Box() { return renderDrawing.home || renderDrawing.base; }
 function applyV2() {
   const b = v2Box(); if (!b) return; const w = b[2] / v2.zoom, h = b[3] / v2.zoom;
@@ -470,16 +477,30 @@ function drawingSVG(design, opts) {
   const xs = tr.nodes.map(n => n[0]);
   const x0 = Math.min(-70, Math.min(...xs) - 22), x1 = Math.max(270, Math.max(...xs) + 22);
   // the sweep legend sits above the envelope's label and the books' line (UI-D7: never on the books), so the top makes room for it
-  const nLeg = opts.ghosts && typeof ghostRows === 'function' ? ghostRows() : 0, legY = Math.max(100 + 2.5 + 4.2, +S.height + 12 + 13 + 2.4 + 4.2) + 2;
-  const yTop = Math.max(128, +S.height + 46, nLeg ? legY + 5 * (nLeg - 1) + 6 : 0), yBot = opts.results ? -112 : -76;   // the results strip (callouts, wood pile) needs the extra floor
-  const base = [x0, 0, x1 - x0, yTop - yBot];
-  // UI-D7: in the main view the Home box is wider than the drawing; the tables (UI-S1) still run to its edges
-  const home = opts.fit && typeof homeFit === 'function' ? homeFit(base) : null;
+  const nLeg = opts.ghosts && typeof ghostRows === 'function' ? ghostRows() : 0;
+  // UI-D7 (ui-spec 1.5.12): at Home on a stage 1024 px or wider, no text is drawn under its floor in screen px (fl); the sizes depend on the
+  // fit's scale and the fit on the sizes (the legend's height, the callouts' depth), so the two are settled together in a few passes
+  let home = null, fl = size => size, yTop, yBot, base, legY, legS = 3.8, legD = 5, cS = 3.5, vS = 4.7, kC = 1;
+  for (let pass = 0; pass < 4; pass++) {
+    legY = Math.max(100 + 2.5 + 4.2, +S.height + 12 + 13 + 2.4 + fl(4.2, TEXTFLOOR.other)) + 2 + (legS - 3.8);
+    yTop = Math.max(128, +S.height + 46, nLeg ? legY + legD * (nLeg - 1) + Math.max(6, legS + 2) : 0);
+    yBot = opts.results ? -112 - Math.max(0, 19 * kC - 26) : -76;   // the results strip (callouts, wood pile) needs the extra floor
+    base = [x0, 0, x1 - x0, yTop - yBot];
+    // UI-D7: in the main view the Home box is wider than the drawing; the tables (UI-S1) still run to its edges
+    const h2 = opts.fit && typeof homeFit === 'function' ? homeFit(base) : null;
+    const same = home && h2 && Math.abs(h2.s - home.s) < 1e-6 * home.s;
+    home = h2; if (!home || !home.wide) { fl = size => size; break; }
+    const sc = home.s; fl = (size, px) => Math.max(size, px / sc);
+    legS = fl(3.8, TEXTFLOOR.result); legD = Math.max(5, legS * 1.32); cS = fl(3.5, TEXTFLOOR.result); vS = fl(4.7, TEXTFLOOR.result); kC = Math.max(cS / 3.5, vS / 4.7);
+    if (same) break;
+  }
+  if (!home || !home.wide) { legY = Math.max(100 + 2.5 + 4.2, +S.height + 12 + 13 + 2.4 + 4.2) + 2; legS = 3.8; legD = 5; cS = 3.5; vS = 4.7; kC = 1; }
+  const kO = fl(1, TEXTFLOOR.other / 3.8);   // the 3.8 mm member and table words: their boxes grow with them
   const tx0 = home ? Math.min(x0, home[0]) : x0, tx1 = home ? Math.max(x1, home[0] + home[2]) : x1;
   const Y = y => yTop - y;
   const o = [];
   const MONO = 'IBM Plex Mono, monospace';
-  const t = (x, y, s, size, anchor, fill) => `<text x="${x}" y="${y}" font-family="${MONO}" font-size="${size || 5}" fill="${fill || 'var(--muted)'}" text-anchor="${anchor || 'middle'}">${s}</text>`;
+  const t = (x, y, s, size, anchor, fill) => `<text x="${x}" y="${y}" font-family="${MONO}" font-size="${fl(size || 5, TEXTFLOOR.other)}" fill="${fill || 'var(--muted)'}" text-anchor="${anchor || 'middle'}">${s}</text>`;
   o.push(`<rect x="-50" y="${Y(100)}" width="300" height="100" fill="var(--env)" stroke="var(--envline)" stroke-dasharray="3 2.5" stroke-width=".6"/>`);
   o.push(t(-50, Y(100) - 2.5, 'allowable envelope · 100 mm above deck · 300 mm max length', 4.2, 'start'));
   o.push(`<rect x="0" y="${Y(0)}" width="200" height="50" fill="none" stroke="var(--envline)" stroke-dasharray="3 2.5" stroke-width=".5"/>`);
@@ -572,20 +593,20 @@ function drawingSVG(design, opts) {
     o.push(`<circle cx="${n[0]}" cy="${Y(n[1])}" r="${loose ? 3.2 : 1.9}" fill="${loose ? 'var(--bad)' : 'var(--sheet)'}" stroke="var(--ink)" stroke-width=".7"/>`);
     if (S.showIds) {
       const up = n[1] >= Math.max(+S.height, 0) - 0.01;
-      o.push(`<text x="${n[0] + (up ? 0 : 3.5)}" y="${Y(n[1]) + (up ? -4 : 9.5)}" font-family="${MONO}" font-size="4.6" font-weight="500" fill="${loose ? 'var(--bad)' : 'var(--accent)'}" text-anchor="${up ? 'middle' : 'start'}">${i}</text>`);
+      o.push(`<text x="${n[0] + (up ? 0 : 3.5)}" y="${Y(n[1]) + (up ? -4 : 9.5)}" font-family="${MONO}" font-size="${fl(4.6, TEXTFLOOR.other)}" font-weight="500" fill="${loose ? 'var(--bad)' : 'var(--accent)'}" text-anchor="${up ? 'middle' : 'start'}">${i}</text>`);
     }
   });
   if (S.showElems) tr.elems.forEach((e, k) => {
     const a = tr.nodes[e.i], b = tr.nodes[e.j];
     const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-    o.push(`<g pointer-events="none"><rect x="${mx - 3.6}" y="${Y(my) - 3}" width="7.2" height="5.6" rx="1" fill="var(--sheet)" stroke="var(--line)" stroke-width=".3"/><text x="${mx}" y="${Y(my) + 1.5}" font-family="${MONO}" font-size="3.8" fill="var(--ink)" text-anchor="middle">${k}</text></g>`);
+    o.push(`<g pointer-events="none"><rect x="${mx - 3.6 * kO}" y="${Y(my) - 3 * kO}" width="${7.2 * kO}" height="${5.6 * kO}" rx="1" fill="var(--sheet)" stroke="var(--line)" stroke-width=".3"/><text x="${mx}" y="${Y(my) + 1.5 * kO}" font-family="${MONO}" font-size="${3.8 * kO}" fill="var(--ink)" text-anchor="middle">${k}</text></g>`);
   });
   if (S.showForces && res.stable) tr.elems.forEach((e, k) => {
     const m = res.members[k]; if (!m) return; const a = tr.nodes[e.i], b = tr.nodes[e.j];
     const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2 + (S.showElems ? -6 : 0), F = m.F;
-    const txt = Math.abs(F) < 0.005 ? '0' : `${Math.abs(F).toFixed(1)} ${F < 0 ? 'C' : 'T'}`, wd = txt.length * 2.5 + 2.4;
+    const txt = Math.abs(F) < 0.005 ? '0' : `${Math.abs(F).toFixed(1)} ${F < 0 ? 'C' : 'T'}`, wd = (txt.length * 2.5 + 2.4) * kO;
     const col = m.fails ? 'var(--bad)' : F < 0 ? 'var(--comp)' : F > 0 ? 'var(--tens)' : 'var(--zero)';
-    o.push(`<g pointer-events="none"><rect x="${mx - wd / 2}" y="${Y(my) - 3.3}" width="${wd}" height="5.6" rx="1" fill="var(--sheet)" fill-opacity=".9" stroke="${col}" stroke-width=".3"/><text x="${mx}" y="${Y(my) + 1.2}" font-family="${MONO}" font-size="3.9" font-weight="600" fill="${col}" text-anchor="middle">${txt}</text></g>`);
+    o.push(`<g pointer-events="none"><rect x="${mx - wd / 2}" y="${Y(my) - 3.3 * kO}" width="${wd}" height="${5.6 * kO}" rx="1" fill="var(--sheet)" fill-opacity=".9" stroke="${col}" stroke-width=".3"/><text x="${mx}" y="${Y(my) + 1.2 * kO}" font-family="${MONO}" font-size="${3.9 * kO}" font-weight="600" fill="${col}" text-anchor="middle">${txt}</text></g>`);
   });
   // UI-A13 results strip (main view only): the wood pile on the floor under the bridge, and three callouts, each with a leader to where it applies.
   // The results card keeps the numbers; the words for these three live here (UI-D3, UI-D6: text never overlaps text).
@@ -601,12 +622,15 @@ function drawingSVG(design, opts) {
       { k: 'defl', x: 24, lab: `mid-span deflection · joint ${res.midNode}`, val: `${res.midDefl.toFixed(3)} mm ${res.deflOK ? '✓' : '✕'} limit ${lim}`, col: okc(res.deflOK), ax: mn[0], ay: mn[1], alt: `Mid-span deflection ${res.midDefl.toFixed(3)} mm, limit ${lim} mm, ${res.deflOK ? 'passes' : 'fails'}` },
       { k: 'fits', x: 112, lab: 'fits the envelope and the desks', val: fitsOK ? 'fits ✓' : `✕ ${nFit} problem${nFit > 1 ? 's' : ''}, see the list`, col: okc(fitsOK), ax: Math.max(...xs), ay: Math.max(...tr.nodes.map(n => n[1])) * 0.5, alt: fitsOK ? 'Fits the allowable envelope and reaches the desks' : `Does not fit: ${nFit} problem${nFit > 1 ? 's' : ''}, listed under the results` },
     ];
+    // UI-D7 text floor: both lines keep 10 px on screen at Home; the boxes grow with them (wider if the words need it, deeper by kC)
+    let cx0 = -64;
+    chips.forEach(c => { c.w = Math.max(84, 6 + 0.6 * Math.max(c.lab.length * cS, c.val.length * vS)); c.x = Math.max(c.x, cx0); cx0 = c.x + c.w + 4; });
     chips.forEach(c => {
-      const w = 84, top = Y(-80), h = 19;
+      const w = c.w, top = Y(-80), h = 19 * kC;
       o.push(`<g data-callout="${c.k}"><title>${c.alt}</title>`
         + `<line x1="${c.x + w / 2}" y1="${top}" x2="${c.ax}" y2="${Y(c.ay) + 2}" stroke="${c.col}" stroke-opacity=".6" stroke-width=".3" stroke-dasharray="1.2 1"/><circle cx="${c.ax}" cy="${Y(c.ay) + 2}" r="1" fill="${c.col}"/>`
         + `<rect x="${c.x}" y="${top}" width="${w}" height="${h}" rx="1.5" fill="var(--sheet)" stroke="${c.col}" stroke-width=".5"/>`
-        + t(c.x + 3, top + 6.4, c.lab, 3.5, 'start') + t(c.x + 3, top + 14.4, c.val, 4.7, 'start', c.col) + '</g>');
+        + t(c.x + 3, top + 6.4 * kC, c.lab, cS, 'start') + t(c.x + 3, top + 14.4 * kC, c.val, vS, 'start', c.col) + '</g>');
     });
     // the wood pile: sticks end-on (square, end-grain ring), two twine loops; its size follows the wood used ΣL (240 mm sticks)
     const nSt = Math.max(1, Math.round((res.wood || 0) / 240)), cols = Math.max(1, Math.ceil(Math.sqrt(nSt * 1.8))), rows = Math.ceil(nSt / cols), cell = 4.2, px = 208, pw = cols * cell, ph = rows * cell;
@@ -619,8 +643,8 @@ function drawingSVG(design, opts) {
     o.push(`<g data-pile="${nSt}" data-pile-w="${pw.toFixed(1)}"><title>Wood used: ${res.wood.toFixed(0)} mm, about ${nSt} sticks of 240 mm</title>${pic('woodpile', px, Y(FL) - ph, pw, ph, pile)}</g>`);
   }
   // swept ranges as dashed outlines, then the clickable dimension labels (main view only: they read the screen's sweep and editor)
-  if (opts.ghosts) o.push(sweepGhosts(Y, legY));
-  if (opts.dims) o.push(dimLabels(Y, x0, x1));
+  if (opts.ghosts) o.push(sweepGhosts(Y, legY, legS, legD));
+  if (opts.dims) o.push(dimLabels(Y, x0, x1, fl(3.9, TEXTFLOOR.other) / 3.9));
   return { svg: o.join(''), base, home };
 }
 function memWOf(s, e) { return s.mat.b * (e.n === 4 && e.bundle === 'compact' ? 2 : e.n); }
