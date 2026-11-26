@@ -42,6 +42,9 @@ if (!SH_CLASSIC) {
   const DEF = { place: PLACES[0], bar: 'W', hist: [], theme: 'wireframe', w: TABLE.states };
   const sh0 = S.shell && typeof S.shell === 'object' ? S.shell : {};
   if (!sh0.w && innerWidth < 700) { DEF.w = TABLE.phoneStates; DEF.bar = 'I'; }   // a phone starts with the picture
+  // UI-W15 (#470): on a stage under 1100 px the side windows' default home is icons, so Inputs starts as icons there too
+  // (Drawing already does). Only the defaults change: a saved layout (the person's own) wins, and a resize never moves a window.
+  else if (!sh0.w && innerWidth < 1100) { DEF.w = JSON.parse(JSON.stringify(TABLE.states)); DEF.w.truss.inputs = 'I'; }
   S.shell = { place: PLACES.includes(sh0.place) ? sh0.place : DEF.place, bar: STATES.includes(sh0.bar) ? sh0.bar : DEF.bar,
     hist: Array.isArray(sh0.hist) ? sh0.hist.filter(p => PLACES.includes(p)).slice(-20) : [], theme: typeof sh0.theme === 'string' ? sh0.theme : DEF.theme, w: {},
     unlocks: window.TrussUnlocks ? window.TrussUnlocks.fresh() : null };
@@ -324,7 +327,10 @@ if (!SH_CLASSIC) {
     else Object.assign(I.style, { width: iW + 'px' });
     const iShown = shown('inputs'), leftUsed = iShown ? iW + 2 * M : 0;
     // sweep at the bottom, beside the inputs
-    const W = wins.sweep, sl = leftUsed || M, sW = eff('sweep') === 'W' ? Math.max(260, Math.min(WIN.sweep.w, vw - sl - M - Math.max(rightUsed, vw >= 1100 ? 370 : 0))) : 'auto';
+    // UI-W15 (#534): the bar is up to 640 px AND never wider than 40 % of the stage; its count line ellipsises. It keeps a 260 px
+    // floor for Run sweep and 'Sweep settings ▾', but never past the stage's right edge (#532).
+    const W = wins.sweep, sl = leftUsed || M, sCap = Math.floor(Math.min(WIN.sweep.w, vw * 0.4, vw - sl - M - Math.max(rightUsed, vw >= 1100 ? 370 : 0)));
+    const sW = eff('sweep') === 'W' ? Math.max(sCap, Math.min(260, vw - sl - M)) : 'auto';
     Object.assign(W.style, { left: sl + 'px', bottom: M + 'px', top: 'auto', width: typeof sW === 'number' ? sW + 'px' : sW, maxHeight: Math.round(vh * .55) + 'px', right: 'auto' });
     // the full results under the card
     const RS = wins.results;

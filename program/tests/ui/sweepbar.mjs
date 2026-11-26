@@ -10,8 +10,9 @@ const hit = (a, c) => !!a && !!c && a.l < c.r && c.l < a.r && a.t < c.b && c.t <
 const inside = (a, c) => !!a && !!c && a.l >= c.l - 1 && a.r <= c.r + 1 && a.t >= c.t - 1 && a.b <= c.b + 1;
 
 try {
-  for (const [w, h] of [[1366, 900], [390, 844]]) {
-    const tag = `${w}x${h}`, phone = w < 700;
+  // UI-W15 (#534): the bar's width is checked at 1440, 1366 and 1024; the run / pilot steps below run once, at 1366
+  for (const [w, h] of [[1440, 900], [1366, 900], [1024, 768], [390, 844]]) {
+    const tag = `${w}x${h}`, phone = w < 700, full = w === 1366;
     const p = await openPage(b, srv.url, { width: w, height: h }); await waitRows(p); await p.waitForTimeout(500);
     for (const place of ['truss2d', 'truss3d', 'analysis']) {
       if (place === 'truss3d') { await p.evaluate(() => { const e = document.querySelector('[data-go="3d"], #mode3d, [data-mode="3d"]'); if (e) e.click(); }); await p.waitForTimeout(300); }
@@ -22,7 +23,9 @@ try {
       const run = await box(p, '#win-sweep #runSweep, #win-sweep [data-ic="run"]');
       check(`${t}: Run sweep is inside the bar`, !!run && run.vis && inside(run, W), JSON.stringify([run, W]));
       if (!phone) {
-        check(`${t}: the bar is 640 px at most (UI-W15)`, W.w <= 641, JSON.stringify(W));
+        check(`${t}: the bar is 640 px at most and never wider than 40 % of the stage (UI-W15, #534)`, W.w <= 641 && W.w <= 0.4 * stage.w + 1, JSON.stringify([W, stage.w]));
+        const more = await box(p, '#win-sweep #sweepMore');
+        check(`${t}: Run sweep and Sweep settings stay on screen`, !!more && more.vis && inside(more, stage) && inside(run, stage), JSON.stringify([more, run]));
         check(`${t}: the bar's content is one row: its parts sit on one line`, await p.evaluate(() => { const k = [...document.querySelectorAll('#win-sweep .s-sum > *')].filter(e => e.getBoundingClientRect().width > 0); const m = k.map(e => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; }); return k.length >= 3 && Math.max(...m) - Math.min(...m) < 14; }));
         check(`${t}: the bar has no grip (UI-W20)`, await p.evaluate(() => !document.querySelector('#win-sweep .grip')));
         const pip = { l: stage.r - 360, t: stage.b - 240, r: stage.r, b: stage.b };
@@ -33,7 +36,7 @@ try {
         if (o && o.vis && o.w > 0) check(`${t}: the bar does not overlap ${q.split(':')[0]}`, !hit(W, o), JSON.stringify([W, o]));
       }
     }
-    if (!phone) {
+    if (full) {
       // back to Truss 2D: the words state carries the whole bar
       await p.evaluate(() => { const e = document.querySelector('#shellNav [data-go="truss"]'); if (e) e.click(); }); await p.waitForTimeout(500);
       check(`${tag}: the count line shows in the bar`, /designs|Step is 0/.test(await p.textContent('#win-sweep .s-sum #sweepCount')));
@@ -47,9 +50,12 @@ try {
       // a first sweep exists only after a run: run one, then change an input
       await p.evaluate(() => { document.getElementById('runSweep').click(); }); await p.waitForFunction(() => !document.getElementById('runSweep').disabled, null, { timeout: 120000 }); await p.waitForTimeout(400);
       check(`${tag}: after a sweep the bar is not striped`, await p.evaluate(() => !document.getElementById('win-sweep').classList.contains('stale')));
-      await p.evaluate(() => { const i = document.getElementById('height'); i.value = String(+i.value + 2); i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); });
+      // auto re-run off for this step, so the out-of-date state stays long enough to see (it would re-run a small sweep after 700 ms)
+      await p.evaluate(() => { const a = document.getElementById('autoRerun'); if (a && a.checked) { a.checked = false; a.dispatchEvent(new Event('change', { bubbles: true })); } });
+      // book length, not height: the default sweep sweeps height and overlap, so changing those doesn't put it out of date
+      await p.evaluate(() => { const i = document.getElementById('bookLen'); i.value = String(+i.value + 2); i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); });
       await p.waitForTimeout(900);
-      check(`${tag}: UI-S5 out of date: the bar stripes orange`, await p.evaluate(() => document.getElementById('win-sweep').classList.contains('stale') || !document.querySelector('.staleMsg').hidden === false));
+      check(`${tag}: UI-S5 out of date: the bar stripes orange`, await p.evaluate(() => document.getElementById('win-sweep').classList.contains('stale') && document.querySelector('.staleMsg').hidden === false));
       // UI-S9: a pilot shows its progress and Cancel in the bar
       await p.evaluate(() => { document.getElementById('bigCap').value = 1000; document.getElementById('bigCap').dispatchEvent(new Event('change', { bubbles: true })); });
       await p.evaluate(() => document.getElementById('bigSearch').click());
@@ -58,7 +64,7 @@ try {
       check(`${tag}: a running pilot shows the progress bar and Cancel in the bar`, !!cancel && !!msg && !!pr && inside(pr, await box(p, '#win-sweep')), JSON.stringify([cancel, msg, pr]));
       if (cancel && cancel.vis) { await p.evaluate(() => document.getElementById('bigCancel').click()); await p.waitForTimeout(1500); }
       await p.screenshot({ path: path.join(SHOTS, 'sweepbar-1366.png') });
-    } else {
+    } else if (phone) {
       check(`${tag}: on a phone the bar starts as icons with ▶`, await p.evaluate(() => document.getElementById('win-sweep').dataset.state === 'I' && !!document.querySelector('#win-sweep [data-ic="run"]')));
       await p.screenshot({ path: path.join(SHOTS, 'sweepbar-390.png') });
     }
