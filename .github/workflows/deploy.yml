@@ -1,6 +1,7 @@
 # Website deploy (#3): briangwalker.com/truss-explorer/ on IONOS, over SFTP.
-# - Runs ONLY when a release tag v* is pushed (never on a pull request or a branch push), or when release.yml calls it
-#   with the tag it has just made (TE-B-570: a tag made with GITHUB_TOKEN doesn't fire 'push: tags').
+# - Runs ONLY on a release tag v*: when one is pushed by hand, or when release.yml starts it with workflow_dispatch
+#   ON the tag it has just made (TE-B-570: a tag made with GITHUB_TOKEN doesn't fire 'push: tags'). A dispatch on
+#   anything that isn't a v* tag stops before the build; the 'production' environment also allows only v* tags.
 # - The whole test suite runs first; the upload job waits for it AND for Brian's approval
 #   (the 'production' environment has him as required reviewer, a wait timer, and the deploy secrets).
 # - It publishes only the built page and a generated .htaccess (program/deploy/make_site.py): no src, tests or .git.
@@ -12,12 +13,7 @@ name: deploy
 on:
   push:
     tags: ['v*']
-  workflow_call:
-    inputs:
-      tag:
-        description: 'The release tag to build and upload (v1.0.0-alpha.N), made by release.yml'
-        required: true
-        type: string
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -25,6 +21,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build-and-test:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -33,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
         with:
-          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          ref: ${{ github.ref }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4
         with:
@@ -75,7 +72,7 @@ jobs:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           SSHPASS: ${{ secrets.DEPLOY_PASSWORD }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -eu
           test -s site/index.html && test -s site/.htaccess

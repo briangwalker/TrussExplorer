@@ -10,10 +10,12 @@
 # - The tag is annotated and points at the merge commit itself. The run checks that the merge commit's tree is the
 #   gate head's tree (the PR's head, where QA, the UI Designer and the Chaos Tester ran); if balsaPixel-1.0 moved after
 #   the gate, nothing is tagged. An existing tag is never moved.
-# - It uses only the run's own GITHUB_TOKEN with contents: write. No secret is added.
+# - It uses only the run's own GITHUB_TOKEN with contents: write and actions: write (to start deploy.yml). No secret is added.
 # - A tag made with GITHUB_TOKEN does NOT start other workflows (GitHub's rule), so deploy.yml's 'push: tags' would
-#   not fire. This workflow therefore calls deploy.yml directly (workflow_call) with the tag; deploy.yml keeps its
-#   tag trigger for a release made by hand, as for alpha.1-alpha.6.
+#   not fire. The last step therefore starts deploy.yml ON THE TAG with 'gh workflow run --ref <tag>' (a
+#   workflow_dispatch made with GITHUB_TOKEN is the one event GitHub lets it start). That run's github.ref IS the tag,
+#   so the 'production' environment's v*-tags-only rule, Brian's approval and the environment's secrets apply exactly as
+#   for a tag pushed by hand (Black Hat's MUST, TE-B-632). No secret passes through this workflow.
 # Title text from a pull request is untrusted: it reaches the shell only through env and only after the pattern check.
 name: release
 on:
@@ -32,8 +34,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
-    outputs:
-      tag: ${{ steps.v.outputs.tag }}
+      actions: write
     steps:
       - name: The version from the pull request's title
         id: v
@@ -77,11 +78,12 @@ jobs:
           gh api "repos/$REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$obj" >/dev/null
           gh release create "$TAG" --repo "$REPO" --verify-tag --prerelease --title "$title" --notes-file "$notes"
           echo "Made $TAG on $SHA and published the pre-release '$title'"
-  deploy:
-    needs: tag
-    permissions:
-      contents: read
-    uses: ./.github/workflows/deploy.yml
-    with:
-      tag: ${{ needs.tag.outputs.tag }}
-    secrets: inherit
+      - name: Start the deploy on the tag (it waits for Brian's 'production' approval)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          set -eu
+          gh workflow run deploy.yml --repo "$REPO" --ref "$TAG"
+          echo "Started deploy.yml on $TAG: approve the 'production' deploy in the Actions tab"
