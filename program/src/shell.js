@@ -345,6 +345,14 @@ if (!SH_CLASSIC) {
     if (pad.hidden || !pad.getClientRects().length) return 0;
     return Math.ceil(band + 12 + (pad.offsetHeight || 96));
   }
+  // The top of #infoBtn less 8 px (viewport px) when it is on screen and reaches left of x (the Drawing column's left edge), else the
+  // stage's bottom margin.
+  function infoTop(x) {
+    const ib = document.getElementById('infoBtn'), vh = innerHeight;
+    if (!ib || ib.hidden || !ib.getClientRects().length) return vh - M;
+    const r = ib.getBoundingClientRect();
+    return r.width > 0 && r.right > x && r.top < vh ? Math.floor(r.top - 8) : vh - M;
+  }
   function layout() {
     const P = place(), st = S.shell.w[P], vw = innerWidth, vh = innerHeight;
     const shown = id => wins[id].dataset.empty !== '1' && (st[id] !== 'T' || wins[id].classList.contains('peek'));
@@ -360,9 +368,12 @@ if (!SH_CLASSIC) {
     const top0 = Math.max(barB, cardB) + 8;
     // UI-W19: the 2D pad first, then the Drawing window (and its tab) 8 px below the pad's box; folding Drawing never moves the pad
     const padB = placePad(top0 - 8), dTop = padB ? Math.max(top0, padB + 8) : top0;
+    // WCAG 2.4.11 (QA MUST on #550): with the 2D drawing on screen, the Drawing window also stops 8 px above 'How to use the drawing'
+    // (#infoBtn, bottom right of the drawing) when the two share the right edge, so a short stage never hides it; the window scrolls.
+    const dBot = padB ? infoTop(vw - M - dW) : vh - M, dMax = Math.max(0, Math.min(vh - M, dBot) - dTop) + 'px';
     // a peeking Drawing window is placed by the window piece, beside its tab (UI-W17); its home is put back when the peek ends
-    if (!D.classList.contains('peek')) Object.assign(D.style, { right: M + 'px', left: 'auto', top: dTop + 'px', width: dW + 'px', maxHeight: Math.max(0, vh - dTop - M) + 'px', bottom: 'auto' });
-    else Object.assign(D.style, { width: dW + 'px', maxHeight: Math.max(0, vh - dTop - M) + 'px' });
+    if (!D.classList.contains('peek')) Object.assign(D.style, { right: M + 'px', left: 'auto', top: dTop + 'px', width: dW + 'px', maxHeight: dMax, bottom: 'auto' });
+    else Object.assign(D.style, { width: dW + 'px', maxHeight: dMax });
     const dShown = shown('drawing'), rightUsed = dShown ? dW + 2 * M : 0;
     // view options under the bar on the left
     const V = wins.view;

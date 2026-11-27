@@ -313,6 +313,15 @@ check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
     const vis = e => !!e && !e.hidden && e.getBoundingClientRect().width > 0, d = D.getBoundingClientRect();
     return { padB: pad.bottom, win: vis(D) && !D.classList.contains('peek') ? d.top : null, tab: vis(t) ? t.getBoundingClientRect().top : null };
   });
+  // WCAG 2.4.11 (QA MUST on #550 at 97a3705): 'How to use the drawing' (#infoBtn) is on top when focused (its centre and 4 inner points),
+  // and the Drawing window, while shown and sharing its column, ends at least 8 px above it
+  const infoClear = u => u.evaluate(() => {
+    const ib = document.getElementById('infoBtn'); ib.focus(); const q = ib.getBoundingClientRect(), cx = q.left + q.width / 2, cy = q.top + q.height / 2, k = q.width * 0.3;
+    const top = document.activeElement === ib && [[cx, cy], [cx - k, cy], [cx + k, cy], [cx, cy - k], [cx, cy + k]].every(([x, y]) => document.elementFromPoint(x, y) === ib);
+    const D = document.getElementById('win-drawing'), d = D.getBoundingClientRect(), shownD = !D.hidden && d.width > 0 && !D.classList.contains('peek');
+    const gap = shownD && d.left < q.right && q.left < d.right ? q.top - d.bottom : null; ib.blur();
+    return { top, gap, ib: [Math.round(q.top), Math.round(q.bottom)], D: shownD ? [Math.round(d.top), Math.round(d.bottom)] : null };
+  });
   const sameBox = (p1, p2) => !!p1 && !!p2 && ['l', 't', 'r', 'b'].every(k => Math.abs(p1[k] - p2[k]) < 0.5);
   for (const theme of ['wireframe', 'notebook-calc']) for (const [w, h] of [[1024, 768], [1366, 900], [512, 384], [683, 450], [1366, 560], [390, 844]]) {
     const u = await openPage(b, srv.url, { width: w, height: h }); await u.waitForTimeout(600);
@@ -321,12 +330,15 @@ check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
     check(`#540: ${theme} ${w}x${h}: Zoom in and Zoom out are whole, on top, under no window, and not hidden when focused`,
       z.length === 2 && z.every(x => x.onTop && x.inStage && !x.under.length && x.fOk), JSON.stringify(z));
     // the Drawing window as a tab, as icons and in words: the pad's box never moves, nothing covers + or -, and Drawing sits 8 px under it
-    const boxes = {}, stacks = {}, clear = {};
+    const boxes = {}, stacks = {}, clear = {}, info = {};
     for (const s2 of ['T', 'I', 'W']) {
       await u.evaluate(v => __shell.setState('drawing', v), s2); await u.mouse.move(2, h - 2); await u.waitForTimeout(350);
       boxes[s2] = await padBox(u); stacks[s2] = await dStack(u);
       const z2 = await zoomClear(u); clear[s2] = z2.length === 2 && z2.every(x => x.onTop && x.inStage && !x.under.length && x.fOk);
+      info[s2] = await infoClear(u);
     }
+    check(`WCAG 2.4.11: ${theme} ${w}x${h}: 'How to use the drawing' is on top when focused, and Drawing (as a tab, as icons, in words) ends 8 px above it`,
+      ['T', 'I', 'W'].every(k => info[k].top && (info[k].gap === null || info[k].gap >= 7.5)), JSON.stringify(info));
     check(`UI-W19: ${theme} ${w}x${h}: the pad's box is the same with Drawing as a tab, as icons and in words`, sameBox(boxes.T, boxes.I) && sameBox(boxes.T, boxes.W), JSON.stringify(boxes));
     check(`UI-W19: ${theme} ${w}x${h}: Zoom in and Zoom out stay clear with Drawing as a tab, as icons and in words`, clear.T && clear.I && clear.W, JSON.stringify(clear));
     check(`UI-W19: ${theme} ${w}x${h}: the Drawing window and its tab start at least 8 px below the pad`,
