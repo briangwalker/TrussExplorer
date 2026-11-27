@@ -244,13 +244,13 @@ function renderDocDialog() {
       const two = j.members.length === 2;
       const opts = ['<option value="">none</option>'].concat(j.members.map(k => `<option value="${k}" ${j.through === k ? 'selected' : ''}>${name(k)}</option>`)).join('');
       const ends = ['flush', 'square'].concat(two ? ['mitre'] : []).map(s => `<option value="${s}" ${j.end === s ? 'selected' : ''}>${s === 'flush' ? 'flush to it' : s === 'square' ? 'square (90°)' : 'mitre'}</option>`).join('');
-      return `<tr${S.doc.over[j.n] ? ' style="background:var(--accent-soft)"' : ''}><td>${j.n}</td><td class="l"><select data-j="${j.n}" data-f="through">${opts}</select></td><td class="l"><select data-j="${j.n}" data-f="end">${ends}</select>${j.notes && j.notes.length ? `<div class="hint" style="margin:2px 0 0">Changed automatically: ${escH(j.notes.join('; '))}</div>` : ''}</td><td>${j.end === 'mitre' ? `<input type="number" min="5" max="95" step="5" value="${j.split}" data-j="${j.n}" data-f="split" style="width:60px">` : '—'}</td></tr>`;
+      return `<tr${S.doc.over[j.n] ? ' style="background:var(--accent-soft)"' : ''}><td>${j.n}</td><td class="l"><select data-j="${j.n}" data-f="through" aria-label="Joint ${j.n}: on top">${opts}</select></td><td class="l"><select data-j="${j.n}" data-f="end" aria-label="Joint ${j.n}: ends">${ends}</select>${j.notes && j.notes.length ? `<div class="hint" style="margin:2px 0 0">Changed automatically: ${escH(j.notes.join('; '))}</div>` : ''}</td><td>${j.end === 'mitre' ? `<input type="number" min="5" max="95" step="5" value="${j.split}" data-j="${j.n}" data-f="split" style="width:60px">` : '—'}</td></tr>`;
     }).join('') + '</tbody>';
 }
 // #285 (UI-W13): the dialog takes keyboard focus when it opens, keeps it inside, closes on Esc wherever focus is, comes
 // back to focus after the name pop-up of a download, and gives focus back to where it was opened from (or to ☰)
 let docOpener = null;
-const docFocusables = () => [...$('docModal').querySelectorAll('a[href], button, input, select, textarea')].filter(e => e.offsetParent && !e.disabled);
+const docFocusables = () => [...$('docModal').querySelectorAll('a[href], button, input, select, textarea, [tabindex="0"]')].filter(e => e.offsetParent && !e.disabled);
 function openDocModal() {
   docOpener = document.activeElement; renderDocDialog(); $('docModal').hidden = false;
   const h = $('docH'); h.tabIndex = -1; h.focus();
@@ -285,6 +285,7 @@ function showExport(x) {
 $('expTabs').addEventListener('click', ev => { const b = ev.target.closest('[data-x]'); if (!b) return; ev.preventDefault(); ev.stopPropagation(); showExport(b.dataset.x); });
 showExport(S.expTab || 'bridge');
 $('docNo').addEventListener('click', closeDocModal);
+$('docX').addEventListener('click', closeDocModal);   // BPD-18: the header's ✕ closes it exactly like Esc and Close (UI-W23)
 // UI-W22 (#410): a click on the dimmed backdrop closes the sheet the way Esc does, and does nothing else on the page
 // behind. It closes on the click, not the pointer-down, so the rest of the gesture still lands on the backdrop and never
 // on the drawing; a drag that starts inside the card (selecting text) and ends outside doesn't close it.
