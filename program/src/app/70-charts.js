@@ -174,14 +174,23 @@ function csArrow(ctx, x0, y0, x1, y1) {
 function paintChartState(cv, kind) {
   cv.dataset.chartState = kind;
   const box = cv.parentElement; let el = box.querySelector(':scope > .chartstate');
-  if (el && el.dataset.kind !== kind) { el.remove(); el = null; }
+  if (el && el.dataset.kind !== kind) {
+    // focus never falls back to the page when the note or banner goes away (WCAG 2.4.3, UI-W15): it moves to the bar's Run sweep,
+    // held on the chart for one tick while a just-finished sweep is still switching Run sweep back on
+    const had = el.contains(document.activeElement); el.remove(); el = null;
+    if (had) {
+      if (!cv.hasAttribute('tabindex')) cv.setAttribute('tabindex', '-1');
+      cv.focus({ preventScroll: true });
+      setTimeout(() => { if (document.activeElement === cv || document.activeElement === document.body) focusRunSweep(); }, 0);
+    }
+  }
   if (kind === 'fresh') return;
   const msg = kind === 'stale' ? csT('chart.state.stale', { what: chartStaleWhat() }) : csT(cv.id === 'c3Canvas' ? 'chart.state.noSweep3d' : 'chart.state.noSweep');
   if (!el) {
     el = document.createElement('div'); el.className = 'chartstate ' + (kind === 'stale' ? 'cs-stale' : 'cs-nosweep'); el.dataset.kind = kind;
     if (kind === 'stale') { el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); }
     const p = document.createElement('p'); p.className = 'cs-msg';
-    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn sm cs-run'; btn.textContent = csT('chart.state.goRun');
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cs-run'; btn.dataset.part = 'note-button'; btn.dataset.slot = 'ctl'; btn.textContent = csT('chart.state.goRun');
     btn.addEventListener('click', focusRunSweep);
     el.append(p, btn); box.appendChild(el);
     // the live region is in the page before its words arrive, so they are read (once)

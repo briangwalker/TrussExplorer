@@ -133,8 +133,12 @@ body.shell #docModal .docFoot{flex:0 0 auto;margin-top:0!important;padding-top:1
    Plain page colours, so each theme's own --sheet / --ink / --line / --warn apply; the out-of-date edge is the bar's stripe orange. */
 .chartbox>.chartstate{position:absolute;z-index:4;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;max-width:min(520px,calc(100% - 24px));box-sizing:border-box;padding:8px 12px;border-radius:6px;font-size:13px;line-height:1.35;color:var(--ink);background:var(--sheet);border:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.12)}
 .chartbox>.chartstate .cs-msg{margin:0;flex:1 1 220px;min-width:0}
-.chartbox>.chartstate .cs-run{flex:0 0 auto}
-.chartbox>.chartstate.cs-stale{top:8px;left:50%;transform:translateX(-50%);border-color:#d9822b;border-left-width:5px}
+/* its button is drawn on the paper, not as a wood stick (ART-P2; data-part=note-button, so tagAll() leaves it a plain button): ink outline, ink words, pressed = ink fill */
+.chartbox>.chartstate .cs-run{flex:0 0 auto;margin:0;padding:4px 12px;border:2px solid var(--ink);border-radius:5px;background:transparent;color:var(--ink);box-shadow:none;font:600 13px/1.25 var(--f-body);cursor:pointer}
+.chartbox>.chartstate .cs-run:hover{background:var(--soft)}
+.chartbox>.chartstate .cs-run:active{background:var(--ink);color:var(--sheet)}
+.chartbox>.chartstate.cs-stale{top:8px;left:50%;transform:translateX(-50%);border-color:#c4721f;border-left-width:5px}
+#stage[data-theme="blueprint"] .chartbox>.chartstate.cs-stale{border-color:#d9822b}
 .chartbox>.chartstate.cs-nosweep{left:50%;top:calc(50% + 34px);transform:translateX(-50%)}
 /* in the window layout the windows float over the top of the chart (UI-A3): the banner sits low, just above the sweep bar it points to */
 #stage .fsfill .chartbox>.chartstate.cs-stale{top:auto;bottom:108px}

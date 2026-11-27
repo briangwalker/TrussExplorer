@@ -56,14 +56,28 @@ try {
   await p.evaluate(() => document.querySelector('#tradeCanvas ~ .chartstate .cs-run').click()); await p.waitForTimeout(200);
   check('no sweep: the button takes focus to the bar\'s Run sweep', await p.evaluate(() => { const a = document.activeElement; return !!a && (a.id === 'runSweep' || a.dataset.ic === 'run'); }), await p.evaluate(() => document.activeElement && (document.activeElement.id || document.activeElement.outerHTML.slice(0, 80))));
   await axeStage(p, 'no sweep 2D');
+  // the note's button is drawn on the paper, not as a wood stick (ART-P2, Graphics MUST on #551): no s-b / dark, its own part, no shadow, no fill
+  const look = () => p.evaluate(() => { const b = document.querySelector('#tradeCanvas ~ .chartstate .cs-run'), c = getComputedStyle(b);
+    return { th: document.getElementById('stage').dataset.theme, cls: b.className, part: b.dataset.part, img: c.backgroundImage, bg: c.backgroundColor, sh: c.boxShadow, bw: c.borderTopWidth, ink: c.color === c.borderTopColor }; });
+  const themes = await p.$$eval('#themeSel option', o => o.map(x => x.value));
+  const was = await p.evaluate(() => document.getElementById('themeSel').value);
+  for (const id of themes.filter(v => v.startsWith('notebook-calc')).concat([was])) {
+    await p.evaluate(id => { const s = document.getElementById('themeSel'); s.value = id; s.dispatchEvent(new Event('change', { bubbles: true })); }, id); await p.waitForTimeout(250);
+    const L = await look();
+    check(`no sweep (${L.th}): Go to Run sweep is an ink outline on the paper, not a wood stick`, L.th === id && !/\bs-b\b|\bdark\b|\bbtn\b/.test(L.cls) && L.part === 'note-button' && L.img === 'none' && L.sh === 'none' && /rgba\(0, 0, 0, 0\)|transparent/.test(L.bg) && L.bw === '2px' && L.ink, JSON.stringify(L));
+  }
   await p.evaluate(() => { const e = document.querySelector('.tdim2 [data-v="c3"]'); if (e) e.click(); }); await p.waitForTimeout(400);
   s = await st(p, 'c3Canvas');
   check('3D no sweep: the words and the button point to Run sweep (chart.state.noSweep3d)', s.kind === 'no-sweep' && !!s.note && s.note.vis && s.note.text === T.t('chart.state.noSweep3d') && s.note.btn === T.t('chart.state.goRun'), JSON.stringify(s));
   await axeStage(p, 'no sweep 3D');
   await p.evaluate(() => { const e = document.querySelector('.tdim2 [data-v="trade"]'); if (e) e.click(); }); await p.waitForTimeout(300);
 
-  // 2. after a sweep: dots, no banner
+  // 2. after a sweep: dots, no banner; focus on the note's button does not fall to the page when the note goes (WCAG 2.4.3, QA MUST on #551)
+  const focusOk = () => p.evaluate(() => { const a = document.activeElement; return { ok: !!a && a !== document.body && (a.id === 'runSweep' || a.dataset.ic === 'run'), at: a ? (a.id || a.tagName) : null }; });
+  await p.evaluate(() => document.querySelector('#tradeCanvas ~ .chartstate .cs-run').focus());
   await runSweep(p);
+  let F = await focusOk();
+  check('after a sweep: focus on the note\'s button moved to Run sweep, not to the page', F.ok, JSON.stringify(F));
   s = await st(p, 'tradeCanvas');
   check('after a sweep: the chart is fresh, with many dots and no note or banner', s.kind === 'fresh' && s.dots > 1 && !s.note, JSON.stringify(s));
   check('after a sweep: full-strength dots', s.alpha === 0.7, JSON.stringify(s));
@@ -82,8 +96,11 @@ try {
   check('out of date: the banner\'s button takes focus to Run sweep', await p.evaluate(() => { const a = document.activeElement; return !!a && (a.id === 'runSweep' || a.dataset.ic === 'run'); }));
   await axeStage(p, 'out of date 2D');
 
-  // 4. run again: cleared
+  // 4. run again: cleared; focus on the banner's button moves to Run sweep when the banner goes
+  await p.evaluate(() => document.querySelector('#tradeCanvas ~ .chartstate .cs-run').focus());
   await runSweep(p);
+  F = await focusOk();
+  check('run again: focus on the banner\'s button moved to Run sweep, not to the page', F.ok, JSON.stringify(F));
   s = await st(p, 'tradeCanvas');
   check('run again: the banner is gone and the dots are full strength', s.kind === 'fresh' && !s.note && s.alpha === 0.7, JSON.stringify(s));
   check('run again: the bar is not striped', s.barStale === false);
