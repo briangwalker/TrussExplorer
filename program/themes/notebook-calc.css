@@ -261,6 +261,9 @@
 #stage[data-theme="notebook-calc-calc"] .te-editor .s-b.dark{
   color:#fff3dc; background:#8c5e22 url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAICAYAAACYhf2vAAAAn0lEQVR4AayRzQ2AIBSDCXu4gFcdy528OozGxIMLeHUHpcQXC0JA1KRSoHyPH70v/fGn5qE7QorV0Ns6KZYyH/ff+qpuVEgxjvbDpn4Q4OekjzzrLjSag412CmPWXD+svazSYkpagAELqzUHaS3Wn8egjD2eANBcAQLYFzlPwCDAU+J8qXdugAvKLeSAJZvTgse55A1wOOZ54ymPDXDmBAAA//80aF++AAAABklEQVQDAOczRVbU4QanAAAAAElFTkSuQmCC") 0 0 / 96px 24px; background-blend-mode:multiply; transform:translate(2px,2px); box-shadow:none; }
 #stage[data-theme="notebook-calc-calc"] :is(.s-pan, .te-editor) .te-tog{ width:30px; padding:0; }
+/* a ticked sweep key is filled with the ring colour (#8c5e22), so its checkbox ring moves to the key's pale ink: 6.3:1 on the pressed key
+   (QA TE-B-778, UI Designer TE-B-779, UI-K4 / ART-S5; a #549 regression) */
+#stage[data-theme="notebook-calc-calc"] .s-pan .swchip:has(input:checked) input:focus-visible{ outline-color:#fff3dc; }
 /* the app's old segmented rows on the screen (Inputs: panels, foot style...) are pixel keys too (TE-B-730 (2), ART-W3) */
 #stage[data-theme="notebook-calc-calc"] .s-pan .seg{ box-shadow:none; border-radius:0; gap:6px; flex-wrap:wrap; background:none; }
 #stage[data-theme="notebook-calc-calc"] .s-pan .seg button, #stage[data-theme="notebook-calc-calc"] .s-pan .seg button + button{ border-left:2px solid #1d2a1e; border-radius:0; padding:2px 7px; }
