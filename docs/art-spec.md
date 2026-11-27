@@ -1,6 +1,6 @@
 # Truss Explorer Art Standard (themes and art assets)
 
-**Version 1.0.7 · 2026-11-24 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
+**Version 1.0.8 · 2026-11-27 · owner: Graphics Designer (Art Lead) · creative sign-off: Brian**
 
 This is the one source of truth for how balsaPixel **looks and moves**: themes, tokens, materials, pictures, icons, textures and motion. Every rule has a number (`ART-…`). Build issues, pull requests and reviews cite those numbers.
 
@@ -177,7 +177,7 @@ All live under ☰ › Look and controls › Theme (UI-A16). They change looks o
 |---|---|---|---|---|
 | ART-O1 | Wood | photo · generated | photo (dark mode: generated) | live in kit |
 | ART-O2 | Window look | tray · calculator · paper labels · tape labels | tray | live in kit; calculator in the Click-Through |
-| ART-O3 | Favicon | calc-te · calc-ok · calc-smile · end-hand · end-calc · random | calc-te | live in kit |
+| ART-O3 | Favicon. **The tab icon is one of four, picked at random on each page load** (Brian, decision 72a, FVL TE-B-757): A pixel b · B cream b · C truss b · D TE mark. It stays the same for the whole visit and never changes while the page is open. It is not a setting the person picks. Large icons (180 px home-screen, About) may keep A. Files: `docs/art-website-pack/favicon/four/` (SVG, and PNG at 16, 32, 48 and 180). | A · B · C · D, at random | random per page load | planned (Dev Lead wires it as data: icon links, as in TE-B-317) |
 | ART-O4 | LCD pixel size; chart dot size | 2–8 px; 2–12 px | 3 px; 6 px | live in kit |
 | ART-O5 | Motion tuning (ART-M1–M4 numbers), with Reset to defaults. Values are clamped to 100–6000 ms, and anything missing or not a number falls back to 1000 ms (White Hat; UI review of #272). Ships to users under ☰ > Look and controls > Theme; 1000 ms is the default, and a click or key during a transition jumps to its end (UI-M5). (Future Vision Lead A2, TE-B-102; Brian can overrule at sign-off.) | | Brian's picks | live in the Motion Lab |
 | ART-O6 | Slider look (ART-W6) | A stick in a tray · B calculator · C paper ruler | A | planned #215 |
@@ -200,7 +200,8 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 | `pictures/shape.svg`, `geo.svg`, `sup.svg`, `load.svg`, `sticks.svg`, `mat.svg`, `rules.svg`, `d3.svg`, `topchord-note.svg`, `pictures.css` | 1–14 KB each | ART-H1–H4, ART-H6 |
 | `pictures/woodpile.svg`, `books.svg` | 6.9 KB, 0.9 KB | ART-D3, ART-H5 |
 | `icons.svg` | 4.9 KB | ART-I1 |
-| `favicons/calc-te.svg`, `calc-ok.svg`, `calc-smile.svg`, `end-hand.svg`, `end-calc.svg` | 1–13 KB | ART-O3 |
+| `favicons/calc-te.svg`, `calc-ok.svg`, `calc-smile.svg`, `end-hand.svg`, `end-calc.svg` (kit only; replaced by the four below) | 1–13 KB | ART-O3 (old) |
+| `docs/art-website-pack/favicon/four/{a-pixel-b,b-cream-b,c-truss-b,d-te-mark}.svg` and `-16`, `-32`, `-48`, `-180.png` | 0.3–35 KB | ART-O3 |
 | `textures/balsa-*.webp`, `endgrain-1..3.webp` (kit build) | 1–11 KB | ART-S1, ART-S3 |
 | `preview.webp` | 20 KB | theme picker thumbnail |
 | `textures.js`, `settings.js`, `hand.js` (kit build only) | 9 / 12 / 3 KB | prototype code; replaced in the app (see art-implementation.md §4) |
@@ -235,6 +236,7 @@ Every shipped file of the built-in Notebook + Calculator theme, and the rules th
 
 ## Change log
 
+- **1.0.8 · 2026-11-27** ART-O3: the tab icon is one of four (A pixel b, B cream b, C truss b, D TE mark), picked at random on each page load. It stays the same during a visit and is not a person's setting (Brian, decision 72a, via the FVL, TE-B-757). The four are in `docs/art-website-pack/favicon/four/` as SVG and PNG at 16, 32, 48 and 180 px. They are drawn exactly as in the decision-72 try-out, and D is byte-identical to today's `favicon.svg`. The asset register lists them. Still to build: the Dev Lead's random pick among data: icon links. Spec rules met: ART-O3, ART-P6.
 - **1.0.7 · 2026-11-24** ART-S5: the focus ring takes the colour of the ground it lands on. It is `on-strong` on the bar, its folded tab, a lit place pill and a toast (every theme, Notebook's dashed ring included), including where a ring drawn outside a control lands on the bar. Otherwise it is whichever of `focus`, `on-strong` or `ink` reaches 3 : 1 (OG dark's lit pill: `ink`, 13.62 : 1; FVL TE-B-509; QA TE-B-510b). It is measured against the pixels it covers (QA HOLD TE-B-471, UI SHOULD TE-B-468, FVL TE-B-475). ART-C6 adds `on-strong` on `strong`/`tab` at 3 : 1. This matches the Dev Lead's #474 rule and the lit-pill offset-0 rule now in `shell.css`. A theme may change the ring's line style and offset but never its width below 3 px (UI Designer SHOULD on #485); Notebook's 2 px dashed ring moves to 3 px. Still to build: OG dark's lit pill (`ink`) and Notebook's 3 px width (the toast's Undo ring is built, #497). Spec rules met: ART-S5, ART-C2, ART-C6.
 - **1.0.6 · 2026-11-19** Blueprint (sample) controls turn dark: `ctl-bg` `#1d4a85`, `ctl-line` `#8fb0dc` (3.97 : 1), so its light `ink` reads on unpicked choices (8.18 : 1; was 1.08 : 1, #246). 1.0.5's `#6a7ea3` fixed the edge but kept the light face. Theme file changed: `themes/blueprint.css` line 8. Spec rules met: ART-C1, ART-C2, ART-C6.
 - **1.0.5 · 2026-11-13** Closes #288's control-edge lines as values: new ART-C6 (Wireframe `#7f8893`, Notebook + Calculator `#946832`, Blueprint sample `#6a7ea3`, all at least 3 : 1) and ART-K7's Notebook value changes from `#a9804a` (2.39 : 1) to `#946832`. New ART-W14 (data table, answers gap G11, TE-B-339, TE-B-347) and ART-W15 (the model-values note's look, UI-W24, TE-B-342). Steps #211, #215 and #221 cite them. No look changes for users until the two theme files take the new values (#288). Spec rules met: ART-C2, ART-K7. **Amended 2026-11-19** (still 1.0.5, before merge): new ART-K17 `focus` token, `#8a5a2b` in Wireframe and Notebook + Calculator, because the amber ring was 1.58 : 1 on `hot` (TE-B-396); ART-S5 uses it; ART-K9 no longer names the ring; ART-C6 adds the focus pairs. ART-W14 takes the UI Designer's two MUSTs and the SHOULD on #430 (focus on the cell, sticky Member column, sort mark) for the FVL's A2 (TE-B-389).

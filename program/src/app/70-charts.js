@@ -132,8 +132,84 @@ function paintAllHidden() {
 }
 function emptyCanvas(cv, msg) {
   const { ctx, w, h } = setupCanvas(cv);
-  ctx.clearRect(0, 0, w, h); ctx.fillStyle = cssv('--muted'); ctx.font = '13px Barlow, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(msg, w / 2, h / 2);
+  ctx.clearRect(0, 0, w, h);
+  if (msg) { ctx.fillStyle = cssv('--muted'); ctx.font = '13px Barlow, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(msg, w / 2, h / 2); }
+  return { ctx, w, h };
 }
+// ---------- the chart's data states (UI-A14, UI-S5; UIE-11, TE-B-736): 'no-sweep' (your bridge is the one dot, an arrow to Run sweep),
+// 'stale' (the sweep bar's own out-of-date fact, SweepState.facts().stale: dots fade, a banner names what changed) and 'fresh'.
+// Words come from TrussStrings ('chart.state.*'), set as text. Nothing is saved (TE-B-447). The canvas carries data-chart-state and data-dot-alpha for tests.
+const csT = (k, m) => String(TrussStrings.t(k)).replace(/\{([a-z]+)\}/g, (a, n) => (m && n in m ? String(m[n]) : a));
+const CS_TOP = { ana: 'analysis', d3: 'd3', pat: 'pattern', vp: 'verticals', mat: 'material', load: 'load', opts: 'options', on: 'ranges', vals: 'ranges', sel: 'ranges', focus: 'focus' };
+const CS_D = { height: 'height', panels: 'panels', overall: 'length', ratio: 'taper', curve: 'curve', bottom: 'curve', overlap: 'overlap', bookLen: 'bookLen', loads: 'load',
+  family: 'pattern', diagLeft: 'members', diagMiddle: 'members', vertLeft: 'members', approachDiag: 'members', edgeVert: 'members', deskVert: 'members',
+  topShape: 'top', topEnd: 'top', botEnd: 'botEnd', sideAngle: 'sides', sideLean: 'sides', deskMode: 'supports', deskPanels: 'supports', deskEnds: 'supports', supportMode: 'supports', edgeBear: 'supports' };
+// what changed since the last sweep, in words: the parts of the sweep's own signature (sweepSig, app/60-sweep.js) that differ, read only
+function chartStaleWhat() {
+  let a, b; try { a = JSON.parse(lastSig); b = JSON.parse(sweepSig()); } catch (e) { return csT('chart.state.whatInputs'); }
+  if (!a || !b) return csT('chart.state.whatInputs');
+  const same = (x, y) => JSON.stringify(x) === JSON.stringify(y), out = [];
+  const add = k => { const w = csT('chart.state.what' + k.charAt(0).toUpperCase() + k.slice(1)); if (!out.includes(w)) out.push(w); };
+  const da = a.d || {}, db = b.d || {};
+  Object.keys(Object.assign({}, da, db)).forEach(f => { if (!same(da[f], db[f])) add(CS_D[f] || 'bridge'); });
+  Object.keys(Object.assign({}, a, b)).forEach(k => { if (k !== 'd' && !same(a[k], b[k])) add(CS_TOP[k] || 'inputs'); });
+  if (!out.length) return csT('chart.state.whatInputs');
+  const list = out.length > 3 ? out.slice(0, 3).concat([csT('chart.state.whatMore')]) : out;
+  return list.length === 1 ? list[0] : list.slice(0, -1).join(', ') + csT('chart.state.and') + list[list.length - 1];
+}
+function chartStateOf(cv) {
+  if (!SweepState.rows().length && !(cv.id === 'tradeCanvas' && shownSaved().length)) return 'no-sweep';
+  const f = SweepState.facts(); return f.stale === true && !f.busy && !f.running ? 'stale' : 'fresh';
+}
+// the bar's Run sweep as it shows now (words or its ▶ icon, UI-W15)
+function focusRunSweep() {
+  const vis = e => e && e.getClientRects().length && !e.closest('[hidden]');
+  const b = [...document.querySelectorAll('#runSweep, #win-sweep [data-ic="run"]')].find(vis) || $('runSweep');
+  if (b) { b.scrollIntoView({ block: 'nearest' }); b.focus(); }
+}
+// an arrow on the canvas from (x0, y0) toward the bottom-left corner of the chart, where the sweep bar and its Run sweep sit (UI-A2)
+function csArrow(ctx, x0, y0, x1, y1) {
+  const a = Math.atan2(y1 - y0, x1 - x0), L = 9;
+  ctx.save(); ctx.strokeStyle = cssv('--accent'); ctx.fillStyle = cssv('--accent'); ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 - Math.cos(a) * L * 0.8, y1 - Math.sin(a) * L * 0.8); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - L * Math.cos(a - 0.45), y1 - L * Math.sin(a - 0.45)); ctx.lineTo(x1 - L * Math.cos(a + 0.45), y1 - L * Math.sin(a + 0.45)); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+// the state painter: the note (no sweep yet) or the banner (out of date) over the chart, built once per state and changed only when its words change,
+// so a screen reader hears the banner once (role=status, polite), not on every redraw
+function paintChartState(cv, kind) {
+  cv.dataset.chartState = kind;
+  const box = cv.parentElement; let el = box.querySelector(':scope > .chartstate');
+  if (el && el.dataset.kind !== kind) {
+    // focus never falls back to the page when the note or banner goes away (WCAG 2.4.3, UI-W15): it moves to the bar's Run sweep,
+    // held on the chart for one tick while a just-finished sweep is still switching Run sweep back on
+    const had = el.contains(document.activeElement); el.remove(); el = null;
+    if (had) {
+      if (!cv.hasAttribute('tabindex')) cv.setAttribute('tabindex', '-1');
+      cv.focus({ preventScroll: true });
+      setTimeout(() => { if (document.activeElement === cv || document.activeElement === document.body) focusRunSweep(); }, 0);
+    }
+  }
+  if (kind === 'fresh') return;
+  const msg = kind === 'stale' ? csT('chart.state.stale', { what: chartStaleWhat() }) : csT(cv.id === 'c3Canvas' ? 'chart.state.noSweep3d' : 'chart.state.noSweep');
+  if (!el) {
+    el = document.createElement('div'); el.className = 'chartstate ' + (kind === 'stale' ? 'cs-stale' : 'cs-nosweep'); el.dataset.kind = kind;
+    if (kind === 'stale') { el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); }
+    const p = document.createElement('p'); p.className = 'cs-msg';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cs-run'; btn.dataset.part = 'note-button'; btn.dataset.slot = 'ctl'; btn.textContent = csT('chart.state.goRun');
+    btn.addEventListener('click', focusRunSweep);
+    el.append(p, btn); box.appendChild(el);
+    // the live region is in the page before its words arrive, so they are read (once)
+    setTimeout(() => { if (el.isConnected) p.textContent = el.dataset.msg; }, 40);
+  } else if (el.dataset.msg !== msg) el.querySelector('.cs-msg').textContent = msg;
+  el.dataset.msg = msg;
+}
+// out of date follows the sweep's own banner (.staleMsg, toggled by checkStale): redraw the chart on screen when it flips, as the bar does (shell.js)
+(function () {
+  const st = document.querySelector('.staleMsg'); if (!st || typeof MutationObserver === 'undefined') return;
+  new MutationObserver(() => { if (!$('s-track').open) return; if (S.tab === 'trade') drawTrade(); else if (S.tab === 'c3') draw3(); })
+    .observe(st, { attributes: true, attributeFilter: ['hidden'] });
+})();
 function groupTip(g) {
   const rows = g.rows || [], pass = rows.filter(r => r.passes && hasResult(r));
   if (!rows.length) return '';
@@ -204,10 +280,30 @@ $('tradeCsv').addEventListener('click', () => {
   const csv = infoLines(sweepInfo()).map(l => '# ' + l).concat([all.join(',')], SweepState.rows().map(r => all.map(k => esc(r[k])).join(','))).join('\n');
   saveFile(fileBase() + '_tradeoff.csv', csv);
 });
+// the loaded bridge as a chart point (the 'current' ring, and the one dot before a sweep)
+function curPoint() { return res.stable ? Object.assign({ wood: res.wood, capKg: res.capKg, D: res.midDefl, util: res.maxUtil, mass: res.massTotal, overall: tr.overall, members: tr.elems.length, overlap: tr.overlap }, design()) : null; }
 function drawTrade() {
   const cv = $('tradeCanvas');
   const sv = shownSaved();
-  if (!SweepState.rows().length && !sv.length) { emptyCanvas(cv, 'Run a sweep (in the Sweep section above) to fill this chart.'); $('frontTbl').innerHTML = ''; $('tradeLegend').innerHTML = ''; tradePts = null; renderBest(); return; }
+  const kind = chartStateOf(cv), fade = kind === 'stale' ? 0.35 : 1;
+  paintChartState(cv, kind); cv.dataset.dotAlpha = String(+(0.7 * fade).toFixed(3));
+  if (kind === 'no-sweep') {
+    // UI-A14: never a blank chart: your bridge as its one dot at its own point on the chosen axes, and an arrow toward Run sweep
+    const [xl0, fx0] = AXES[S.axX], [yl0, fy0] = AXES[S.axY], me = curPoint();
+    const ok = me && Number.isFinite(fx0(me)) && Number.isFinite(fy0(me));
+    const around = v => { const d = Math.abs(v) || 1; return [v >= 0 ? Math.max(0, v - 0.6 * d) : v - 0.6 * d, v + 0.6 * d]; };
+    const { ctx, w, h } = emptyCanvas(cv);
+    const A = axes(ctx, w, h, ok ? around(fx0(me)) : [0, 1], ok ? around(fy0(me)) : [0, 1], xl0, yl0);
+    const x = ok ? A.X(fx0(me)) : w / 2, y = ok ? A.Y(fy0(me)) : h / 2;
+    if (ok) {
+      ctx.fillStyle = cssv('--tens'); ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill();
+      ctx.strokeStyle = cssv('--tens'); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke();
+      ctx.fillStyle = cssv('--ink'); ctx.font = '600 13px Barlow, sans-serif'; ctx.textAlign = 'left'; ctx.fillText(csT('chart.state.yourBridge'), x + 14, y + 4);
+    }
+    csArrow(ctx, x - 12, y + 12, A.P.l + 10, h - A.P.b - 10);
+    cv.dataset.dots = ok ? '1' : '0';
+    $('frontTbl').innerHTML = ''; $('tradeLegend').innerHTML = ''; tradePts = null; renderBest(); return;
+  }
   // new sweep results (or a switch between 2D and 3D results): drop the old zoom so the new cloud is all in view
   if (drawTrade.ref !== SweepState.rows() || drawTrade.len !== SweepState.rows().length) { if (drawTrade.ref !== undefined && !SweepState.rows().some(q => q.refined)) tradeView = null; drawTrade.ref = SweepState.rows(); drawTrade.len = SweepState.rows().length; }
   const [xl, fx] = AXES[S.axX], [yl, fy] = AXES[S.axY];
@@ -215,7 +311,7 @@ function drawTrade() {
   const pts = SweepState.rows().filter(r => Number.isFinite(fx(r)) && Number.isFinite(fy(r)));
   const groups = groupsOf(pts);
   const need = SweepState.ctx() ? SweepState.ctx().bookKg * SweepState.ctx().FS : (S.load.mBook1 + S.load.mBook2) * S.mat.FS;
-  const cur = res.stable ? Object.assign({ wood: res.wood, capKg: res.capKg, D: res.midDefl, util: res.maxUtil, mass: res.massTotal, overall: tr.overall, members: tr.elems.length, overlap: tr.overlap }, design()) : null;
+  const cur = curPoint();
   let xr, yr;
   if (tradeView) { xr = tradeView.x; yr = tradeView.y; }
   else {
@@ -232,7 +328,7 @@ function drawTrade() {
     ctx.setLineDash([5, 4]); ctx.strokeStyle = cssv('--warn'); ctx.beginPath(); ctx.moveTo(A.P.l, A.Y(need)); ctx.lineTo(w - A.P.r, A.Y(need)); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = cssv('--warn'); ctx.textAlign = 'left'; ctx.fillText(`needed ${need.toFixed(1)} kg (books × FS)`, A.P.l + 4, A.Y(need) - 5);
   }
-  tradePts = [];
+  tradePts = []; cv.dataset.dots = String(pts.length);
   const leg = [];
   const hiddenRows = new Set(); groups.forEach(g => { if (isHid(g.label)) g.rows.forEach(r => hiddenRows.add(r)); });
   groups.forEach((g, gi) => {
@@ -243,18 +339,19 @@ function drawTrade() {
       if (x < A.P.l - 4 || x > w - A.P.r + 4 || y < A.P.t - 4 || y > h - A.P.b + 4) return;
       tradePts.push({ p: q, x, y });
       if (q.refined) return;   // drawn on top below
-      if (q.passes) { ctx.fillStyle = col; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill(); }
-      else if (S.colorFails) { ctx.strokeStyle = col; ctx.globalAlpha = 0.45; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 2.4, 0, 7); ctx.stroke(); }
-      else { ctx.fillStyle = cssv('--zero'); ctx.globalAlpha = 0.3; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill(); }
+      if (q.passes) { ctx.fillStyle = col; ctx.globalAlpha = 0.7 * fade; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill(); }
+      else if (S.colorFails) { ctx.strokeStyle = col; ctx.globalAlpha = 0.45 * fade; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 2.4, 0, 7); ctx.stroke(); }
+      else { ctx.fillStyle = cssv('--zero'); ctx.globalAlpha = 0.3 * fade; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill(); }
     });
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = fade;   // out of date: the frontier fades with the dots (UI-S5)
     if (classic) line(ctx, frontier(g.rows).map(q => [A.X(q.wood), A.Y(q.capKg)]), S.groupBy === 'none' ? cssv('--ink') : col, 1.8);
+    ctx.globalAlpha = 1;
     leg.push({ color: S.groupBy === 'none' ? cssv('--ink') : col, label: g.label, g: g.label, tip: groupTip(g) });
   });
   // refined designs: small diamonds on top
   pts.filter(q => q.refined && !hiddenRows.has(q)).forEach(q => {
     const x = A.X(fx(q)), y = A.Y(fy(q));
-    ctx.fillStyle = q.passes ? cssv('--tens') : cssv('--bad'); ctx.globalAlpha = 0.9;
+    ctx.fillStyle = q.passes ? cssv('--tens') : cssv('--bad'); ctx.globalAlpha = 0.9 * fade;
     ctx.beginPath(); ctx.moveTo(x, y - 3.4); ctx.lineTo(x + 3.4, y); ctx.lineTo(x, y + 3.4); ctx.lineTo(x - 3.4, y); ctx.closePath(); ctx.fill();
   });
   ctx.globalAlpha = 1;
@@ -448,7 +545,13 @@ function c3fit(W, H) {
 }
 function draw3() {
   const cv = $('c3Canvas');
-  if (!SweepState.rows().length) { emptyCanvas(cv, 'Run a sweep to fill this chart.'); c3v.pts = null; $('c3Legend').innerHTML = ''; return; }
+  const kind = chartStateOf(cv), fade = kind === 'stale' ? 0.35 : 1;
+  paintChartState(cv, kind); cv.dataset.dotAlpha = String(+(0.8 * fade).toFixed(3));
+  if (kind === 'no-sweep') {
+    // UI-A14 in 3D: no axes to place your bridge on yet, so the words (the note over the chart) and the arrow toward Run sweep
+    const { ctx, w, h } = emptyCanvas(cv); csArrow(ctx, w / 2 - 40, h / 2 + 40, 40, h - 40);
+    cv.dataset.dots = '0'; c3v.pts = null; $('c3Legend').innerHTML = ''; return;
+  }
   const fx = AXES[S.c3.x][1], fy = AXES[S.c3.y][1], fz = AXES[S.c3.z][1];
   if (draw3.ref !== SweepState.rows()) { if (draw3.ref !== undefined) { c3v.px = 0; c3v.py = 0; c3v.zoom = 1; } draw3.ref = SweepState.rows(); }
   const rows = SweepState.rows().filter(r => (S.c3.fails || r.passes) && [fx(r), fy(r), fz(r)].every(Number.isFinite));
@@ -484,7 +587,8 @@ function draw3() {
   const groups = groupsOf(rows), colOf = new Map();
   groups.forEach((g, gi) => { if (!isHid(g.label)) g.rows.forEach(r => colOf.set(r, S.groupBy === 'none' ? cssv('--accent') : gcolor(gi))); });
   const P = rows.filter(r => colOf.has(r)).map(r => { const q = proj(norm(fx(r), R[0]), norm(fy(r), R[1]), norm(fz(r), R[2])); return { p: r, x: q[0], y: q[1], d: q[2] }; }).sort((a1, b1) => b1.d - a1.d);
-  P.forEach(q => { ctx.globalAlpha = q.p.passes ? 0.8 : 0.35; ctx.fillStyle = q.p.passes ? colOf.get(q.p) : cssv('--zero'); ctx.beginPath(); ctx.arc(q.x, q.y, q.p.refined ? 3.4 : 2.6, 0, 7); ctx.fill(); });
+  cv.dataset.dots = String(P.length);
+  P.forEach(q => { ctx.globalAlpha = (q.p.passes ? 0.8 : 0.35) * fade; ctx.fillStyle = q.p.passes ? colOf.get(q.p) : cssv('--zero'); ctx.beginPath(); ctx.arc(q.x, q.y, q.p.refined ? 3.4 : 2.6, 0, 7); ctx.fill(); });
   ctx.globalAlpha = 1;
   c3v.pts = P; if (c3v.cube) c3v.cube();
   $('c3Legend').innerHTML = legendHTML(groups.map((g, gi) => ({ color: S.groupBy === 'none' ? cssv('--accent') : gcolor(gi), label: g.label, g: g.label, off: isHid(g.label), tip: groupTip(g) }))) + (S.c3.fails ? '<span>Grey points fail a check</span>' : '<span>Passing designs only</span>') + `<span>${rows.length.toLocaleString()} designs</span>`;
