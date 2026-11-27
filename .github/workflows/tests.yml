@@ -31,6 +31,13 @@ jobs:
         run: pip install --require-hashes -r tests/requirements.txt
       - name: Playwright with Chromium
         run: npm ci --ignore-scripts && npx playwright install --with-deps chromium
+      - name: Reference solver for cmp.py (from the repository secret; never in the tree)
+        env:
+          TRUSSFEA_SRC: ${{ secrets.TRUSSFEA_PY }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ref"
+          printf '%s\n' "$TRUSSFEA_SRC" > "$RUNNER_TEMP/ref/TrussFEA_Bridge_SE310.py"
+          echo "TRUSSFEA_PY=$RUNNER_TEMP/ref/TrussFEA_Bridge_SE310.py" >> "$GITHUB_ENV"
       - name: Run every check
         env:
           MPLBACKEND: Agg

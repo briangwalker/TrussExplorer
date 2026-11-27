@@ -89,7 +89,7 @@ This builds the page, then runs the solver checks, a comparison with the course 
 
 You need Node 22 and Python 3.12 (the versions CI uses). From `program/`: `npm ci --ignore-scripts` (the pinned Playwright and axe-core; no install scripts needed), `npx playwright install chromium`, and `pip install --require-hashes -r tests/requirements.txt`. Run the suite the way CI does, `CI=1 bash tests/run_all.sh`, after rebasing on the branch you're targeting, so a green local run means a green CI run.
 
-- **The course script is in `tests/reference/`** (`TrussFEA_Bridge_SE310.py`, by Professor Dong, cleared for this repo), so the comparison runs for everyone and in CI. Don't edit it: it's the reference the 2D solver must match.
+- **The reference solver is not in the repository.** `tests/cmp.py` reads it from `TRUSSFEA_PY` or from a git-ignored copy at `tests/reference/TrussFEA_Bridge_SE310.py`; CI writes it from the repository secret `TRUSSFEA_PY`. Without a copy cmp.py prints SKIP locally; in CI it fails. Don't edit the reference: it's what the 2D solver must match.
 - **Lines marked `KNOWN`** are open issues. They're reported but don't fail the run.
 - **If the regression test says results "changed since v58"**, your change moved some solver numbers. If that's intended, re-record them with `node program/tests/regressions.test.js --update` and say why in the pull request. If it isn't, you've found a bug.
 - **New behaviour should come with a test:** a Node test for solver or maths changes, a browser check in `tests/ui/` for interface changes. `run_all.sh` runs every `tests/*.test.js` and every `tests/ui/*.mjs` by itself, so a new test file needs no other edit.

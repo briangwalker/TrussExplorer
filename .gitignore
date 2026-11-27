@@ -1,0 +1,2 @@
+# the reference solver is read from here locally and is never committed (tests/reference/README.md)
+program/tests/reference/TrussFEA_Bridge_SE310.py
