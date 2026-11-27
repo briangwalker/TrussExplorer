@@ -34,6 +34,10 @@ Pick a few of these; you don't need all of them.
 
 Two things to avoid: don't put a heavy material (wood, the calculator) on top of a light one (paper, tape) (ART-P1). And don't use the meaning colours (red, blue, grey, green, magenta) as decoration, because in TE they mean compression, tension, zero force, pass and fail.
 
+## The four tab icons (ART-O3)
+
+`favicon/four/` holds the four tab icons Brian picked from (decision 72a): `a-pixel-b`, `b-cream-b`, `c-truss-b` and `d-te-mark`. Each one comes as an `.svg` and as a `.png` at 16, 32, 48 and 180 px. The app shows one of them at random on each page load (ART-O3). `d-te-mark` is the same file as `favicon/favicon.svg`.
+
 ## Favicon snippet for the TE page
 
 ```html
