@@ -2,8 +2,16 @@
 // closes on Esc, gets focus back after a download's name pop-up (so Esc still closes it), and gives focus back to ☰.
 // BPD-15 (TE-B-652): its button row never scrolls away (UI-W23 / UI-A21, #411), and a click on the dimmed backdrop
 // closes it the way Esc does and does nothing else (UI-W22, #410).
+// BPD-18 (TE-B-700): the header is the title then ✕ 'Close Build documents' (UI-W23), which closes it like Esc and Close;
+// every joint-table select has a name, and the parts list scrolls by keyboard (axe: no select-name, no
+// scrollable-region-focusable on #docModal).
 //   node tests/ui/docsdialog.mjs
+import fs from 'fs';
+import { createRequire } from 'module';
 import { serve, browser, openPage, waitRows, checker } from './harness.mjs';
+
+const require = createRequire(import.meta.url);
+let axeSrc = null; try { axeSrc = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8'); } catch (e) { /* npm ci not run: the axe check says so */ }
 
 const srv = await serve(undefined, { shell: true });
 const b = await browser();
@@ -31,6 +39,36 @@ try {
     const p = await openPage(b, srv.url, vp), tag = ` (${vp.width}x${vp.height})`; await waitRows(p);
     await openIt(p);
     check('focus is inside the dialog when it opens' + tag, await inside(p));
+    // BPD-18: the header is the title, then ✕, and ✕ is its last control; it is on screen
+    const hd = await p.evaluate(() => {
+      const h = document.querySelector('#docModal .docHead'), c = [...h.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')].filter(e => e.tabIndex >= 0);
+      const x = document.getElementById('docX'), r = x && x.getBoundingClientRect(), t = document.getElementById('docH').getBoundingClientRect();
+      return { last: c[c.length - 1] === x, name: x && x.getAttribute('aria-label'), after: !!x && (document.getElementById('docH').compareDocumentPosition(x) & 4) > 0,
+        onScreen: !!r && r.width >= 24 && r.height >= 24 && r.top >= 0 && r.right <= innerWidth + 0.5 && r.left >= t.left };
+    });
+    check('UI-W23: the header ends with ✕ named Close Build documents, after the title' + tag, hd.last && hd.after && hd.name === 'Close Build documents', JSON.stringify(hd));
+    check('UI-W23: ✕ is on screen and at least 24 px' + tag, hd.onScreen, JSON.stringify(hd));
+    await p.keyboard.press('Tab');
+    check('UI-W23: the first Tab from the title goes to ✕' + tag, await p.evaluate(() => document.activeElement === document.getElementById('docX')));
+    const nm = await p.evaluate(() => { const s = [...document.querySelectorAll('#docJoints select')]; return { n: s.length, bad: s.filter(e => !/^Joint \d+: (on top|ends)$/.test(e.getAttribute('aria-label') || '')).length }; });
+    check('QA note 1: every joint-table select has a name (Joint n: on top / ends)' + tag, nm.n > 0 && nm.bad === 0, JSON.stringify(nm));
+    const pl = await p.evaluate(() => { const w = document.querySelector('#docModal .docParts'); return { tab: w && w.tabIndex, role: w && w.getAttribute('role'), name: w && w.getAttribute('aria-label') }; });
+    check('QA note 2: the parts list is a named region in the Tab order' + tag, pl.tab === 0 && pl.role === 'region' && pl.name === 'Parts list', JSON.stringify(pl));
+    let reached = false; for (let i = 0; i < 80 && !reached; i++) { await p.keyboard.press('Tab'); reached = await p.evaluate(() => document.activeElement === document.querySelector('#docModal .docParts')); }
+    check('QA note 2: Tab reaches the parts list' + tag, reached);
+    if (reached) {
+      const sc = await p.evaluate(() => { const w = document.querySelector('#docModal .docParts'); w.scrollTop = 0; return w.scrollHeight > w.clientHeight + 1; });
+      await p.keyboard.press('PageDown'); await p.keyboard.press('ArrowDown'); await p.waitForTimeout(150);
+      const top = await p.evaluate(() => document.querySelector('#docModal .docParts').scrollTop);
+      check('QA note 2: the keys scroll the parts list when it has more rows than fit' + tag, !sc || top > 0, `scrolls ${sc}, scrollTop ${top}`);
+      await p.evaluate(() => { document.querySelector('#docModal .docParts').scrollTop = 0; });
+    }
+    if (axeSrc) {
+      await p.addScriptTag({ content: axeSrc });
+      const v = await p.evaluate(async () => (await axe.run(document.getElementById('docModal'), { runOnly: ['select-name', 'scrollable-region-focusable', 'button-name', 'label'], resultTypes: ['violations'] })).violations.map(x => `${x.id} ×${x.nodes.length}`));
+      check('axe on #docModal: no select-name, scrollable-region-focusable, button-name or label' + tag, v.length === 0, v.join('; '));
+    } else check('axe-core is installed (npm ci) for the axe check' + tag, false);
+    await p.evaluate(() => { const h = document.getElementById('docH'); h.focus(); });
     const f0 = await footOk(p);
     check('UI-W23: the button row is on screen without scrolling' + tag, f0.ok, JSON.stringify(f0));
     if (vp.height <= 768) check('UI-W23: the middle is what scrolls' + tag, f0.scrolls, JSON.stringify(f0));
@@ -71,6 +109,13 @@ try {
       check('and Esc still closes the dialog, focus on ☰', await p.evaluate(() => document.getElementById('docModal').hidden && document.activeElement === document.getElementById('dockBtn')));
       await openIt(p); await p.click('#docNo'); await p.waitForTimeout(150);
       check('the close button gives focus back to ☰ too', await p.evaluate(() => document.getElementById('docModal').hidden && document.activeElement === document.getElementById('dockBtn')));
+      await openIt(p); await p.click('#docX'); await p.waitForTimeout(150);
+      check('UI-W23: a click on ✕ closes it, focus on ☰', await p.evaluate(() => document.getElementById('docModal').hidden && document.activeElement === document.getElementById('dockBtn')));
+      await openIt(p); await p.keyboard.press('Tab'); await p.keyboard.press('Enter'); await p.waitForTimeout(150);
+      check('UI-W23: Enter on ✕ closes it, focus on ☰', await p.evaluate(() => document.getElementById('docModal').hidden && document.activeElement === document.getElementById('dockBtn')));
+      const before = await snap(p);
+      await openIt(p); await p.keyboard.press('Tab'); await p.keyboard.press('Space'); await p.waitForTimeout(150);
+      check('UI-W23: Space on ✕ closes it, focus on ☰, nothing saved changes', await p.evaluate(() => document.getElementById('docModal').hidden && document.activeElement === document.getElementById('dockBtn')) && before === await snap(p));
     }
     check('no script errors' + tag, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();

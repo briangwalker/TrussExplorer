@@ -182,6 +182,10 @@ function update() {
   S.panels = Math.max(2, Math.min(12, Math.round(S.panels)));
   S.overall = Math.max(200, Math.min(300, +S.overall || 200));
   S.height = Math.max(0, +S.height || 0); const faceMax = Math.min(+S.tableThick || 0, 50); S.topEnd = Math.max(-faceMax, Math.min(S.height, +S.topEnd || 0)); S.botEnd = Math.max(-faceMax, Math.min(S.height, +S.botEnd || 0)); S.curve = Math.max(-60, Math.min(120, +S.curve || 0));
+  // Trusses is a count on the limits table (1 to 4, limits.js): every path (typed, opened file, saved state, backups) passes here
+  // before anything is computed or saved, so an out-of-table count can't reach the results, the drawings or the saved state
+  if (!S.load || typeof S.load !== 'object') S.load = Object.assign({}, COURSE.load);
+  S.load.nTruss = Math.max(1, Math.min(4, Math.round(+S.load.nTruss) || 2));
   S.deskPanels = Math.max(0, Math.min(6, Math.round(+S.deskPanels || 0))); S.supportOffset = Math.max(0, Math.min(50, +S.supportOffset || 0)); S.overlap = Math.max(0, Math.min(50, +S.overlap || 0));
   syncArrays();
   tr = C.buildTruss(design());
