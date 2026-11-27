@@ -44,12 +44,22 @@ def module(f):
     return text
 
 # one pass over the original ui.html, so text inside a module is never mistaken for a placeholder
-# the TE-mark favicon from Graphics' website art pack (#289, TE-B-317), inlined as a data: icon so the site is still one page
-# (img-src allows data:). It's read from the art pack itself, so there's one copy of the icon.
+# The tab icon (ART-O3; Brian's decision 72a, TE-B-757): one of Graphics' four icons from the website art pack, picked at random
+# on each page load and kept for the whole visit. Each is inlined as a data: icon, as the TE mark was (#289, TE-B-317), so the
+# site is still one page (img-src allows data:), and they are read from the art pack itself, so there is one copy of each.
+# The <link> starts as D (today's TE mark, the same bytes as favicon.svg), so a page whose scripts don't run keeps today's icon;
+# the one-line <script> after it picks A, B, C or D once. Its hash joins the CSP below like every other inline script.
+TAB_ICONS = ['a-pixel-b', 'b-cream-b', 'c-truss-b', 'd-te-mark']
 def favicon():
-    svg = rd(here, '..', 'docs', 'art-website-pack', 'favicon', 'favicon.svg').strip()
-    if '<script' in svg.lower() or 'href=' in svg.lower(): sys.exit('build.py: favicon.svg must hold no script and no links')
-    return '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,' + base64.b64encode(svg.encode('utf-8')).decode('ascii') + '">'
+    uris = []
+    for name in TAB_ICONS:
+        svg = rd(here, '..', 'docs', 'art-website-pack', 'favicon', 'four', name + '.svg').strip()
+        if '<script' in svg.lower() or 'href=' in svg.lower(): sys.exit(f'build.py: {name}.svg must hold no script and no links')
+        uris.append('data:image/svg+xml;base64,' + base64.b64encode(svg.encode('utf-8')).decode('ascii'))
+    link = '<link rel="icon" id="tabIcon" type="image/svg+xml" href="' + uris[-1] + '">'
+    pick = ('<script>/* ART-O3: the tab icon is one of four, picked at random on each page load and kept for the visit */'
+            '(function(){var l=document.getElementById("tabIcon"),u=' + json.dumps(uris, separators=(',', ':')) + ';l.href=u[Math.floor(Math.random()*u.length)];})()</script>')
+    return link + '\n' + pick
 def fill(m):
     if m.group(0) == '<!--FAVICON-->': return favicon()
     if m.group(0) == '/*SHELLCSS*/': return rd(src, 'shell.css') + ('\n' + FONTS if FONTS else '')   # shared theme fonts (themes/fonts/fonts.css), packed
