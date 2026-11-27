@@ -192,8 +192,10 @@ const TABLE_CLAMP = [['height', '', 'height'], ['ratio', '', 'ratio'], ['sideAng
   ['bigCap', '', 'bigCap'], ['autoLimit', '', 'autoLimit'], ['refStep', '', 'refStep'], ['woodBudget', '', 'woodBudget'], ['loadTarget', '', 'loadTarget'],
   ['abSteps', '', 'abSteps'], ['abExt', '', 'abExt']];
 const numOrNull = v => (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isFinite(+v) ? +v : null;
+// With the limits boxes on (?limits=1, step 8 ahead), a file's out-of-range value is kept and marked instead (UI-I10, filebad.mjs),
+// so this clamp is for the page as it ships today; step 8 must keep the same guard for that path (TE-B-762 note).
 function clampToTable() {
-  const L = window.TrussLimits; if (!L || !L.rowFor || !L.bound) return;
+  const L = window.TrussLimits; if (!L || !L.rowFor || !L.bound || (window.TE_FLAGS && window.TE_FLAGS.limitsBoxes)) return;
   const own = o => o ? (S[o] && typeof S[o] === 'object' ? S[o] : null) : S;
   const vals = {};
   TABLE_CLAMP.forEach(([id, o, k, sc]) => { const t = own(o), v = t ? numOrNull(t[k]) : null; if (v !== null) vals[id] = v * (sc || 1); });
