@@ -175,7 +175,7 @@ if (!SH_CLASSIC) {
   wins.drawing.querySelector('.s-bd').style.gridTemplateColumns = 'minmax(0, 1fr)';
   const pieceWin = {};
   Object.keys(PIECE).forEach(id => { pieceWin[id] = PC.mountWindow(wins[id], tabs[id], { onState: st => { S.shell.w[place()][id] = st; save(); paintWins(); } }); });
-  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } if (id === 'sweep' && v !== 'W') sweepAsked = sweepForce = false; S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
+  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } if (id === 'sweep' && v !== 'W') sweepAsked = sweepPeek = false; S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
   function step(id, dir) {
     const cur = S.shell.w[place()][id];
     if (id === 'results') { setState(id, dir > 0 ? 'W' : 'T'); return; }
@@ -195,7 +195,7 @@ if (!SH_CLASSIC) {
     if (PIECE[id] != null) return;   // the window piece peeks for itself (UI-W9, UI-W17)
     t.addEventListener('mouseenter', () => { clearTimeout(peekT); peekT = setTimeout(() => { if (S.shell.w[place()][id] === 'T') { wins[id].classList.add('peek'); layout(); } }, 220); });
     t.addEventListener('mouseleave', () => unpeek(id));
-    wins[id].addEventListener('mouseleave', () => { if (wins[id].classList.contains('peek')) unpeek(id); });
+    wins[id].addEventListener('mouseleave', () => { if (wins[id].classList.contains('peek') && !(id === 'sweep' && sweepPeek)) unpeek(id); });   // the ⋯ peek stays until Esc, a click outside or room (growSweep)
     wins[id].addEventListener('mouseenter', () => { if (wins[id].classList.contains('peek')) clearTimeout(peekT); });
   });
 
@@ -213,14 +213,14 @@ if (!SH_CLASSIC) {
     box.innerHTML = list.map(x => `<button type="button" class="s-ic${x.on ? ' on' : ''}" data-ic="${escH(x.ic)}" title="${escH(x.label)}" aria-label="${escH(x.label)}"${x.on != null ? ` aria-pressed="${!!x.on}"` : ''}>${escH(x.g)}</button>`).join('');
   }
   // ⋯ on a bar fitted to icons never does nothing (QA MUST on #538, TE-B-715): the bar takes the room beside the windows; if its words
-  // still don't fit there, Inputs goes one state smaller, words to icons (UI-W16); if there is still no room, the bar opens in words
-  // anyway, as base 3d4c9f0 did. Then Sweep settings is on screen, inside the bar, and focused.
+  // still don't fit there, Inputs goes one state smaller, words to icons (UI-W16); if there is still no room, the words open as a peek
+  // over the picture (UI-W15 1.5.14, UI-W17's dashed edge; BPD-20, TE-B-733). Then Sweep settings is on screen, inside the bar, and focused.
   function growSweep() {
     sweepAsked = true; layout();
     const st = S.shell.w[place()], I = wins.inputs;
     if (wins.sweep.dataset.fit === 'I' && st.inputs === 'W' && I.dataset.empty !== '1' && !I.classList.contains('peek')) setState('inputs', 'I');
     layout();
-    if (wins.sweep.dataset.fit === 'I') { sweepForce = true; layout(); }
+    if (wins.sweep.dataset.fit === 'I') { sweepPeek = true; layout(); }
     const f = $('sweepMore'); if (f) f.focus({ preventScroll: true });
   }
   function iconAct(id, ic) {
@@ -316,7 +316,17 @@ if (!SH_CLASSIC) {
   // ---------- fixed homes ----------
   const M = 10;
   let lastFree = '', sweepAsked = false;   // sweepAsked: the person grew the bar themselves (in memory only, like a peek)
-  let sweepForce = false;   // ⋯ found no room even with Inputs as icons: keep the words, as base did, until there is room again (growSweep)
+  // ⋯ found no room even with Inputs as icons: the words open as a peek over the picture (UI-W15 1.5.14) until Esc, a click outside the bar
+  // or a stage with room for them (growSweep). In memory only, like sweepAsked: nothing is saved.
+  let sweepPeek = false;
+  function endSweepPeek(focusMore) {
+    if (!sweepPeek) return;
+    sweepPeek = false; wins.sweep.classList.remove('peek'); layout();
+    if (focusMore) { const g = wins.sweep.querySelector('.s-icons [data-ic="grow"]'); if (g) g.focus({ preventScroll: true }); }
+  }
+  // Esc from inside the peek, or a press anywhere outside the bar, gives back the fitted icons; Esc puts focus on ⋯ (UI-W15 1.5.14)
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && sweepPeek && wins.sweep.contains(document.activeElement)) { ev.preventDefault(); ev.stopPropagation(); endSweepPeek(true); } }, true);
+  document.addEventListener('pointerdown', ev => { if (sweepPeek && !wins.sweep.contains(ev.target)) endSweepPeek(false); }, true);
   // UI-W15 with UI-W16: the narrowest the bar's words state can be with every part whole: Run sweep, the progress bar at its 60 px minimum,
   // Cancel or the Resume offer when they show, and 'Sweep settings ▾'. The count line and #bigMsg ellipsise, so they count as 0.
   // Each part counts its own border box (a Notebook button has a 2 px border that scrollWidth leaves out), and the bar adds the
@@ -393,12 +403,14 @@ if (!SH_CLASSIC) {
     // shown changes: the person's saved state stays 'W', so a wider stage gives the words back. If the person asks for the words (⋯ or ›),
     // the bar may use the room beside the windows past the 40 % cap. Measured in the words state, in this same frame.
     let fit = '', need = 0;
-    if (st.sweep === 'W' && !W.classList.contains('peek')) {
+    if (st.sweep === 'W' && (sweepPeek || !W.classList.contains('peek'))) {
       W.dataset.state = 'W'; need = sweepNeed();
       const room = sweepAsked ? Math.floor(vw - sl - M - rightUsed) : sCap;
-      if (sweepForce && room >= need) sweepForce = false;
-      if (room < need && !sweepForce) fit = 'I';
+      if (sweepPeek && room >= need) { sweepPeek = false; W.classList.remove('peek'); need = sweepNeed(); }   // a wider stage: the words, no peek
+      if (room < need && !sweepPeek) fit = 'I';
     }
+    if (sweepPeek && (fit || st.sweep !== 'W')) sweepPeek = false;
+    W.classList.toggle('peek', sweepPeek || (st.sweep === 'T' && W.classList.contains('peek')));
     const fitWas = W.dataset.fit || '', foc = fit !== fitWas && W.contains(document.activeElement) ? document.activeElement : null;
     W.dataset.fit = fit; if (fit) W.dataset.state = 'I';
     if (fit && !fitWas) paintIcons('sweep');
@@ -414,8 +426,13 @@ if (!SH_CLASSIC) {
       if (!vis(t)) t = [...W.querySelectorAll('button, summary, input, select')].find(vis);
       if (t) t.focus({ preventScroll: true });
     }
-    const sW = fit || eff('sweep') !== 'W' ? 'auto' : need ? (sweepForce ? Math.max(sCap, Math.min(need, vw - sl - M)) : sweepAsked ? Math.max(sCap, need) : sCap) : Math.max(sCap, Math.min(260, vw - sl - M));
-    Object.assign(W.style, { left: sl + 'px', bottom: M + 'px', top: 'auto', width: typeof sW === 'number' ? sW + 'px' : sW, maxHeight: Math.round(vh * .55) + 'px', right: 'auto' });
+    const sW = fit || eff('sweep') !== 'W' ? 'auto' : need ? (sweepPeek ? Math.min(need, vw - sl - M) : sweepAsked ? Math.max(sCap, need) : sCap) : Math.max(sCap, Math.min(260, vw - sl - M));
+    // the ⋯ peek (UI-W15 1.5.14) lies over the picture beside Inputs, at the words' own width; it never covers the top bar, the results
+    // card, the view control (all at the top) or the bottom-right PIP reserve (360 x 240, UI-W7, UI-W16): when it would reach into the
+    // reserve's column it sits 8 px above the reserve, and its height stops 8 px under the top row.
+    let sB = M, sMax = Math.round(vh * .55);
+    if (sweepPeek) { if (sl + sW > vw - 360) sB = 240 + 8; sMax = Math.max(0, Math.min(sMax, vh - sB - top0)); }
+    Object.assign(W.style, { left: sl + 'px', bottom: sB + 'px', top: 'auto', width: typeof sW === 'number' ? sW + 'px' : sW, maxHeight: sMax + 'px', right: 'auto' });
     // the full results under the card
     const RS = wins.results;
     Object.assign(RS.style, { left: Math.max(M, Math.min(cl, vw - WIN.results.w - M)) + 'px', top: (cardB + 6) + 'px', width: Math.min(WIN.results.w, vw - 2 * M) + 'px', maxHeight: (vh - cardB - 16) + 'px', bottom: 'auto', right: 'auto' });
