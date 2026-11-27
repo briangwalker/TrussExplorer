@@ -305,18 +305,32 @@ check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
     }
     return out;
   });
-  for (const theme of ['wireframe', 'notebook-calc']) for (const [w, h] of [[1024, 768], [1366, 900], [390, 844]]) {
+  // UI-W19 (QA, UI Designer and FVL MUSTs on #550): the pad has one home, first in the right-edge stack, and Drawing (window and tab)
+  // starts 8 px below it. Sizes: 1024 and 1366, 200 % of both (512x384, 683x450), a short stage (1366x560) and a phone.
+  const padBox = u => rect(u, '#drawWrap .navpad');
+  const dStack = u => u.evaluate(() => {
+    const pad = document.querySelector('#drawWrap .navpad').getBoundingClientRect(), D = document.getElementById('win-drawing'), t = document.querySelector('.tabE[data-tab="drawing"]');
+    const vis = e => !!e && !e.hidden && e.getBoundingClientRect().width > 0, d = D.getBoundingClientRect();
+    return { padB: pad.bottom, win: vis(D) && !D.classList.contains('peek') ? d.top : null, tab: vis(t) ? t.getBoundingClientRect().top : null };
+  });
+  const sameBox = (p1, p2) => !!p1 && !!p2 && ['l', 't', 'r', 'b'].every(k => Math.abs(p1[k] - p2[k]) < 0.5);
+  for (const theme of ['wireframe', 'notebook-calc']) for (const [w, h] of [[1024, 768], [1366, 900], [512, 384], [683, 450], [1366, 560], [390, 844]]) {
     const u = await openPage(b, srv.url, { width: w, height: h }); await u.waitForTimeout(600);
     if (theme !== 'wireframe') { await u.evaluate(t => __shell.applyTheme(t), theme); await u.waitForTimeout(400); }
     const z = await zoomClear(u);
     check(`#540: ${theme} ${w}x${h}: Zoom in and Zoom out are whole, on top, under no window, and not hidden when focused`,
       z.length === 2 && z.every(x => x.onTop && x.inStage && !x.under.length && x.fOk), JSON.stringify(z));
-    if (w === 1366) {
-      // the person opens the Drawing window to words: the pad stays clear of it
-      await u.click('#win-drawing [data-step="grow"]'); await u.waitForTimeout(300);
-      const z2 = await zoomClear(u);
-      check(`#540: ${theme} ${w}x${h}: with the Drawing window open in words the zoom buttons are still clear`, z2.length === 2 && z2.every(x => x.onTop && x.inStage && !x.under.length), JSON.stringify(z2));
+    // the Drawing window as a tab, as icons and in words: the pad's box never moves, nothing covers + or -, and Drawing sits 8 px under it
+    const boxes = {}, stacks = {}, clear = {};
+    for (const s2 of ['T', 'I', 'W']) {
+      await u.evaluate(v => __shell.setState('drawing', v), s2); await u.mouse.move(2, h - 2); await u.waitForTimeout(350);
+      boxes[s2] = await padBox(u); stacks[s2] = await dStack(u);
+      const z2 = await zoomClear(u); clear[s2] = z2.length === 2 && z2.every(x => x.onTop && x.inStage && !x.under.length && x.fOk);
     }
+    check(`UI-W19: ${theme} ${w}x${h}: the pad's box is the same with Drawing as a tab, as icons and in words`, sameBox(boxes.T, boxes.I) && sameBox(boxes.T, boxes.W), JSON.stringify(boxes));
+    check(`UI-W19: ${theme} ${w}x${h}: Zoom in and Zoom out stay clear with Drawing as a tab, as icons and in words`, clear.T && clear.I && clear.W, JSON.stringify(clear));
+    check(`UI-W19: ${theme} ${w}x${h}: the Drawing window and its tab start at least 8 px below the pad`,
+      stacks.T.tab !== null && stacks.T.tab >= stacks.T.padB + 7.5 && ['I', 'W'].every(k => stacks[k].win !== null && stacks[k].win >= stacks[k].padB + 7.5), JSON.stringify(stacks));
     check(`#540: ${theme} ${w}x${h}: no script errors`, u.errs.length === 0, u.errs.slice(0, 2).join(' | '));
     await u.close();
   }

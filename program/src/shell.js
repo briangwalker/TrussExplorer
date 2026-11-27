@@ -332,21 +332,18 @@ if (!SH_CLASSIC) {
     let frame = 0; for (let e = sum; e && e !== W.parentElement; e = e.parentElement) frame += side(getComputedStyle(e));
     return Math.ceil(w + gap * Math.max(0, k.length - 1) + frame + 1);   // +1: sub-pixel rounding
   }
-  // #540 (UI-W16, UI-D6, WCAG 2.4.11): the 2D pad (arrows, ⌂, Zoom in, Zoom out) is never under the Drawing window or the top bar.
-  // It keeps its right edge (so the Home fit, which reads pad.left, is unchanged) and sits under the top bar, or under the Drawing
-  // window when that window is on screen; only if the window is too tall for that does the pad move to its left. A peek (the window
-  // in its tab state) is a passing overlay, so the pad doesn't jump for it.
-  function placePad(D, dHome, top0, vh) {
-    const pad = document.querySelector('#drawWrap .navpad'); if (!pad) return;
+  // #540 (UI-W19, UI-W16, UI-D6, WCAG 2.4.11): the 2D pad (arrows, ⌂, Zoom in, Zoom out) has one home: first in the right-edge stack,
+  // 12 px below the top bar's band. It keeps its right edge (so the Home fit, which reads pad.left, is unchanged) and never moves for
+  // the Drawing window: that window and its tab start 8 px below the pad's box instead. Returns the pad's bottom (viewport px), or 0
+  // when the 2D pad isn't on screen (3D, Analysis), so the Drawing window keeps its usual top.
+  function placePad(band) {
+    const pad = document.querySelector('#drawWrap .navpad'); if (!pad) return 0;
     // placed against #drawWrap (position: relative) even while the pad is hidden, so it comes back in the right place when it is shown
-    const h = pad.parentElement.getBoundingClientRect(), ph = pad.offsetHeight || 96;
-    if (!(h.width > 0)) return;   // 3D or Analysis: the 2D drawing isn't on screen
-    let top = top0, right = '';
-    if (dHome) {
-      const d = D.getBoundingClientRect();
-      if (d.width > 0) { if (d.bottom + 8 + ph <= vh - M) top = d.bottom + 8; else right = Math.ceil(h.right - d.left + 8) + 'px'; }
-    }
-    pad.style.top = Math.round(top - h.top) + 'px'; pad.style.right = right;
+    const h = pad.parentElement.getBoundingClientRect();
+    if (!(h.width > 0)) return 0;   // 3D or Analysis: the 2D drawing isn't on screen
+    pad.style.top = Math.round(band + 12 - h.top) + 'px'; pad.style.right = '';
+    if (pad.hidden || !pad.getClientRects().length) return 0;
+    return Math.ceil(band + 12 + (pad.offsetHeight || 96));
   }
   function layout() {
     const P = place(), st = S.shell.w[P], vw = innerWidth, vh = innerHeight;
@@ -361,11 +358,12 @@ if (!SH_CLASSIC) {
     // drawing / chart key on the right edge
     const D = wins.drawing, dW = eff('drawing') === 'W' ? Math.min(WIN.drawing.w, vw - 2 * M) : 56;
     const top0 = Math.max(barB, cardB) + 8;
+    // UI-W19: the 2D pad first, then the Drawing window (and its tab) 8 px below the pad's box; folding Drawing never moves the pad
+    const padB = placePad(top0 - 8), dTop = padB ? Math.max(top0, padB + 8) : top0;
     // a peeking Drawing window is placed by the window piece, beside its tab (UI-W17); its home is put back when the peek ends
-    if (!D.classList.contains('peek')) Object.assign(D.style, { right: M + 'px', left: 'auto', top: top0 + 'px', width: dW + 'px', maxHeight: (vh - top0 - M) + 'px', bottom: 'auto' });
-    else Object.assign(D.style, { width: dW + 'px', maxHeight: (vh - top0 - M) + 'px' });
+    if (!D.classList.contains('peek')) Object.assign(D.style, { right: M + 'px', left: 'auto', top: dTop + 'px', width: dW + 'px', maxHeight: Math.max(0, vh - dTop - M) + 'px', bottom: 'auto' });
+    else Object.assign(D.style, { width: dW + 'px', maxHeight: Math.max(0, vh - dTop - M) + 'px' });
     const dShown = shown('drawing'), rightUsed = dShown ? dW + 2 * M : 0;
-    placePad(D, dShown && st.drawing !== 'T', top0, vh);
     // view options under the bar on the left
     const V = wins.view;
     Object.assign(V.style, { left: M + 'px', top: top0 + 'px', right: 'auto', width: eff('view') === 'W' ? 'auto' : 'auto', maxWidth: (vw - 2 * M - rightUsed) + 'px', bottom: 'auto' });
@@ -412,7 +410,7 @@ if (!SH_CLASSIC) {
     Object.assign(RS.style, { left: Math.max(M, Math.min(cl, vw - WIN.results.w - M)) + 'px', top: (cardB + 6) + 'px', width: Math.min(WIN.results.w, vw - 2 * M) + 'px', maxHeight: (vh - cardB - 16) + 'px', bottom: 'auto', right: 'auto' });
     // edge tabs
     if (tabs.inputs) { tabs.inputs.style.top = Math.max(vB, vh * .35) + 'px'; }
-    if (tabs.drawing) { tabs.drawing.style.top = Math.max(top0, vh * .35) + 'px'; }
+    if (tabs.drawing) { tabs.drawing.style.top = Math.max(dTop, vh * .35) + 'px'; }
     if (tabs.view) { tabs.view.style.left = (S.shell.bar === 'T' ? navR.right + 8 : M + 24) + 'px'; tabs.view.style.top = barB + 'px'; }
     if (tabs.sweep) { tabs.sweep.style.left = (leftUsed || 40) + 'px'; }
     // the picture fills the whole stage (UI-A3): only the page size changes it, never the windows
