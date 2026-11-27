@@ -3,12 +3,13 @@ Section 0-1 (materials, books, geometry) come from the app's .py export; section
 (the solver) are taken unchanged from the professor's script. Pass: maxdF 0.000 N."""
 import json, os, re, subprocess, sys, tempfile, pathlib
 here = pathlib.Path(__file__).resolve().parent
-# The course script is in tests/reference/ (Professor Dong cleared it under the repo's MIT licence; Brian, 2026-10-27, #147).
-# TRUSSFEA_PY can point at another copy.
-import os
-prof_path = pathlib.Path(os.environ.get('TRUSSFEA_PY', here / 'reference' / 'TrussFEA_Bridge_SE310.py'))
-if not prof_path.exists():
-    print(f'SKIP: TrussFEA_Bridge_SE310.py is missing from tests/reference/ (or set TRUSSFEA_PY), so there is no comparison with the course script.'); sys.exit(0)
+# The reference solver is not part of this repository. TRUSSFEA_PY points at a copy; without it the default is the git-ignored
+# local path tests/reference/TrussFEA_Bridge_SE310.py. In CI the file comes from the repository secret of the same name (tests.yml).
+prof_path = pathlib.Path(os.environ.get('TRUSSFEA_PY') or (here / 'reference' / 'TrussFEA_Bridge_SE310.py'))
+if not prof_path.is_file() or prof_path.stat().st_size == 0:
+    if os.environ.get('CI'):
+        print('FAIL: the reference solver is missing in CI (the TRUSSFEA_PY secret is empty or unset), so there is no comparison with the course script.'); sys.exit(1)
+    print('SKIP: the reference solver is missing (set TRUSSFEA_PY, or put the file at tests/reference/TrussFEA_Bridge_SE310.py, git-ignored), so there is no comparison with the course script.'); sys.exit(0)
 prof = prof_path.read_text(encoding='utf-8')
 cut = prof.index('#  2. PROBLEM INITIALIZATION')
 prof_solver = prof[prof.rindex('\n# ====', 0, cut):]
