@@ -63,6 +63,73 @@ try {
     check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
   }
+  // UI-D7 (#503, BPD-16): Home, the first view and a new bridge fit the drawing, its labels, the sweep legend and the three callouts into the
+  // stage area the windows leave free in their default homes (Inputs on the left, the sweep bar at the bottom, the view control and the
+  // Drawing icons on the right), 16 px margin; moving or folding a window never refits; nothing sits on the books or the pile; phone fits the stage.
+  const fitProbe = () => {
+    const svg = document.getElementById('draw'), bx = el => { const r = el.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; };
+    const win = id => { const e = document.querySelector(`#stage .s-pan[data-win="${id}"]`); return e && e.getBoundingClientRect().width > 0 ? bx(e) : null; };
+    const pad = document.querySelector('#drawWrap .navpad'), dr = win('drawing');
+    const ins = win('inputs'), sw = win('sweep');
+    const free = { l: ins ? ins.r : 0, r: Math.min(pad ? bx(pad).l : innerWidth, dr ? dr.l : innerWidth), t: bx(svg).t, b: sw ? sw.t : innerHeight };
+    const items = [...svg.querySelectorAll('[data-callout] rect')].map(e => ({ k: 'callout ' + e.parentNode.dataset.callout, ...bx(e) }))
+      .concat([...svg.querySelectorAll('text[data-legend]')].map(e => ({ k: 'legend ' + e.dataset.legend, ...bx(e) })));
+    const books = svg.querySelector('[data-pic="books"]'), pile = svg.querySelector('[data-pile]');
+    const hit = (a, c) => a && c && Math.min(a.r, c.r) - Math.max(a.l, c.l) > 0.5 && Math.min(a.b, c.b) - Math.max(a.t, c.t) > 0.5;
+    const obst = { books: books && bx(books), pile: pile && bx(pile), inputs: ins, sweep: sw };
+    const bad = [];
+    items.forEach(it => {
+      if (it.l < free.l - 0.5 || it.r > free.r + 0.5 || it.t < free.t - 0.5 || it.b > free.b + 0.5) bad.push(`${it.k} outside the free area`);
+      Object.entries(obst).forEach(([k, o]) => { if (hit(it, o)) bad.push(`${it.k} on the ${k}`); });
+    });
+    // UI-D6: the callouts, the legend lines and the ✎ labels never sit on each other
+    const words = items.concat([...svg.querySelectorAll('.dimlab rect')].map(e => ({ k: 'label ' + e.parentNode.dataset.var, ...bx(e) })));
+    words.forEach((a, i) => words.slice(i + 1).forEach(c => { if (hit(a, c)) bad.push(`${a.k} on ${c.k}`); }));
+    return { vb: svg.getAttribute('viewBox'), n: items.length, legend: items.filter(i => /^legend/.test(i.k)).length, bad, free: [free.l, free.t, free.r, free.b].map(Math.round) };
+  };
+  // UI-D7 text floors (ui-spec 1.5.12): the smallest on-screen size (font-size x the svg's scale) of the callouts' and legend's words, and of the rest
+  const textProbe = () => {
+    const svg = document.getElementById('draw'), k = svg.getScreenCTM().a, px = e => +e.getAttribute('font-size') * k;
+    const all = [...svg.querySelectorAll('text')], res = all.filter(e => e.closest('[data-callout]') || e.hasAttribute('data-legend'));
+    const min = a => a.length ? +Math.min(...a.map(px)).toFixed(2) : null;
+    return { result: min(res), nRes: res.length, other: min(all.filter(e => !res.includes(e))), nAll: all.length };
+  };
+  for (const vp of [{ width: 1366, height: 900 }, { width: 1440, height: 900 }, { width: 1280, height: 800 }, { width: 1024, height: 768 }]) {
+    const tag = vp.width + 'x' + vp.height;
+    const p = await openPage(b, srv.url, vp); await p.waitForTimeout(700);
+    // UI-W15: under 1100 px the side windows' default home is icons. Home already fits for that (UI-D7, 1.5.12); until the shell opens Inputs
+    // that way itself (#470), put it there by hand (folding never refits, so the view is still the first view's)
+    if (vp.width < 1100) { await p.evaluate(() => window.__shell.setState('inputs', 'I')); await p.waitForTimeout(400); }
+    const r0 = await p.evaluate(fitProbe);
+    const tx = await p.evaluate(textProbe);
+    check(`${tag}: Home text floors: callouts and sweep legend >= 10 px, every other drawing text >= 8 px (UI-D7, 1.5.12)`, tx.nRes >= 7 && tx.result >= 9.99 && tx.other >= 7.99, JSON.stringify(tx));
+    check(`${tag}: first view: the 3 callouts and every sweep legend line sit in the free area, off the books, pile, Inputs and sweep bar (UI-D7)`, r0.n >= 3 && r0.legend >= 1 && r0.bad.length === 0, `${r0.n} items, ${r0.legend} legend · ${r0.bad.slice(0, 3).join('; ')} · free ${r0.free}`);
+    // pan and zoom away, then Home: back to the same fitted box
+    // the pad's own click handler (the Drawing window's icons sit over the + button at these sizes, a separate issue)
+    const pad = d => p.evaluate(d => document.querySelector(`#drawWrap .navpad [data-d="${d}"]`).dispatchEvent(new MouseEvent('click', { bubbles: true })), d);
+    await pad('right'); await pad('in'); await p.waitForTimeout(150);
+    const moved = await p.evaluate(() => document.getElementById('draw').getAttribute('viewBox'));
+    await pad('home'); await p.waitForTimeout(200);
+    const r1 = await p.evaluate(fitProbe);
+    check(`${tag}: after Home the drawing is fitted again, same box as the first view`, moved !== r0.vb && r1.vb === r0.vb && r1.bad.length === 0, `${r0.vb} -> ${moved} -> ${r1.vb} ${r1.bad.slice(0, 2).join('; ')}`);
+    // folding a window (Inputs to its tab, the sweep bar to icons) never refits; only Home does
+    await p.evaluate(() => { window.__shell.setState('inputs', 'T'); window.__shell.setState('sweep', 'I'); }); await p.waitForTimeout(400);
+    const r2 = await p.evaluate(fitProbe);
+    await pad('home'); await p.waitForTimeout(200);
+    const r3 = await p.evaluate(fitProbe);
+    check(`${tag}: folding Inputs and the sweep bar doesn't refit, and Home still uses the default homes`, r2.vb === r0.vb && r3.vb === r0.vb, `${r0.vb} / ${r2.vb} / ${r3.vb}`);
+    await p.evaluate(w => { window.__shell.setState('inputs', w < 1100 ? 'I' : 'W'); window.__shell.setState('sweep', 'W'); }, vp.width); await p.waitForTimeout(300);
+    if (vp.width === 1366) await p.screenshot({ path: path.join(SHOTS, 'homefit-1366.png') });
+    check(`${tag}: no script errors (UI-D7)`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
+  {
+    const p = await openPage(b, srv.url, { width: 390, height: 844 }); await p.waitForTimeout(700);
+    const r = await p.evaluate(() => { const s = document.getElementById('draw'), v = s.getAttribute('viewBox').split(/\s+/).map(Number); return { v, ar: s.getBoundingClientRect().width / s.getBoundingClientRect().height, x0: Math.min(...[...s.querySelectorAll('[data-break]')].map(g => +g.querySelector('line').getAttribute('x1'))) }; });
+    // with a free area under 480 px the drawing's own box is the view (the whole stage): its left edge is the left table's break line
+    check('390x844: the free area is under 480 px, so the drawing fits the whole stage (UI-D7)', Math.abs(r.v[0] - r.x0 + 1) < 1.5, JSON.stringify(r));
+    await p.close();
+  }
 } finally { await b.close(); srv.close(); }
 const fails = check.results.filter(x => !x.ok);
 console.log(`\n${check.results.length - fails.length}/${check.results.length} results-on-the-drawing checks passed`);
