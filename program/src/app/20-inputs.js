@@ -178,14 +178,44 @@ function renderVertChips() {
 }
 
 // ---------- main update
+// Every number the saved state holds that has a row on the limits table (limits.js) is kept inside that row's range here, so a
+// value from a file, an earlier visit or a backup can't come back out of range on every load (SEC-009 class; Black Hat's scan
+// on #552: height 1e6 made every later load take 11-14 s). Only an out-of-range number is changed; a value that isn't a number
+// is left for the defaults below. Curve and the chord ends keep their own clamps further down. [table id, owner, key, scale]
+const TABLE_CLAMP = [['height', '', 'height'], ['ratio', '', 'ratio'], ['sideAngle', '', 'sideAngle'], ['deskPanels', '', 'deskPanels'],
+  ['overlap', '', 'overlap'], ['supportOffset', '', 'supportOffset'], ['bookLen', '', 'bookLen'], ['bookWidth', '', 'bookWidth'], ['bookThick', '', 'bookThick'],
+  ['tableThick', '', 'tableThick'], ['braceDepth', '', 'braceDepth'], ['fricMu', '', 'fricMu'], ['fricK', '', 'fricK'],
+  ['mBook1', 'load', 'mBook1'], ['mBook2', 'load', 'mBook2'], ['FS', 'mat', 'FS'], ['E', 'mat', 'E'], ['rho', 'mat', 'rho', 1e9],
+  ['sigT', 'mat', 'sigT'], ['sigC', 'mat', 'sigC'], ['bS', 'mat', 'b'], ['hS', 'mat', 'h'],
+  ['width', 'opts', 'width'], ['deflLimit', 'opts', 'deflLimit'], ['minOverlap', 'opts', 'minOverlap'], ['tilt3d', 'd3', 'tilt'],
+  ['docStock', 'doc', 'stock'], ['docKerf', 'doc', 'kerf'], ['docBendN', 'doc', 'bendN'],
+  ['bigCap', '', 'bigCap'], ['autoLimit', '', 'autoLimit'], ['refStep', '', 'refStep'], ['woodBudget', '', 'woodBudget'], ['loadTarget', '', 'loadTarget'],
+  ['abSteps', '', 'abSteps'], ['abExt', '', 'abExt']];
+const numOrNull = v => (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isFinite(+v) ? +v : null;
+function clampToTable() {
+  const L = window.TrussLimits; if (!L || !L.rowFor || !L.bound) return;
+  const own = o => o ? (S[o] && typeof S[o] === 'object' ? S[o] : null) : S;
+  const vals = {};
+  TABLE_CLAMP.forEach(([id, o, k, sc]) => { const t = own(o), v = t ? numOrNull(t[k]) : null; if (v !== null) vals[id] = v * (sc || 1); });
+  TABLE_CLAMP.forEach(([id, o, k, sc]) => {
+    const t = own(o), row = L.rowFor(id), v = vals[id]; if (!t || !row || v === undefined) return;
+    let lo = null, hi = null; try { lo = L.bound(row.min, vals); hi = L.bound(row.max, vals); } catch (e) {}
+    if (lo !== null && hi !== null && hi < lo) hi = null;   // braceDepth with no table: only its lower end applies
+    let w = v; if (lo !== null && w < lo) w = lo; if (hi !== null && w > hi) w = hi;
+    if (w === v) return;
+    if (row.step === 1) w = Math.min(hi !== null ? hi : Infinity, Math.max(lo !== null ? lo : -Infinity, Math.round(w)));
+    vals[id] = w; t[k] = w / (sc || 1);
+  });
+}
 function update() {
+  clampToTable();
   S.panels = Math.max(2, Math.min(12, Math.round(S.panels)));
   S.overall = Math.max(200, Math.min(300, +S.overall || 200));
   S.height = Math.max(0, +S.height || 0); const faceMax = Math.min(+S.tableThick || 0, 50); S.topEnd = Math.max(-faceMax, Math.min(S.height, +S.topEnd || 0)); S.botEnd = Math.max(-faceMax, Math.min(S.height, +S.botEnd || 0)); S.curve = Math.max(-60, Math.min(120, +S.curve || 0));
   // Trusses is a count on the limits table (1 to 4, limits.js): every path (typed, opened file, saved state, backups) passes here
   // before anything is computed or saved, so an out-of-table count can't reach the results, the drawings or the saved state
   if (!S.load || typeof S.load !== 'object') S.load = Object.assign({}, COURSE.load);
-  S.load.nTruss = Math.max(1, Math.min(4, Math.round(+S.load.nTruss) || 2));
+  { const n = numOrNull(S.load.nTruss); S.load.nTruss = n === null ? 2 : Math.max(1, Math.min(4, Math.round(n))); }   // under 1 is 1; 2 only for a non-number (Physics, TE-B-755)
   S.deskPanels = Math.max(0, Math.min(6, Math.round(+S.deskPanels || 0))); S.supportOffset = Math.max(0, Math.min(50, +S.supportOffset || 0)); S.overlap = Math.max(0, Math.min(50, +S.overlap || 0));
   syncArrays();
   tr = C.buildTruss(design());
