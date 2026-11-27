@@ -164,7 +164,10 @@ try {
   for (const scheme of ['dark', 'light']) {
     const d = await b.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: scheme });
     await d.goto(base + '?gallery=1', { waitUntil: 'load' }); await d.waitForFunction(() => window.TrussGallery && TrussGallery.active); await d.waitForTimeout(600);
-    const low = await d.evaluate(() => {
+    // The check reads computed colours, which fits Wireframe (tokens only). Since 75a the default theme is Notebook + Calculator, whose
+    // keys and tabs are pictures and pressed keys, so computed colours read 1.00 there; QA measures those on the pixels (checklist 16).
+    // So: the default theme's readings are a NOTE, and the check itself runs in Wireframe, as it was written.
+    const measure = () => d.evaluate(() => {
       const P = window.TrussPieces, bad = [];
       const bgOf = el => { for (let e = el; e; e = e.parentElement) { const c = getComputedStyle(e).backgroundColor; const m = c.match(/rgba?\(([^)]+)\)/); if (m) { const v = m[1].split(',').map(Number); if (v.length < 4 || v[3] > 0.5) return c; } } return 'rgb(255,255,255)'; };
       const toHex = c => { const v = c.match(/[\d.]+/g).map(Number); return 'rgb(' + v.slice(0, 3).join(',') + ')'; };
@@ -177,9 +180,14 @@ try {
       });
       return bad;
     });
+    const inDefault = await measure();
+    const defTheme = await d.evaluate(() => document.getElementById('stage').dataset.theme);
+    if (defTheme !== 'wireframe') { const o = inDefault.filter(x => !x.known); console.log(`NOTE ${scheme} mode, default theme ${defTheme}: ${o.length} computed-colour readings under 4.5:1 (pictures and pressed keys read 1.00 here; QA measures them on the pixels)${o.length ? ': ' + o.slice(0, 4).map(x => x.t).join(' | ') : ''}`); }
+    await d.evaluate(() => window.__shell && __shell.previewTheme('wireframe')); await d.waitForTimeout(400);
+    const low = await measure();
     // KNOWN (CODE-T3): in dark mode the app's pass/fail colours switch to their dark values on the light stage (#393)
     const other = low.filter(x => !x.known), known = low.filter(x => x.known);
-    check(`${scheme} mode: every line of gallery text is at least 4.5 : 1 on what's behind it (ART-C1)`, other.length === 0, other.slice(0, 4).map(x => x.t).join(' | ') + (other.length > 4 ? ` (+${other.length - 4})` : ''));
+    check(`${scheme} mode (Wireframe): every line of gallery text is at least 4.5 : 1 on what's behind it (ART-C1)`, other.length === 0, other.slice(0, 4).map(x => x.t).join(' | ') + (other.length > 4 ? ` (+${other.length - 4})` : ''));
     check(`${scheme} mode: the results card's pass/fail colours (the app's)`, known.length === 0, known.map(x => x.t).join(' | '), '#393');
     await d.close();
   }

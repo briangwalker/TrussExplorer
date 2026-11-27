@@ -17,6 +17,8 @@ try {
   await off.close();
 
   const p = await openPage(b, srv.url + '?limits=1', { width: 1366, height: 900 });
+  // the box-colour checks below compare the number with Wireframe's ink; since 75a the default theme is Notebook + Calculator (LCD numbers)
+  await p.evaluate(() => __shell.applyTheme('wireframe')); await p.waitForTimeout(300);
   await p.evaluate(() => document.querySelectorAll('#inputsPane details').forEach(d => { d.open = true; }));
   const idsOn = await paneIds(p);
   check('with it: the app\'s own inputs are all still there, same ids and types', idsOn === idsOff, idsOn.length + ' vs ' + idsOff.length);
