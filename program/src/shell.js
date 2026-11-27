@@ -42,6 +42,9 @@ if (!SH_CLASSIC) {
   const DEF = { place: PLACES[0], bar: 'W', hist: [], theme: 'wireframe', w: TABLE.states };
   const sh0 = S.shell && typeof S.shell === 'object' ? S.shell : {};
   if (!sh0.w && innerWidth < 700) { DEF.w = TABLE.phoneStates; DEF.bar = 'I'; }   // a phone starts with the picture
+  // UI-W15 (#470): on a stage under 1100 px the side windows' default home is icons, so Inputs starts as icons there too
+  // (Drawing already does). Only the defaults change: a saved layout (the person's own) wins, and a resize never moves a window.
+  else if (!sh0.w && innerWidth < 1100) { DEF.w = JSON.parse(JSON.stringify(TABLE.states)); DEF.w.truss.inputs = 'I'; }
   S.shell = { place: PLACES.includes(sh0.place) ? sh0.place : DEF.place, bar: STATES.includes(sh0.bar) ? sh0.bar : DEF.bar,
     hist: Array.isArray(sh0.hist) ? sh0.hist.filter(p => PLACES.includes(p)).slice(-20) : [], theme: typeof sh0.theme === 'string' ? sh0.theme : DEF.theme, w: {},
     unlocks: window.TrussUnlocks ? window.TrussUnlocks.fresh() : null };
@@ -171,10 +174,11 @@ if (!SH_CLASSIC) {
   wins.drawing.querySelector('.s-bd').style.gridTemplateColumns = 'minmax(0, 1fr)';
   const pieceWin = {};
   Object.keys(PIECE).forEach(id => { pieceWin[id] = PC.mountWindow(wins[id], tabs[id], { onState: st => { S.shell.w[place()][id] = st; save(); paintWins(); } }); });
-  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
+  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } if (id === 'sweep' && v !== 'W') sweepAsked = sweepForce = false; S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
   function step(id, dir) {
     const cur = S.shell.w[place()][id];
     if (id === 'results') { setState(id, dir > 0 ? 'W' : 'T'); return; }
+    if (id === 'sweep' && dir > 0) sweepAsked = true;   // the person asked for the words state (see the fit rule in layout)
     setState(id, order[Math.max(0, Math.min(2, order.indexOf(cur) + dir))]);
   }
   stage.addEventListener('click', ev => {
@@ -207,7 +211,20 @@ if (!SH_CLASSIC) {
     box.setAttribute('aria-label', WIN[id].title() + ' (icons)');
     box.innerHTML = list.map(x => `<button type="button" class="s-ic${x.on ? ' on' : ''}" data-ic="${escH(x.ic)}" title="${escH(x.label)}" aria-label="${escH(x.label)}"${x.on != null ? ` aria-pressed="${!!x.on}"` : ''}>${escH(x.g)}</button>`).join('');
   }
+  // ⋯ on a bar fitted to icons never does nothing (QA MUST on #538, TE-B-715): the bar takes the room beside the windows; if its words
+  // still don't fit there, Inputs goes one state smaller, words to icons (UI-W16); if there is still no room, the bar opens in words
+  // anyway, as base 3d4c9f0 did. Then Sweep settings is on screen, inside the bar, and focused.
+  function growSweep() {
+    sweepAsked = true; layout();
+    const st = S.shell.w[place()], I = wins.inputs;
+    if (wins.sweep.dataset.fit === 'I' && st.inputs === 'W' && I.dataset.empty !== '1' && !I.classList.contains('peek')) setState('inputs', 'I');
+    layout();
+    if (wins.sweep.dataset.fit === 'I') { sweepForce = true; layout(); }
+    const f = $('sweepMore'); if (f) f.focus({ preventScroll: true });
+  }
   function iconAct(id, ic) {
+    // the bar fell to icons only because its words didn't fit (UI-W16): ⋯ is the person asking for them, so the bar may use the room it has
+    if (id === 'sweep' && ic === 'grow' && wins.sweep.dataset.fit === 'I') { growSweep(); return; }
     if (ic === 'grow') { setState(id, 'W'); return; }
     if (id === 'inputs') { const d = R.pane.querySelectorAll(':scope > details.grp')[+ic.slice(1)]; setState('inputs', 'W'); if (d) { d.open = true; d.scrollIntoView({ block: 'start' }); const s = d.querySelector('summary'); if (s) s.focus({ preventScroll: true }); } return; }
     if (id === 'drawing' && VIEW_ICONS[ic]) { flip(ic, !$(ic).checked); paintIcons(id); return; }
@@ -256,6 +273,8 @@ if (!SH_CLASSIC) {
     const prog = $('sweepBar') && $('sweepBar').parentNode;
     [$('runSweep'), R.sweepCount, prog, $('bigMsg'), $('bigCancel')].forEach(n => mv(n, sum));
     if (prog) prog.classList.add('te-sweepprog');
+    // UI-W15: the main action keeps one line; the count line is the part that ellipsises
+    if ($('runSweep')) Object.assign($('runSweep').style, { whiteSpace: 'nowrap', flex: '0 0 auto' });
     let tg = $('sweepMore'); if (!tg) { tg = el('button', 'btn ghost sm'); tg.type = 'button'; tg.id = 'sweepMore'; tg.setAttribute('aria-expanded', 'false'); tg.textContent = 'Sweep settings ▾'; tg.addEventListener('click', () => { const o = W.dataset.more !== '1'; W.dataset.more = o ? '1' : ''; tg.setAttribute('aria-expanded', String(o)); tg.textContent = o ? 'Sweep settings ▴' : 'Sweep settings ▾'; layout(); }); }
     sum.appendChild(tg);   // last, also after a later fill() (a place switch)
     // the buttons that stay in the old summary row go to the top of the body, so the bar itself stays one row
@@ -295,7 +314,23 @@ if (!SH_CLASSIC) {
 
   // ---------- fixed homes ----------
   const M = 10;
-  let lastFree = '';
+  let lastFree = '', sweepAsked = false;   // sweepAsked: the person grew the bar themselves (in memory only, like a peek)
+  let sweepForce = false;   // ⋯ found no room even with Inputs as icons: keep the words, as base did, until there is room again (growSweep)
+  // UI-W15 with UI-W16: the narrowest the bar's words state can be with every part whole: Run sweep, the progress bar at its 60 px minimum,
+  // Cancel or the Resume offer when they show, and 'Sweep settings ▾'. The count line and #bigMsg ellipsise, so they count as 0.
+  // Each part counts its own border box (a Notebook button has a 2 px border that scrollWidth leaves out), and the bar adds the
+  // window's own frame, read from the theme: every border and padding between #win-sweep's edge and .s-sum (Notebook's bezel is 7 px
+  // a side, Wireframe's border 1 px; FVL MUST on #538).
+  function sweepNeed() {
+    const W = wins.sweep, sum = W.querySelector('.s-sum'), px = v => parseFloat(v) || 0;
+    const side = c => px(c.borderLeftWidth) + px(c.borderRightWidth) + px(c.paddingLeft) + px(c.paddingRight);
+    const k = [...sum.children].filter(e => !e.hidden && getComputedStyle(e).display !== 'none');
+    const cs = getComputedStyle(sum), gap = px(cs.columnGap);
+    const own = e => { const c = getComputedStyle(e); return Math.max(e.getBoundingClientRect().width, e.scrollWidth + px(c.borderLeftWidth) + px(c.borderRightWidth)) + px(c.marginLeft) + px(c.marginRight); };
+    const w = k.reduce((a, e) => a + (e.classList.contains('te-sweepprog') ? (px(getComputedStyle(e).minWidth) || 60) : e.classList.contains('note') ? 0 : own(e)), 0);
+    let frame = 0; for (let e = sum; e && e !== W.parentElement; e = e.parentElement) frame += side(getComputedStyle(e));
+    return Math.ceil(w + gap * Math.max(0, k.length - 1) + frame + 1);   // +1: sub-pixel rounding
+  }
   function layout() {
     const P = place(), st = S.shell.w[P], vw = innerWidth, vh = innerHeight;
     const shown = id => wins[id].dataset.empty !== '1' && (st[id] !== 'T' || wins[id].classList.contains('peek'));
@@ -324,7 +359,35 @@ if (!SH_CLASSIC) {
     else Object.assign(I.style, { width: iW + 'px' });
     const iShown = shown('inputs'), leftUsed = iShown ? iW + 2 * M : 0;
     // sweep at the bottom, beside the inputs
-    const W = wins.sweep, sl = leftUsed || M, sW = eff('sweep') === 'W' ? Math.max(260, Math.min(WIN.sweep.w, vw - sl - M - Math.max(rightUsed, vw >= 1100 ? 370 : 0))) : 'auto';
+    // UI-W15 (#534): the bar is up to 640 px AND never wider than 40 % of the stage; its count line ellipsises. Its floor is what the
+    // words state needs (sweepNeed, measured with the theme's own frame), never past the stage's right edge (#532).
+    const W = wins.sweep, sl = leftUsed || M, sCap = Math.floor(Math.min(WIN.sweep.w, vw * 0.4, vw - sl - M - Math.max(rightUsed, vw >= 1100 ? 370 : 0)));
+    // When the cap leaves less than the words state needs, the bar opens one state smaller (UI-W16): icons, as on a phone. Only what is
+    // shown changes: the person's saved state stays 'W', so a wider stage gives the words back. If the person asks for the words (⋯ or ›),
+    // the bar may use the room beside the windows past the 40 % cap. Measured in the words state, in this same frame.
+    let fit = '', need = 0;
+    if (st.sweep === 'W' && !W.classList.contains('peek')) {
+      W.dataset.state = 'W'; need = sweepNeed();
+      const room = sweepAsked ? Math.floor(vw - sl - M - rightUsed) : sCap;
+      if (sweepForce && room >= need) sweepForce = false;
+      if (room < need && !sweepForce) fit = 'I';
+    }
+    const fitWas = W.dataset.fit || '', foc = fit !== fitWas && W.contains(document.activeElement) ? document.activeElement : null;
+    W.dataset.fit = fit; if (fit) W.dataset.state = 'I';
+    if (fit && !fitWas) paintIcons('sweep');
+    // the bar is already icons, so '‹ Shrink Sweep to icons' would do nothing you can see: hide it while the fit holds (UI-W15 1.5.13, QA note 2)
+    { const sh = W.querySelector('.s-ph [data-step="shrink"]'); if (sh) sh.hidden = fit === 'I'; }
+    // focus follows a resize switch between words and icons (UI-W15 1.5.13, QA note 1): Run sweep ↔ ▶, Sweep settings ↔ ⋯, and
+    // anything else goes to the bar's first control, so it never drops to <body>
+    if (foc && !(foc.offsetWidth > 0 && foc.getClientRects().length)) {
+      const id = foc.id || '', ic = foc.dataset.ic || '';
+      const pick = fit ? (id === 'runSweep' ? '[data-ic="run"]' : id === 'sweepMore' ? '[data-ic="grow"]' : '') : (ic === 'run' ? '#runSweep' : ic === 'grow' ? '#sweepMore' : '');
+      const vis = e => !!e && e.offsetWidth > 0 && !e.closest('[hidden]');
+      let t = pick ? W.querySelector(pick) : null;
+      if (!vis(t)) t = [...W.querySelectorAll('button, summary, input, select')].find(vis);
+      if (t) t.focus({ preventScroll: true });
+    }
+    const sW = fit || eff('sweep') !== 'W' ? 'auto' : need ? (sweepForce ? Math.max(sCap, Math.min(need, vw - sl - M)) : sweepAsked ? Math.max(sCap, need) : sCap) : Math.max(sCap, Math.min(260, vw - sl - M));
     Object.assign(W.style, { left: sl + 'px', bottom: M + 'px', top: 'auto', width: typeof sW === 'number' ? sW + 'px' : sW, maxHeight: Math.round(vh * .55) + 'px', right: 'auto' });
     // the full results under the card
     const RS = wins.results;

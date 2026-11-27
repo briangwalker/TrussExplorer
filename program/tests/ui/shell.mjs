@@ -258,6 +258,23 @@ try {
 check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
   await p.close();
 
+  // ---------- UI-W15 (#470): under 1100 px of stage, Inputs starts as icons; above it, open ----------
+  for (const [w, h, want] of [[1024, 768, 'I'], [1366, 900, 'W'], [1440, 900, 'W']]) {
+    const u = await openPage(b, srv.url, { width: w, height: h }); await u.waitForTimeout(600);
+    const s0 = await st(u, 'inputs'), r0 = await rect(u, '#win-inputs');
+    check(`UI-W15 #470: at ${w}x${h} a first load opens Inputs ${want === 'I' ? 'as icons (52 px)' : 'in words'}`, s0 === want && (want === 'I' ? Math.abs(r0.w - 52) <= 1 : r0.w > 300), JSON.stringify({ s0, r0 }));
+    if (want === 'I') {
+      // the person opens it; a resize never moves it back, and their saved layout wins on the next load
+      await u.click('#win-inputs [data-step="grow"]'); await u.waitForTimeout(250);
+      await u.setViewportSize({ width: 1366, height: 900 }); await u.waitForTimeout(300); await u.setViewportSize({ width: 1024, height: 768 }); await u.waitForTimeout(300);
+      check('UI-W15 #470: a resize does not move a window the person opened', await st(u, 'inputs') === 'W');
+      await u.reload({ waitUntil: 'load' }); await u.waitForFunction(() => window.__shell, null, { timeout: 15000 }); await u.waitForTimeout(600);
+      check('UI-W15 #470: the saved layout wins over the under-1100 default', await st(u, 'inputs') === 'W');
+    }
+    check(`UI-W15 #470: ${w}x${h} no script errors`, u.errs.length === 0, u.errs.slice(0, 2).join(' | '));
+    await u.close();
+  }
+
   // ---------- phone width: nothing runs off the screen ----------
   const q = await openPage(b, srv.url, { width: 390, height: 844 }); await q.waitForTimeout(800);
   check('UI-W20: no grip on any window at 390x844', await q.evaluate(() => ['inputs', 'view', 'drawing', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !w.querySelector('.s-ph .grip'); })));
