@@ -275,6 +275,78 @@ check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
     await u.close();
   }
 
+  // ---------- BPD-19 (TE-B-701): UI-W15 for the Analysis side windows, and #540 (the zoom buttons are never under a window) ----------
+  for (const [w, h, want] of [[1024, 768, 'I'], [1366, 900, 'W']]) {
+    const u = await openPage(b, srv.url, { width: w, height: h }); await u.waitForTimeout(600);
+    await u.evaluate(() => __shell.go('analysis')); await u.waitForTimeout(400);
+    const s0 = await st(u, 'drawing'), r0 = await rect(u, '#win-drawing'), sIn = await st(u, 'inputs');
+    check(`UI-W15 BPD-19: at ${w}x${h} a first load opens Analysis' right-edge window (Chart key) ${want === 'I' ? 'as icons' : 'in words'}, Inputs stays a tab`,
+      s0 === want && sIn === 'T' && (want === 'I' ? r0.w <= 60 : r0.w > 300), JSON.stringify({ s0, sIn, r0 }));
+    if (want === 'I' && s0 === 'I') {
+      await u.click('#win-drawing [data-step="grow"]'); await u.waitForTimeout(250);
+      await u.setViewportSize({ width: 1366, height: 900 }); await u.waitForTimeout(300); await u.setViewportSize({ width: 1024, height: 768 }); await u.waitForTimeout(300);
+      check('UI-W15 BPD-19: a resize does not move the Chart key the person opened', await st(u, 'drawing') === 'W');
+      await u.reload({ waitUntil: 'load' }); await u.waitForFunction(() => window.__shell, null, { timeout: 15000 }); await u.waitForTimeout(600);
+      check('UI-W15 BPD-19: the saved layout wins over the under-1100 default in Analysis too', await u.evaluate(() => __shell.state.w.analysis.drawing) === 'W');
+    }
+    check(`UI-W15 BPD-19: ${w}x${h} no script errors`, u.errs.length === 0, u.errs.slice(0, 2).join(' | '));
+    await u.close();
+  }
+  // #540: at Home, Zoom in and Zoom out are whole and on top (centre and all four corners), clear of every window, and stay so with focus
+  const zoomClear = u => u.evaluate(() => {
+    const out = [], wins = [...document.querySelectorAll('#stage .s-pan[data-win], #shellNav, #navTabBox, #resCard, .tabE')].filter(e => !e.hidden && e.getBoundingClientRect().width > 0);
+    for (const bt of document.querySelectorAll('#drawWrap .navpad .ncb')) {
+      const r = bt.getBoundingClientRect(), pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + 2, r.top + 2], [r.right - 2, r.top + 2], [r.left + 2, r.bottom - 2], [r.right - 2, r.bottom - 2]];
+      const onTop = r.width > 0 && pts.every(([x, y]) => document.elementFromPoint(x, y) === bt);
+      const inStage = r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+      const under = wins.filter(e => { const q = e.getBoundingClientRect(); return q.left < r.right && r.left < q.right && q.top < r.bottom && r.top < q.bottom; }).map(e => e.id || e.className);
+      bt.focus(); const fr = bt.getBoundingClientRect(), fOk = document.activeElement === bt && document.elementFromPoint(fr.left + fr.width / 2, fr.top + fr.height / 2) === bt; bt.blur();
+      out.push({ d: bt.dataset.d, onTop, inStage, under, fOk });
+    }
+    return out;
+  });
+  // UI-W19 (QA, UI Designer and FVL MUSTs on #550): the pad has one home, first in the right-edge stack, and Drawing (window and tab)
+  // starts 8 px below it. Sizes: 1024 and 1366, 200 % of both (512x384, 683x450), a short stage (1366x560) and a phone.
+  const padBox = u => rect(u, '#drawWrap .navpad');
+  const dStack = u => u.evaluate(() => {
+    const pad = document.querySelector('#drawWrap .navpad').getBoundingClientRect(), D = document.getElementById('win-drawing'), t = document.querySelector('.tabE[data-tab="drawing"]');
+    const vis = e => !!e && !e.hidden && e.getBoundingClientRect().width > 0, d = D.getBoundingClientRect();
+    return { padB: pad.bottom, win: vis(D) && !D.classList.contains('peek') ? d.top : null, tab: vis(t) ? t.getBoundingClientRect().top : null };
+  });
+  // WCAG 2.4.11 (QA MUST on #550 at 97a3705): 'How to use the drawing' (#infoBtn) is on top when focused (its centre and 4 inner points),
+  // and the Drawing window, while shown and sharing its column, ends at least 8 px above it
+  const infoClear = u => u.evaluate(() => {
+    const ib = document.getElementById('infoBtn'); ib.focus(); const q = ib.getBoundingClientRect(), cx = q.left + q.width / 2, cy = q.top + q.height / 2, k = q.width * 0.3;
+    const top = document.activeElement === ib && [[cx, cy], [cx - k, cy], [cx + k, cy], [cx, cy - k], [cx, cy + k]].every(([x, y]) => document.elementFromPoint(x, y) === ib);
+    const D = document.getElementById('win-drawing'), d = D.getBoundingClientRect(), shownD = !D.hidden && d.width > 0 && !D.classList.contains('peek');
+    const gap = shownD && d.left < q.right && q.left < d.right ? q.top - d.bottom : null; ib.blur();
+    return { top, gap, ib: [Math.round(q.top), Math.round(q.bottom)], D: shownD ? [Math.round(d.top), Math.round(d.bottom)] : null };
+  });
+  const sameBox = (p1, p2) => !!p1 && !!p2 && ['l', 't', 'r', 'b'].every(k => Math.abs(p1[k] - p2[k]) < 0.5);
+  for (const theme of ['wireframe', 'notebook-calc']) for (const [w, h] of [[1024, 768], [1366, 900], [512, 384], [683, 450], [1366, 560], [390, 844]]) {
+    const u = await openPage(b, srv.url, { width: w, height: h }); await u.waitForTimeout(600);
+    if (theme !== 'wireframe') { await u.evaluate(t => __shell.applyTheme(t), theme); await u.waitForTimeout(400); }
+    const z = await zoomClear(u);
+    check(`#540: ${theme} ${w}x${h}: Zoom in and Zoom out are whole, on top, under no window, and not hidden when focused`,
+      z.length === 2 && z.every(x => x.onTop && x.inStage && !x.under.length && x.fOk), JSON.stringify(z));
+    // the Drawing window as a tab, as icons and in words: the pad's box never moves, nothing covers + or -, and Drawing sits 8 px under it
+    const boxes = {}, stacks = {}, clear = {}, info = {};
+    for (const s2 of ['T', 'I', 'W']) {
+      await u.evaluate(v => __shell.setState('drawing', v), s2); await u.mouse.move(2, h - 2); await u.waitForTimeout(350);
+      boxes[s2] = await padBox(u); stacks[s2] = await dStack(u);
+      const z2 = await zoomClear(u); clear[s2] = z2.length === 2 && z2.every(x => x.onTop && x.inStage && !x.under.length && x.fOk);
+      info[s2] = await infoClear(u);
+    }
+    check(`WCAG 2.4.11: ${theme} ${w}x${h}: 'How to use the drawing' is on top when focused, and Drawing (as a tab, as icons, in words) ends 8 px above it`,
+      ['T', 'I', 'W'].every(k => info[k].top && (info[k].gap === null || info[k].gap >= 7.5)), JSON.stringify(info));
+    check(`UI-W19: ${theme} ${w}x${h}: the pad's box is the same with Drawing as a tab, as icons and in words`, sameBox(boxes.T, boxes.I) && sameBox(boxes.T, boxes.W), JSON.stringify(boxes));
+    check(`UI-W19: ${theme} ${w}x${h}: Zoom in and Zoom out stay clear with Drawing as a tab, as icons and in words`, clear.T && clear.I && clear.W, JSON.stringify(clear));
+    check(`UI-W19: ${theme} ${w}x${h}: the Drawing window and its tab start at least 8 px below the pad`,
+      stacks.T.tab !== null && stacks.T.tab >= stacks.T.padB + 7.5 && ['I', 'W'].every(k => stacks[k].win !== null && stacks[k].win >= stacks[k].padB + 7.5), JSON.stringify(stacks));
+    check(`#540: ${theme} ${w}x${h}: no script errors`, u.errs.length === 0, u.errs.slice(0, 2).join(' | '));
+    await u.close();
+  }
+
   // ---------- phone width: nothing runs off the screen ----------
   const q = await openPage(b, srv.url, { width: 390, height: 844 }); await q.waitForTimeout(800);
   check('UI-W20: no grip on any window at 390x844', await q.evaluate(() => ['inputs', 'view', 'drawing', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !w.querySelector('.s-ph .grip'); })));

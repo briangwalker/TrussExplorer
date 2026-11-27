@@ -44,7 +44,8 @@ if (!SH_CLASSIC) {
   if (!sh0.w && innerWidth < 700) { DEF.w = TABLE.phoneStates; DEF.bar = 'I'; }   // a phone starts with the picture
   // UI-W15 (#470): on a stage under 1100 px the side windows' default home is icons, so Inputs starts as icons there too
   // (Drawing already does). Only the defaults change: a saved layout (the person's own) wins, and a resize never moves a window.
-  else if (!sh0.w && innerWidth < 1100) { DEF.w = JSON.parse(JSON.stringify(TABLE.states)); DEF.w.truss.inputs = 'I'; }
+  // BPD-19 (TE-B-701): the same in Analysis, where the right-edge window (Chart key) opened in words; Analysis' Inputs is already a tab.
+  else if (!sh0.w && innerWidth < 1100) { DEF.w = JSON.parse(JSON.stringify(TABLE.states)); DEF.w.truss.inputs = 'I'; DEF.w.analysis.drawing = 'I'; }
   S.shell = { place: PLACES.includes(sh0.place) ? sh0.place : DEF.place, bar: STATES.includes(sh0.bar) ? sh0.bar : DEF.bar,
     hist: Array.isArray(sh0.hist) ? sh0.hist.filter(p => PLACES.includes(p)).slice(-20) : [], theme: typeof sh0.theme === 'string' ? sh0.theme : DEF.theme, w: {},
     unlocks: window.TrussUnlocks ? window.TrussUnlocks.fresh() : null };
@@ -331,6 +332,27 @@ if (!SH_CLASSIC) {
     let frame = 0; for (let e = sum; e && e !== W.parentElement; e = e.parentElement) frame += side(getComputedStyle(e));
     return Math.ceil(w + gap * Math.max(0, k.length - 1) + frame + 1);   // +1: sub-pixel rounding
   }
+  // #540 (UI-W19, UI-W16, UI-D6, WCAG 2.4.11): the 2D pad (arrows, ⌂, Zoom in, Zoom out) has one home: first in the right-edge stack,
+  // 12 px below the top bar's band. It keeps its right edge (so the Home fit, which reads pad.left, is unchanged) and never moves for
+  // the Drawing window: that window and its tab start 8 px below the pad's box instead. Returns the pad's bottom (viewport px), or 0
+  // when the 2D pad isn't on screen (3D, Analysis), so the Drawing window keeps its usual top.
+  function placePad(band) {
+    const pad = document.querySelector('#drawWrap .navpad'); if (!pad) return 0;
+    // placed against #drawWrap (position: relative) even while the pad is hidden, so it comes back in the right place when it is shown
+    const h = pad.parentElement.getBoundingClientRect();
+    if (!(h.width > 0)) return 0;   // 3D or Analysis: the 2D drawing isn't on screen
+    pad.style.top = Math.round(band + 12 - h.top) + 'px'; pad.style.right = '';
+    if (pad.hidden || !pad.getClientRects().length) return 0;
+    return Math.ceil(band + 12 + (pad.offsetHeight || 96));
+  }
+  // The top of #infoBtn less 8 px (viewport px) when it is on screen and reaches left of x (the Drawing column's left edge), else the
+  // stage's bottom margin.
+  function infoTop(x) {
+    const ib = document.getElementById('infoBtn'), vh = innerHeight;
+    if (!ib || ib.hidden || !ib.getClientRects().length) return vh - M;
+    const r = ib.getBoundingClientRect();
+    return r.width > 0 && r.right > x && r.top < vh ? Math.floor(r.top - 8) : vh - M;
+  }
   function layout() {
     const P = place(), st = S.shell.w[P], vw = innerWidth, vh = innerHeight;
     const shown = id => wins[id].dataset.empty !== '1' && (st[id] !== 'T' || wins[id].classList.contains('peek'));
@@ -344,9 +366,14 @@ if (!SH_CLASSIC) {
     // drawing / chart key on the right edge
     const D = wins.drawing, dW = eff('drawing') === 'W' ? Math.min(WIN.drawing.w, vw - 2 * M) : 56;
     const top0 = Math.max(barB, cardB) + 8;
+    // UI-W19: the 2D pad first, then the Drawing window (and its tab) 8 px below the pad's box; folding Drawing never moves the pad
+    const padB = placePad(top0 - 8), dTop = padB ? Math.max(top0, padB + 8) : top0;
+    // WCAG 2.4.11 (QA MUST on #550): with the 2D drawing on screen, the Drawing window also stops 8 px above 'How to use the drawing'
+    // (#infoBtn, bottom right of the drawing) when the two share the right edge, so a short stage never hides it; the window scrolls.
+    const dBot = padB ? infoTop(vw - M - dW) : vh - M, dMax = Math.max(0, Math.min(vh - M, dBot) - dTop) + 'px';
     // a peeking Drawing window is placed by the window piece, beside its tab (UI-W17); its home is put back when the peek ends
-    if (!D.classList.contains('peek')) Object.assign(D.style, { right: M + 'px', left: 'auto', top: top0 + 'px', width: dW + 'px', maxHeight: (vh - top0 - M) + 'px', bottom: 'auto' });
-    else Object.assign(D.style, { width: dW + 'px', maxHeight: (vh - top0 - M) + 'px' });
+    if (!D.classList.contains('peek')) Object.assign(D.style, { right: M + 'px', left: 'auto', top: dTop + 'px', width: dW + 'px', maxHeight: dMax, bottom: 'auto' });
+    else Object.assign(D.style, { width: dW + 'px', maxHeight: dMax });
     const dShown = shown('drawing'), rightUsed = dShown ? dW + 2 * M : 0;
     // view options under the bar on the left
     const V = wins.view;
@@ -394,7 +421,7 @@ if (!SH_CLASSIC) {
     Object.assign(RS.style, { left: Math.max(M, Math.min(cl, vw - WIN.results.w - M)) + 'px', top: (cardB + 6) + 'px', width: Math.min(WIN.results.w, vw - 2 * M) + 'px', maxHeight: (vh - cardB - 16) + 'px', bottom: 'auto', right: 'auto' });
     // edge tabs
     if (tabs.inputs) { tabs.inputs.style.top = Math.max(vB, vh * .35) + 'px'; }
-    if (tabs.drawing) { tabs.drawing.style.top = Math.max(top0, vh * .35) + 'px'; }
+    if (tabs.drawing) { tabs.drawing.style.top = Math.max(dTop, vh * .35) + 'px'; }
     if (tabs.view) { tabs.view.style.left = (S.shell.bar === 'T' ? navR.right + 8 : M + 24) + 'px'; tabs.view.style.top = barB + 'px'; }
     if (tabs.sweep) { tabs.sweep.style.left = (leftUsed || 40) + 'px'; }
     // the picture fills the whole stage (UI-A3): only the page size changes it, never the windows
