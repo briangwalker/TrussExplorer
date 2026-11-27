@@ -304,18 +304,23 @@ function makeRow(c, t2, r2) {
   return Object.assign({}, c, { swOv: c.overlap != null, overlap: t2.overlap, supportOffset: t2.info.supportOffset, edgeOK: r2.edgeOK, overall: t2.overall, bottom: t2.info.shape, members: t2.elems.length, wood: r2.wood, mass: r2.massTotal, D: r2.midDefl, util: r2.maxUtil,
     capKg: r2.capKg, side: t2.info.sideAngleActual, passes: r2.passes, slipOK: !(r2.slips && r2.slips.length), envOK: r2.envelope.length === 0, topShape: t2.info.topShape, topEnd: t2.info.topEnd, botEnd: t2.info.botEnd });
 }
+// noRes (?limits=1 only): the design has no result, so it is counted per rule in why.noResBy and never as a fail (UI-I10, TE-B-717)
 function countWhy(why, r2, noRes) {
-  if (noRes) why.noRes++;
+  if (noRes) { why.noRes = (why.noRes || 0) + 1; const by = why.noResBy || (why.noResBy = {}); by[noRes] = (by[noRes] || 0) + 1; return; }
   if (r2.edgeOK === false) why.edge++;
   if (r2.envelope.length) why.env++;
   if (r2.midDefl > S.opts.deflLimit) why.defl++;
   if (r2.maxUtil > 1) why.strength++;
 }
 function whyText(why, nStable) {
-  const lim = 'noRes' in why;   // only the normal sweep with ?limits=1 counts it (RMA-18); without it the text is as before
-  const fails = [['overlap under the minimum', why.edge], ['deflection over the limit', why.defl], ['a member over its strength limit', why.strength], ['outside the envelope', why.env]].concat(lim ? [['no result (break the limits)', why.noRes]] : []).sort((x, y) => y[1] - x[1]);
-  return (fails[0][1] > 0 ? ` Most common: ${fails[0][0]} (${fails[0][1].toLocaleString()} designs).` : '') + (nStable && why.edge === nStable ? overlapWarning() : '') +
-    ` Breakdown (a design can fail several): overlap ${why.edge.toLocaleString()}, deflection ${why.defl.toLocaleString()}, strength ${why.strength.toLocaleString()}, envelope ${why.env.toLocaleString()}${lim ? `, no result (break the limits) ${why.noRes.toLocaleString()}` : ''}.`;
+  const lim = 'noRes' in why;   // only a sweep with ?limits=1 counts it (RMA-18, RMA-19); without it the text is as before
+  // 'Most common' and the Breakdown are the four fail reasons only: no result is never a fail (UI-I10, TE-B-717)
+  const fails = [['overlap under the minimum', why.edge], ['deflection over the limit', why.defl], ['a member over its strength limit', why.strength], ['outside the envelope', why.env]].sort((x, y) => y[1] - x[1]);
+  const nRes = nStable - (lim ? why.noRes || 0 : 0);   // the stable designs with a result
+  const by = lim ? Object.entries(why.noResBy || {}).filter(e => e[1] > 0).sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0)) : [];
+  return (fails[0][1] > 0 ? ` Most common: ${fails[0][0]} (${fails[0][1].toLocaleString()} designs).` : '') + (nRes && why.edge === nRes ? overlapWarning() : '') +
+    ` Breakdown (a design can fail several): overlap ${why.edge.toLocaleString()}, deflection ${why.defl.toLocaleString()}, strength ${why.strength.toLocaleString()}, envelope ${why.env.toLocaleString()}.` +
+    (lim && why.noRes ? ` No result (break the limits): ${why.noRes.toLocaleString()}, by rule: ${by.map(e => `${e[0]} ${e[1].toLocaleString()}`).join(', ')}.` : '');
 }
 // UI-I10 in the normal sweep (RMA-18, TE-B-650b), behind TE_FLAGS.limitsBoxes (?limits=1) only: a design the limits refuse
 // (checkGeometry G1-G10, checkResult M2) has no result, so it never passes and never gets a kg in the top 30. Its row stays in
@@ -330,13 +335,19 @@ function sweepLimitsBase() {
 }
 const SWEEP_LIMIT_IDS = [['height', 'height'], ['panels', 'panels'], ['ratio', 'ratio'], ['curve', 'curve'], ['topEnd', 'topEnd'], ['botEnd', 'botEnd'],
   ['supportOffset', 'supportOffset'], ['overlap', 'overlap'], ['sideAngle', 'sideAngle'], ['width3', 'width3d'], ['tilt3', 'tilt3d']];
+// A check that throws is no result too ('error', never null, so an error can't let a design through with a kg; TE-B-717 (3)),
+// with one console.warn per sweep: each sweep reads a fresh base from sweepLimitsBase().
+const sweepWarned = new WeakSet();
 function sweepNoResult(base, c, t2, r2) {
   const v = Object.assign({}, base);
   SWEEP_LIMIT_IDS.forEach(([k, id]) => { if (c[k] != null && Number.isFinite(+c[k])) v[id] = +c[k]; });
   try {
     const e = TrussLimits.checkGeometry(t2, v).concat(TrussLimits.checkResult(r2, v));
     return e.length ? e[0].rule : null;
-  } catch (e) { return null; }
+  } catch (e) {
+    if (!sweepWarned.has(base)) { sweepWarned.add(base); console.warn('The limits check failed in the sweep, so these designs get no result:', e); }
+    return 'error';
+  }
 }
 let sweepMode = 'none';
 $('runSweep').addEventListener('click', () => {
@@ -481,17 +492,19 @@ $('bigSearch').addEventListener('click', () => {
   big.running = true; big.cancel = false; sweepBusy = true; setBigButtons(); big.hrs = 0; big.timeUp = false;
   const sig = sweepSig();
   sweepCtx = { bookKg: S.load.mBook1 + S.load.mBook2, FS: S.mat.FS, defl: S.opts.deflLimit, minOv: +S.opts.minOverlap, sheet: sheet0 };
-  const rows = [], why = { edge: 0, env: 0, defl: 0, strength: 0 };
+  const lims = sweepLimitsBase();   // null = flag off: the pilot as before (RMA-19)
+  const rows = [], why = Object.assign({ edge: 0, env: 0, defl: 0, strength: 0 }, lims ? { noRes: 0, noResBy: {} } : {});
   const au = { n: 0, eqBad: 0, jointBad: 0, symN: 0, symBad: 0, worstEq: 0, worstJoint: 0, worstSym: 0, nan: 0 };
   let unstable = 0;
   const is3 = S.anaMode === '3d', st = is3 ? { ids: [], r2d: [], ms3: 0, both: 0, onlyIn2D: 0, onlyIn3D: 0, neither: 0, screenMiss: 0, screened: 0, unst3: 0, eqWorst: 0 } : null;
   runChunks(n, k => {
     const c = candAt(Dm, pick ? pick(k) : k);
     const { t2, r2 } = evalCandidate(c, '2d');
-    if (is3) st.ids.push([c, t2, r2]);
+    const e3 = is3 ? [c, t2, r2, null] : null; if (is3) st.ids.push(e3);
     if (!r2.stable) { unstable++; return; }
-    countWhy(why, r2);
-    const row = makeRow(c, t2, r2); rows.push(row);
+    const nr = lims ? sweepNoResult(lims, c, t2, r2) : null; if (e3) e3[3] = nr;
+    countWhy(why, r2, nr);
+    const row = makeRow(c, t2, r2); if (nr) { row.passes = false; row.noResult = nr; } rows.push(row);
     if (!Number.isFinite(row.wood) || !Number.isFinite(row.D) || Number.isNaN(row.capKg)) au.nan++;
     const ck = auditDesign(t2, r2); au.n++;
     au.worstEq = Math.max(au.worstEq, ck.eq); au.worstJoint = Math.max(au.worstJoint, ck.joint);
@@ -499,7 +512,7 @@ $('bigSearch').addEventListener('click', () => {
     if (ck.sym !== null) { au.symN++; au.worstSym = Math.max(au.worstSym, ck.sym); if (ck.sym > AUDIT_TOL) au.symBad++; }
   }, i => { $('sweepBar').style.width = (100 * i / n).toFixed(1) + '%'; $('bigMsg').textContent = `Pilot: ${i.toLocaleString()} of ${n.toLocaleString()} designs…`; },
   (done, ms) => {
-    if (is3 && !big.cancel) { pilot3D(Dm, done, ms, rows, why, unstable, au, sig, st); return; }
+    if (is3 && !big.cancel) { pilot3D(Dm, done, ms, rows, why, unstable, au, sig, st, lims); return; }
     big.running = false; sweepBusy = false;
     if (big.cancel) { $('bigMsg').textContent = 'Pilot cancelled.'; setBigButtons(); return; }
     big.pilot = { Dm, total: Dm.total, n: done, msPer: ms / Math.max(1, done), rows, why, unstable, au, sig };
@@ -510,20 +523,22 @@ $('bigSearch').addEventListener('click', () => {
   });
 });
 // stage 2 of a 3D pilot: the same designs solved in 3D, compared with their 2D results
-function pilot3D(Dm, n, ms2, rows2, why2, unstable2, au, sig, st) {
-  const rows = [], why = { edge: 0, env: 0, defl: 0, strength: 0 }; let unstable = 0;
+// lims (?limits=1): the 3D result goes through the same check as the 2D stage, so M2 reads the deck deflection (as the card, #528)
+function pilot3D(Dm, n, ms2, rows2, why2, unstable2, au, sig, st, lims) {
+  const rows = [], why = Object.assign({ edge: 0, env: 0, defl: 0, strength: 0 }, lims ? { noRes: 0, noResBy: {} } : {}); let unstable = 0;
   runChunks(st.ids.length, k => {
-    const [c, t2, r2d] = st.ids[k];
+    const [c, t2, r2d, nr2] = st.ids[k];
     const t0 = performance.now();
     const r = r2d.stable ? upgrade3D(c, t2, r2d) : r2d;
     st.ms3 += performance.now() - t0;
     if (r.mode3) { const q = r.mode3.r3; st.eqWorst = Math.max(st.eqWorst, Math.abs(q.sumZ - q.P) / q.P); }
-    const p2 = r2d.stable && r2d.passes, p3 = r.stable && r.passes;
+    const nr3 = lims && r.stable ? sweepNoResult(lims, c, t2, r) : null;
+    const p2 = r2d.stable && r2d.passes && !nr2, p3 = r.stable && r.passes && !nr3;
     if (p2 && p3) st.both++; else if (p2) st.onlyIn2D++; else if (p3) st.onlyIn3D++; else st.neither++;
     if (r2d.stable && !r.stable) st.unst3++;
     if (clearly2DFail(r2d)) { st.screened++; if (p3) st.screenMiss++; }
     if (!r.stable) { unstable++; return; }
-    countWhy(why, r); rows.push(makeRow(c, t2, r));
+    countWhy(why, r, nr3); const row = makeRow(c, t2, r); if (nr3) { row.passes = false; row.noResult = nr3; } rows.push(row);
   }, i => { $('sweepBar').style.width = (100 * i / st.ids.length).toFixed(1) + '%'; $('bigMsg').textContent = `Pilot, stage 2 of 2 (3D): ${i.toLocaleString()} of ${st.ids.length.toLocaleString()} designs…`; },
   (done) => {
     big.running = false; sweepBusy = false;
@@ -540,19 +555,21 @@ function pilot3D(Dm, n, ms2, rows2, why2, unstable2, au, sig, st) {
 function pilotOneLine(P) {
   const pass = P.rows.filter(r => r.passes).length, au = P.au;
   const bad = au.eqBad + au.jointBad + au.symBad + au.nan + (P.st && P.st.eqWorst >= 1e-6 ? 1 : 0);
-  return `<b>${pass.toLocaleString()} of ${P.n.toLocaleString()} pass</b> · ${bad ? `<b style="color:var(--bad)">${bad} audit check${bad > 1 ? 's' : ''} failed</b>` : '<b style="color:var(--ok)">all audit checks pass</b>'} · ${P.msPer.toFixed(2)} ms per design${P.st && P.st.screenMiss ? ` · <b style="color:var(--bad)">pre-screen would miss ${P.st.screenMiss}</b>` : ''}.`;
+  const lim = 'noRes' in P.why;   // ?limits=1 (RMA-19): no result is its own count, never a fail (UI-I10)
+  return `<b>${pass.toLocaleString()} of ${P.n.toLocaleString()} pass</b> · ${lim ? `${(P.why.noRes || 0).toLocaleString()} no result (break the limits) · ` : ''}${bad ? `<b style="color:var(--bad)">${bad} audit check${bad > 1 ? 's' : ''} failed</b>` : '<b style="color:var(--ok)">all audit checks pass</b>'} · ${P.msPer.toFixed(2)} ms per design${P.st && P.st.screenMiss ? ` · <b style="color:var(--bad)">pre-screen would miss ${P.st.screenMiss}</b>` : ''}.`;
 }
 function renderPilot() {
   const P = big.pilot; if (!P) return;
   const st = P.rows, pass = st.filter(r => r.passes).length;
-  const rng = (f, dp) => { const v = st.map(f).filter(Number.isFinite); return v.length ? `${minOf(v).toFixed(dp)} to ${maxOf(v).toFixed(dp)}` : '—'; };
+  const lim = 'noRes' in P.why, noResN = lim ? st.filter(r => r.noResult).length : 0;   // ?limits=1 (RMA-19): counted on its own, never a fail (UI-I10)
+  const rng = (f, dp, all) => { const v = (all ? st : st.filter(r => !r.noResult)).map(f).filter(Number.isFinite); return v.length ? `${minOf(v).toFixed(dp)} to ${maxOf(v).toFixed(dp)}` : '—'; };
   const ok = (bad, n) => bad === 0 ? `<b style="color:var(--ok)">all ${n.toLocaleString()} pass</b>` : `<b style="color:var(--bad)">${bad.toLocaleString()} of ${n.toLocaleString()} fail</b>`;
   const n = plannedN(P, P.msPer);
   $('bigBox').innerHTML = `<h3 style="margin:0 0 6px">Pilot audit (low fidelity)</h3>
-    <p style="margin:0 0 8px">${P.n.toLocaleString()} random designs out of the ${P.total.toLocaleString()} in your ranges (${(100 * P.n / P.total).toFixed(P.n === P.total ? 0 : 2)}%). ${pass.toLocaleString()} pass · ${(st.length - pass).toLocaleString()} fail a check · ${P.unstable.toLocaleString()} unstable.${whyText(P.why, st.length)}</p>
+    <p style="margin:0 0 8px">${P.n.toLocaleString()} random designs out of the ${P.total.toLocaleString()} in your ranges (${(100 * P.n / P.total).toFixed(P.n === P.total ? 0 : 2)}%). ${pass.toLocaleString()} pass · ${(st.length - pass - noResN).toLocaleString()} fail a check · ${lim ? `${noResN.toLocaleString()} no result (break the limits) · ` : ''}${P.unstable.toLocaleString()} unstable.${whyText(P.why, st.length)}</p>
     <p class="ndata" style="margin:0 0 8px">${pilotOneLine(P)} <span class="note">The full audit is under "Show data and notes".</span></p>
     <table class="tdata"><tbody>
-      <tr><td>Wood, stable designs</td><td>${rng(r => r.wood, 0)} mm</td></tr>
+      <tr><td>Wood, stable designs</td><td>${rng(r => r.wood, 0, true)} mm</td></tr>
       <tr><td>Capacity</td><td>${rng(r => r.capKg, 1)} kg</td></tr>
       <tr><td>Mid-span deflection</td><td>${rng(r => r.D, 3)} mm</td></tr>
       <tr><td>Overall equilibrium (reactions balance the load)</td><td>${ok(P.au.eqBad, P.au.n)} · worst ${P.au.worstEq.toExponential(1)} of the load</td></tr>
@@ -620,7 +637,8 @@ function runFull(ck) {
   try { idxA = new Float64Array(B); woodA = new Float32Array(B); capA = new Float32Array(B); combA = new Float32Array(B); flag = new Uint8Array(B); }
   catch (e) { searchFailed(e, `setting up ${B.toLocaleString()} designs (not enough memory)`); return; }
   const RES = 15000; let sample = [], seen = 0, unstable = 0, passN = 0, screened = 0;
-  let why = { edge: 0, env: 0, defl: 0, strength: 0 };
+  const lims = sweepLimitsBase();   // null = flag off: the full run as before (RMA-19)
+  let why = Object.assign({ edge: 0, env: 0, defl: 0, strength: 0 }, lims ? { noRes: 0, noResBy: {} } : {});
   let top = [], start = 0, msBefore = 0, bStart = 0;
   const kept = new Map();   // best-trade designs found so far, from finished batches
   holdAwake(true);
@@ -647,7 +665,7 @@ function runFull(ck) {
       if (m.size < 2) return;
       m.forEach(list => { frontPos(list, woodA, capA).forEach(q => keep.add(q)); frontPos(list, woodA, combA).forEach(q => keep.add(q)); });
     });
-    keep.forEach(q => { const id = idAt(idxA[q]), key = typeof id === 'bigint' ? id.toString() : id; if (kept.has(key)) return; const c = candAt(Dm, id); const { t2, r2 } = evalCandidate(c); kept.set(key, makeRow(c, t2, r2)); });
+    keep.forEach(q => { const id = idAt(idxA[q]), key = typeof id === 'bigint' ? id.toString() : id; if (kept.has(key)) return; const c = candAt(Dm, id); const { t2, r2 } = evalCandidate(c); const row = makeRow(c, t2, r2); const nr = lims && r2.stable ? sweepNoResult(lims, c, t2, r2) : null; if (nr) { row.passes = false; row.noResult = nr; } kept.set(key, row); });
     flag.fill(0); oldIds = false;
   };
   const eta = (i, ms) => i > start ? fmtTime((n - i) * ms / (i - start)) : '';
@@ -667,10 +685,11 @@ function runFull(ck) {
     if (pre) { const e = evalCandidate(c, '2d'); t2 = e.t2; if (clearly2DFail(e.r2)) { screened++; return; } r2 = upgrade3D(c, t2, e.r2); }
     else ({ t2, r2 } = evalCandidate(c));
     if (!r2.stable) { unstable++; return; }
-    countWhy(why, r2);
-    const row = makeRow(c, t2, r2);
+    const nr = lims ? sweepNoResult(lims, c, t2, r2) : null;
+    countWhy(why, r2, nr);
+    const row = makeRow(c, t2, r2); if (nr) { row.passes = false; row.noResult = nr; }
     woodA[li] = row.wood; capA[li] = row.capKg; combA[li] = combined(row);
-    flag[li] = 1 | (row.passes ? 2 : 0) | (frontOK(row) ? 4 : 0);
+    flag[li] = 1 | (row.passes ? 2 : 0) | (!nr && frontOK(row) ? 4 : 0);   // a design with no result is never on a best-trade line (UI-I10)
     if (row.passes) { passN++; if (top.length < 30 || row.wood < top[top.length - 1].wood) { top.push(row); top.sort((x, y) => x.wood - y.wood || x.util - y.util); if (top.length > 30) top.pop(); } }
     seen++;   // reservoir sample of the stable designs, for the grey cloud
     if (sample.length < RES) sample.push(row); else { const j = Math.floor(Math.random() * seen); if (j < RES) sample[j] = row; }
@@ -684,7 +703,7 @@ function runFull(ck) {
       flushBatch(done - bStart);
       const rows = new Map(); sample.forEach(r => rows.set(r.idx, r)); top.forEach(r => rows.set(r.idx, r)); kept.forEach((r, id) => { if (!rows.has(id)) rows.set(id, r); });
       SweepState.set([...rows.values()], { top });
-      const msg = `${big.timeUp ? `Time limit (${big.hrs} h) reached:` : big.cancel ? 'Cancelled after' : 'Full search:'} ${done.toLocaleString()} designs${pick ? ` (random, out of ${P.total.toLocaleString()})` : ''}${Math.ceil(done / B) > 1 ? ` in ${Math.ceil(done / B)} batches` : ''} in ${fmtTime(ms).replace('about ', '')} · ${passN.toLocaleString()} pass · ${(seen - passN).toLocaleString()} fail a check · ${unstable.toLocaleString()} unstable${pre ? ` · ${screened.toLocaleString()} skipped by the 2D pre-screen (failed clearly in 2D; not on the charts)` : ''}.${whyText(why, seen)} The best-trade lines on the charts are exact; the grey cloud is a random ${Math.min(RES, seen).toLocaleString()} of the stable designs.`;
+      const msg = `${big.timeUp ? `Time limit (${big.hrs} h) reached:` : big.cancel ? 'Cancelled after' : 'Full search:'} ${done.toLocaleString()} designs${pick ? ` (random, out of ${P.total.toLocaleString()})` : ''}${Math.ceil(done / B) > 1 ? ` in ${Math.ceil(done / B)} batches` : ''} in ${fmtTime(ms).replace('about ', '')} · ${passN.toLocaleString()} pass · ${(seen - passN - (why.noRes || 0)).toLocaleString()} fail a check · ${'noRes' in why ? `${why.noRes.toLocaleString()} no result (break the limits) · ` : ''}${unstable.toLocaleString()} unstable${pre ? ` · ${screened.toLocaleString()} skipped by the 2D pre-screen (failed clearly in 2D; not on the charts)` : ''}.${whyText(why, seen)} The best-trade lines on the charts are exact; the grey cloud is a random ${Math.min(RES, seen).toLocaleString()} of the stable designs.`;
       $('sweepMsg').textContent = msg; $('bigMsg').textContent = '';
       big.running = false; sweepBusy = false; sweepMode = 'full'; lastSig = sig;
       if (!big.cancel) sweepFinished();
