@@ -263,22 +263,36 @@ const STOCK_MM = 240;
 // JOINT_GAP of a joint it doesn't end at.
 const JOINT_GAP = 0.5;                                        // mm (TE-B-598 a)
 const cr = (ax, ay, bx, by) => ax * by - ay * bx;
-// Do members p (p0-p1) and q (q0-q1) lie on one line and overlap by more than TOL (mm)?
-function overlaps(p0, p1, q0, q1) {
-  const rx = p1[0] - p0[0], ry = p1[1] - p0[1], sx = q1[0] - q0[0], sy = q1[1] - q0[1], Lr = Math.hypot(rx, ry), Ls = Math.hypot(sx, sy);
-  if (Lr <= TOL || Ls <= TOL || Math.abs(cr(rx, ry, sx, sy)) / (Lr * Ls) > 1e-9) return false;   // a point, or not parallel
-  const wx = q0[0] - p0[0], wy = q0[1] - p0[1];
+// RMA-20 (TE-B-681): each member that joins two real joints is measured ONCE per call, as { m, i, j, x0, y0, x1, y1, rx, ry, L } plus its box
+// (lox, hix, loy, hiy). L is Math.hypot(rx, ry), the same number the old per-pair and per-joint Math.hypot gave, so every test below does the
+// same arithmetic as before and gives the same answer; only the repeated hypot and the pairs and joints that can't be near are gone.
+function seg(N, m, e) {
+  const p0 = N[e.i], p1 = N[e.j], rx = p1[0] - p0[0], ry = p1[1] - p0[1];
+  return { m, i: e.i, j: e.j, x0: p0[0], y0: p0[1], x1: p1[0], y1: p1[1], rx, ry, L: Math.hypot(rx, ry),
+    lox: Math.min(p0[0], p1[0]), hix: Math.max(p0[0], p1[0]), loy: Math.min(p0[1], p1[1]), hiy: Math.max(p0[1], p1[1]) };
+}
+// Do members p and q (two seg records) lie on one line and overlap by more than TOL (mm)?
+function overlaps(p, q) {
+  const rx = p.rx, ry = p.ry, Lr = p.L, Ls = q.L;
+  if (Lr <= TOL || Ls <= TOL || Math.abs(cr(rx, ry, q.rx, q.ry)) / (Lr * Ls) > 1e-9) return false;   // a point, or not parallel
+  const wx = q.x0 - p.x0, wy = q.y0 - p.y0;
   if (Math.abs(cr(wx, wy, rx, ry)) / Lr > TOL) return false;   // parallel but apart
-  const a = (wx * rx + wy * ry) / Lr, b = ((q1[0] - p0[0]) * rx + (q1[1] - p0[1]) * ry) / Lr;   // q's ends along p
+  const a = (wx * rx + wy * ry) / Lr, b = ((q.x1 - p.x0) * rx + (q.y1 - p.y0) * ry) / Lr;   // q's ends along p
   return Math.min(Lr, Math.max(a, b)) - Math.max(0, Math.min(a, b)) > TOL;
 }
-// Does member p0-p1 pass within JOINT_GAP of point c, between its ends (not at them)?
-function passesNear(p0, p1, c) {
-  const rx = p1[0] - p0[0], ry = p1[1] - p0[1], L = Math.hypot(rx, ry);
+// Does member p (a seg record) pass within JOINT_GAP of point c, between its ends (not at them)?
+function passesNear(p, c) {
+  const L = p.L;
   if (L <= TOL) return false;
-  const t = ((c[0] - p0[0]) * rx + (c[1] - p0[1]) * ry) / L;   // mm along the member
-  return t > JOINT_GAP && t < L - JOINT_GAP && Math.abs(cr(c[0] - p0[0], c[1] - p0[1], rx, ry)) / L < JOINT_GAP;
+  const t = ((c[0] - p.x0) * p.rx + (c[1] - p.y0) * p.ry) / L;   // mm along the member
+  return t > JOINT_GAP && t < L - JOINT_GAP && Math.abs(cr(c[0] - p.x0, c[1] - p.y0, p.rx, p.ry)) / L < JOINT_GAP;
 }
+// The box tests that skip a pair or a joint before overlaps() or passesNear() run. They only skip what those two would say no to:
+// an overlap of more than TOL puts a point of q within TOL + 1e-9 x |q| of p (the parallel and apart tests), and a joint that passes near
+// is within JOINT_GAP of the member. SLACK (1e-3 mm plus 1e-8 of the truss's largest coordinate) is far wider than both small terms and
+// any rounding, so a skipped pair or joint is one the old code also said no to.
+const boxApart = (p, q, g) => p.hix + g < q.lox || q.hix + g < p.lox || p.hiy + g < q.loy || q.hiy + g < p.loy;
+const boxFar = (p, c, g) => c[0] < p.lox - g || c[0] > p.hix + g || c[1] < p.loy - g || c[1] > p.hiy + g;
 
 function checkGeometry(truss, values) {
   const out = [];
@@ -309,45 +323,49 @@ function checkGeometry(truss, values) {
   if (shaped('bottom') && isNum(+dz.curve)) sag = Math.min(sag, +dz.curve);
   if (shaped('topShape') && isNum(+dz.topEnd)) sag = Math.min(sag, +dz.topEnd);
   N.forEach((p, i) => { if (p[1] < sag - TOL) out.push({ rule: 'G3', msg: GEOMETRY_MSG.G3(i + 1, p[1]), where: [i] }); });
-  // G4: not every joint on one line (a flat line, or any one straight line): a mechanism, 'unstable', and nothing more is said about it
-  const a0 = N[0], far = N.reduce((b, p) => (Math.hypot(p[0] - a0[0], p[1] - a0[1]) > Math.hypot(b[0] - a0[0], b[1] - a0[1]) ? p : b), a0);
+  // G4: not every joint on one line (a flat line, or any one straight line): a mechanism, 'unstable', and nothing more is said about it.
+  // far: the first joint farthest from joint 1 (each distance worked out once, RMA-20).
+  const a0 = N[0]; let far = a0, farD = 0;
+  for (let n = 1; n < N.length; n++) { const p = N[n], d = Math.hypot(p[0] - a0[0], p[1] - a0[1]); if (d > farD) { far = p; farD = d; } }
   const dx = far[0] - a0[0], dy = far[1] - a0[1], len0 = Math.hypot(dx, dy);
   const oneLine = len0 <= TOL || N.every(p => Math.abs(dx * (p[1] - a0[1]) - dy * (p[0] - a0[0])) / len0 <= TOL);
   if (oneLine) { out.push({ rule: 'G4', msg: GEOMETRY_MSG.G4, where: [], unstable: true }); return out; }
-  // G5: every member at least two stick widths long (2 x max(bS, hS)), and no two members join the same two joints
+  // G5: every member at least two stick widths long (2 x max(bS, hS)), and no two members join the same two joints.
+  // One pass makes good (the members that join two real joints, measured once: seg) and gives G5 in member order.
   const E = Array.isArray(truss.elems) ? truss.elems : [];
   const stick = v => (isObj(values) && isNum(asNumber(values[v])) && asNumber(values[v]) > 0 ? asNumber(values[v]) : STICK_MM);
-  const min2 = 2 * Math.max(stick('bS'), stick('hS')), seen = new Map();
-  E.forEach((e, m) => {
-    if (!isObj(e) || !Number.isInteger(e.i) || !Number.isInteger(e.j) || !N[e.i] || !N[e.j]) return;
-    const L = Math.hypot(N[e.i][0] - N[e.j][0], N[e.i][1] - N[e.j][1]);
-    if (L < min2 - TOL) out.push({ rule: 'G5', msg: GEOMETRY_MSG.G5len(m + 1, L, min2), where: [m] });
-    const key = Math.min(e.i, e.j) + '-' + Math.max(e.i, e.j);
+  const min2 = 2 * Math.max(stick('bS'), stick('hS')), nN = N.length, seen = new Map(), good = [];
+  for (let m = 0; m < E.length; m++) {
+    const e = E[m];
+    if (!isObj(e) || !Number.isInteger(e.i) || !Number.isInteger(e.j) || !N[e.i] || !N[e.j]) continue;
+    const s = seg(N, m, e); good.push(s);
+    if (s.L < min2 - TOL) out.push({ rule: 'G5', msg: GEOMETRY_MSG.G5len(m + 1, s.L, min2), where: [m] });
+    const key = Math.min(e.i, e.j) * nN + Math.max(e.i, e.j);   // the joint pair as one number (both are below nN)
     if (seen.has(key)) out.push({ rule: 'G5', msg: GEOMETRY_MSG.G5dup(seen.get(key) + 1, m + 1), where: [seen.get(key), m] }); else seen.set(key, m);
-  });
-  const good = [];                                            // the members that join two real joints: [index, member]
-  E.forEach((e, m) => { if (isObj(e) && Number.isInteger(e.i) && Number.isInteger(e.j) && N[e.i] && N[e.j]) good.push([m, e]); });
+  }
   const num = k => (isObj(values) && hasOwn(values, k) ? asNumber(values[k]) : null);
   // G7: every member fits in one stick. Spliced members: a later row, once a member carries the mark (splices are cutPlan's today, #116).
   const ds = num('docStock'), stock = ds !== null && ds > 0 ? ds : STOCK_MM;
-  good.forEach(([m, e]) => {
-    const L = Math.hypot(N[e.i][0] - N[e.j][0], N[e.i][1] - N[e.j][1]);
-    if (L > stock + TOL) out.push({ rule: 'G7', msg: GEOMETRY_MSG.G7(m + 1, L, stock), where: [m] });
-  });
+  for (const s of good) if (s.L > stock + TOL) out.push({ rule: 'G7', msg: GEOMETRY_MSG.G7(s.m + 1, s.L, stock), where: [s.m] });
+  let big = 0;                                                // the largest coordinate, for SLACK
+  for (let n = 0; n < nN; n++) big = Math.max(big, Math.abs(N[n][0]), Math.abs(N[n][1]));
+  const SLACK = 1e-3 + 1e-8 * big;
   // G8 (1): two members on one line that overlap (M4). A pair on the same two joints is G5's.
-  const lapped = new Set();                                   // 'member:node' already told by an overlap, so (2) doesn't say it again
+  const lapped = new Set();                                   // member x nN + node, already told by an overlap, so (2) doesn't say it again
   for (let a = 0; a < good.length; a++) for (let b = a + 1; b < good.length; b++) {
-    const [ma, ea] = good[a], [mb, eb] = good[b];
+    const ea = good[a], eb = good[b];
     if (Math.min(ea.i, ea.j) === Math.min(eb.i, eb.j) && Math.max(ea.i, ea.j) === Math.max(eb.i, eb.j)) continue;
-    if (!overlaps(N[ea.i], N[ea.j], N[eb.i], N[eb.j])) continue;
-    out.push({ rule: 'G8', msg: GEOMETRY_MSG.G8(ma + 1, mb + 1), where: [ma, mb] });
-    [eb.i, eb.j].forEach(n => lapped.add(ma + ':' + n)); [ea.i, ea.j].forEach(n => lapped.add(mb + ':' + n));
+    if (boxApart(ea, eb, SLACK) || !overlaps(ea, eb)) continue;
+    out.push({ rule: 'G8', msg: GEOMETRY_MSG.G8(ea.m + 1, eb.m + 1), where: [ea.m, eb.m] });
+    lapped.add(ea.m * nN + eb.i); lapped.add(ea.m * nN + eb.j); lapped.add(eb.m * nN + ea.i); lapped.add(eb.m * nN + ea.j);
   }
   // G8 (2): a member that passes within JOINT_GAP of a joint it doesn't end at
-  good.forEach(([m, e]) => N.forEach((c, n) => {
-    if (n === e.i || n === e.j || lapped.has(m + ':' + n)) return;
-    if (passesNear(N[e.i], N[e.j], c)) out.push({ rule: 'G8', msg: GEOMETRY_MSG.G8joint(m + 1, n + 1), where: [m, n] });
-  }));
+  const gap = JOINT_GAP + SLACK;
+  for (const s of good) for (let n = 0; n < nN; n++) {
+    const c = N[n];
+    if (n === s.i || n === s.j || boxFar(s, c, gap) || lapped.has(s.m * nN + n)) continue;
+    if (passesNear(s, c)) out.push({ rule: 'G8', msg: GEOMETRY_MSG.G8joint(s.m + 1, n + 1), where: [s.m, n] });
+  }
   // G9 (TE-B-598 b): the load sits on the bridge: each load's x (a point load; a spread load by its middle) between the two supports (the
   // pin and the roller). No design.loads, or no supports to measure from, means nothing to check.
   const sx = n => (Number.isInteger(n) && N[n] ? N[n][0] : null);

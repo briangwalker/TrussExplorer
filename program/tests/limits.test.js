@@ -549,3 +549,215 @@ test('M2: unstable, missing or damaged input gives [] and never throws; nothing 
   assert.ok(!/M1-M4 (are )?(a later row|\(a later row\))/.test(src), 'the header no longer says M1-M4 are a later row');
   assert.ok(Object.keys(L).includes('checkResult'));
 });
+
+// ---------- RMA-20 (TE-B-681): the reference, checkGeometry exactly as it was before RMA-20 (balsaPixel-1.0 831ea9a, limits.js lines 237-367 and
+// the helpers it reads). Copied, not required, so the same-output test below keeps comparing against the old code after limits.js changes.
+const REF = (() => {
+const STICK_MM = 3.18;                  // the course stick, in mm
+const SHAPED = ['parabola', 'arc', 'catenary'];
+const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const isObj = o => !!o && typeof o === 'object' && !Array.isArray(o);
+const isNum = v => typeof v === 'number' && Number.isFinite(v);
+function asNumber(v) {
+  if (isNum(v)) return v;
+  if (typeof v === 'string' && /^\s*-?(\d+(\.\d*)?|\.\d+)(e[-+]?\d+)?\s*$/i.test(v)) { const n = Number(v); return Number.isFinite(n) ? n : null; }
+  return null;
+}
+const TOL = 1e-6;
+const r1 = (v, keep) => { const x = Math.round(v * 10) / 10; return keep ? x.toFixed(1) : String(x); };
+const f1 = v => r1(v, true), fh = v => r1(v, false);
+const minOf = a => { let m = Infinity; for (let i = 0; i < a.length; i++) if (a[i] < m) m = a[i]; return m; };   // loops, not apply: no row count can overflow the stack
+const maxOf = a => { let m = -Infinity; for (let i = 0; i < a.length; i++) if (a[i] > m) m = a[i]; return m; };
+const GEOMETRY_MSG = {
+  G1: 'The span must be more than 0 mm.',
+  G2: j => 'Joint ' + j[0] + ' is left of joint ' + j[1] + '. Panels must run left to right, each wider than 0 mm.',
+  G2same: j => 'Joint ' + j[0] + ' is not to the right of joint ' + j[1] + '. Panels must run left to right, each wider than 0 mm.',
+  G3: (j, y) => 'Joint ' + j + ' is below the bottom line (' + fh(y) + ' mm). Heights can\'t be negative; it would swap which members pull and push.',
+  G4: 'Every joint is on one line, so this truss can\'t carry load. No capacity is shown.',
+  G5len: (m, len, min) => 'Member ' + m + ' is ' + f1(len) + ' mm long; the shortest allowed is ' + f1(min) + ' mm.',
+  G5dup: (a, b) => 'Members ' + a + ' and ' + b + ' join the same two joints.',
+  G7: (m, len, stock) => 'Member ' + m + ' is ' + fh(len) + ' mm; one stick is ' + fh(stock) + ' mm. Shorten it or mark a splice.',
+  G8: (a, b) => 'Members ' + a + ' and ' + b + ' lie on top of each other on one line. Remove one, or end them at a shared joint. Not solved.',
+  G8joint: (m, j) => 'Member ' + m + ' runs through joint ' + j + " but isn't joined to it. Split member " + m + ' at joint ' + j + ', or move the joint. Not solved.',
+  G9load: (a, b) => 'The load must sit between the supports (' + fh(a) + ' to ' + fh(b) + ' mm).',
+  G10: 'Too few members to hold this shape (it can fold). No capacity is shown.',
+};
+const STOCK_MM = 240;
+const JOINT_GAP = 0.5;                                        // mm (TE-B-598 a)
+const cr = (ax, ay, bx, by) => ax * by - ay * bx;
+function overlaps(p0, p1, q0, q1) {
+  const rx = p1[0] - p0[0], ry = p1[1] - p0[1], sx = q1[0] - q0[0], sy = q1[1] - q0[1], Lr = Math.hypot(rx, ry), Ls = Math.hypot(sx, sy);
+  if (Lr <= TOL || Ls <= TOL || Math.abs(cr(rx, ry, sx, sy)) / (Lr * Ls) > 1e-9) return false;   // a point, or not parallel
+  const wx = q0[0] - p0[0], wy = q0[1] - p0[1];
+  if (Math.abs(cr(wx, wy, rx, ry)) / Lr > TOL) return false;   // parallel but apart
+  const a = (wx * rx + wy * ry) / Lr, b = ((q1[0] - p0[0]) * rx + (q1[1] - p0[1]) * ry) / Lr;   // q's ends along p
+  return Math.min(Lr, Math.max(a, b)) - Math.max(0, Math.min(a, b)) > TOL;
+}
+function passesNear(p0, p1, c) {
+  const rx = p1[0] - p0[0], ry = p1[1] - p0[1], L = Math.hypot(rx, ry);
+  if (L <= TOL) return false;
+  const t = ((c[0] - p0[0]) * rx + (c[1] - p0[1]) * ry) / L;   // mm along the member
+  return t > JOINT_GAP && t < L - JOINT_GAP && Math.abs(cr(c[0] - p0[0], c[1] - p0[1], rx, ry)) / L < JOINT_GAP;
+}
+
+function checkGeometry(truss, values) {
+  const out = [];
+  if (!isObj(truss) || !Array.isArray(truss.nodes) || truss.nodes.length < 2) return out;
+  const ok = p => Array.isArray(p) && isNum(p[0]) && isNum(p[1]);
+  if (!truss.nodes.every(ok)) return out;
+  const N = truss.nodes;
+  // G1: span is more than 0 (the nodes' reach left to right)
+  const xs = N.map(p => p[0]), span = maxOf(xs) - minOf(xs);
+  if (!(span > TOL)) out.push({ rule: 'G1', msg: GEOMETRY_MSG.G1, where: [] });
+  // G2: joints run left to right, each panel wider than 0: the panel points (panelPts, else the bottom chord B0, B1 ...)
+  let pts = null;
+  if (Array.isArray(truss.panelPts) && truss.panelPts.length >= 2 && truss.panelPts.every(isNum)) pts = truss.panelPts.map((x, i) => ({ x, n: i }));
+  else if (Array.isArray(truss.keys) && truss.keys.length === N.length) {
+    pts = truss.keys.map((k, i) => ({ k, i })).filter(o => typeof o.k === 'string' && /^B\d+$/.test(o.k)).sort((a, b) => +a.k.slice(1) - +b.k.slice(1)).map(o => ({ x: N[o.i][0], n: o.i }));
+    if (pts.length < 2) pts = null;
+  }
+  if (pts) for (let a = 1; a < pts.length; a++) if (!(pts[a].x > pts[a - 1].x + TOL)) {
+    const j = [pts[a].n + 1, pts[a - 1].n + 1];
+    out.push({ rule: 'G2', msg: (pts[a].x < pts[a - 1].x - TOL ? GEOMETRY_MSG.G2 : GEOMETRY_MSG.G2same)(j), where: [pts[a].n, pts[a - 1].n] });
+  }
+  // G3: heights are 0 or more, but the lowest allowed joint is the design's own lowest shaped end (Physics, TE-B-470): a shaped bottom chord sags
+  // to its curve (a negative number), and a shaped top chord may end below the deck line at topEnd (the arch pressing on the table faces).
+  // botEnd is 0 or more, so it adds nothing. Without the design, or with flat chords, the line is y = 0 (strict). Anything lower is still G3.
+  const dz = isObj(truss.design) ? truss.design : null;
+  const shaped = k => dz && typeof dz[k] === 'string' && SHAPED.indexOf(dz[k]) >= 0;
+  let sag = 0;
+  if (shaped('bottom') && isNum(+dz.curve)) sag = Math.min(sag, +dz.curve);
+  if (shaped('topShape') && isNum(+dz.topEnd)) sag = Math.min(sag, +dz.topEnd);
+  N.forEach((p, i) => { if (p[1] < sag - TOL) out.push({ rule: 'G3', msg: GEOMETRY_MSG.G3(i + 1, p[1]), where: [i] }); });
+  // G4: not every joint on one line (a flat line, or any one straight line): a mechanism, 'unstable', and nothing more is said about it
+  const a0 = N[0], far = N.reduce((b, p) => (Math.hypot(p[0] - a0[0], p[1] - a0[1]) > Math.hypot(b[0] - a0[0], b[1] - a0[1]) ? p : b), a0);
+  const dx = far[0] - a0[0], dy = far[1] - a0[1], len0 = Math.hypot(dx, dy);
+  const oneLine = len0 <= TOL || N.every(p => Math.abs(dx * (p[1] - a0[1]) - dy * (p[0] - a0[0])) / len0 <= TOL);
+  if (oneLine) { out.push({ rule: 'G4', msg: GEOMETRY_MSG.G4, where: [], unstable: true }); return out; }
+  // G5: every member at least two stick widths long (2 x max(bS, hS)), and no two members join the same two joints
+  const E = Array.isArray(truss.elems) ? truss.elems : [];
+  const stick = v => (isObj(values) && isNum(asNumber(values[v])) && asNumber(values[v]) > 0 ? asNumber(values[v]) : STICK_MM);
+  const min2 = 2 * Math.max(stick('bS'), stick('hS')), seen = new Map();
+  E.forEach((e, m) => {
+    if (!isObj(e) || !Number.isInteger(e.i) || !Number.isInteger(e.j) || !N[e.i] || !N[e.j]) return;
+    const L = Math.hypot(N[e.i][0] - N[e.j][0], N[e.i][1] - N[e.j][1]);
+    if (L < min2 - TOL) out.push({ rule: 'G5', msg: GEOMETRY_MSG.G5len(m + 1, L, min2), where: [m] });
+    const key = Math.min(e.i, e.j) + '-' + Math.max(e.i, e.j);
+    if (seen.has(key)) out.push({ rule: 'G5', msg: GEOMETRY_MSG.G5dup(seen.get(key) + 1, m + 1), where: [seen.get(key), m] }); else seen.set(key, m);
+  });
+  const good = [];                                            // the members that join two real joints: [index, member]
+  E.forEach((e, m) => { if (isObj(e) && Number.isInteger(e.i) && Number.isInteger(e.j) && N[e.i] && N[e.j]) good.push([m, e]); });
+  const num = k => (isObj(values) && hasOwn(values, k) ? asNumber(values[k]) : null);
+  // G7: every member fits in one stick. Spliced members: a later row, once a member carries the mark (splices are cutPlan's today, #116).
+  const ds = num('docStock'), stock = ds !== null && ds > 0 ? ds : STOCK_MM;
+  good.forEach(([m, e]) => {
+    const L = Math.hypot(N[e.i][0] - N[e.j][0], N[e.i][1] - N[e.j][1]);
+    if (L > stock + TOL) out.push({ rule: 'G7', msg: GEOMETRY_MSG.G7(m + 1, L, stock), where: [m] });
+  });
+  // G8 (1): two members on one line that overlap (M4). A pair on the same two joints is G5's.
+  const lapped = new Set();                                   // 'member:node' already told by an overlap, so (2) doesn't say it again
+  for (let a = 0; a < good.length; a++) for (let b = a + 1; b < good.length; b++) {
+    const [ma, ea] = good[a], [mb, eb] = good[b];
+    if (Math.min(ea.i, ea.j) === Math.min(eb.i, eb.j) && Math.max(ea.i, ea.j) === Math.max(eb.i, eb.j)) continue;
+    if (!overlaps(N[ea.i], N[ea.j], N[eb.i], N[eb.j])) continue;
+    out.push({ rule: 'G8', msg: GEOMETRY_MSG.G8(ma + 1, mb + 1), where: [ma, mb] });
+    [eb.i, eb.j].forEach(n => lapped.add(ma + ':' + n)); [ea.i, ea.j].forEach(n => lapped.add(mb + ':' + n));
+  }
+  // G8 (2): a member that passes within JOINT_GAP of a joint it doesn't end at
+  good.forEach(([m, e]) => N.forEach((c, n) => {
+    if (n === e.i || n === e.j || lapped.has(m + ':' + n)) return;
+    if (passesNear(N[e.i], N[e.j], c)) out.push({ rule: 'G8', msg: GEOMETRY_MSG.G8joint(m + 1, n + 1), where: [m, n] });
+  }));
+  // G9 (TE-B-598 b): the load sits on the bridge: each load's x (a point load; a spread load by its middle) between the two supports (the
+  // pin and the roller). No design.loads, or no supports to measure from, means nothing to check.
+  const sx = n => (Number.isInteger(n) && N[n] ? N[n][0] : null);
+  const lo = sx(truss.pin), hi = sx(truss.roller);
+  if (dz && Array.isArray(dz.loads) && lo !== null && hi !== null) {
+    const a = Math.min(lo, hi), b = Math.max(lo, hi);
+    const at = q => (!isObj(q) ? null : isNum(q.x) ? q.x : isNum(q.a) && isNum(q.b) ? (q.a + q.b) / 2 : null);
+    if (dz.loads.some(q => { const x = at(q); return x !== null && (x < a - TOL || x > b + TOL); })) out.push({ rule: 'G9', msg: GEOMETRY_MSG.G9load(a, b), where: [] });
+  }
+  // G10: enough members to hold the shape, members + support reactions >= 2 x joints. Reactions are counted as core.js analyze fixes them:
+  // a pin or an edge hold fixes x and y (2), any other support y (1). Unstable like G4, and the function returns after it (TE-B-598 d).
+  if (Array.isArray(truss.supports)) {
+    const r = truss.supports.reduce((n, s) => n + (!isObj(s) ? 0 : s.pin || s.xHold ? 2 : 1), 0);
+    if (E.length + r < 2 * N.length) { out.push({ rule: 'G10', msg: GEOMETRY_MSG.G10, where: [], unstable: true }); return out; }
+  }
+  return out;
+}
+return checkGeometry;
+})();
+
+// The sweep-like sample (RMA-20, TE-B-681): 2,000 designs from the app defaults, picked by a fixed-seed generator (seed 310, the same designs
+// every run). Half have height 10-30 mm (the RMA-18 test sweep 'H 10-30, E 500', where G5 and G8 show up; E changes no geometry), half
+// the default sweep box (height 10-100 in 5s, curve -50..50, overlap 10-50, arch end 0-20, bottom end -15..0); 2-12 panels, Pratt/Howe/X/Warren.
+function sweepSample(C, design, DEFAULT, n) {
+  let s = 310 >>> 0;
+  const rnd = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const pick = a => a[Math.floor(rnd() * a.length)], step = (a, b, d) => { const o = []; for (let v = a; v <= b + 1e-9; v += d) o.push(+v.toFixed(6)); return o; };
+  const out = []; let tries = 0;
+  while (out.length < n && tries < 20 * n) {
+    tries++;
+    const low = out.length % 2 === 0, panels = 2 + Math.floor(rnd() * 11), half = Math.floor(panels / 2), code = pick(['P', 'H', 'X']);
+    const curve = low ? 0 : pick(step(-50, 50, 10)), top = rnd() < 0.3 ? pick(['arc', 'parabola', 'catenary']) : 'flat';
+    const st = Object.assign({}, DEFAULT, { family: rnd() < 0.1 ? 'warren' : 'grid', panels, height: low ? pick([10, 15, 20, 25, 30]) : pick(step(10, 100, 5)),
+      diagLeft: Array(half).fill(code), vertLeft: Array(half).fill(rnd() < 0.8), edgeVert: rnd() < 0.8, curve, bottom: curve ? 'parabola' : 'flat',
+      topShape: top, topEnd: top === 'flat' ? 0 : pick(step(0, 20, 5)), botEnd: pick(step(-15, 0, 5)), deskMode: 'length', overlap: pick(step(10, 50, 10)) });
+    let tr; try { tr = C.buildTruss(design(st)); } catch (e) { continue; }
+    if (tr && Array.isArray(tr.nodes)) out.push(tr);
+  }
+  return out;
+}
+
+// The same answer on hand-made trusses that DO break G5, G7, G8 and G10 (the built-ins and fixtures give []): members on one line that overlap,
+// joints on or near a member, members of length 0, a member on the same two joints twice, and large coordinates. Fixed seed (RMA-20).
+function oddTrusses() {
+  let s = 681;
+  const rnd = () => { s = (Math.imul(s, 1103515245) + 12345) >>> 0; return s / 4294967296; };
+  const out = [];
+  for (let k = 0; k < 400; k++) {
+    const nN = 3 + Math.floor(rnd() * 12), grid = [1, 5, 10, 0.25][k % 4], scale = k % 50 === 7 ? 1e7 : 1;
+    const nodes = []; for (let n = 0; n < nN; n++) nodes.push([Math.round(rnd() * 200 / grid) * grid * scale, Math.round(rnd() * 40 / grid) * grid * scale]);
+    if (k % 3 === 0) { const a = nodes[0], b = nodes[1]; nodes.push([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]); nodes.push([(a[0] + b[0]) / 2 + 0.3, (a[1] + b[1]) / 2 + 0.4]); }
+    const elems = []; const nM = 2 + Math.floor(rnd() * 2 * nodes.length);
+    for (let m = 0; m < nM; m++) elems.push({ i: Math.floor(rnd() * nodes.length), j: Math.floor(rnd() * nodes.length) });
+    if (k % 3 === 0) elems.push({ i: 0, j: 1 }, { i: 0, j: nodes.length - 2 }, { i: nodes.length - 2, j: 1 });
+    const t = { nodes, elems };
+    if (k % 2) t.supports = [{ pin: true }, {}];
+    if (k % 5 === 1) t.panelPts = nodes.map(p => p[0]);                   // in the order made, so often not left to right (G2)
+    if (k % 5 === 2) t.keys = nodes.map((p, n) => (n % 2 ? 'T' : 'B') + n);
+    out.push(t);
+  }
+  return out;
+}
+
+test('RMA-20: the faster checkGeometry gives exactly the old answer (built-ins, fixtures, FINAL, the 2,000-design sample, odd trusses)', () => {
+  const all = [];
+  for (const cs of cases()) all.push([cs.name, C.buildTruss(design(cs.state))]);
+  const dir = path.join(__dirname, 'formats', 'fixtures');
+  for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.bridge.json'))) {
+    const o = F.open(fs.readFileSync(path.join(dir, f), 'utf8')); if (!o.ok) continue;
+    try { all.push([f, C.buildTruss(design(Object.assign({}, DEFAULT, o.doc.bridge)))]); } catch (e) { /* not built: nothing to compare */ }
+  }
+  all.push(['FINAL', finalTruss()]);
+  const smp = sweepSample(C, design, DEFAULT, 2000); assert.strictEqual(smp.length, 2000, 'the sample has 2,000 designs');
+  smp.forEach((t, k) => all.push(['sample ' + k, t]));
+  oddTrusses().forEach((t, k) => all.push(['odd ' + k, t]));
+  const VALS = [{}, { bS: 5, hS: 3.18 }, { docStock: 60 }, { bS: '8', docStock: '120' }];
+  const seen = {}; let n = 0;
+  for (const [name, t] of all) for (const v of VALS) {
+    const want = REF(t, v), got = L.checkGeometry(t, v);
+    assert.deepStrictEqual(got, want, name + ' ' + JSON.stringify(v)); n++;
+    want.forEach(x => { const k = x.rule + (x.rule === 'G8' ? (/runs through/.test(x.msg) ? 'joint' : 'pair') : x.rule === 'G5' ? (/same two/.test(x.msg) ? 'dup' : 'len') : ''); seen[k] = (seen[k] || 0) + 1; });
+  }
+  assert.ok(n >= 4 * 2436, 'compared ' + n);
+  for (const k of ['G2', 'G3', 'G4', 'G5len', 'G5dup', 'G7', 'G8pair', 'G8joint', 'G10']) assert.ok(seen[k] > 0, 'the comparison covers ' + k + ' (' + JSON.stringify(seen) + ')');
+});
+
+test('RMA-20: checkGeometry is still pure (nothing changed, no cache between calls)', () => {
+  const t = C.buildTruss(design(Object.assign({}, DEFAULT, { height: 10, panels: 12 }))), copy = JSON.stringify(t);
+  const a = L.checkGeometry(t, {}); assert.strictEqual(JSON.stringify(t), copy, 'the truss is unchanged');
+  t.nodes[1] = [t.nodes[1][0], -40];                                       // the same object, changed: the next call sees the change
+  assert.deepStrictEqual(L.checkGeometry(t, {}), REF(t, {}));
+  assert.notDeepStrictEqual(L.checkGeometry(t, {}), a);
+});
