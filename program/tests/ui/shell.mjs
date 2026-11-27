@@ -275,6 +275,52 @@ check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
     await u.close();
   }
 
+  // ---------- BPD-19 (TE-B-701): UI-W15 for the Analysis side windows, and #540 (the zoom buttons are never under a window) ----------
+  for (const [w, h, want] of [[1024, 768, 'I'], [1366, 900, 'W']]) {
+    const u = await openPage(b, srv.url, { width: w, height: h }); await u.waitForTimeout(600);
+    await u.evaluate(() => __shell.go('analysis')); await u.waitForTimeout(400);
+    const s0 = await st(u, 'drawing'), r0 = await rect(u, '#win-drawing'), sIn = await st(u, 'inputs');
+    check(`UI-W15 BPD-19: at ${w}x${h} a first load opens Analysis' right-edge window (Chart key) ${want === 'I' ? 'as icons' : 'in words'}, Inputs stays a tab`,
+      s0 === want && sIn === 'T' && (want === 'I' ? r0.w <= 60 : r0.w > 300), JSON.stringify({ s0, sIn, r0 }));
+    if (want === 'I' && s0 === 'I') {
+      await u.click('#win-drawing [data-step="grow"]'); await u.waitForTimeout(250);
+      await u.setViewportSize({ width: 1366, height: 900 }); await u.waitForTimeout(300); await u.setViewportSize({ width: 1024, height: 768 }); await u.waitForTimeout(300);
+      check('UI-W15 BPD-19: a resize does not move the Chart key the person opened', await st(u, 'drawing') === 'W');
+      await u.reload({ waitUntil: 'load' }); await u.waitForFunction(() => window.__shell, null, { timeout: 15000 }); await u.waitForTimeout(600);
+      check('UI-W15 BPD-19: the saved layout wins over the under-1100 default in Analysis too', await u.evaluate(() => __shell.state.w.analysis.drawing) === 'W');
+    }
+    check(`UI-W15 BPD-19: ${w}x${h} no script errors`, u.errs.length === 0, u.errs.slice(0, 2).join(' | '));
+    await u.close();
+  }
+  // #540: at Home, Zoom in and Zoom out are whole and on top (centre and all four corners), clear of every window, and stay so with focus
+  const zoomClear = u => u.evaluate(() => {
+    const out = [], wins = [...document.querySelectorAll('#stage .s-pan[data-win], #shellNav, #navTabBox, #resCard, .tabE')].filter(e => !e.hidden && e.getBoundingClientRect().width > 0);
+    for (const bt of document.querySelectorAll('#drawWrap .navpad .ncb')) {
+      const r = bt.getBoundingClientRect(), pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + 2, r.top + 2], [r.right - 2, r.top + 2], [r.left + 2, r.bottom - 2], [r.right - 2, r.bottom - 2]];
+      const onTop = r.width > 0 && pts.every(([x, y]) => document.elementFromPoint(x, y) === bt);
+      const inStage = r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+      const under = wins.filter(e => { const q = e.getBoundingClientRect(); return q.left < r.right && r.left < q.right && q.top < r.bottom && r.top < q.bottom; }).map(e => e.id || e.className);
+      bt.focus(); const fr = bt.getBoundingClientRect(), fOk = document.activeElement === bt && document.elementFromPoint(fr.left + fr.width / 2, fr.top + fr.height / 2) === bt; bt.blur();
+      out.push({ d: bt.dataset.d, onTop, inStage, under, fOk });
+    }
+    return out;
+  });
+  for (const theme of ['wireframe', 'notebook-calc']) for (const [w, h] of [[1024, 768], [1366, 900], [390, 844]]) {
+    const u = await openPage(b, srv.url, { width: w, height: h }); await u.waitForTimeout(600);
+    if (theme !== 'wireframe') { await u.evaluate(t => __shell.applyTheme(t), theme); await u.waitForTimeout(400); }
+    const z = await zoomClear(u);
+    check(`#540: ${theme} ${w}x${h}: Zoom in and Zoom out are whole, on top, under no window, and not hidden when focused`,
+      z.length === 2 && z.every(x => x.onTop && x.inStage && !x.under.length && x.fOk), JSON.stringify(z));
+    if (w === 1366) {
+      // the person opens the Drawing window to words: the pad stays clear of it
+      await u.click('#win-drawing [data-step="grow"]'); await u.waitForTimeout(300);
+      const z2 = await zoomClear(u);
+      check(`#540: ${theme} ${w}x${h}: with the Drawing window open in words the zoom buttons are still clear`, z2.length === 2 && z2.every(x => x.onTop && x.inStage && !x.under.length), JSON.stringify(z2));
+    }
+    check(`#540: ${theme} ${w}x${h}: no script errors`, u.errs.length === 0, u.errs.slice(0, 2).join(' | '));
+    await u.close();
+  }
+
   // ---------- phone width: nothing runs off the screen ----------
   const q = await openPage(b, srv.url, { width: 390, height: 844 }); await q.waitForTimeout(800);
   check('UI-W20: no grip on any window at 390x844', await q.evaluate(() => ['inputs', 'view', 'drawing', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !w.querySelector('.s-ph .grip'); })));
