@@ -117,7 +117,39 @@ try {
   s = await st(p, 'c3Canvas');
   check('3D run again: cleared', s.kind === 'fresh' && !s.note, JSON.stringify(s));
 
-  // 6. nothing saved: no new storage key (TE-B-447)
+  // 6. quick look (UIE-12, TE-B-737; UI-S5 'Quick look: the pilot says so'): after a pilot the banner says the chart shows only its {n} random designs
+  // and offers the full search through the pilot box's own handler; the full search clears it
+  await p.evaluate(() => { const e = document.querySelector('.tdim2 [data-v="trade"]'); if (e) e.click(); }); await p.waitForTimeout(300);
+  const idle = () => p.waitForFunction(() => !document.getElementById('runSweep').disabled && document.getElementById('bigCancel').hidden, null, { timeout: 240000 });
+  await p.evaluate(() => document.getElementById('bigSearch').click());
+  await idle(); await p.waitForTimeout(500);
+  s = await st(p, 'tradeCanvas');
+  const pilotN = await p.evaluate(() => __dbg.rows.length);
+  check('quick look: after a pilot the chart is in its quick-look state', s.kind === 'quick-look', JSON.stringify(s));
+  check('quick look: the banner says it shows only the pilot\'s {n} random designs (chart.state.quickLook)', !!s.note && s.note.vis && pilotN > 0 && s.note.text === T.t('chart.state.quickLook').replace('{n}', pilotN.toLocaleString('en-US')), JSON.stringify(s.note));
+  check('quick look: the banner is a polite live region', !!s.note && s.note.role === 'status' && s.note.live === 'polite', JSON.stringify(s.note));
+  check('quick look: the dots are full strength (a quick look is not out of date)', s.alpha === 0.7, JSON.stringify(s));
+  check('quick look: the banner offers the full search (chart.state.goFull)', !!s.note && s.note.btn === T.t('chart.state.goFull'), JSON.stringify(s.note));
+  // the same handler as the pilot box's 'Looks right: run the full search…' (#bigFull): both open the same full-search dialog with the same words
+  // (the handler sits inside the app's closure, so the test compares what each button does rather than wrapping the function)
+  const modal = () => p.evaluate(() => { const m = document.getElementById('bigModal'); return { open: !m.hidden, text: document.getElementById('bigModalText').textContent }; });
+  await p.evaluate(() => document.querySelector('#tradeCanvas ~ .chartstate .cs-run').click()); await p.waitForTimeout(200);
+  const mChart = await modal();
+  check('quick look: the banner\'s button opens the full-search dialog', mChart.open && mChart.text.length > 0, JSON.stringify(mChart).slice(0, 200));
+  await p.evaluate(() => document.getElementById('bigNo').click()); await p.waitForTimeout(150);
+  const hasBigFull = await p.evaluate(() => !!document.getElementById('bigFull'));
+  if (hasBigFull) {
+    await p.evaluate(() => document.getElementById('bigFull').click()); await p.waitForTimeout(200);
+    const mBox = await modal();
+    check('quick look: the pilot box\'s own button opens the very same dialog (one handler, not a copy)', mBox.open && mBox.text === mChart.text, JSON.stringify(mBox).slice(0, 200));
+  } else check('quick look: the pilot box\'s own full-search button exists to compare with', false);
+  await axeStage(p, 'quick look 2D');
+  await p.evaluate(() => document.getElementById('bigGo').click());
+  await idle(); await p.waitForTimeout(800);
+  s = await st(p, 'tradeCanvas');
+  check('after the full search: no banner, the chart is fresh', s.kind === 'fresh' && !s.note, JSON.stringify(s));
+
+  // 7. nothing saved: no new storage key (TE-B-447)
   check('no chart-state storage key', await p.evaluate(() => !Object.keys(localStorage).some(k => /chartstate|chart\.state/i.test(k))));
   check('no page errors', p.errs.length === 0, p.errs.join(' | '));
   await ctx.close();

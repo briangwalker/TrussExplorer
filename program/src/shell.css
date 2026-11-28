@@ -147,6 +147,8 @@ body.shell #docModal .docFoot{flex:0 0 auto;margin-top:0;padding-top:10px;border
 .chartbox>.chartstate .cs-run:active{background:var(--ink);color:var(--sheet)}
 .chartbox>.chartstate.cs-stale{top:8px;left:50%;transform:translateX(-50%);border-color:#c4721f;border-left-width:5px}
 #stage[data-theme="blueprint"] .chartbox>.chartstate.cs-stale{border-color:#d9822b}
+.chartbox>.chartstate.cs-quick{top:8px;left:50%;transform:translateX(-50%);border-left-width:5px;border-left-color:var(--accent)}
+#stage .fsfill .chartbox>.chartstate.cs-quick{top:auto;bottom:108px}
 .chartbox>.chartstate.cs-nosweep{left:50%;top:calc(50% + 34px);transform:translateX(-50%)}
 /* in the window layout the windows float over the top of the chart (UI-A3): the banner sits low, just above the sweep bar it points to */
 #stage .fsfill .chartbox>.chartstate.cs-stale{top:auto;bottom:108px}

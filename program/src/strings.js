@@ -42,6 +42,8 @@ const TEXT = Object.freeze({
   'chart.state.noSweep': 'No sweep yet: this dot is your bridge. Press Run sweep in the sweep bar at the bottom left to fill this chart with designs to compare.',
   'chart.state.noSweep3d': 'No sweep yet. Press Run sweep in the sweep bar at the bottom left to fill this 3D chart with designs to compare.',
   'chart.state.yourBridge': 'your bridge',
+  'chart.state.quickLook': 'Quick look: this chart shows only {n} random designs from the low-fidelity pilot, not your whole ranges. Check them, then run the full search.',
+  'chart.state.goFull': 'Run the full search…',
   'chart.state.goRun': 'Go to Run sweep',
   'chart.state.stale': 'Out of date: {what} changed since the last sweep, so these faded dots show the old results.',
   'chart.state.and': ' and ',
