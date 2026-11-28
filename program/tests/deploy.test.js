@@ -73,14 +73,29 @@ test('the release workflow (TE-B-570): only a merged release-name PR into balsaP
   pinned(wf);
 });
 
-test('TE-B-317: the page carries the TE-mark favicon from the art pack, inlined as a data: icon', () => {
+test('TE-B-317, ART-O3: the page carries the four tab icons from the art pack, inlined as data: icons; one is picked per page load', () => {
   execFileSync('python3', ['build.py'], { cwd: root });
   const page = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  const m = page.match(/<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml;base64,([A-Za-z0-9+/=]+)">/);
+  const four = path.join(root, '..', 'docs', 'art-website-pack', 'favicon', 'four');
+  const names = ['a-pixel-b', 'b-cream-b', 'c-truss-b', 'd-te-mark'];
+  const files = names.map(n => fs.readFileSync(path.join(four, n + '.svg'), 'utf8').trim());
+  for (const [i, svg] of files.entries()) assert.ok(!/<script|href=/i.test(svg), names[i] + ' holds no script and no link');
+  // one icon link, starting as D, the TE mark, which is still the same bytes as the pack's favicon.svg
+  const m = page.match(/<link rel="icon" id="tabIcon" type="image\/svg\+xml" href="data:image\/svg\+xml;base64,([A-Za-z0-9+/=]+)">/);
   assert.ok(m, 'one icon link in the page');
-  const svg = fs.readFileSync(path.join(root, '..', 'docs', 'art-website-pack', 'favicon', 'favicon.svg'), 'utf8').trim();
-  assert.equal(Buffer.from(m[1], 'base64').toString('utf8'), svg, 'the same icon as the art pack');
   assert.equal((page.match(/rel="icon"/g) || []).length, 1);
+  assert.equal(Buffer.from(m[1], 'base64').toString('utf8'), files[3], 'the link starts as D, the TE mark');
+  assert.equal(files[3], fs.readFileSync(path.join(root, '..', 'docs', 'art-website-pack', 'favicon', 'favicon.svg'), 'utf8').trim(), 'D is favicon.svg');
+  // the pick script right after it holds the four as data: URIs, in the pack's order, and nothing else runs there
+  const s = page.match(/<link rel="icon" id="tabIcon"[^\n]*\n<script>(\/\* ART-O3[\s\S]*?)<\/script>/);
+  assert.ok(s, 'the pick script follows the link');
+  const uris = [...s[1].matchAll(/data:image\/svg\+xml;base64,([A-Za-z0-9+/=]+)/g)].map(x => Buffer.from(x[1], 'base64').toString('utf8'));
+  assert.deepStrictEqual(uris, files, 'the four icons, as in the pack');
+  assert.match(s[1], /Math\.random\(\)\*u\.length/, 'picked at random');
+  assert.ok(!/fetch|XMLHttpRequest|eval|import\(|document\.write/.test(s[1]), 'the pick script loads nothing');
+  // the CSP lets the data: icons load and allows the pick script by its hash, like every other inline script
   const policy = fs.readFileSync(path.join(root, 'index.csp.txt'), 'utf8');
   assert.match(policy, /img-src 'self' data:/, 'the CSP lets the data: icon load');
+  const hash = require('crypto').createHash('sha256').update(s[1], 'utf8').digest('base64');
+  assert.ok(policy.includes(`'sha256-${hash}'`), 'the pick script is in the policy by hash');
 });
