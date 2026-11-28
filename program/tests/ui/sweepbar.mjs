@@ -147,6 +147,40 @@ try {
     check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
   }
+  // #532 (UI-A2, UI-W15, TE-B-774): load at 1366 with the bar in words, then narrow the window to 600, 480, 390, 360 and 320 px: the bar
+  // never runs past the stage's right edge and 'Sweep settings' stays reachable (on screen, or the bar is icons / its tab, as a fresh load
+  // at that width gives); back at 1366 the words come back. Then the same after ⋯ forced the words at 480 (no room even with Inputs as
+  // icons, growSweep step 3): a narrower stage gives the icons back instead of pushing Sweep settings off the right edge.
+  const edge = p => p.evaluate(() => { const W = document.getElementById('win-sweep'), r = W.getBoundingClientRect(), st = document.getElementById('stage').getBoundingClientRect(); const bs = [...W.querySelectorAll('button')].filter(e => { const q = e.getBoundingClientRect(); return q.width > 0 && !e.closest('[hidden]'); }).map(e => e.getBoundingClientRect().right); const m = document.getElementById('sweepMore'), mr = m && m.getBoundingClientRect(); return { r: r.right, stR: st.right, btnR: Math.max(0, ...bs), state: W.dataset.state, fit: W.dataset.fit || '', more: !!mr && mr.width > 0 && mr.left >= st.left - 1 && mr.right <= st.right + 1 && !m.closest('[hidden]') }; });
+  const narrowOk = r => r.r <= r.stR + 0.5 && r.btnR <= r.stR + 0.5 && (r.more || r.state === 'I' || r.state === 'T');
+  for (const th of ['wireframe', 'notebook-calc']) for (const mode of ['load', 'forced']) {
+    const p = await openPage(b, srv.url, { width: 1366, height: 900 }); await waitRows(p); await p.waitForTimeout(300);
+    if (th !== 'wireframe') { await setTheme(p, th); await p.waitForTimeout(300); await p.reload(); await waitRows(p); }
+    await p.waitForTimeout(400);
+    let tag = `${th} 1366 (${mode})`;
+    check(`${tag}: the bar starts in words`, (await edge(p)).state === 'W');
+    let widths = [600, 480, 390, 360, 320];
+    if (mode === 'forced') {
+      await p.setViewportSize({ width: 480, height: 900 }); await p.waitForTimeout(500);
+      await p.focus('#win-sweep [data-ic="grow"]'); await p.keyboard.press('Enter'); await p.waitForTimeout(400);
+      const f = await edge(p);
+      check(`${th} 480: ⋯ shows the words, Sweep settings on screen and focused`, f.state === 'W' && f.more && await p.evaluate(() => document.activeElement.id === 'sweepMore'), JSON.stringify(f));
+      widths = [390, 360, 320];
+    }
+    for (const w of widths) {
+      await p.setViewportSize({ width: w, height: 900 }); await p.waitForTimeout(500);
+      const r = await edge(p); tag = `${th} ${mode} -> ${w}`;
+      check(`${tag}: the bar and its buttons stay inside the stage's right edge; Sweep settings on screen or the bar is icons (#532)`, narrowOk(r), JSON.stringify(r));
+      check(`${tag}: focus is not dropped to <body>`, await p.evaluate(() => document.activeElement !== document.body || !document.getElementById('win-sweep').contains(document.activeElement)));
+    }
+    if (mode === 'forced') check(`${th} forced -> 320: focus followed Sweep settings to ⋯`, await p.evaluate(() => document.activeElement.dataset.ic === 'grow'));
+    await p.setViewportSize({ width: 1366, height: 900 }); await p.waitForTimeout(500);
+    const z = await edge(p);
+    check(`${th} ${mode} -> 1366: the words come back, Sweep settings on screen`, z.state === 'W' && z.fit === '' && z.more && narrowOk(z), JSON.stringify(z));
+    check(`${th} ${mode}: the saved Sweep state is still words`, await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('se310-truss-v5') || '{}'); const w = s.shell && s.shell.w; return !w || Object.values(w).every(x => !x.sweep || x.sweep === 'W' || x.sweep === 'I'); }));
+    check(`${th} ${mode}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
 } finally { await b.close(); srv.close(); }
 const fails = check.results.filter(x => !x.ok);
 console.log(`\n${check.results.length - fails.length}/${check.results.length} sweep-bar checks passed`);
