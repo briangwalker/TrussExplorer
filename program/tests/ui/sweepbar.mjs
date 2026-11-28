@@ -147,6 +147,64 @@ try {
     check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
   }
+  // BPD-20 (TE-B-733, UI-W15 1.5.14): when the words don't fit even with Inputs as icons, ⋯ opens them as a peek over the picture
+  // (UI-W17's dashed edge). With Inputs and Drawing both in words there is no room at 700 / 740 in either theme (with Drawing as icons
+  // the room beside the windows always fits, so no width reaches the peek with one side window). The peek never covers the top bar,
+  // the results card, the view control or the PIP reserve; Esc (focus back on ⋯), a click outside or a wider stage ends it.
+  const peekInfo = p => p.evaluate(() => { const W = document.getElementById('win-sweep'), r = W.getBoundingClientRect(), a = document.activeElement; return { peek: W.classList.contains('peek'), state: W.dataset.state, fit: W.dataset.fit || '', dashed: getComputedStyle(W).borderTopStyle, l: r.left, r: r.right, t: r.top, b: r.bottom, foc: a ? (a.id || a.dataset.ic || a.tagName) : '' }; });
+  for (const th of ['wireframe', 'notebook-calc']) for (const w of [700, 740]) {
+    const tag = `${th} peek 1366->${w}`;
+    const p = await openPage(b, srv.url, { width: 1366, height: 900 }); await waitRows(p); await p.waitForTimeout(300);
+    if (th !== 'wireframe') { await setTheme(p, th); await p.waitForTimeout(300); await p.reload(); await waitRows(p); }
+    await p.waitForTimeout(400);
+    if (await p.evaluate(() => document.getElementById('win-drawing').dataset.state !== 'W')) { await p.click('#win-drawing [data-step="grow"]'); await p.waitForTimeout(300); }
+    check(`${tag}: Inputs and Drawing open in words at 1366`, await p.evaluate(() => document.getElementById('win-inputs').dataset.state === 'W' && document.getElementById('win-drawing').dataset.state === 'W'));
+    await p.setViewportSize({ width: w, height: 800 }); await p.waitForTimeout(500);
+    const r0 = await allIn(p);
+    check(`${tag}: the bar is fitted to icons first`, r0.fit === 'I', JSON.stringify(r0));
+    const openPeek = async () => { await p.focus('#win-sweep [data-ic="grow"]'); await p.keyboard.press('Enter'); await p.waitForTimeout(400); return peekInfo(p); };
+    let k = await openPeek();
+    const stage = await box(p, '#stage'), G = await box(p, '#win-sweep'), more = await box(p, '#win-sweep #sweepMore');
+    check(`${tag}: Enter on ⋯ opens the words as a peek (dashed edge)`, k.peek && k.state === 'W' && k.fit === '' && k.dashed === 'dashed', JSON.stringify(k));
+    check(`${tag}: Inputs went one state smaller first (UI-W16)`, await p.evaluate(() => document.getElementById('win-inputs').dataset.state === 'I'));
+    check(`${tag}: Sweep settings is inside the peek, on screen and focused`, !!more && more.vis && inside(more, G) && inside(G, stage) && k.foc === 'sweepMore', JSON.stringify([more, G, k.foc]));
+    check(`${tag}: every button of the peek lies inside it`, (await allIn(p)).out.length === 0, JSON.stringify(await allIn(p)));
+    const pip = { l: stage.r - 360, t: stage.b - 240, r: stage.r, b: stage.b };
+    check(`${tag}: the peek stays out of the PIP reserve`, !hit(G, pip), JSON.stringify([G, pip]));
+    for (const q of ['#shellNav', '#resCard', '.navcube, .navpad, #viewCtl, [data-part="view-control"]']) {
+      const o = await box(p, q);
+      if (o && o.vis && o.w > 0) check(`${tag}: the peek does not cover ${q.split(',')[0]}`, !hit(G, o), JSON.stringify([G, o]));
+    }
+    // Sweep settings opens inside the peek and still stops under the top row
+    await p.keyboard.press('Enter'); await p.waitForTimeout(300);
+    const G2 = await box(p, '#win-sweep'), card = await box(p, '#resCard'), nav = await box(p, '#shellNav');
+    check(`${tag}: with Sweep settings open the peek stays under the top bar and the results card`, (!card || !hit(G2, card)) && (!nav || !hit(G2, nav)) && inside(G2, stage), JSON.stringify([G2, card, nav]));
+    await p.keyboard.press('Enter'); await p.waitForTimeout(200);
+    // the pointer leaving the peek doesn't close it (it is not a hover peek)
+    await p.mouse.move(G.l + 20, G.t + 10); await p.mouse.move(w / 2, 120); await p.waitForTimeout(700);
+    check(`${tag}: moving the pointer off the peek leaves it open`, (await peekInfo(p)).peek);
+    // the peek keeps the bar's own Tab order: Shift+Tab from Sweep settings stays inside it, on a control on screen
+    await p.focus('#sweepMore'); await p.keyboard.press('Shift+Tab'); await p.waitForTimeout(100);
+    check(`${tag}: Shift+Tab from Sweep settings stays inside the peek`, await p.evaluate(() => { const e = document.activeElement, W = document.getElementById('win-sweep'); return W.classList.contains('peek') && W.contains(e) && e.getBoundingClientRect().width > 0; }));
+    await p.focus('#sweepMore');
+    // Esc gives back the icons and puts focus on ⋯
+    await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+    k = await peekInfo(p);
+    check(`${tag}: Esc ends the peek: icons again, focus on ⋯`, !k.peek && k.fit === 'I' && k.foc === 'grow', JSON.stringify(k));
+    // a click outside the bar ends it
+    k = await openPeek(); check(`${tag}: ⋯ opens the peek again`, k.peek, JSON.stringify(k));
+    await p.mouse.click(Math.round(w * 0.3), 300); await p.waitForTimeout(300);
+    k = await peekInfo(p);
+    check(`${tag}: a click outside the bar ends the peek: icons again`, !k.peek && k.fit === 'I', JSON.stringify(k));
+    // a wider stage gives the words, with no peek class, and focus stays where it was
+    k = await openPeek();
+    await p.setViewportSize({ width: 1366, height: 900 }); await p.waitForTimeout(500);
+    k = await peekInfo(p); const g = await allIn(p);
+    check(`${tag}: resized to 1366 the bar shows its words with no peek, focus still on Sweep settings`, !k.peek && k.state === 'W' && k.fit === '' && g.out.length === 0 && k.foc === 'sweepMore', JSON.stringify([k, g]));
+    check(`${tag}: nothing about the peek is saved`, await p.evaluate(() => !/peek/i.test(JSON.stringify(Object.fromEntries(Object.entries(localStorage))))));
+    check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
 } finally { await b.close(); srv.close(); }
 const fails = check.results.filter(x => !x.ok);
 console.log(`\n${check.results.length - fails.length}/${check.results.length} sweep-bar checks passed`);
