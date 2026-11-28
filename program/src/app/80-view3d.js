@@ -583,7 +583,9 @@ function placeLookFrom() {
   $('lookMenu').addEventListener('click', ev => { const b = ev.target.closest('[data-look]'); if (!b) return; ev.stopPropagation(); setLook(b.dataset.look); $('lookBtn').focus({ preventScroll: true }); openLookMenu(false); });
   lf.addEventListener('keydown', ev => {
     const it = items(), i = it.indexOf(document.activeElement);
-    if (ev.key === 'Escape') { if (!$('lookMenu').hidden) { ev.stopPropagation(); openLookMenu(false); $('lookBtn').focus({ preventScroll: true }); } return; }
+    // #533 (UI-W8): focus goes back to the button first, then the list closes, as the Enter path does; closing first let the button's
+    // focus listener open the list again, so Esc on an item took two presses
+    if (ev.key === 'Escape') { if (!$('lookMenu').hidden) { ev.stopPropagation(); $('lookBtn').focus({ preventScroll: true }); openLookMenu(false); } return; }
     if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { ev.preventDefault(); openLookMenu(true); const d = ev.key === 'ArrowDown' ? 1 : -1; it[i < 0 ? (d > 0 ? 0 : it.length - 1) : (i + d + it.length) % it.length].focus(); }
   });
   document.addEventListener('click', ev => { if (!ev.target.closest || !ev.target.closest('#lookFrom')) openLookMenu(false); });

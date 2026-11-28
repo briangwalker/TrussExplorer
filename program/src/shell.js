@@ -175,7 +175,7 @@ if (!SH_CLASSIC) {
   wins.drawing.querySelector('.s-bd').style.gridTemplateColumns = 'minmax(0, 1fr)';
   const pieceWin = {};
   Object.keys(PIECE).forEach(id => { pieceWin[id] = PC.mountWindow(wins[id], tabs[id], { onState: st => { S.shell.w[place()][id] = st; save(); paintWins(); } }); });
-  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } if (id === 'sweep' && v !== 'W') sweepAsked = sweepForce = false; S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
+  function setState(id, v) { if (pieceWin[id]) { pieceWin[id].setState(v); return; } if (id === 'sweep' && v !== 'W') { sweepAsked = false; sweepForce = 0; } S.shell.w[place()][id] = v; save(); wins[id].classList.remove('peek'); paintWins(); }
   function step(id, dir) {
     const cur = S.shell.w[place()][id];
     if (id === 'results') { setState(id, dir > 0 ? 'W' : 'T'); return; }
@@ -220,7 +220,7 @@ if (!SH_CLASSIC) {
     const st = S.shell.w[place()], I = wins.inputs;
     if (wins.sweep.dataset.fit === 'I' && st.inputs === 'W' && I.dataset.empty !== '1' && !I.classList.contains('peek')) setState('inputs', 'I');
     layout();
-    if (wins.sweep.dataset.fit === 'I') { sweepForce = true; layout(); }
+    if (wins.sweep.dataset.fit === 'I') { sweepForce = innerWidth; layout(); }
     const f = $('sweepMore'); if (f) f.focus({ preventScroll: true });
   }
   function iconAct(id, ic) {
@@ -316,7 +316,9 @@ if (!SH_CLASSIC) {
   // ---------- fixed homes ----------
   const M = 10;
   let lastFree = '', sweepAsked = false;   // sweepAsked: the person grew the bar themselves (in memory only, like a peek)
-  let sweepForce = false;   // ⋯ found no room even with Inputs as icons: keep the words, as base did, until there is room again (growSweep)
+  // ⋯ found no room even with Inputs as icons: keep the words, as base did, until there is room again (growSweep). Holds the stage width
+  // the words were forced at (0 = not forced), so a narrower stage can give the icons back (#532).
+  let sweepForce = 0;
   // UI-W15 with UI-W16: the narrowest the bar's words state can be with every part whole: Run sweep, the progress bar at its 60 px minimum,
   // Cancel or the Resume offer when they show, and 'Sweep settings ▾'. The count line and #bigMsg ellipsise, so they count as 0.
   // Each part counts its own border box (a Notebook button has a 2 px border that scrollWidth leaves out), and the bar adds the
@@ -396,7 +398,10 @@ if (!SH_CLASSIC) {
     if (st.sweep === 'W' && !W.classList.contains('peek')) {
       W.dataset.state = 'W'; need = sweepNeed();
       const room = sweepAsked ? Math.floor(vw - sl - M - rightUsed) : sCap;
-      if (sweepForce && room >= need) sweepForce = false;
+      if (sweepForce && room >= need) sweepForce = 0;
+      // #532 (UI-A2, UI-W15): after the stage narrows, forced words that no longer fit between the bar's left edge and the stage's right
+      // edge go back to icons, the same rule a fresh load applies at that width; the saved state stays 'W', so a wider stage gives them back
+      if (sweepForce && vw < sweepForce && need > vw - sl - M) sweepForce = 0;
       if (room < need && !sweepForce) fit = 'I';
     }
     const fitWas = W.dataset.fit || '', foc = fit !== fitWas && W.contains(document.activeElement) ? document.activeElement : null;

@@ -54,6 +54,20 @@ try {
     check(`${tag}: Enter picks Top`, await p.evaluate(() => __look.view === 'top' && !document.getElementById('lookView').hidden));
     await p.keyboard.press('Escape'); await p.waitForTimeout(100);
     check(`${tag}: after a pick, the list is shut and focus is back on the button`, await p.evaluate(() => document.getElementById('lookMenu').hidden && document.activeElement.id === 'lookBtn'));
+    // #533 (UI-W8): Tab to Look from, ↓ to an item, then ONE Escape closes the list and puts focus on the button
+    await p.evaluate(() => { document.activeElement && document.activeElement.blur(); const ids = [...document.querySelectorAll('button, [tabindex]')].filter(e => e.tabIndex >= 0 && e.getBoundingClientRect().width > 0); const i = ids.indexOf(document.getElementById('lookBtn')); (ids[i - 1] || document.body).focus(); });
+    await p.keyboard.press('Tab'); await p.waitForTimeout(100);
+    check(`${tag}: Tab reaches Look from and opens its list`, await p.evaluate(() => document.activeElement.id === 'lookBtn' && !document.getElementById('lookMenu').hidden));
+    await p.keyboard.press('ArrowDown'); await p.waitForTimeout(50);
+    check(`${tag}: ↓ puts focus on a list item`, await p.evaluate(() => !!document.activeElement.dataset.look));
+    await p.keyboard.press('Escape'); await p.waitForTimeout(150);
+    check(`${tag}: one Escape on a list item closes the list and puts focus on Look from (#533)`, await p.evaluate(() => document.getElementById('lookMenu').hidden && document.getElementById('lookBtn').getAttribute('aria-expanded') === 'false' && document.activeElement.id === 'lookBtn'), JSON.stringify(await p.evaluate(() => ({ hidden: document.getElementById('lookMenu').hidden, act: document.activeElement.id || document.activeElement.tagName }))));
+    await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+    check(`${tag}: Escape again on the button keeps the list shut and focus on the button`, await p.evaluate(() => document.getElementById('lookMenu').hidden && document.activeElement.id === 'lookBtn'));
+    // Esc on the button itself (list open by focus) still closes it in one press
+    await p.evaluate(() => document.getElementById('lookBtn').blur()); await p.focus('#lookBtn'); await p.waitForTimeout(80);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+    check(`${tag}: Escape on the button with the list open closes it in one press`, await p.evaluate(() => document.getElementById('lookMenu').hidden && document.activeElement.id === 'lookBtn'));
     // ---- Top: both bracing planes, the model's own members, meaning colours
     let E = await p.evaluate(expected), D = await p.evaluate(drawn);
     check(`${tag}: Top draws exactly the model's top-plane members (chords, ties, lateral bracing)`, sameSet(D.top.map(x => x.k), E.top) && E.latTop.every(k => E.top.includes(k)) && E.chordTop.every(k => E.top.includes(k)), `${D.top.length} vs ${E.top.length}`);
