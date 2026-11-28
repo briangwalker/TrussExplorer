@@ -157,10 +157,16 @@ function chartStaleWhat() {
   const list = out.length > 3 ? out.slice(0, 3).concat([csT('chart.state.whatMore')]) : out;
   return list.length === 1 ? list[0] : list.slice(0, -1).join(', ') + csT('chart.state.and') + list[list.length - 1];
 }
+// UIE-12 (TE-B-737): 'quick-look' after a pilot, the bar's own pilot-done fact (facts().mode 'pilot', not out of date, nothing running):
+// the chart shows only the pilot's random designs and offers the full search
 function chartStateOf(cv) {
   if (!SweepState.rows().length && !(cv.id === 'tradeCanvas' && shownSaved().length)) return 'no-sweep';
-  const f = SweepState.facts(); return f.stale === true && !f.busy && !f.running ? 'stale' : 'fresh';
+  const f = SweepState.facts(), idle = !f.busy && !f.running;
+  if (f.stale === true && idle) return 'stale';
+  return f.mode === 'pilot' && idle && SweepState.rows().length ? 'quick-look' : 'fresh';
 }
+// the quick-look banner's button: the full-search handler the pilot box's own 'Looks right: run the full search…' calls (app/60-sweep.js), not a copy
+function chartRunFull() { if (typeof openBigModal === 'function') openBigModal(); }
 // the bar's Run sweep as it shows now (words or its ▶ icon, UI-W15)
 function focusRunSweep() {
   const vis = e => e && e.getClientRects().length && !e.closest('[hidden]');
@@ -191,13 +197,15 @@ function paintChartState(cv, kind) {
     }
   }
   if (kind === 'fresh') return;
-  const msg = kind === 'stale' ? csT('chart.state.stale', { what: chartStaleWhat() }) : csT(cv.id === 'c3Canvas' ? 'chart.state.noSweep3d' : 'chart.state.noSweep');
+  const quick = kind === 'quick-look';
+  const msg = kind === 'stale' ? csT('chart.state.stale', { what: chartStaleWhat() }) : quick ? csT('chart.state.quickLook', { n: SweepState.rows().length.toLocaleString('en-US') })
+    : csT(cv.id === 'c3Canvas' ? 'chart.state.noSweep3d' : 'chart.state.noSweep');
   if (!el) {
-    el = document.createElement('div'); el.className = 'chartstate ' + (kind === 'stale' ? 'cs-stale' : 'cs-nosweep'); el.dataset.kind = kind;
-    if (kind === 'stale') { el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); }
+    el = document.createElement('div'); el.className = 'chartstate ' + (kind === 'stale' ? 'cs-stale' : quick ? 'cs-quick' : 'cs-nosweep'); el.dataset.kind = kind;
+    if (kind === 'stale' || quick) { el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); }
     const p = document.createElement('p'); p.className = 'cs-msg';
-    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cs-run'; btn.dataset.part = 'note-button'; btn.dataset.slot = 'ctl'; btn.textContent = csT('chart.state.goRun');
-    btn.addEventListener('click', focusRunSweep);
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cs-run'; btn.dataset.part = 'note-button'; btn.dataset.slot = 'ctl'; btn.textContent = csT(quick ? 'chart.state.goFull' : 'chart.state.goRun');
+    btn.addEventListener('click', quick ? chartRunFull : focusRunSweep);
     el.append(p, btn); box.appendChild(el);
     // the live region is in the page before its words arrive, so they are read (once)
     setTimeout(() => { if (el.isConnected) p.textContent = el.dataset.msg; }, 40);
