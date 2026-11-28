@@ -10,7 +10,7 @@ try {
   check('fresh page: OG is not in the theme picker, the note says how it unlocks', !(await opts(p)).includes('og') && /unlocks after/.test(await p.evaluate(() => document.getElementById('themeNote').textContent)));
   check('fresh page: ogUnlocked() is false and the badge is hidden', await p.evaluate(() => __shell.ogUnlocked() === false && document.getElementById('themeBadge').hidden));
   await p.evaluate(() => __shell.applyTheme('og')); await p.waitForTimeout(100);
-  check('applying og while locked falls back to wireframe', await p.evaluate(() => document.getElementById('stage').dataset.theme === 'wireframe' && __shell.state.theme === 'wireframe'));
+  check('applying og while locked falls back to the default theme (Notebook + Calculator)', await p.evaluate(() => document.getElementById('stage').dataset.theme === 'notebook-calc' && __shell.state.theme === 'notebook-calc'));
   // the time path: 19.5 minutes saved, then one tick (at most 60 s more) -> still locked; a saved 20 minutes less a moment -> the next tick unlocks
   await p.evaluate(() => { __shell.state.unlocks = { firstSweepAt: null, usedMs: 19.5 * 60000, lastTickMs: null }; });
   await p.waitForTimeout(150);

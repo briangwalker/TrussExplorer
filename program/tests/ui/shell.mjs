@@ -13,7 +13,7 @@ const visible = (p, q) => p.evaluate(q => { const e = document.querySelector(q);
 try {
   const p = await openPage(b, srv.url); await waitRows(p); await p.waitForTimeout(500);
   // ---------- the stage and the contract ----------
-  check('the page sits inside #stage, Wireframe by default', await p.evaluate(() => { const s = document.getElementById('stage'); return !!s && s.dataset.theme === 'wireframe' && document.body.children.length === 1; }));
+  check('the page sits inside #stage, Notebook + Calculator by default for a new visitor (75a, TE-B-757)', await p.evaluate(() => { const s = document.getElementById('stage'); return !!s && s.dataset.theme === 'notebook-calc' && document.getElementById('themeCss').textContent.length > 500 && document.body.children.length === 1; }));
   check('the v61 page is hidden (no header, no dock bar)', !(await visible(p, 'header.top')) && !(await visible(p, '.dockbar')));
   const parts = await p.evaluate(() => ['top-bar', 'nav-button', 'view-pill', 'switch', 'button', 'icon-button', 'segmented', 'edge-tab', 'stepper', 'window', 'window-title', 'results', 'toast', 'badge', 'table', 'drawing', 'sheet']
     .filter(x => !document.querySelector(`#stage [data-part="${x}"]`)));
@@ -209,7 +209,7 @@ try {
     await p.evaluate(() => __shell.previewTheme('no-such-theme')); await p.waitForTimeout(250); seen.push(await p.evaluate(() => document.getElementById('stage').dataset.theme));
     await p.waitForTimeout(500);   // layout and the redraw after it have run
     const after = await ls(), still = await p.evaluate(() => ({ sel: document.getElementById('themeSel').value, saved: __shell.state.theme }));
-    check('previewTheme: the look follows every theme, an unknown id falls back to Wireframe', seen.join() === door.ids.concat('wireframe').join(), seen.join());
+    check('previewTheme: the look follows every theme, an unknown id falls back to the default (Notebook + Calculator)', seen.join() === door.ids.concat('notebook-calc').join(), seen.join());
     check('UI-G4: a preview saves nothing (localStorage byte-identical), and leaves #themeSel and the saved theme alone', before === after && still.sel === 'blueprint' && still.saved === 'blueprint', JSON.stringify({ same: before === after, still }));
     await p.selectOption('#themeSel', 'notebook-calc'); await p.waitForTimeout(300);
     check('a real pick in #themeSel still saves', await p.evaluate(() => JSON.parse(localStorage.getItem('se310-truss-v5')).shell.theme === 'notebook-calc' && document.getElementById('stage').dataset.theme === 'notebook-calc')); }
@@ -229,7 +229,7 @@ try {
   // only built-in themes until the shared theme format exists (#197): no way to load raw CSS
   check('no raw CSS loading (built-in themes only)', await p.evaluate(() => !document.querySelector('#stage input[type="file"][accept*="css"]') && ![...document.querySelectorAll('#themeSel option')].some(o => o.value === 'local')));
   await p.evaluate(() => { try { localStorage.setItem('te-theme-local', '#stage{--te-strong:red}'); } catch (e) {} __shell.applyTheme('local'); });
-  check('an unknown theme id falls back to Wireframe', await p.evaluate(() => document.getElementById('stage').dataset.theme === 'wireframe' && document.getElementById('themeCss').textContent === ''));
+  check('an unknown theme id falls back to the default (Notebook + Calculator), with its CSS on the page', await p.evaluate(() => document.getElementById('stage').dataset.theme === 'notebook-calc' && document.getElementById('themeCss').textContent.length > 500));
   await p.selectOption('#themeSel', 'wireframe');
   await p.keyboard.press('Escape'); await p.waitForTimeout(150);
 

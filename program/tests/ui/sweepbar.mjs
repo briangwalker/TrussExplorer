@@ -79,10 +79,11 @@ try {
   // FVL MUST on #538: the same checks in a Notebook theme, whose thick bezel and 2 px button borders the fit must count (948: the words
   // used to be kept at a 379 px bar that was 5-10 px too narrow).
   const setTheme = (p, t) => p.evaluate(t => { const s = document.getElementById('themeSel'); s.value = t; s.dispatchEvent(new Event('change', { bubbles: true })); }, t);
+  // since 75a the default theme is Notebook + Calculator, so Wireframe is picked like any other theme below
   for (const th of ['wireframe', 'notebook-calc']) for (const [w, h] of [[700, 800], [740, 800], [948, 800], [1100, 800]]) {
     const tag = `${th} ${w}x${h}`;
     const p = await openPage(b, srv.url, { width: w, height: h }); await waitRows(p); await p.waitForTimeout(300);
-    if (th !== 'wireframe') { await setTheme(p, th); await p.waitForTimeout(300); await p.reload(); await waitRows(p); }
+    { await setTheme(p, th); await p.waitForTimeout(300); await p.reload(); await waitRows(p); }
     await p.waitForTimeout(500);
     check(`${tag}: the theme is ${th}`, await p.evaluate(() => document.getElementById('stage').dataset.theme) === th);
     const r = await allIn(p);
@@ -103,7 +104,7 @@ try {
       check(`${tag}: resized to 1366 the bar is words again, every button inside`, k.state === 'W' && k.fit === '' && k.out.length === 0, JSON.stringify(k));
       // on a fresh page at 1366 (the ⋯ choice above is kept in memory on this one)
       const q = await openPage(b, srv.url, { width: 1366, height: 900 }); await waitRows(q); await q.waitForTimeout(300);
-      if (th !== 'wireframe') { await setTheme(q, th); await q.waitForTimeout(300); await q.reload(); await waitRows(q); await q.waitForTimeout(300); }
+      { await setTheme(q, th); await q.waitForTimeout(300); await q.reload(); await waitRows(q); await q.waitForTimeout(300); }
       // focus follows a resize switch (UI-W15 1.5.13, QA note 1): Sweep settings -> ⋯ -> Sweep settings, Run sweep -> ▶ -> Run sweep
       for (const [from, to] of [['#sweepMore', 'grow'], ['#runSweep', 'run']]) {
         await q.focus(from); await q.setViewportSize({ width: w, height: h }); await q.waitForTimeout(500);
@@ -126,7 +127,7 @@ try {
   for (const th of ['wireframe', 'notebook-calc']) for (const w of [740, 800]) {
     const tag = `${th} 1366->${w}`;
     const p = await openPage(b, srv.url, { width: 1366, height: 900 }); await waitRows(p); await p.waitForTimeout(300);
-    if (th !== 'wireframe') { await setTheme(p, th); await p.waitForTimeout(300); await p.reload(); await waitRows(p); }
+    { await setTheme(p, th); await p.waitForTimeout(300); await p.reload(); await waitRows(p); }
     await p.waitForTimeout(400);
     check(`${tag}: the theme is ${th}`, await p.evaluate(() => document.getElementById('stage').dataset.theme) === th);
     check(`${tag}: at 1366 Inputs opens in words`, await p.evaluate(() => document.getElementById('win-inputs').dataset.state === 'W'));

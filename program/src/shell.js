@@ -11,6 +11,11 @@ if (!SH_CLASSIC) {
   // ---------- built-in themes (build.py fills THEME_PACK from themes/index.json) ----------
   const THEME_PACK = /*THEMES*/{ files: {}, list: [] };
   const THEME_LIST = [{ id: 'wireframe', name: 'Wireframe' }, { id: 'og', name: 'OG (v61)' }].concat(THEME_PACK.list.filter(t => t.css && THEME_PACK.files[t.css]));
+  // The default theme (Brian 75a, TE-B-757): a new visitor opens in Notebook + Calculator, the balsaPixel look (photo wood; generated wood
+  // and the Calculator screen stay choices in the list). A saved choice still wins; OG stays locked until earned (UI-T6). Every fall-back
+  // (a saved 'file' pick with no file, a locked 'og', an unknown id) lands here too. Wireframe is the base built into shell.css, so it is
+  // the default only if the pack somehow lacks the Notebook theme.
+  const DEFAULT_THEME = THEME_LIST.some(t => t.id === 'notebook-calc') ? 'notebook-calc' : 'wireframe';
   // ---------- THE TABLE (TE-B-364): what this tool puts in the shell, as data ----------
   // Places, windows, their default states, the icons and the edge-tab arrows. A new window, icon or tab icon is a row
   // here, not a new literal further down (the code below only reads it). Later this is the tool's half of the
@@ -39,7 +44,7 @@ if (!SH_CLASSIC) {
     sweepIcons: [{ ic: 'run', g: '▶', label: 'Run the sweep' }, { ic: 'grow', g: '⋯', label: 'Show the sweep' }],
   };
   const PLACES = TABLE.places, STATES = ['W', 'I', 'T'];
-  const DEF = { place: PLACES[0], bar: 'W', hist: [], theme: 'wireframe', w: TABLE.states };
+  const DEF = { place: PLACES[0], bar: 'W', hist: [], theme: DEFAULT_THEME, w: TABLE.states };
   const sh0 = S.shell && typeof S.shell === 'object' ? S.shell : {};
   if (!sh0.w && innerWidth < 700) { DEF.w = TABLE.phoneStates; DEF.bar = 'I'; }   // a phone starts with the picture
   // UI-W15 (#470): on a stage under 1100 px the side windows' default home is icons, so Inputs starts as icons there too
@@ -474,9 +479,9 @@ if (!SH_CLASSIC) {
   function applyTheme(id, opts) {
     const keep = !(opts && opts.save === false);
     let css = '';
-    if (id === FILE_ID && !fileTheme) id = 'wireframe';   // a saved 'file' pick with no file loaded (a reload) falls back
-    if (id === 'og' && keep && !ogUnlocked()) id = 'wireframe';   // UI-T6: OG only once it's unlocked (a saved 'og' falls back; a gallery preview may still show it, UI-G3)
-    if (id !== 'wireframe' && id !== 'og' && id !== FILE_ID) { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else id = 'wireframe'; }
+    if (id === FILE_ID && !fileTheme) id = DEFAULT_THEME;   // a saved 'file' pick with no file loaded (a reload) falls back
+    if (id === 'og' && keep && !ogUnlocked()) id = DEFAULT_THEME;   // UI-T6: OG only once it's unlocked (a saved 'og' falls back; a gallery preview may still show it, UI-G3)
+    if (id !== 'wireframe' && id !== 'og' && id !== FILE_ID) { const t = THEME_LIST.find(x => x.id === id); if (t) css = THEME_PACK.files[t.css] || ''; else { id = DEFAULT_THEME; const d = THEME_LIST.find(x => x.id === id); css = d && d.css ? THEME_PACK.files[d.css] || '' : ''; } }
     themeStyle.textContent = css; stage.dataset.theme = id;
     // a file theme sits on the Wireframe base: its tokens go on as inline variables (values only, set one by one, never a style string)
     for (const k of Array.from(stage.style)) if (k.startsWith('--te-')) stage.style.removeProperty(k);
