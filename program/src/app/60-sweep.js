@@ -204,6 +204,11 @@ function overlapWarning() {
 }
 ['swH0', 'swH1', 'swHs', 'swR0', 'swR1', 'swRs', 'swA0', 'swA1', 'swAs', 'swD0', 'swD1', 'swDs', 'swS0', 'swS1', 'swSs', 'swO0', 'swO1', 'swOs', 'swVaryOv'].forEach(id => $(id).addEventListener('input', updateSweepCount));
 let sweepRows = [], sweepAll = [], sweepBusy = false, sweepCtx = null;
+// The run in progress (UIE-12 'sweeping', TE-B-838 a): read only through SweepState.live(). rows() is the list the run is filling (the
+// normal sweep's and the pilot's own list; the full search's grey-cloud sample), done and total its progress, kind 'sweep' | 'pilot' | 'full'.
+// Each run sets it at its start and clears it at its end; live() also checks that a run is on, so a stale value never shows.
+let liveRun = null; const liveFns = [];
+function liveStep(i) { if (!liveRun) return; liveRun.done = i; liveFns.forEach(f => { try { f(); } catch (e) {} }); }
 // ---------- SweepState: the one way to read or replace the sweep's results (#255 part B; #236 step 1)
 // Outside 60-sweep and 85-sweep-sheets, parts never name sweepAll / sweepRows / sweepCtx / sweepMode (tests/sweep-state.test.js).
 // version goes up whenever the rows change, so caches (charts #275-#277) can key on it; on(fn) hears each change.
@@ -220,6 +225,10 @@ const SweepState = (() => {
     // the rows were edited in place (Re-check changes D, util and passes): say so, so caches keyed on version rebuild
     changed(o) { o = o || {}; if ('top' in o) sweepRows = o.top; if ('ctx' in o) sweepCtx = o.ctx; fire(); },
     on(fn) { fns.push(fn); },
+    // the run in progress, for a chart that draws dots as designs finish (UIE-12b): { rows, done, total, kind }; kind 'none' and no rows when
+    // nothing runs. rows is the run's own list (read it, never keep or edit it: the full search reuses its sample). onLive(fn) hears each step.
+    live: () => liveRun && (big.running || sweepBusy) ? { rows: liveRun.rows(), done: liveRun.done, total: liveRun.total, kind: liveRun.kind } : { rows: [], done: 0, total: 0, kind: 'none' },
+    onLive(fn) { liveFns.push(fn); },
     // the facts the sweep bar paints from (src/sweepbar.js, TrussSweepBar.state): plain numbers, booleans and strings, so the bar never names the locals above.
     // A saved full search to resume (UI-S9) is read from IndexedDB, which is async, so it is not a fact here; the caller adds `resumable: { done, total }` when it has one.
     facts: () => ({ mode: sweepMode, running: !!big.running, pilot: !!big.pilot, cancel: !!big.cancel, busy: !!sweepBusy,
@@ -362,6 +371,7 @@ $('runSweep').addEventListener('click', () => {
   sweepBusy = true; $('runSweep').disabled = true;
   const sigAtStart = sweepSig();
   const all = []; let i = 0, unstable = 0;
+  liveRun = { kind: 'sweep', rows: () => all, done: 0, total: list.length };
   const lims = sweepLimitsBase();   // null = flag off: no limits check, the same rows and text as before
   const why = Object.assign({ edge: 0, env: 0, defl: 0, strength: 0 }, lims ? { noRes: 0 } : {});   // why stable designs fail (one design can fail several)
   sweepCtx = { bookKg: S.load.mBook1 + S.load.mBook2, FS: S.mat.FS, defl: S.opts.deflLimit, minOv: +S.opts.minOverlap, sheet: sheetFor(sweepDims(), list.length, 'Sweep') };
@@ -378,9 +388,10 @@ $('runSweep').addEventListener('click', () => {
       if (nr) { row.passes = false; row.noResult = nr; }
       all.push(row);
     }
+    liveStep(i);
     $('sweepBar').style.width = (100 * i / list.length).toFixed(1) + '%';
     if (i < list.length) { setTimeout(step, 0); return; }
-    SweepState.set(all);
+    liveRun = null; SweepState.set(all);
     const passing = all.filter(r => r.passes).sort((a, b) => a.wood - b.wood || a.util - b.util);
     sweepRows = passing.slice(0, 30);
     const noResN = lims ? all.filter(r => r.noResult).length : 0;   // UI-I10: no result is its own count, never a fail (flag off: 0, and the line is as before)
@@ -406,7 +417,7 @@ function paintBigMode() { $('pilotBanner').hidden = sweepMode !== 'pilot'; $('bi
 // run body(0..n-1) in slices of about 30 ms so the page stays usable
 function searchFailed(e, where) {
   console.error(e);
-  big.running = false; sweepBusy = false; big.cancel = false; setBigButtons(); $('runSweep').disabled = false;
+  big.running = false; sweepBusy = false; big.cancel = false; liveRun = null; setBigButtons(); $('runSweep').disabled = false;
   $('bigMsg').textContent = `The search stopped on an error ${where} (${e && e.message ? e.message : e}). Nothing is stuck now: run it again. If it happens again, tell Claude this message.`;
   toast('The search stopped on an error. It is reset, so you can run it again.', true);
 }
@@ -496,6 +507,7 @@ $('bigSearch').addEventListener('click', () => {
   const rows = [], why = Object.assign({ edge: 0, env: 0, defl: 0, strength: 0 }, lims ? { noRes: 0, noResBy: {} } : {});
   const au = { n: 0, eqBad: 0, jointBad: 0, symN: 0, symBad: 0, worstEq: 0, worstJoint: 0, worstSym: 0, nan: 0 };
   let unstable = 0;
+  liveRun = { kind: 'pilot', rows: () => rows, done: 0, total: n };
   const is3 = S.anaMode === '3d', st = is3 ? { ids: [], r2d: [], ms3: 0, both: 0, onlyIn2D: 0, onlyIn3D: 0, neither: 0, screenMiss: 0, screened: 0, unst3: 0, eqWorst: 0 } : null;
   runChunks(n, k => {
     const c = candAt(Dm, pick ? pick(k) : k);
@@ -510,8 +522,9 @@ $('bigSearch').addEventListener('click', () => {
     au.worstEq = Math.max(au.worstEq, ck.eq); au.worstJoint = Math.max(au.worstJoint, ck.joint);
     if (ck.eq > AUDIT_TOL) au.eqBad++; if (ck.joint > AUDIT_TOL) au.jointBad++;
     if (ck.sym !== null) { au.symN++; au.worstSym = Math.max(au.worstSym, ck.sym); if (ck.sym > AUDIT_TOL) au.symBad++; }
-  }, i => { $('sweepBar').style.width = (100 * i / n).toFixed(1) + '%'; $('bigMsg').textContent = `Pilot: ${i.toLocaleString()} of ${n.toLocaleString()} designs…`; },
+  }, i => { liveStep(i); $('sweepBar').style.width = (100 * i / n).toFixed(1) + '%'; $('bigMsg').textContent = `Pilot: ${i.toLocaleString()} of ${n.toLocaleString()} designs…`; },
   (done, ms) => {
+    liveRun = null;
     if (is3 && !big.cancel) { pilot3D(Dm, done, ms, rows, why, unstable, au, sig, st, lims); return; }
     big.running = false; sweepBusy = false;
     if (big.cancel) { $('bigMsg').textContent = 'Pilot cancelled.'; setBigButtons(); return; }
@@ -526,6 +539,7 @@ $('bigSearch').addEventListener('click', () => {
 // lims (?limits=1): the 3D result goes through the same check as the 2D stage, so M2 reads the deck deflection (as the card, #528)
 function pilot3D(Dm, n, ms2, rows2, why2, unstable2, au, sig, st, lims) {
   const rows = [], why = Object.assign({ edge: 0, env: 0, defl: 0, strength: 0 }, lims ? { noRes: 0, noResBy: {} } : {}); let unstable = 0;
+  liveRun = { kind: 'pilot', rows: () => rows, done: 0, total: st.ids.length };
   runChunks(st.ids.length, k => {
     const [c, t2, r2d, nr2] = st.ids[k];
     const t0 = performance.now();
@@ -539,9 +553,9 @@ function pilot3D(Dm, n, ms2, rows2, why2, unstable2, au, sig, st, lims) {
     if (clearly2DFail(r2d)) { st.screened++; if (p3) st.screenMiss++; }
     if (!r.stable) { unstable++; return; }
     countWhy(why, r, nr3); const row = makeRow(c, t2, r); if (nr3) { row.passes = false; row.noResult = nr3; } rows.push(row);
-  }, i => { $('sweepBar').style.width = (100 * i / st.ids.length).toFixed(1) + '%'; $('bigMsg').textContent = `Pilot, stage 2 of 2 (3D): ${i.toLocaleString()} of ${st.ids.length.toLocaleString()} designs…`; },
+  }, i => { liveStep(i); $('sweepBar').style.width = (100 * i / st.ids.length).toFixed(1) + '%'; $('bigMsg').textContent = `Pilot, stage 2 of 2 (3D): ${i.toLocaleString()} of ${st.ids.length.toLocaleString()} designs…`; },
   (done) => {
-    big.running = false; sweepBusy = false;
+    liveRun = null; big.running = false; sweepBusy = false;
     if (big.cancel) { $('bigMsg').textContent = 'Pilot cancelled.'; setBigButtons(); return; }
     const ms2per = ms2 / Math.max(1, n), ms3per = st.ms3 / Math.max(1, done);
     big.pilot = { Dm, total: Dm.total, n: done, msPer: ms2per + ms3per, ms2per, ms3per, rows, why, unstable, au, sig, st, rows2d: rows2, unstable2 };
@@ -591,6 +605,7 @@ function renderPilot() {
   $('bigFull').addEventListener('click', openBigModal);
   $('bigDiscard').addEventListener('click', () => { big.pilot = null; sweepMode = 'none'; paintBigMode(); });
 }
+let bigOpener = null;   // the control that opened the full-search dialog; it gets focus back when the dialog closes (UI-K2 / UI-W13, QA TE-B-850)
 function openBigModal() {
   const P = big.pilot; if (!P) return;
   if (sweepSig() !== P.sig) { $('bigMsg').textContent = 'Inputs changed since the pilot. Run a new pilot first.'; return; }
@@ -603,16 +618,26 @@ function openBigModal() {
     ${S.bigHours > 0 ? `Runs for <b>${S.bigHours} h</b>, about ${Math.min(n, Math.round(S.bigHours * 3.6e6 / Math.max(1e-3, P.msPer))).toLocaleString()} designs (${(100 * Math.min(n, S.bigHours * 3.6e6 / Math.max(1e-3, P.msPer)) / P.total).toPrecision(2)}% of the ${P.total.toLocaleString()}).` : ''}
     Estimated time: <b>${S.bigHours > 0 ? S.bigHours + ' h (time limit)' : fmtTime(n * P.msPer)}</b> on this computer, based on the pilot. The page stays usable while it runs, there is a progress bar, and Cancel keeps the results so far.<br><br>
     The results are saved in this browser, so you can reload them later with "Load last large search".`;
+  if ($('bigModal').hidden) bigOpener = document.activeElement;   // not on the re-draw a time-limit change makes while it is open
   $('bigModal').hidden = false; $('bigGo').focus();
   $('bigHrs').addEventListener('change', () => { const v = +$('bigHrs').value; S.bigHours = v >= 0 && v <= 72 ? v : 0; save(); openBigModal(); });
 }
-$('bigNo').addEventListener('click', () => { $('bigModal').hidden = true; });
-$('bigModal').addEventListener('keydown', ev => { if (ev.key === 'Escape') $('bigModal').hidden = true; });
-$('bigGo').addEventListener('click', () => { const r = document.querySelector('input[name="bigHow"]:checked'); big.prescreen = !!(r && r.value === 'pre'); $('bigModal').hidden = true; runFull(); });
+// Closing the dialog puts focus back on its opener (the pilot box's 'Looks right' button or the chart's quick-look button, #573). If that
+// control is gone (the chart's banner leaves when the run starts), focus goes to Cancel search while a run is on, else to Large search.
+function closeBigModal() {
+  $('bigModal').hidden = true;
+  const o = bigOpener; bigOpener = null;
+  const ok = e => e && e !== document.body && e.isConnected && !e.closest('[hidden]') && typeof e.focus === 'function';
+  const to = ok(o) ? o : !$('bigCancel').hidden ? $('bigCancel') : $('bigSearch');
+  try { to.focus(); } catch (e) {}
+}
+$('bigNo').addEventListener('click', closeBigModal);
+$('bigModal').addEventListener('keydown', ev => { if (ev.key === 'Escape') closeBigModal(); });
+$('bigGo').addEventListener('click', () => { const r = document.querySelector('input[name="bigHow"]:checked'); big.prescreen = !!(r && r.value === 'pre'); runFull(); closeBigModal(); });
 $('bigCancel').addEventListener('click', () => {
   big.cancel = true;
   // if nothing has moved for a few seconds the search is not coming back: free everything now
-  setTimeout(() => { if (big.running && performance.now() - (big.lastTick || 0) > 3000) { big.tickGen = (big.tickGen || 0) + 1; big.running = false; sweepBusy = false; big.cancel = false; setBigButtons(); $('runSweep').disabled = false; $('bigMsg').textContent = 'Search cancelled and reset.'; } }, 600);
+  setTimeout(() => { if (big.running && performance.now() - (big.lastTick || 0) > 3000) { big.tickGen = (big.tickGen || 0) + 1; big.running = false; sweepBusy = false; big.cancel = false; liveRun = null; setBigButtons(); $('runSweep').disabled = false; $('bigMsg').textContent = 'Search cancelled and reset.'; } }, 600);
 });
 const GROUP_DIMS = [...CHOICES.map(ch => 'c_' + ch.key), 'tilt3', 'width3', 'ties3', 'brace3', 'overlap', 'curve', 'height', 'panels', 'pattern', 'supportOffset', 'sideAngle', 'ratio', 'claw', 'brace', 'loadShape', 'loadX', 'bookKg', 'topEnd', 'botEnd'];
 function frontPos(pos, woodA, yA) {
@@ -637,6 +662,7 @@ function runFull(ck) {
   try { idxA = new Float64Array(B); woodA = new Float32Array(B); capA = new Float32Array(B); combA = new Float32Array(B); flag = new Uint8Array(B); }
   catch (e) { searchFailed(e, `setting up ${B.toLocaleString()} designs (not enough memory)`); return; }
   const RES = 15000; let sample = [], seen = 0, unstable = 0, passN = 0, screened = 0;
+  liveRun = { kind: 'full', rows: () => sample, done: 0, total: n };   // the grey-cloud sample (a checkpoint replaces the array, so read it each time)
   const lims = sweepLimitsBase();   // null = flag off: the full run as before (RMA-19)
   let why = Object.assign({ edge: 0, env: 0, defl: 0, strength: 0 }, lims ? { noRes: 0, noResBy: {} } : {});
   let top = [], start = 0, msBefore = 0, bStart = 0;
@@ -693,9 +719,9 @@ function runFull(ck) {
     if (row.passes) { passN++; if (top.length < 30 || row.wood < top[top.length - 1].wood) { top.push(row); top.sort((x, y) => x.wood - y.wood || x.util - y.util); if (top.length > 30) top.pop(); } }
     seen++;   // reservoir sample of the stable designs, for the grey cloud
     if (sample.length < RES) sample.push(row); else { const j = Math.floor(Math.random() * seen); if (j < RES) sample[j] = row; }
-  }, (i, ms) => { $('sweepBar').style.width = (100 * i / n).toFixed(1) + '%'; $('bigMsg').textContent = `Full search: ${i.toLocaleString()} of ${n.toLocaleString()} designs${nb > 1 ? ` (batch ${Math.min(nb, Math.floor(i / B) + 1)} of ${nb})` : ''} · ${passN.toLocaleString()} pass so far · ${eta(i, ms)} left · progress saved, so a reload can resume`; if (performance.now() - lastCk > 6000 && i < n) checkpoint(i, ms); },
+  }, (i, ms) => { liveStep(i); $('sweepBar').style.width = (100 * i / n).toFixed(1) + '%'; $('bigMsg').textContent = `Full search: ${i.toLocaleString()} of ${n.toLocaleString()} designs${nb > 1 ? ` (batch ${Math.min(nb, Math.floor(i / B) + 1)} of ${nb})` : ''} · ${passN.toLocaleString()} pass so far · ${eta(i, ms)} left · progress saved, so a reload can resume`; if (performance.now() - lastCk > 6000 && i < n) checkpoint(i, ms); },
   (done, ms) => {
-    ms += msBefore;
+    liveRun = null; ms += msBefore;
     if (big.cancel) idbPut('ckpt', null).catch(() => {});
     holdAwake(false);
     $('bigMsg').textContent = 'Finding the best-trade lines…';
