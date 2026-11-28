@@ -437,6 +437,71 @@ if (!SH_CLASSIC) {
     // the picture fills the whole stage (UI-A3): only the page size changes it, never the windows
     const sig = vw + 'x' + vh;
     if (sig !== lastFree) { lastFree = sig; redrawSoon(); }
+    placeToasts();
+  }
+  // UI-W10 (#558, UIE-13): a toast never covers a control. Both toast boxes (the app's #toast and TrussSheets' .te-toast, which the Undo
+  // toasts use) go to the bottom centre of the free part of the stage: the lowest band clear of every shown window, the results card,
+  // the top bar, the edge tabs and every loose control (the 2D pad, How to use the drawing, a chart's note), centred in the widest gap
+  // there (between the sweep bar and the right-edge stack, or above the bar when there is no gap). A long toast that fits nowhere at its
+  // own width wraps to the widest gap. Placement only: nothing is saved, and the boxes keep their own look (sheets.js, ui.html).
+  const TOAST_CTL = 'button, input, select, textarea, summary, a[href], [role="tab"], [role="switch"], [tabindex]:not([tabindex="-1"]), .chartstate';
+  function toastObstacles(skip) {
+    const out = [], vw = innerWidth, vh = innerHeight;
+    const vis = e => { if (!e || !e.isConnected || e.closest('[hidden]')) return null; const r = e.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return null;
+      const cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none' || +cs.opacity === 0) return null;
+      return r.right > 0 && r.left < vw && r.bottom > 0 && r.top < vh ? r : null; };
+    const boxes = Object.values(wins).concat(Object.values(tabs), [card, S.shell.bar === 'T' ? barTabBox : nav]).filter(Boolean);
+    const shownBoxes = [];
+    for (const e of boxes) { const r = vis(e); if (r) { out.push(r); shownBoxes.push([e, r]); } }
+    for (const e of stage.querySelectorAll(TOAST_CTL)) {
+      if (skip.some(t => t.contains(e))) continue;
+      let r = vis(e); if (!r) continue;
+      // a control inside a window counts only where the window shows it (a scrolled-away row is not on screen)
+      const host = shownBoxes.find(([w]) => w.contains(e));
+      if (host) { const h = host[1]; if (r.left >= h.left && r.right <= h.right && r.top >= h.top && r.bottom <= h.bottom) continue;
+        const l = Math.max(r.left, h.left), t = Math.max(r.top, h.top), rr = Math.min(r.right, h.right), b = Math.min(r.bottom, h.bottom); if (rr <= l || b <= t) continue; r = { left: l, top: t, right: rr, bottom: b }; }
+      else if (Object.values(wins).some(w => w.contains(e))) continue;   // inside a folded or empty window
+      out.push(r);
+    }
+    return out;
+  }
+  // the gaps along one band [top, bottom) of the stage, left to right, each at least min px wide
+  function toastGaps(obs, top, bottom, min) {
+    const PAD = 6, vw = innerWidth, cut = obs.filter(r => r.top < bottom + PAD && r.bottom > top - PAD).map(r => [r.left - PAD, r.right + PAD]).sort((a, b) => a[0] - b[0]);
+    const gaps = []; let x = M;
+    for (const [l, r] of cut) { if (l - x >= min) gaps.push([x, l]); x = Math.max(x, r); }
+    if (vw - M - x >= min) gaps.push([x, vw - M]);
+    return gaps;
+  }
+  function placeToast(t, obs) {
+    const vw = innerWidth, vh = innerHeight, cap = Math.min(560, vw - 32);
+    Object.assign(t.style, { left: '', bottom: '', maxWidth: cap + 'px' });
+    const at = (g, b, w) => { const cx = Math.round(Math.max(g[0] + w / 2, Math.min(g[1] - w / 2, (g[0] + g[1]) / 2))); Object.assign(t.style, { left: cx + 'px', bottom: b + 'px' }); t.dataset.placed = 'free'; };
+    const w0 = Math.ceil(t.offsetWidth), h0 = Math.ceil(t.offsetHeight); if (!w0 || !h0) return;
+    const top = 44, step = 4;
+    // 1. its own size, in the lowest band that has a gap for it
+    for (let b = M; vh - b - h0 >= top; b += step) {
+      const g = toastGaps(obs, vh - b - h0, vh - b, w0).sort((p, q) => (q[1] - q[0]) - (p[1] - p[0]))[0];
+      if (g) { at(g, b, w0); return; }
+    }
+    // 2. wrapped to the widest gap that leaves at least 160 px, re-measured at that width
+    for (let b = M; vh - b - h0 >= top; b += step) {
+      const g = toastGaps(obs, vh - b - h0, vh - b, 160).sort((p, q) => (q[1] - q[0]) - (p[1] - p[0]))[0];
+      if (!g) continue;
+      t.style.maxWidth = Math.floor(g[1] - g[0]) + 'px';
+      const w = Math.ceil(t.offsetWidth), h = Math.ceil(t.offsetHeight);
+      if (vh - b - h >= top && toastGaps(obs, vh - b - h, vh - b, w).some(q => q[0] <= g[0] + 1 && q[1] >= g[1] - 1)) { at(g, b, w); return; }
+      t.style.maxWidth = cap + 'px';
+    }
+    // 3. no gap anywhere: just above the sweep bar, centred on the stage (the bar's controls stay clear)
+    const sb = wins.sweep && wins.sweep.getClientRects().length ? wins.sweep.getBoundingClientRect() : null;
+    Object.assign(t.style, { left: Math.round(vw / 2) + 'px', bottom: Math.round(sb ? vh - sb.top + 8 : M) + 'px' }); t.dataset.placed = 'above-bar';
+  }
+  function placeToasts() {
+    const ts = [document.getElementById('toast'), ...stage.querySelectorAll('.te-toast')].filter(t => t && !t.hidden && t.textContent.trim() !== '');
+    if (!ts.length) return;
+    const all = [document.getElementById('toast'), ...stage.querySelectorAll('.te-toast')].filter(Boolean), obs = toastObstacles(all);
+    ts.forEach(t => placeToast(t, obs));
   }
   let layT = 0, redT = 0;
   function layoutSoon() { cancelAnimationFrame(layT); layT = requestAnimationFrame(layout); }
@@ -522,6 +587,9 @@ if (!SH_CLASSIC) {
   // ---------- toasts (UI-W10): one TrussSheets toast box for the shell and the app (step 2b's Undo toasts read it too) ----------
   const SH = window.TrussSheets || null; if (SH) SH.install(document);
   const toasts = SH ? SH.toasts(document) : { show() { return { close() {} }; }, hide() {} };
+  // UI-W10 (#558): every toast is placed clear of the controls when it shows (placeToasts, above), and again on each layout()
+  { const show0 = toasts.show; toasts.show = function (m) { const h = show0.call(this, m); placeToasts(); return h; }; }
+  if (typeof MutationObserver !== 'undefined' && $('toast')) new MutationObserver(() => placeToasts()).observe($('toast'), { childList: true, characterData: true, subtree: true });
   // the app tells the shell about use ('tick') and finished sweeps ('sweep-finished'); the first unlock says so once
   // A tick changes S.shell.unlocks in memory only: it rides along with the next save() (every input change saves) and with
   // pagehide, so a quiet page writes nothing to storage on its own (the gallery's UI-G4 guard). A sweep or the unlock saves at once.

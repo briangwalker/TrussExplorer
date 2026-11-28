@@ -84,11 +84,52 @@ async function ringCheck(p, theme) {
   check(`${theme}: a focused Undo has a visible ring, 3:1 or better on the toast`, r.style && r.style !== 'none' && r.width >= 2 && r.ratio >= 3, JSON.stringify(r));
   await p.click('.te-toast [data-undo]'); await p.waitForTimeout(100);
 }
+// #558 (UIE-13, UI-W10): on a first visit the starter-sweep toast ('Building a starter sweep of 51,100 designs…', app/95-keep-safe.js)
+// sits clear of the sweep bar: at the centre of Run sweep (or the bar's ▶) and of Sweep settings (or its ⋯) the page hit is the control,
+// not the toast (the app's toast lets clicks through, so the test makes it catch them while it looks), it covers no control at all, and
+// it is fully on screen. Five sizes, Wireframe and Notebook + Calculator (the default for a new visitor).
+async function starterToast(size, theme) {
+  const p = await openPage(b, srv.url, size), tag = `starter toast ${size.width}x${size.height} ${theme}`;
+  await p.waitForFunction(() => window.__shell && window.__shell.applyTheme, null, { timeout: 15000 });
+  await p.evaluate(t => __shell.applyTheme(t), theme);
+  const up = await p.waitForFunction(() => { const t = document.getElementById('toast'); return t && /starter sweep/.test(t.textContent); }, null, { timeout: 15000 }).then(() => true, () => false);
+  check(`${tag}: the starter-sweep toast shows`, up);
+  if (!up) { await p.close(); return; }
+  await p.waitForTimeout(250);
+  const r = await p.evaluate(() => {
+    const t = document.getElementById('toast'), tr = t.getBoundingClientRect(), was = t.style.pointerEvents; t.style.pointerEvents = 'auto';
+    const vis = e => !!e && e.getClientRects().length > 0 && !e.closest('[hidden]') && e.getBoundingClientRect().width > 0;
+    const pick = sel => [...document.querySelectorAll(sel)].find(vis) || null;
+    const hit = e => { if (!e) return 'missing'; const q = e.getBoundingClientRect(), h = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2); return h && (h === e || e.contains(h)) ? 'ok' : (h ? (h.id || h.className || h.tagName) : 'nothing'); };
+    const run = pick('#runSweep, #win-sweep [data-ic="run"]'), more = pick('#sweepMore, #win-sweep [data-ic="grow"]');
+    const out = { run: hit(run), more: hit(more), runId: run && (run.id || run.dataset.ic), moreId: more && (more.id || more.dataset.ic),
+      on: tr.left >= 0 && tr.top >= 0 && tr.right <= innerWidth && tr.bottom <= innerHeight, box: [tr.left, tr.top, tr.right, tr.bottom].map(Math.round), placed: t.dataset.placed || '' };
+    const cov = [];
+    for (const e of document.querySelectorAll('#stage button, #stage input, #stage select, #stage summary, #stage [role="tab"], #stage [role="switch"]')) {
+      if (t.contains(e) || !vis(e)) continue; const q = e.getBoundingClientRect(), cs = getComputedStyle(e); if (cs.visibility === 'hidden') continue;
+      if (!(q.left < tr.right && q.right > tr.left && q.top < tr.bottom && q.bottom > tr.top)) continue;
+      // only a control the person can see there counts (one scrolled out of its window is not on screen)
+      const c = document.elementFromPoint(Math.max(q.left, tr.left) + 1, Math.max(q.top, tr.top) + 1); t.style.pointerEvents = 'none';
+      const under = document.elementFromPoint(Math.max(q.left, tr.left) + 1, Math.max(q.top, tr.top) + 1); t.style.pointerEvents = 'auto';
+      if (c === t || t.contains(c)) { if (under && (under === e || e.contains(under))) cov.push(e.id || e.dataset.ic || e.className || e.tagName); }
+    }
+    t.style.pointerEvents = was; out.covers = cov.slice(0, 4).join(','); return out;
+  });
+  check(`${tag}: the bar's Run sweep is the control at its centre, not the toast (UI-W10)`, r.run === 'ok', JSON.stringify(r));
+  check(`${tag}: Sweep settings is the control at its centre, not the toast (UI-W10)`, r.more === 'ok', JSON.stringify(r));
+  check(`${tag}: the toast covers no control (UI-W10)`, r.covers === '', JSON.stringify(r));
+  check(`${tag}: the toast is fully on screen`, r.on, JSON.stringify(r));
+  check(`${tag}: no script errors`, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+  await p.close();
+}
 try {
+  for (const size of [{ width: 1366, height: 900 }, { width: 1024, height: 768 }, { width: 683, height: 450 }, { width: 512, height: 384 }, { width: 390, height: 844 }])
+    for (const theme of ['wireframe', 'notebook-calc']) await starterToast(size, theme);
   const p = await openPage(b, srv.url, { width: 1366, height: 900 }); await freshLoad(p); await run(p, '1366');
   for (const t of ['wireframe', 'notebook-calc', 'notebook-calc-calc', 'blueprint']) await ringCheck(p, t);
   await p.close();
   const q = await openPage(b, srv.url, { width: 390, height: 844 }); await run(q, '390'); await q.close();
+  const q2 = await openPage(b, srv.url, { width: 512, height: 384 }); await run(q2, '512'); await q2.close();
 } finally { await b.close(); srv.close(); }
 const fails = check.results.filter(x => !x.ok);
 console.log(`\n${check.results.length - fails.length}/${check.results.length} Undo-toast checks passed`);

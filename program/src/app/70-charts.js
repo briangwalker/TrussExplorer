@@ -181,8 +181,39 @@ function csArrow(ctx, x0, y0, x1, y1) {
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - L * Math.cos(a - 0.45), y1 - L * Math.sin(a - 0.45)); ctx.lineTo(x1 - L * Math.cos(a + 0.45), y1 - L * Math.sin(a + 0.45)); ctx.closePath(); ctx.fill();
   ctx.restore();
 }
+// UIE-13 (UI Designer's SHOULD 1 and QA's SHOULD 2 on #551): the arrow stays visible end to end. When the straight line from (x0, y0) to
+// Run sweep's corner would pass under the chart's note, it starts just outside the note's corner that faces the target instead, so no part
+// of it is hidden. Canvas px. The ends are kept on the canvas (data-arrow) for the tests.
+function csArrowAround(cv, ctx, x0, y0, x1, y1) {
+  const el = cv.parentElement && cv.parentElement.querySelector(':scope > .chartstate'), c = cv.getBoundingClientRect();
+  const n = el && el.getClientRects().length ? el.getBoundingClientRect() : null, G = 8;
+  if (n && n.width > 0) {
+    const L = n.left - c.left - G, R = n.right - c.left + G, T = n.top - c.top - G, B = n.bottom - c.top + G;
+    const hits = (ax, ay, bx, by) => { for (let i = 0; i <= 40; i++) { const x = ax + (bx - ax) * i / 40, y = ay + (by - ay) * i / 40; if (x > L && x < R && y > T && y < B) return true; } return false; };
+    if (hits(x0, y0, x1, y1)) {
+      // the target is below-left of the note (the usual case): from the note's bottom-left corner; left only: from its left side;
+      // below only: from under its bottom edge. Each start is outside the note and the line moves away from it.
+      if (x1 < L && y1 > B) { x0 = L; y0 = B; } else if (x1 < L) { x0 = L; y0 = Math.max(T, Math.min(B, y1)); } else if (y1 > B) { x0 = Math.max(L, Math.min(R, x1)); y0 = B; }
+    }
+  }
+  csArrow(ctx, x0, y0, x1, y1); cv.dataset.arrow = [x0, y0, x1, y1].map(v => Math.round(v)).join(',');
+}
+// QA's SHOULD 1 on #551 (UIE-13): one polite live region per chart, in the page from load and empty; a banner (out of date, quick look)
+// only sets its words, so a screen reader hears each episode once and no region is made or dropped per episode. Visually hidden: the
+// banner shows the same words.
+function csLive(cv) {
+  const box = cv && cv.parentElement; if (!box) return null;
+  let lv = box.querySelector(':scope > .cs-live');
+  if (!lv) {
+    lv = document.createElement('p'); lv.className = 'cs-live'; lv.setAttribute('role', 'status'); lv.setAttribute('aria-live', 'polite');
+    lv.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0';
+    box.appendChild(lv);
+  }
+  return lv;
+}
+['tradeCanvas', 'c3Canvas'].forEach(id => csLive($(id)));
 // the state painter: the note (no sweep yet) or the banner (out of date) over the chart, built once per state and changed only when its words change,
-// so a screen reader hears the banner once (role=status, polite), not on every redraw
+// so a screen reader hears the banner once (through the chart's one live region, csLive), not on every redraw
 function paintChartState(cv, kind) {
   cv.dataset.chartState = kind;
   const box = cv.parentElement; let el = box.querySelector(':scope > .chartstate');
@@ -196,21 +227,23 @@ function paintChartState(cv, kind) {
       setTimeout(() => { if (document.activeElement === cv || document.activeElement === document.body) focusRunSweep(); }, 0);
     }
   }
-  if (kind === 'fresh') return;
+  const lv = csLive(cv);
+  if (kind === 'fresh') { if (lv && lv.textContent) lv.textContent = ''; return; }
   const quick = kind === 'quick-look';
   const msg = kind === 'stale' ? csT('chart.state.stale', { what: chartStaleWhat() }) : quick ? csT('chart.state.quickLook', { n: SweepState.rows().length.toLocaleString('en-US') })
     : csT(cv.id === 'c3Canvas' ? 'chart.state.noSweep3d' : 'chart.state.noSweep');
   if (!el) {
     el = document.createElement('div'); el.className = 'chartstate ' + (kind === 'stale' ? 'cs-stale' : quick ? 'cs-quick' : 'cs-nosweep'); el.dataset.kind = kind;
-    if (kind === 'stale' || quick) { el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); }
     const p = document.createElement('p'); p.className = 'cs-msg';
     const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cs-run'; btn.dataset.part = 'note-button'; btn.dataset.slot = 'ctl'; btn.textContent = csT(quick ? 'chart.state.goFull' : 'chart.state.goRun');
     btn.addEventListener('click', quick ? chartRunFull : focusRunSweep);
     el.append(p, btn); box.appendChild(el);
-    // the live region is in the page before its words arrive, so they are read (once)
-    setTimeout(() => { if (el.isConnected) p.textContent = el.dataset.msg; }, 40);
-  } else if (el.dataset.msg !== msg) el.querySelector('.cs-msg').textContent = msg;
+  }
+  if (el.dataset.msg !== msg) el.querySelector('.cs-msg').textContent = msg;
   el.dataset.msg = msg;
+  // the chart's one live region (csLive) reads the banner's words; the no-sweep note is not a status and leaves it empty
+  const say = kind === 'stale' || quick ? msg : '';
+  if (lv && lv.textContent !== say) lv.textContent = say;
 }
 // out of date follows the sweep's own banner (.staleMsg, toggled by checkStale): redraw the chart on screen when it flips, as the bar does (shell.js)
 (function () {
@@ -308,7 +341,7 @@ function drawTrade() {
       ctx.strokeStyle = cssv('--tens'); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke();
       ctx.fillStyle = cssv('--ink'); ctx.font = '600 13px Barlow, sans-serif'; ctx.textAlign = 'left'; ctx.fillText(csT('chart.state.yourBridge'), x + 14, y + 4);
     }
-    csArrow(ctx, x - 12, y + 12, A.P.l + 10, h - A.P.b - 10);
+    csArrowAround(cv, ctx, x - 12, y + 12, A.P.l + 10, h - A.P.b - 10);
     cv.dataset.dots = ok ? '1' : '0';
     $('frontTbl').innerHTML = ''; $('tradeLegend').innerHTML = ''; tradePts = null; renderBest(); return;
   }
@@ -557,7 +590,7 @@ function draw3() {
   paintChartState(cv, kind); cv.dataset.dotAlpha = String(+(0.8 * fade).toFixed(3));
   if (kind === 'no-sweep') {
     // UI-A14 in 3D: no axes to place your bridge on yet, so the words (the note over the chart) and the arrow toward Run sweep
-    const { ctx, w, h } = emptyCanvas(cv); csArrow(ctx, w / 2 - 40, h / 2 + 40, 40, h - 40);
+    const { ctx, w, h } = emptyCanvas(cv); csArrowAround(cv, ctx, w / 2 - 40, h / 2 + 40, 40, h - 40);
     cv.dataset.dots = '0'; c3v.pts = null; $('c3Legend').innerHTML = ''; return;
   }
   const fx = AXES[S.c3.x][1], fy = AXES[S.c3.y][1], fz = AXES[S.c3.z][1];
