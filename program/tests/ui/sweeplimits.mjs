@@ -5,6 +5,8 @@
 // RMA-19 (TE-B-675, TE-B-717): 'Most common' and the Breakdown are the fails only; no result has its own by-rule sentence; a limits
 // check that throws gives noResult 'error' (never a kg); the large search (pilot, 3D pilot stage, full run, the saved result) does the same.
 // RMA-21 (TE-B-705): the Analysis charts and 'Best for' leave refused designs out, and their tooltips never show a kg.
+// RMA-24 (TE-B-825): the 3D chart tooltip of a refused design shows '—' on every result axis (capacity, deflection, member use,
+// load multiple) on x, y and z, not only on capacity; flag off, every tooltip reads a number on each axis, as before.
 //   node tests/ui/sweeplimits.mjs
 import { serve, browser, openPage, waitRows, checker } from './harness.mjs';
 
@@ -183,6 +185,9 @@ try {
   // RMA-21 (TE-B-705): the Analysis charts and 'Best for' on the default sweep. With ?limits=1 a refused design is never on the
   // best-trade line, never a 'Best for' pick or a table row, and its tooltip has no kg (UI-I10). Flag off: the same as before.
   const BUDGET = 3000, TARGET = 3;
+  // RMA-24: the result axes (RESULT_AXES in 70-charts.js) with their AXES labels, and four 3D layouts that put each of them on x, y and z
+  const RES_LABEL = { capKg: 'capacity (kg of books)', D: 'mid-span deflection (mm)', util: 'highest member use at the design load', comb: 'load multiple (strength and deflection)' };
+  const C3RES = [['capKg', 'D', 'util'], ['D', 'util', 'comb'], ['util', 'comb', 'capKg'], ['comb', 'capKg', 'D']];
   async function charts(url) {
     const p = await openPage(b, url, { width: 1400, height: 900 });
     p.on('pageerror', e => errors.push(String(e))); await p.addInitScript(ROWS_FN); await p.evaluate(ROWS_FN);
@@ -210,6 +215,13 @@ try {
     await p.evaluate(() => { __dbg.S.c3.fails = true; document.getElementById('c3Fails').checked = true; __dbg.drawTrackers(); });
     await p.waitForTimeout(300);
     out.c3tips = await tips('c3Canvas');
+    // RMA-24: each result axis on x, on y and on z (four layouts, each with three result axes), the same sweep
+    out.c3res = [];
+    for (const [x, y, z] of C3RES) {
+      await p.evaluate(([x, y, z]) => { Object.assign(__dbg.S.c3, { x, y, z }); __dbg.drawTrackers(); }, [x, y, z]);
+      await p.waitForTimeout(300);
+      out.c3res.push({ axes: { x, y, z }, tips: await tips('c3Canvas') });
+    }
     out.same = (await p.evaluate(() => __dbg.sweepVersion)) === out.version;   // no new sweep while the tooltips were read
     await p.close();
     return out;
@@ -247,6 +259,23 @@ try {
   check('RMA-21 flag on: every other Trade-off tooltip is as before', TC.tips.filter(t => !/no result/.test(t)).every(t => / capacity [\d.]+ kg · (passes|fails a check)/.test(t)));
   const nr3 = TC.c3tips.filter(t => /no result/.test(t));
   check("RMA-21 flag on: a refused design's 3D chart tooltip reads 'no result' and shows no capacity number", nr3.length > 0 && nr3.every(t => /no result \(breaks the limits: (G([1-9]|10)|M2)\)/.test(t) && /capacity \(kg of books\): —/.test(t)), `${nr3.length}: ${nr3[0] || ''}`);
+  // RMA-24: the value after '<axis label>: ' in a 3D tooltip ('—', a number, or null if the line is missing)
+  const valOf = (t, label) => { const i = t.indexOf(label + ': '); if (i < 0) return null; const m = t.slice(i + label.length + 2).match(/^(—|-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/); return m ? m[1] : 'unreadable'; };
+  const isNum = v => v != null && v !== '—' && v !== 'unreadable';
+  // Flag off: no row has noResult, and draw3 plots only rows finite on all three axes, so the base rule printed a number on every
+  // line of every tooltip. The same holds here, so the flag-off tooltips are the base ones.
+  check('RMA-24 flag off: every 3D tooltip in the four result-axis layouts reads a number on x, y and z, none says no result',
+    F.c3res.length === 4 && F.c3res.every(c => c.tips.length > 0 && c.tips.every(t => !/no result/.test(t) && ['x', 'y', 'z'].every(k => isNum(valOf(t, RES_LABEL[c.axes[k]]))))),
+    F.c3res.map(c => c.tips.length).join(','));
+  for (const k of ['x', 'y', 'z']) for (const ax of Object.keys(RES_LABEL)) {
+    const cs = TC.c3res.filter(c => c.axes[k] === ax), nr = cs.flatMap(c => c.tips.filter(t => /no result/.test(t)));
+    check(`RMA-24 flag on: every refused design's 3D tooltip shows '—' and no digits for ${ax} on ${k}`,
+      cs.length === 1 && nr.length > 0 && nr.every(t => valOf(t, RES_LABEL[ax]) === '—'), `${nr.length}: ${nr.find(t => valOf(t, RES_LABEL[ax]) !== '—') || ''}`);
+  }
+  check('RMA-24 flag on: every other 3D tooltip reads a number on x, y and z, as before',
+    TC.c3res.every(c => c.tips.filter(t => !/no result/.test(t)).every(t => ['x', 'y', 'z'].every(k => isNum(valOf(t, RES_LABEL[c.axes[k]])))) && c.tips.some(t => !/no result/.test(t))));
+  check("RMA-24 flag on: the default layout's refused tooltips keep the geometry and wood as numbers (only result axes go to '—')",
+    nr3.length > 0 && nr3.every(t => isNum(valOf(t, 'wood used ΣL (mm, whole bridge)')) && isNum(valOf(t, 'height (mm)'))), nr3[0] || '');
   check('no script errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 } finally { await b.close(); srv.close(); }
 const bad = check.results.filter(r => !r.ok);
