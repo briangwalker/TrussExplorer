@@ -7,7 +7,7 @@
    "version": 1,
    "id": "wireframe",
    "name": "Wireframe",
-   "note": "the default; built into shell.css"
+   "note": "the base built into shell.css; the default only if the pack lacks Notebook + Calculator"
   },
   {
    "format": "truss-explorer-theme",
@@ -28,6 +28,7 @@
    "version": 1,
    "id": "notebook-calc",
    "name": "Notebook + Calculator",
+   "note": "the default for a new visitor (Brian 75a); photo wood",
    "css": "notebook-calc.css"
   },
   {
