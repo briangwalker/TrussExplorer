@@ -4,6 +4,7 @@
 // Without the flag nothing changes: the same rows, no noResult field, the same message text.
 // RMA-19 (TE-B-675, TE-B-717): 'Most common' and the Breakdown are the fails only; no result has its own by-rule sentence; a limits
 // check that throws gives noResult 'error' (never a kg); the large search (pilot, 3D pilot stage, full run, the saved result) does the same.
+// RMA-21 (TE-B-705): the Analysis charts and 'Best for' leave refused designs out, and their tooltips never show a kg.
 //   node tests/ui/sweeplimits.mjs
 import { serve, browser, openPage, waitRows, checker } from './harness.mjs';
 
@@ -178,6 +179,74 @@ try {
   check('3D pilot: a design a G-rule refuses in 2D has no result in 3D too', T.rows.every(r => { const q = bIdx.get(String(r.idx)); return !q || !q.noResult || q.noResult[0] !== 'G' || !!r.noResult; }));
   check('3D pilot: the box counts no result on its own', /[\d,]+ pass · [\d,]+ fail a check · [\d,]+ no result \(break the limits\) · [\d,]+ unstable\./.test(T.box) && !/Most common: no result/i.test(T.box), T.box.slice(0, 300));
   await on.close();
+
+  // RMA-21 (TE-B-705): the Analysis charts and 'Best for' on the default sweep. With ?limits=1 a refused design is never on the
+  // best-trade line, never a 'Best for' pick or a table row, and its tooltip has no kg (UI-I10). Flag off: the same as before.
+  const BUDGET = 3000, TARGET = 3;
+  async function charts(url) {
+    const p = await openPage(b, url, { width: 1400, height: 900 });
+    p.on('pageerror', e => errors.push(String(e))); await p.addInitScript(ROWS_FN); await p.evaluate(ROWS_FN);
+    await waitRows(p).catch(() => {});
+    await run(p);
+    await p.click('#shellNav [data-go="analysis"]'); await p.waitForTimeout(800);
+    await p.evaluate(([bu, ta]) => { const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('change', { bubbles: true })); }; set('woodBudget', bu); set('loadTarget', ta); __dbg.drawTrackers(); }, [BUDGET, TARGET]);
+    await p.waitForTimeout(300);
+    // every tooltip the chart can show: move the pointer over the whole canvas, 5 px apart
+    const tips = id => p.evaluate(id => { const c = document.getElementById(id), r = c.getBoundingClientRect(), tip = document.getElementById(id === 'tradeCanvas' ? 'tradeTip' : 'c3Tip'), out = new Set();
+      for (let y = r.top + 2; y < r.bottom; y += 5) for (let x = r.left + 2; x < r.right; x += 5) { c.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y, bubbles: true })); if (!tip.hidden) out.add(tip.textContent); }
+      return [...out]; }, id);
+    // the rows, the saved best-trade line, the table and 'Best for' are read in one step, so they come from the same sweep
+    const out = await p.evaluate(() => {
+      const ctx = __dbg.ctx, S = __dbg.S;
+      try { localStorage.removeItem('se310-truss-saved'); } catch (e) {}
+      document.getElementById('saveSweep').click();
+      const front = (JSON.parse(localStorage.getItem('se310-truss-saved') || '[]').pop() || { trade: [] }).trade.map(q => [q.wood, q.capKg]);
+      return { version: __dbg.sweepVersion, front, rows: __dbg.rows.map(r => ({ wood: r.wood, capKg: r.capKg, D: r.D, passes: r.passes, noResult: r.noResult, envOK: r.envOK, edgeOK: r.edgeOK, slipOK: r.slipOK, bookKg: r.bookKg })),
+        defl: ctx.defl, FS: ctx.FS, bookKg: ctx.bookKg, deflLimit: S.opts.deflLimit,
+        best: [...document.querySelectorAll('#bestOut > div')].map(d => d.textContent), tbl: [...document.querySelectorAll('#frontTbl tbody tr')].map(tr => [...tr.cells].map(c => c.textContent)) };
+    });
+    out.tips = await tips('tradeCanvas');
+    await p.click('#shellNav [data-sw="a:3"]'); await p.waitForTimeout(800);
+    await p.evaluate(() => { __dbg.S.c3.fails = true; document.getElementById('c3Fails').checked = true; __dbg.drawTrackers(); });
+    await p.waitForTimeout(300);
+    out.c3tips = await tips('c3Canvas');
+    out.same = (await p.evaluate(() => __dbg.sweepVersion)) === out.version;   // no new sweep while the tooltips were read
+    await p.close();
+    return out;
+  }
+  // Math's recount: the best-trade line and the two picks worked out here from the rows (withRes false: the old rule, every row)
+  const okRow = r => r.envOK && r.edgeOK !== false && r.slipOK !== false;
+  function recount(o, withRes) {
+    const has = r => !withRes || !r.noResult;
+    const s = o.rows.filter(r => has(r) && Number.isFinite(r.capKg) && okRow(r) && (!(r.D > 0) || r.D <= o.defl)).sort((a, c) => a.wood - c.wood || c.capKg - a.capKg);
+    const front = []; let top = -Infinity; s.forEach(r => { if (r.capKg > top + 1e-9) { front.push(r); top = r.capKg; } });
+    const ok = r => okRow(r) && has(r) && Number.isFinite(r.capKg);
+    let strong = null, light = null;
+    o.rows.forEach(r => { if (ok(r) && r.passes && r.wood <= BUDGET && (!strong || r.capKg > strong.capKg)) strong = r; });
+    o.rows.forEach(r => { if (!ok(r) || r.capKg < TARGET * o.FS - 1e-9) return; if (r.D * TARGET / (r.bookKg != null ? r.bookKg : o.bookKg) > o.deflLimit) return; if (!light || r.wood < light.wood) light = r; });
+    const lw = o.rows.filter(r => r.passes && has(r)).sort((a, c) => a.wood - c.wood)[0];
+    return { front, strong, light, lw };
+  }
+  const sameFront = (got, want) => got.length === want.length && got.every((q, i) => q[0] === want[i].wood && q[1] === want[i].capKg);
+  const pickText = r => r ? `wood ${r.wood.toFixed(0)} mm · capacity ${r.capKg.toFixed(1)} kg` : 'none in this sweep';
+  const F = await charts(srv.url), TC = await charts(srv.url + '?limits=1');
+  const f0 = recount(F, false), t1 = recount(TC, true), t0 = recount(TC, false);
+  check('RMA-21: no new sweep ran while the charts were read (flag off and on)', F.same && TC.same);
+  check('RMA-21 flag off: the best-trade line is the one worked out from every row', F.front.length > 0 && sameFront(F.front, f0.front), `${F.front.length} vs ${f0.front.length}`);
+  check("RMA-21 flag off: 'Best for' picks the same designs as before", F.best.length === 2 && F.best[0].includes(pickText(f0.strong)) && F.best[1].includes(pickText(f0.light)), F.best.join(' | '));
+  check("RMA-21 flag off: every Trade-off tooltip reads capacity and passes or fails, none says 'no result'", F.tips.length > 0 && F.tips.every(t => / capacity [\d.]+ kg · (passes|fails a check)/.test(t) && !/no result/.test(t)), String(F.tips.length));
+  check("RMA-21 flag off: no 3D chart tooltip says 'no result'", F.c3tips.length > 0 && F.c3tips.every(t => !/no result/.test(t)), String(F.c3tips.length));
+  check('RMA-21 flag on: the default sweep has refused designs', TC.rows.some(r => r.noResult), String(TC.rows.filter(r => r.noResult).length));
+  check('RMA-21 flag on: the best-trade line matches the recount over the designs with a result', TC.front.length > 0 && sameFront(TC.front, t1.front), `${TC.front.length} vs ${t1.front.length}`);
+  check('RMA-21 flag on: no best-trade point is a refused design', t1.front.every(r => !r.noResult) && t0.front.some(r => r.noResult), `${t0.front.filter(r => r.noResult).length} of ${t0.front.length} on the old line were refused`);
+  check("RMA-21 flag on: neither 'Best for' pick is a refused design, and both match the recount", TC.best.length === 2 && TC.best[0].includes(pickText(t1.strong)) && TC.best[1].includes(pickText(t1.light)) && !(t1.strong && t1.strong.noResult) && !(t1.light && t1.light.noResult), TC.best.join(' | '));
+  check("RMA-21 flag on: 'Least wood that carries' would have picked a refused design without the change", !!(t0.light && t0.light.noResult), t0.light ? String(t0.light.noResult) : 'none');
+  check('RMA-21 flag on: the table\'s lightest passing design has a result', TC.tbl.length > 0 && TC.tbl[0][2] === (t1.lw ? t1.lw.wood.toFixed(0) : '—'), JSON.stringify(TC.tbl[0]));
+  const nrT = TC.tips.filter(t => /no result/.test(t));
+  check("RMA-21 flag on: a refused design's Trade-off tooltip reads 'no result (breaks the limits: <rule>)' with no kg", nrT.length > 0 && nrT.every(t => /no result \(breaks the limits: (G([1-9]|10)|M2)\)/.test(t) && !/kg/.test(t)), `${nrT.length}: ${nrT[0] || ''}`);
+  check('RMA-21 flag on: every other Trade-off tooltip is as before', TC.tips.filter(t => !/no result/.test(t)).every(t => / capacity [\d.]+ kg · (passes|fails a check)/.test(t)));
+  const nr3 = TC.c3tips.filter(t => /no result/.test(t));
+  check("RMA-21 flag on: a refused design's 3D chart tooltip reads 'no result' and shows no capacity number", nr3.length > 0 && nr3.every(t => /no result \(breaks the limits: (G([1-9]|10)|M2)\)/.test(t) && /capacity \(kg of books\): —/.test(t)), `${nr3.length}: ${nr3[0] || ''}`);
   check('no script errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 } finally { await b.close(); srv.close(); }
 const bad = check.results.filter(r => !r.ok);

@@ -53,6 +53,11 @@ const GLABEL = { ...Object.fromEntries(CHOICES.map(ch => ['c_' + ch.key, k => k 
 const okRow = r => r.envOK && r.edgeOK !== false && r.slipOK !== false;
 // frontier candidates also pass the deflection check (capacity itself is strength only)
 const frontOK = r => okRow(r) && (!(r.D > 0) || !SweepState.ctx() || r.D <= SweepState.ctx().defl);
+// RMA-21 (TE-B-705, UI-I10): a design the limits refuse (?limits=1: the sweep gives it noResult, its first rule) has no
+// result, so it is never on a best-trade line, never a 'Least wood' or 'Strongest' pick and never shows a kg. Without the
+// flag no row has noResult, so every chart, table and text is as before.
+const hasResult = r => !r.noResult;
+const noResText = r => r.noResult === 'error' ? 'no result (the limits check failed)' : `no result (breaks the limits: ${r.noResult})`;
 function gcolor(i) { return cssv('--g' + ((i % 8) + 1)); }
 function groupsOf(rows) {
   const g = S.groupBy || 'none';
@@ -64,7 +69,8 @@ function groupsOf(rows) {
 }
 function frontier(rows, yOf) {
   yOf = yOf || (r => r.capKg);
-  const s = rows.filter(r => isFinite(yOf(r)) && frontOK(r)).slice().sort((a, b) => a.wood - b.wood || yOf(b) - yOf(a));
+  // !r.noResult is hasResult(r), written out: tests/sampler.test.js loads frontier() on its own
+  const s = rows.filter(r => !r.noResult && isFinite(yOf(r)) && frontOK(r)).slice().sort((a, b) => a.wood - b.wood || yOf(b) - yOf(a));
   const f = []; let best = -Infinity;
   s.forEach(r => { if (yOf(r) > best + 1e-9) { f.push(r); best = yOf(r); } });
   return f;
@@ -205,7 +211,7 @@ function paintChartState(cv, kind) {
     .observe(st, { attributes: true, attributeFilter: ['hidden'] });
 })();
 function groupTip(g) {
-  const rows = g.rows || [], pass = rows.filter(r => r.passes);
+  const rows = g.rows || [], pass = rows.filter(r => r.passes && hasResult(r));
   if (!rows.length) return '';
   const lw = pass.length ? pass.reduce((p, q) => q.wood < p.wood ? q : p) : null, sc = pass.length ? pass.reduce((p, q) => q.capKg > p.capKg ? q : p) : null;
   return `${g.label}: ${rows.length.toLocaleString()} designs in this sweep, ${pass.length.toLocaleString()} pass (${Math.round(100 * pass.length / rows.length)}%)` +
@@ -365,7 +371,7 @@ function drawTrade() {
   let t = `<thead><tr><th class="l">${S.groupBy === 'none' ? 'Sweep' : 'Group'}</th><th class="l">Lightest passing design</th><th>Wood (mm)</th><th>Capacity (kg)</th><th>Wood per +1% load (next ≥10% step)</th><th></th></tr></thead><tbody>`;
   const best = [];
   groups.forEach((g, gi) => {
-    const pass = g.rows.filter(r => r.passes).sort((x, y) => x.wood - y.wood)[0];
+    const pass = g.rows.filter(r => r.passes && hasResult(r)).sort((x, y) => x.wood - y.wood)[0];
     const f = frontier(g.rows);
     let slope = '—';
     if (pass) {
@@ -404,7 +410,7 @@ function renderBest() {
   const el = $('bestOut'); if (!el) return;
   if (!SweepState.rows().length) { el.innerHTML = ''; return; }
   const budget = +$('woodBudget').value, target = +$('loadTarget').value, FS = SweepState.ctx() ? SweepState.ctx().FS : S.mat.FS, bk = SweepState.ctx() ? SweepState.ctx().bookKg : S.load.mBook1 + S.load.mBook2;
-  const ok = r => okRow(r) && Number.isFinite(r.capKg);
+  const ok = r => okRow(r) && hasResult(r) && Number.isFinite(r.capKg);
   let strong = null, light = null;
   if (budget > 0) SweepState.rows().forEach(r => { if (ok(r) && r.passes && r.wood <= budget && (!strong || r.capKg > strong.capKg)) strong = r; });
   if (target > 0) SweepState.rows().forEach(r => {
@@ -495,7 +501,7 @@ $('tradeCanvas').addEventListener('mousemove', ev => {
   if (dragBox) { const r = $('tradeCanvas').getBoundingClientRect(); dragBox.x1 = ev.clientX - r.left; dragBox.y1 = ev.clientY - r.top; if (Math.abs(dragBox.x1 - dragBox.x0) + Math.abs(dragBox.y1 - dragBox.y0) > 6) { dragBox.moved = true; $('tradeTip').hidden = true; drawTrade(); return; } }
   const n = nearest(tradePts, ev, $('tradeCanvas'));
   const act = n ? (S.clickMode === 'refine' && !n.q.p.refined ? 'click to add designs around it' : 'click to load it') : '';
-  showTip($('tradeTip'), $('tradeCanvas'), n, n ? `${summaryOf(n.q.p)}<br>wood ${n.q.p.wood.toFixed(0)} mm · capacity ${n.q.p.capKg.toFixed(1)} kg · ${n.q.p.passes ? 'passes' : 'fails a check'}${n.q.p.refined ? ' · refined' : ''}<br><i>${act}</i>` : '');
+  showTip($('tradeTip'), $('tradeCanvas'), n, n ? `${summaryOf(n.q.p)}<br>wood ${n.q.p.wood.toFixed(0)} mm · ${hasResult(n.q.p) ? `capacity ${n.q.p.capKg.toFixed(1)} kg · ${n.q.p.passes ? 'passes' : 'fails a check'}` : noResText(n.q.p)}${n.q.p.refined ? ' · refined' : ''}<br><i>${act}</i>` : '');
 });
 window.addEventListener('mouseup', ev => {
   if (panT) { const moved = panT.moved; panT = null; paintChartDrag(); if (moved || ev.target !== $('tradeCanvas')) return; const n = nearest(tradePts, ev, $('tradeCanvas')); if (n) { if (S.clickMode === 'refine' && !n.q.p.refined) refineAround(n.q.p); else loadParams(n.q.p); } return; }
@@ -592,8 +598,8 @@ attachOrbit($('c3Canvas'), c3v, () => { $('c3Tip').hidden = true; draw3(); }, { 
 $('c3Canvas').addEventListener('mousemove', ev => {
   if (c3v.drag) return;
   const n = nearest(c3v.pts, ev, $('c3Canvas'));
-  const f = k => { const v = AXES[S.c3[k]][1](n.q.p); return Number.isFinite(v) ? (+v.toFixed(2)).toString() : '—'; };
-  showTip($('c3Tip'), $('c3Canvas'), n, n ? `${summaryOf(n.q.p)}<br>${AXES[S.c3.x][0]}: ${f('x')}<br>${AXES[S.c3.y][0]}: ${f('y')}<br>${AXES[S.c3.z][0]}: ${f('z')}<br>${n.q.p.passes ? 'passes' : 'fails a check'} · click to load` : '');
+  const f = k => { const v = AXES[S.c3[k]][1](n.q.p); return Number.isFinite(v) && (S.c3[k] !== 'capKg' || hasResult(n.q.p)) ? (+v.toFixed(2)).toString() : '—'; };
+  showTip($('c3Tip'), $('c3Canvas'), n, n ? `${summaryOf(n.q.p)}<br>${AXES[S.c3.x][0]}: ${f('x')}<br>${AXES[S.c3.y][0]}: ${f('y')}<br>${AXES[S.c3.z][0]}: ${f('z')}<br>${hasResult(n.q.p) ? (n.q.p.passes ? 'passes' : 'fails a check') : noResText(n.q.p)} · click to load` : '');
 });
 $('c3Canvas').addEventListener('mouseleave', () => { $('c3Tip').hidden = true; });
 
