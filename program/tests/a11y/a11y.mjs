@@ -10,6 +10,10 @@
 //   C. ☰: Enter opens it with focus inside; Esc closes it and focus returns to ☰
 //   D. every window's fold button: after each step focus stays on a control of that window (or its edge tab)
 //   E. every open dialog: focus moves in, Tab stays in, Esc closes, focus returns to the opener
+//   F. Analysis view (window layout): axe on each of its four tabs (Trade-off, Histogram, Curve, Members)
+//   G. focus ring contrast (window layout): every visible control in #stage, ring colour against its real background, 3:1 (WCAG 1.4.11)
+// F and G come from QA's file of 2026-11-26 (TE-B-741, TE-B-744). The file stays in tests/a11y/ (run_all.sh and CI still
+// don't run it) because it still fails on KNOWN items (#184, #242).
 import { createRequire } from 'module';
 import fs from 'fs'; import http from 'http'; import path from 'path'; import { fileURLToPath } from 'url';
 const require = createRequire(import.meta.url);
@@ -50,6 +54,18 @@ try {
       // A. axe
       const v = await p.evaluate(async r => { const res = await axe.run(eval(r), { resultTypes: ['violations'] }); return res.violations.filter(x => ['critical', 'serious'].includes(x.impact)).map(x => `${x.id} ×${x.nodes.length} (${x.nodes[0].target.join(' ')})`); }, root);
       check(`A ${tag}: axe has no critical or serious findings`, v.length === 0, v.slice(0, 5).join('; '));
+      // G. focus ring contrast (QA 2026-11-23): ring colour against the real background, 3:1 (WCAG 1.4.11), every control in #stage
+      if (!classic) {
+        const g = await p.evaluate(() => {
+          const lum = c => { const m = c.match(/[\d.]+/g).map(Number); const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }; return .2126 * f(m[0]) + .7152 * f(m[1]) + .0722 * f(m[2]); };
+          const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+          const bgOf = e => { while (e) { const c = getComputedStyle(e).backgroundColor, m = c.match(/[\d.]+/g); if (m && (m.length < 4 || +m[3] > .9)) return c; e = e.parentElement; } return 'rgb(255,255,255)'; };
+          const els = [...document.querySelectorAll('#stage button,#stage select,#stage input,#stage [tabindex="0"]')].filter(e => e.offsetParent && e.getBoundingClientRect().width > 0);
+          const bad = []; for (const e of els) { e.focus(); const cs = getComputedStyle(e); if (cs.outlineStyle === 'none') continue; const v = cr(cs.outlineColor, bgOf(e.parentElement)); if (v < 3) bad.push((e.id || e.getAttribute('aria-label') || e.textContent.trim().slice(0, 12) || e.tagName) + ' ' + v.toFixed(2)); }
+          document.activeElement.blur(); return [...new Set(bad)];
+        });
+        check(`G ${tag}: focus ring is at least 3:1 against its background`, g.length === 0, `${g.length} weak: ` + g.slice(0, 4).join(', '));
+      }
     }
     if (scheme === 'dark') { await p.close(); continue; }
     // B. Tab walk (light, default theme)
@@ -100,6 +116,17 @@ try {
       check('E Build documents: Esc closes it', await p.evaluate(() => document.getElementById('docModal').hidden));
       const back = await active(p);
       check('E Build documents: focus returns to what opened it', /openDocs|Build documents|dockBtn|Menu/.test(back), 'focus: ' + back);
+    }
+    // F. Analysis view: axe on every tab (QA 2026-11-19)
+    if (!classic && await p.locator('[data-view="analysis"]').count()) {
+      await p.evaluate(() => { const bs = [...document.querySelectorAll('[data-view="analysis"]')]; (bs.find(b => b.offsetParent) || bs[0]).click(); }); await p.waitForTimeout(600);
+      for (const t of ['trade', 'hist', 'curve', 'mem']) {
+        const tab = p.locator(`[role="tab"][data-t="${t}"]`).first(); if (!(await tab.count())) continue;
+        const name = (await tab.textContent()).trim(); await tab.evaluate(e => e.click()); await p.waitForTimeout(500);
+        const v = await p.evaluate(async () => { const res = await axe.run(document.getElementById('stage') || document, { resultTypes: ['violations'] }); return res.violations.filter(x => ['critical', 'serious'].includes(x.impact)).map(x => `${x.id} ×${x.nodes.length} (${x.nodes[0].target.join(' ')})`); });
+        check(`F Analysis tab "${name}": axe has no critical or serious findings`, v.length === 0, v.slice(0, 4).join('; '));
+      }
+      await p.evaluate(() => { const b = document.querySelector('[data-view]:not([data-view="analysis"])'); if (b) b.click(); }); await p.waitForTimeout(400);
     }
     check('no script errors', p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
