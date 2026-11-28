@@ -248,6 +248,9 @@ const AXES = {
   tilt3: ['3D tilt (°)', r => r.tilt3 == null ? +S.d3.tilt : +r.tilt3], width3: ['3D bridge width (mm)', r => r.width3 == null ? +S.opts.width : +r.width3],
   loadX: ['load position (mm)', r => r.loadX == null ? SPAN_MID : +r.loadX], bookKg: ['book mass (kg)', r => r.bookKg == null ? (SweepState.ctx() ? SweepState.ctx().bookKg : S.load.mBook1 + S.load.mBook2) : +r.bookKg],
 };
+// RMA-24 (TE-B-825): the AXES keys whose value comes from the analysis. A design the limits refuse has no result, so its
+// tooltip shows '—' on each of them; the geometry axes, wood and mass stay as they are. Flag off, no row has noResult.
+const RESULT_AXES = ['capKg', 'D', 'util', 'comb'];
 S.axX = AXES[S.axX] ? S.axX : 'wood'; S.axY = AXES[S.axY] ? S.axY : 'capKg';
 S.colorFails = !!S.colorFails; S.clickMode = S.clickMode || 'load'; S.refStep = +S.refStep || 0.5;
 let tradeView = null, dragBox = null;
@@ -598,7 +601,7 @@ attachOrbit($('c3Canvas'), c3v, () => { $('c3Tip').hidden = true; draw3(); }, { 
 $('c3Canvas').addEventListener('mousemove', ev => {
   if (c3v.drag) return;
   const n = nearest(c3v.pts, ev, $('c3Canvas'));
-  const f = k => { const v = AXES[S.c3[k]][1](n.q.p); return Number.isFinite(v) && (S.c3[k] !== 'capKg' || hasResult(n.q.p)) ? (+v.toFixed(2)).toString() : '—'; };
+  const f = k => { const v = AXES[S.c3[k]][1](n.q.p); return Number.isFinite(v) && (!RESULT_AXES.includes(S.c3[k]) || hasResult(n.q.p)) ? (+v.toFixed(2)).toString() : '—'; };
   showTip($('c3Tip'), $('c3Canvas'), n, n ? `${summaryOf(n.q.p)}<br>${AXES[S.c3.x][0]}: ${f('x')}<br>${AXES[S.c3.y][0]}: ${f('y')}<br>${AXES[S.c3.z][0]}: ${f('z')}<br>${hasResult(n.q.p) ? (n.q.p.passes ? 'passes' : 'fails a check') : noResText(n.q.p)} · click to load` : '');
 });
 $('c3Canvas').addEventListener('mouseleave', () => { $('c3Tip').hidden = true; });
