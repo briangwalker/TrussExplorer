@@ -120,6 +120,27 @@ try {
     check('no script errors' + tag, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
     await p.close();
   }
+  // BPD-22 (#557, UI-W23): a double-click on ✕ or Close closes the sheet on the first click, and the second click reaches nothing
+  // behind it: the Results card stays closed, focus is back on ☰, nothing saved changes
+  for (const vp of [{ width: 844, height: 390 }, { width: 512, height: 384 }]) {
+    const p = await openPage(b, srv.url, vp), tag = ` (${vp.width}x${vp.height})`; await waitRows(p);
+    const resOpen = () => p.evaluate(() => { const P = __shell.state.place; return __shell.state.w[P].results === 'W' || document.getElementById('resCard').getAttribute('aria-expanded') === 'true'; });
+    for (const id of ['docX', 'docNo']) {
+      const r0 = await resOpen(), before = await snap(p);
+      await openIt(p);
+      const bx = await (await p.$('#' + id)).boundingBox();
+      await p.mouse.dblclick(bx.x + bx.width / 2, bx.y + bx.height / 2); await p.waitForTimeout(400);
+      check(`#557: a double-click on ${id === 'docX' ? '✕' : 'Close'} closes the sheet, focus on ☰` + tag,
+        await p.evaluate(() => document.getElementById('docModal').hidden && document.activeElement === document.getElementById('dockBtn')));
+      check(`#557: the second click of that double-click does not open the Results card` + tag, !r0 && !(await resOpen()), JSON.stringify({ r0, r1: await resOpen() }));
+      check(`#557: nothing saved changes after the double-click on ${id === 'docX' ? '✕' : 'Close'}` + tag, before === await snap(p));
+    }
+    // a plain click on the Results card right after (a new gesture, away from ✕) still works
+    await openIt(p); await p.click('#docX'); await p.waitForTimeout(100); await p.click('#resCard'); await p.waitForTimeout(250);
+    check('#557: a new click on the Results card after the sheet closed still opens it' + tag, await resOpen());
+    check('no script errors' + tag, p.errs.length === 0, p.errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
 } finally { await b.close(); srv.close(); }
 const bad = check.results.filter(r => !r.ok);
 console.log(`\n${check.results.length - bad.length}/${check.results.length} Build documents dialog checks passed`);

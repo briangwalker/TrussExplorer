@@ -284,8 +284,22 @@ function showExport(x) {
 }
 $('expTabs').addEventListener('click', ev => { const b = ev.target.closest('[data-x]'); if (!b) return; ev.preventDefault(); ev.stopPropagation(); showExport(b.dataset.x); });
 showExport(S.expTab || 'bridge');
-$('docNo').addEventListener('click', closeDocModal);
-$('docX').addEventListener('click', closeDocModal);   // BPD-18: the header's ✕ closes it exactly like Esc and Close (UI-W23)
+// BPD-22 (#557, UI-W23): a double-click on ✕ or Close closes the sheet on its first click; the rest of that same gesture (the second
+// press, its click and the dblclick, within the double-click time and a few px of the first click) is swallowed before it reaches
+// anything, so it never lands on the Results card or whatever else was behind the sheet. A key press (Enter, Space, Esc) sets nothing.
+let docGone = null;
+function closeDocByClick(ev) {
+  if (ev && ev.detail > 0) docGone = { t: performance.now(), x: ev.clientX, y: ev.clientY };
+  closeDocModal();
+}
+['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'dblclick'].forEach(type => window.addEventListener(type, ev => {
+  if (!docGone) return;
+  if (performance.now() - docGone.t > 500 || Math.hypot(ev.clientX - docGone.x, ev.clientY - docGone.y) > 16) { docGone = null; return; }
+  ev.preventDefault(); ev.stopImmediatePropagation();
+  if (type === 'dblclick') docGone = null;
+}, true));
+$('docNo').addEventListener('click', closeDocByClick);
+$('docX').addEventListener('click', closeDocByClick);   // BPD-18: the header's ✕ closes it exactly like Esc and Close (UI-W23)
 // UI-W22 (#410): a click on the dimmed backdrop closes the sheet the way Esc does, and does nothing else on the page
 // behind. It closes on the click, not the pointer-down, so the rest of the gesture still lands on the backdrop and never
 // on the drawing; a drag that starts inside the card (selecting text) and ends outside doesn't close it.

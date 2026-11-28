@@ -347,6 +347,42 @@ check('no script errors', p.errs.length === 0, p.errs.slice(0, 3).join(' | '));
     await u.close();
   }
 
+  // BPD-22 (TE-B-794, UI-W19 in Analysis): the trade-off chart's view control has the pad's home there too (12 px below the top bar's
+  // band, 12 px in from the right edge), it never moves for the Chart key (wins.drawing in Analysis), the Chart key and its tab start
+  // at least 8 px under it, and + and − are whole and on top. The Truss pad keeps the same 12 px right inset.
+  const aPad = u => u.evaluate(() => { const e = document.getElementById('tradeCanvas').parentElement.querySelector('.navpad'), r = e.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, inset: innerWidth - r.right }; });
+  const aStack = u => u.evaluate(() => {
+    const pad = document.getElementById('tradeCanvas').parentElement.querySelector('.navpad').getBoundingClientRect(), D = document.getElementById('win-drawing'), t = document.querySelector('.tabE[data-tab="drawing"]');
+    const vis = e => !!e && !e.hidden && e.getBoundingClientRect().width > 0, d = D.getBoundingClientRect();
+    const btns = [...document.getElementById('tradeCanvas').parentElement.querySelectorAll('.navpad .ncb')].map(bt => {
+      const r = bt.getBoundingClientRect(), pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + 2, r.top + 2], [r.right - 2, r.top + 2], [r.left + 2, r.bottom - 2], [r.right - 2, r.bottom - 2]];
+      return { d: bt.dataset.d, onTop: r.width > 0 && pts.every(([x, y]) => document.elementFromPoint(x, y) === bt) };
+    });
+    return { padB: pad.bottom, win: vis(D) && !D.classList.contains('peek') ? d.top : null, tab: vis(t) ? t.getBoundingClientRect().top : null, btns };
+  });
+  for (const theme of ['wireframe', 'notebook-calc']) for (const [w, h] of [[1366, 900], [1024, 768], [683, 450]]) {
+    const u = await openPage(b, srv.url, { width: w, height: h }); await u.waitForTimeout(600);
+    if (theme !== 'wireframe') { await u.evaluate(t => __shell.applyTheme(t), theme); await u.waitForTimeout(400); }
+    const tp = await padBox(u), tIn = await u.evaluate(() => innerWidth - document.querySelector('#drawWrap .navpad').getBoundingClientRect().right);
+    check(`UI-W19 BPD-22: ${theme} ${w}x${h}: the Truss pad sits 12 px in from the right edge`, Math.abs(tIn - 12) < 0.5, JSON.stringify({ tIn, tp }));
+    await u.evaluate(() => __shell.go('analysis')); await u.waitForTimeout(500);
+    const boxes = {}, stacks = {};
+    for (const s2 of ['T', 'I', 'W']) {
+      await u.evaluate(v => __shell.setState('drawing', v), s2); await u.mouse.move(2, h - 2); await u.waitForTimeout(350);
+      boxes[s2] = await aPad(u); stacks[s2] = await aStack(u);
+    }
+    const top0 = await u.evaluate(() => Math.max(document.getElementById('shellNav').getBoundingClientRect().bottom, 44, document.getElementById('resCard').getBoundingClientRect().bottom || 46) + 8);
+    check(`UI-W19 BPD-22: ${theme} ${w}x${h}: Analysis' view control is 12 px below the top bar's band and 12 px in from the right edge`,
+      Math.abs(boxes.T.t - (top0 - 8 + 12)) < 1 && Math.abs(boxes.T.inset - 12) < 0.5, JSON.stringify({ top0, pad: boxes.T }));
+    check(`UI-W19 BPD-22: ${theme} ${w}x${h}: Analysis' view control box is the same with the Chart key as a tab, as icons and in words`, sameBox(boxes.T, boxes.I) && sameBox(boxes.T, boxes.W), JSON.stringify(boxes));
+    check(`UI-W19 BPD-22: ${theme} ${w}x${h}: the Chart key and its tab start at least 8 px under the view control`,
+      stacks.T.tab !== null && stacks.T.tab >= stacks.T.padB + 7.5 && ['I', 'W'].every(k => stacks[k].win !== null && stacks[k].win >= stacks[k].padB + 7.5), JSON.stringify(stacks));
+    check(`UI-W19 BPD-22: ${theme} ${w}x${h}: + and − of Analysis' view control are on top with the Chart key as a tab, as icons and in words`,
+      ['T', 'I', 'W'].every(k => stacks[k].btns.length === 2 && stacks[k].btns.every(x => x.onTop)), JSON.stringify(Object.fromEntries(['T', 'I', 'W'].map(k => [k, stacks[k].btns]))));
+    check(`BPD-22: ${theme} ${w}x${h}: no script errors`, u.errs.length === 0, u.errs.slice(0, 2).join(' | '));
+    await u.close();
+  }
+
   // ---------- phone width: nothing runs off the screen ----------
   const q = await openPage(b, srv.url, { width: 390, height: 844 }); await q.waitForTimeout(800);
   check('UI-W20: no grip on any window at 390x844', await q.evaluate(() => ['inputs', 'view', 'drawing', 'sweep', 'results'].every(id => { const w = document.getElementById('win-' + id); return w && !w.querySelector('.s-ph .grip'); })));

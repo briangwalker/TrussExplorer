@@ -333,16 +333,23 @@ if (!SH_CLASSIC) {
     return Math.ceil(w + gap * Math.max(0, k.length - 1) + frame + 1);   // +1: sub-pixel rounding
   }
   // #540 (UI-W19, UI-W16, UI-D6, WCAG 2.4.11): the 2D pad (arrows, ⌂, Zoom in, Zoom out) has one home: first in the right-edge stack,
-  // 12 px below the top bar's band. It keeps its right edge (so the Home fit, which reads pad.left, is unchanged) and never moves for
+  // 12 px below the top bar's band, 12 px in from the right edge (BPD-22; resdraw's Home-fit floors, which read pad.left, stay green), and never moves for
   // the Drawing window: that window and its tab start 8 px below the pad's box instead. Returns the pad's bottom (viewport px), or 0
-  // when the 2D pad isn't on screen (3D, Analysis), so the Drawing window keeps its usual top.
+  // when no 2D pad is on screen (3D, the 3D chart), so the Drawing window keeps its usual top.
+  // BPD-22 (TE-B-794, UI-W19 in Analysis): the trade-off chart's view control has the same home in Analysis, and the Chart key
+  // (wins.drawing there) and its tab start 8 px below it, as Drawing does in Truss. Both pads sit 12 px in from the stage's right edge.
+  let padLeft = 0;   // the on-screen pad's left edge (viewport px) from the last placePad(), 0 when none
   function placePad(band) {
-    const pad = document.querySelector('#drawWrap .navpad'); if (!pad) return 0;
-    // placed against #drawWrap (position: relative) even while the pad is hidden, so it comes back in the right place when it is shown
+    const pad = place() === 'analysis' ? document.querySelector('#tradeCanvas') && document.getElementById('tradeCanvas').parentElement.querySelector('.navpad')
+      : document.querySelector('#drawWrap .navpad');
+    if (!pad) return 0;
+    // placed against its host (#drawWrap or the chart box, position: relative) even while the pad is hidden, so it comes back in the
+    // right place when it is shown
     const h = pad.parentElement.getBoundingClientRect();
-    if (!(h.width > 0)) return 0;   // 3D or Analysis: the 2D drawing isn't on screen
-    pad.style.top = Math.round(band + 12 - h.top) + 'px'; pad.style.right = '';
+    if (!(h.width > 0)) return 0;   // 3D, or the other place's drawing: this pad isn't on screen
+    pad.style.top = Math.round(band + 12 - h.top) + 'px'; pad.style.right = Math.round(12 - (innerWidth - h.right)) + 'px';
     if (pad.hidden || !pad.getClientRects().length) return 0;
+    padLeft = pad.getBoundingClientRect().left;
     return Math.ceil(band + 12 + (pad.offsetHeight || 96));
   }
   // The top of #infoBtn less 8 px (viewport px) when it is on screen and reaches left of x (the Drawing column's left edge), else the
@@ -367,7 +374,7 @@ if (!SH_CLASSIC) {
     const D = wins.drawing, dW = eff('drawing') === 'W' ? Math.min(WIN.drawing.w, vw - 2 * M) : 56;
     const top0 = Math.max(barB, cardB) + 8;
     // UI-W19: the 2D pad first, then the Drawing window (and its tab) 8 px below the pad's box; folding Drawing never moves the pad
-    const padB = placePad(top0 - 8), dTop = padB ? Math.max(top0, padB + 8) : top0;
+    padLeft = 0; const padB = placePad(top0 - 8), dTop = padB ? Math.max(top0, padB + 8) : top0;
     // WCAG 2.4.11 (QA MUST on #550): with the 2D drawing on screen, the Drawing window also stops 8 px above 'How to use the drawing'
     // (#infoBtn, bottom right of the drawing) when the two share the right edge, so a short stage never hides it; the window scrolls.
     const dBot = padB ? infoTop(vw - M - dW) : vh - M, dMax = Math.max(0, Math.min(vh - M, dBot) - dTop) + 'px';
@@ -377,7 +384,9 @@ if (!SH_CLASSIC) {
     const dShown = shown('drawing'), rightUsed = dShown ? dW + 2 * M : 0;
     // view options under the bar on the left
     const V = wins.view;
-    Object.assign(V.style, { left: M + 'px', top: top0 + 'px', right: 'auto', width: eff('view') === 'W' ? 'auto' : 'auto', maxWidth: (vw - 2 * M - rightUsed) + 'px', bottom: 'auto' });
+    // BPD-22 (UI-W19, QA's 'the view control's + and − on top'): while a 2D pad is on screen, View options also stops 8 px left of it
+    const vMax = Math.max(0, Math.min(vw - 2 * M - rightUsed, padB && padLeft ? Math.floor(padLeft - 8 - M) : Infinity));
+    Object.assign(V.style, { left: M + 'px', top: top0 + 'px', right: 'auto', width: eff('view') === 'W' ? 'auto' : 'auto', maxWidth: vMax + 'px', bottom: 'auto' });
     const vB = shown('view') ? V.getBoundingClientRect().bottom + 8 : top0;
     // inputs on the left edge, under the view options
     // UI-W15: up to 400 px and never over 40 % of the stage; the icons state is one 52 px column. A peek is placed by the piece (UI-W17).
